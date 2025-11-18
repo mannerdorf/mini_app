@@ -46,7 +46,7 @@ export default function App() {
           const data = (await res.json()) as ApiError;
           if (data.error) message = data.error;
         } catch {
-          // не JSON — просто оставляем статус
+          // не JSON — оставляем статус
         }
 
         setError(message);
@@ -66,16 +66,11 @@ export default function App() {
 
   if (authorized) {
     return (
-      <div className="page">
-        <div className="card">
-          <div className="logo-text">HAULZ</div>
-          <div className="tagline">
-            Доставка грузов в Калининград и обратно
-          </div>
-
-          <h2 className="title">Вы авторизованы</h2>
+      <div className="page page-dark">
+        <div className="card card-dark">
+          <h1 className="title">Вы авторизованы</h1>
           <p className="subtitle">
-            Дальше сюда выведем список перевозок или дашборд Haulz.
+            Далее сюда выведем список перевозок или дашборд Haulz.
           </p>
         </div>
       </div>
@@ -83,39 +78,40 @@ export default function App() {
   }
 
   return (
-    <div className="page">
-      <div className="card">
-        {/* ЛОГО/СЛОГАН */}
-        <div className="logo-text">HAULZ</div>
-        <div className="tagline">
-          Доставка грузов в Калининград и обратно
+    <div className="page page-dark">
+      <div className="card card-dark">
+        {/* ЛОГОТИП */}
+        <div className="logo-block">
+          {/* Если добавишь картинку в /public/haulz-logo.png, раскомментируй: */}
+          {/* <img src="/haulz-logo.png"  className="logo-image" /> */}
+          <div className="logo-text">HAULZ</div>
+          <div className="tagline">
+            Доставка грузов в&nbsp;Калининград и&nbsp;обратно
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="form">
-          <div className="field">
-            <div className="field-label">Логин (email)</div>
-            <input
-              className="input"
-              type="text"
-              placeholder="order@lal-auto.com"
-              value={login}
-              onChange={(e) => setLogin(e.target.value)}
-              autoComplete="username"
-            />
-          </div>
+          <label className="label">Логин (email)</label>
+          <input
+            className="input input-dark"
+            type="text"
+            placeholder="order@lal-auto.com"
+            value={login}
+            onChange={(e) => setLogin(e.target.value)}
+            autoComplete="username"
+          />
 
-          <div className="field">
-            <div className="field-label">Пароль</div>
-            <input
-              className="input"
-              type="password"
-              placeholder="Введите пароль"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-          </div>
+          <label className="label">Пароль</label>
+          <input
+            className="input input-dark"
+            type="password"
+            placeholder="Введите пароль"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+          />
 
+          {/* ЧЕКБОКСЫ */}
           <label className="checkbox-row">
             <input
               type="checkbox"
@@ -145,7 +141,7 @@ export default function App() {
           </label>
 
           <button
-            className="button"
+            className="button button-primary"
             type="submit"
             disabled={loading}
           >
