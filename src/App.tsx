@@ -27,7 +27,10 @@ export default function App() {
     e.preventDefault();
     setError(null);
 
-    if (!login || !password) {
+    const cleanLogin = login.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanLogin || !cleanPassword) {
       setError("Введите логин и пароль");
       return;
     }
@@ -44,7 +47,7 @@ export default function App() {
       const res = await fetch("/api/perevozki", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login, password }),
+        body: JSON.stringify({ login: cleanLogin, password: cleanPassword }),
       });
 
       if (!res.ok) {
@@ -61,7 +64,7 @@ export default function App() {
       }
 
       // Авторизация ок
-      setAuth({ login, password });
+      setAuth({ login: cleanLogin, password: cleanPassword });
       setActiveTab("cargo");
       setError(null);
     } catch (err: any) {
@@ -186,8 +189,8 @@ function CargoPage({ auth }: CargoPageProps) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            login: auth.login,
-            password: auth.password,
+            login: auth.login.trim(),
+            password: auth.password.trim(),
           }),
         });
 
