@@ -1,251 +1,195 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import {
-  getAuth,
-  signInAnonymously,
-  signInWithCustomToken,
-  onAuthStateChanged,
-} from 'firebase/auth';
-import {
-  getFirestore,
-  // setLogLevel is part of Firestore, not Auth, so we need to import it here:
-  setLogLevel, 
-  doc,
-  addDoc,
-  collection,
-  onSnapshot,
-  serverTimestamp,
-  query,
-  orderBy
-} from 'firebase/firestore';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } from 'firebase/auth';
+import { getFirestore, setLogLevel } from 'firebase/firestore';
+import { DatabaseIcon, UserIcon, CheckCircleIcon, XCircleIcon, KeyIcon, Loader2 } from 'lucide-react';
 
-// --- НАЧАЛО ЖЕСТКОГО КОДИРОВАНИЯ КОНФИГУРАЦИИ (ВРЕМЕННОЕ РЕШЕНИЕ) ---
-// Конфигурация взята из загруженного вами изображения (image_b1e1ff.jpg)
-const firebaseConfig = {
-    apiKey: "AIzaSyC6zS1Ew3KD663R693NR_L21x_aF7KTk",
-    authDomain: "mini-app-3e9e3.firebaseapp.com",
-    projectId: "mini-app-3e9e3",
-    storageBucket: "mini-app-3e9e3.appspot.com",
-    messagingSenderId: "91549594192",
-    appId: "1:91549594192:web:d65c3555bc4f87f59c1755",
-    measurementId: "G-F9FN4T5RYL"
-};
-// --- КОНЕЦ ЖЕСТКОГО КОДИРОВАНИЯ ---
+// Устанавливаем уровень логирования для Firebase (полезно для отладки)
+setLogLevel('debug');
 
-
-// Mandatory Global Variables provided by the Canvas Environment
+// *** ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ (Canvas Environment) ***
+// Эти переменные предоставляются средой, в которой работает код
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-// Мы игнорируем __firebase_config, так как оно, похоже, не работает.
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-// The main application component
-export default function App() {
+// Компонент для отображения критических ошибок
+const ErrorBox = ({ title, message }) => (
+  <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-6 rounded-xl shadow-lg m-4">
+    <div className="flex items-center mb-2">
+      <XCircleIcon className="h-6 w-6 mr-3 flex-shrink-0" />
+      <p className="font-bold text-xl">{title}</p>
+    </div>
+    <p className="mt-2 text-sm">{message}</p>
+    <p className="mt-4 text-xs italic opacity-80">
+      Пожалуйста, проверьте консоль разработчика для получения подробностей или убедитесь, что ваш API Key не ограничен в Google Cloud Console.
+    </p>
+  </div>
+);
+
+// Главный компонент приложения
+const App = () => {
+  // Состояние для хранения экземпляров Firebase и данных пользователя
   const [db, setDb] = useState(null);
   const [auth, setAuth] = useState(null);
   const [userId, setUserId] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [newMessageText, setNewMessageText] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // Состояние для управления UI: загрузка и ошибки
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // 1. Firebase Initialization and Authentication
+  // 1. Инициализация Firebase и Аутентификация
   useEffect(() => {
-    // Enable debug logging for Firebase
-    setLogLevel('debug');
+    // 1.1 Проверка конфигурации
+    if (!firebaseConfig) {
+      setError("Конфигурация Firebase отсутствует. Переменная __firebase_config не найдена.");
+      setIsLoading(false);
+      return;
+    }
+    if (!firebaseConfig.apiKey) {
+        setError("API Key Firebase отсутствует. Проверьте правильность настройки переменных.");
+        setIsLoading(false);
+        return;
+    }
 
     try {
-      // Инициализируем приложение с жестко закодированной конфигурацией
-      const app = initializeApp(firebaseConfig);
-      const firestoreDb = getFirestore(app);
-      const firebaseAuth = getAuth(app);
+      // Инициализация
+      const firebaseApp = initializeApp(firebaseConfig);
+      const authInstance = getAuth(firebaseApp);
+      const dbInstance = getFirestore(firebaseApp);
+      
+      setDb(dbInstance);
+      setAuth(authInstance);
 
-      setDb(firestoreDb);
-      setAuth(firebaseAuth);
-
-      // Listener for authentication state changes
-      const unsubscribeAuth = onAuthStateChanged(firebaseAuth, async (user) => {
-        if (user) {
-          setUserId(user.uid);
-          setLoading(false);
-          console.log("User authenticated with UID:", user.uid);
-        } else {
-          // If no user, sign in using the custom token or anonymously
-          try {
-            if (initialAuthToken) {
-              const userCredential = await signInWithCustomToken(firebaseAuth, initialAuthToken);
-              setUserId(userCredential.user.uid);
-            } else {
-              const userCredential = await signInAnonymously(firebaseAuth);
-              setUserId(userCredential.user.uid);
-            }
-          } catch (e) {
-            console.error("Authentication Error:", e);
-            setError("Ошибка аутентификации: " + e.message);
-            setLoading(false);
-          }
-        }
+      // Установка персистентности (опционально)
+      setPersistence(authInstance, browserSessionPersistence).catch(e => {
+        console.warn("Не удалось установить персистентность сессии:", e);
       });
 
-      return () => unsubscribeAuth();
+      // Логика попытки аутентификации
+      const authenticateUser = async (auth) => {
+        try {
+          if (initialAuthToken) {
+            // Использование предоставленного Canvas Custom Auth Token
+            await signInWithCustomToken(auth, initialAuthToken);
+          } else {
+            // Анонимный вход (требуется включение в консоли Firebase)
+            await signInAnonymously(auth);
+          }
+        } catch (e) {
+          console.error("Ошибка при аутентификации:", e);
+          setError(`Error (auth/${e.code}): ${e.message}. Проверьте, что анонимная аутентификация включена, и API Key действителен.`);
+          setIsLoading(false);
+        }
+      };
+
+      // Слушатель состояния аутентификации
+      const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+        if (user) {
+          setUserId(user.uid);
+          setIsAuthenticated(true);
+          console.log("Пользователь успешно аутентифицирован. UID:", user.uid);
+        } else {
+          setUserId(null);
+          setIsAuthenticated(false);
+          // Если пользователь не аутентифицирован, и мы еще не пытались, пробуем аутентифицироваться.
+          if (isLoading) {
+              authenticateUser(authInstance);
+          }
+        }
+        // Завершаем состояние загрузки после первой проверки
+        if (isLoading) setIsLoading(false);
+      });
+
+      // Очистка слушателя при размонтировании
+      return () => unsubscribe();
+
     } catch (e) {
-      console.error("Firebase Init Error:", e);
-      // Это сообщение об ошибке будет показано, если даже жесткое кодирование не помогло.
-      setError("Ошибка инициализации Firebase: " + e.message);
-      setLoading(false);
+      console.error("Ошибка при инициализации Firebase:", e);
+      setError(`Ошибка инициализации Firebase: ${e.message}`);
+      setIsLoading(false);
     }
   }, []);
 
-  // 2. Real-time Data Listener (Firestore onSnapshot)
-  useEffect(() => {
-    if (!db || !userId) return;
-
-    // Path for public data: /artifacts/{appId}/public/data/messages
-    const collectionPath = `artifacts/${appId}/public/data/messages`;
-    const messagesCollectionRef = collection(db, collectionPath);
-    
-    // Create a query to order by timestamp (descending)
-    // NOTE: Sorting is done client-side to avoid Firestore index errors.
-    const messagesQuery = query(messagesCollectionRef);
-
-    console.log(`Listening to collection: ${collectionPath}`);
-
-    const unsubscribeSnapshot = onSnapshot(messagesQuery, (snapshot) => {
-      const newMessages = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        // Convert timestamp to a readable date if it exists
-        timestamp: doc.data().timestamp?.toDate().toLocaleString('ru-RU') || 'Н/Д'
-      }));
-
-      // Sort messages by timestamp descending (most recent first) after fetching
-      newMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      
-      setMessages(newMessages);
-      setLoading(false);
-    }, (e) => {
-      console.error("Firestore Snapshot Error:", e);
-      setError("Ошибка загрузки сообщений: " + e.message);
-      setLoading(false);
-    });
-
-    return () => unsubscribeSnapshot();
-  }, [db, userId]);
-
-  // 3. Function to Add a New Message
-  const handleSendMessage = useCallback(async (e) => {
-    e.preventDefault();
-    if (!db || !userId || newMessageText.trim() === '') return;
-
-    try {
-      const collectionPath = `artifacts/${appId}/public/data/messages`;
-      
-      await addDoc(collection(db, collectionPath), {
-        text: newMessageText.trim(),
-        userId: userId,
-        timestamp: serverTimestamp(),
-        // Store display name if we had one, for now, just use a simplified UID
-        displayName: `Пользователь ${userId.substring(0, 4)}...`, 
-      });
-
-      setNewMessageText('');
-    } catch (e) {
-      console.error("Error adding document: ", e);
-      setError("Ошибка отправки: " + e.message);
-    }
-  }, [db, userId, newMessageText]);
-
-  // UI Rendering
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen bg-gray-100">
-        <p className="text-xl text-indigo-600">Загрузка данных...</p>
-      </div>
-    );
-  }
+  // --- UI Рендеринг ---
 
   if (error) {
+    return <ErrorBox title="Критическая ошибка Firebase" message={error} />;
+  }
+
+  if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-screen bg-red-100 p-8">
-        <div className="text-red-700 p-4 border border-red-400 bg-red-50 rounded-lg">
-          <h2 className="font-bold text-lg mb-2">Критическая ошибка</h2>
-          <p>{error}</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-6 text-center">
+        <Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-4" />
+        <p className="text-xl font-semibold text-gray-700">Загрузка приложения...</p>
+        <p className="text-sm text-gray-500 mt-1">Инициализация Firebase и аутентификация.</p>
+      </div>
+    );
+  }
+  
+  // Если Firebase инициализирован и пользователь аутентифицирован
+  if (db && userId && isAuthenticated) {
+    return (
+      <div className="p-8 max-w-4xl mx-auto bg-white min-h-screen font-sans">
+        <div className="text-center mb-10 border-b pb-4">
+          <h1 className="text-4xl font-extrabold text-blue-700 mb-2">
+            HAULZ: Приложение для логистики
+          </h1>
+          <p className="text-gray-600">Готов к работе. Firebase инициализирован и пользователь аутентифицирован.</p>
         </div>
+
+        <div className="p-6 border border-green-200 bg-green-50 rounded-xl shadow-lg mb-8">
+          <h2 className="text-2xl font-semibold text-green-700 mb-3 flex items-center">
+            <CheckCircleIcon className="h-6 w-6 mr-3" />
+            Рабочий статус
+          </h2>
+          <p className="text-lg text-gray-700">
+            <span className="font-medium text-green-800">Идентификатор Пользователя (UID):</span>
+            <code className="ml-2 bg-green-200 text-green-800 p-2 rounded text-sm font-mono break-all inline-block mt-1">
+              {userId}
+            </code>
+          </p>
+          <p className="text-sm text-gray-500 mt-2">
+            Используйте этот `userId` для создания коллекций, доступных только текущему пользователю, по пути:
+            <code className="bg-gray-100 p-1 rounded text-xs block mt-1 break-all">
+                artifacts/{appId}/users/{userId}/[ваша_коллекция]
+            </code>
+          </p>
+        </div>
+
+        {/* !!! ЗДЕСЬ НАЧИНАЕТСЯ ВАШ ОСНОВНОЙ КОД ПРИЛОЖЕНИЯ !!!
+            
+            Вы можете создать другие компоненты (например, <ShipmentList db={db} userId={userId} />) 
+            и передать им экземпляры db и userId.
+        */}
+        
+        <div className="mt-12 p-8 border-2 border-dashed border-gray-300 rounded-xl text-center">
+            <DatabaseIcon className="h-10 w-10 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-gray-800">Область Приложения</h3>
+            <p className="text-gray-600 mt-2">
+                Добавьте здесь компоненты для отображения грузов, маршрутов и управления заказами.
+            </p>
+            <button 
+                className="mt-6 px-6 py-3 bg-blue-600 text-white font-semibold rounded-full shadow-lg hover:bg-blue-700 transition duration-200"
+                onClick={() => console.log('db instance:', db, 'auth instance:', auth)}
+            >
+                Начать Разработку
+            </button>
+        </div>
+
       </div>
     );
   }
 
+  // Если аутентификация не удалась, но нет критической ошибки (например, проблемы с сетью)
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 sm:p-8">
-      <header className="w-full max-w-3xl mb-8">
-        <h1 className="text-4xl font-extrabold text-gray-900 text-center mb-2">
-          Приложение для публичного обмена сообщениями
-        </h1>
-        <p className="text-sm text-gray-500 text-center">
-          <span className="font-semibold">Ваш ID (поделитесь им с друзьями): </span>
-          <span className="text-indigo-600 font-mono break-all">{userId}</span>
-        </p>
-        <p className="text-sm text-gray-500 text-center">
-          Данные сохраняются в Firestore по пути: 
-          <code className="bg-gray-200 p-1 rounded text-xs text-indigo-700">/artifacts/{appId}/public/data/messages</code>
-        </p>
-      </header>
-
-      <main className="w-full max-w-3xl bg-white shadow-2xl rounded-xl p-4 sm:p-6 mb-8">
-        {/* Message Input Form */}
-        <form onSubmit={handleSendMessage} className="mb-6 flex gap-2">
-          <input
-            type="text"
-            value={newMessageText}
-            onChange={(e) => setNewMessageText(e.target.value)}
-            placeholder="Введите ваше сообщение здесь..."
-            className="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
-            required
-          />
-          <button
-            type="submit"
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-150 ease-in-out disabled:bg-indigo-400"
-            disabled={newMessageText.trim() === ''}
-          >
-            Отправить
-          </button>
-        </form>
-
-        {/* Message List */}
-        <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">
-          Лента сообщений ({messages.length})
-        </h2>
-        <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-          {messages.length === 0 ? (
-            <p className="text-gray-500 text-center p-4">
-              Пока нет публичных сообщений. Будьте первым!
-            </p>
-          ) : (
-            messages.map((msg, index) => (
-              <div
-                key={msg.id}
-                className={`p-4 rounded-xl shadow-sm transition duration-200 
-                            ${msg.userId === userId ? 'bg-indigo-50 border-l-4 border-indigo-600 ml-4' : 'bg-gray-50 border-l-4 border-gray-300 mr-4'}`}
-              >
-                <div className="flex justify-between items-start">
-                  <p className="font-medium text-gray-900 break-words pr-4">
-                    {msg.text}
-                  </p>
-                  <span 
-                    className={`text-xs font-mono px-2 py-1 rounded-full whitespace-nowrap 
-                                ${msg.userId === userId ? 'bg-indigo-200 text-indigo-800' : 'bg-gray-200 text-gray-600'}`}
-                    title={`Полный ID: ${msg.userId}`}
-                  >
-                    {msg.userId === userId ? 'Вы' : msg.displayName}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-400 mt-1 text-right">
-                  {msg.timestamp}
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-      </main>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-6 text-center">
+      <XCircleIcon className="h-10 w-10 text-red-500 mb-4" />
+      <p className="text-xl font-semibold text-gray-700">Проблема с доступом</p>
+      <p className="text-sm text-gray-500 mt-1">Не удалось аутентифицировать пользователя. Пожалуйста, проверьте статус анонимной аутентификации в консоли Firebase.</p>
     </div>
   );
-}
+};
+
+export default App;
