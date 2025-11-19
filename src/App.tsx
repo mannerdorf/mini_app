@@ -1,16 +1,19 @@
-import React, { FormEvent, useEffect, useState, useMemo } from "react";
+import React, { FormEvent, useState } from "react";
 import { Home, Package, FileText, User, LogIn, Loader2, Check } from 'lucide-react';
 
 // --- КОНСТАНТЫ ПРИЛОЖЕНИЯ ---
-// Акцентный цвет, как в оригинальном дизайне
+// Акцентный цвет (Telegram Blue)
 const PRIMARY_COLOR = '#2D5BFF';
 
 /* ------------------------------------------------------
         HOOK: useLocalAuth (Имитация аутентификации)
 ------------------------------------------------------ */
 const useLocalAuth = () => {
+    // В чисто клиентском приложении "готовность" наступает сразу.
     const isReady = true; 
+    // Локальная симуляция UID (оставим для внутренней логики, но не для отображения)
     const userId = "LOCAL-SIMULATED-USER-ID"; 
+
     return { userId, isReady };
 };
 
@@ -19,10 +22,50 @@ const useLocalAuth = () => {
         HOOK: useTelegram (упрощено)
 ------------------------------------------------------ */
 const useTelegram = () => {
+    // Используем window.Telegram.WebApp, если доступно
     return { tg: typeof window !== 'undefined' ? window.Telegram?.WebApp : null };
 };
 
 // --- КОМПОНЕНТЫ И UI ---
+
+/**
+ * Custom Button Component
+ */
+const PrimaryButton = ({ children, loading, ...props }) => (
+    <button
+        type="submit"
+        className={`w-full py-3 rounded-xl font-semibold text-white transition duration-300 flex items-center justify-center 
+            ${loading ? 'opacity-70 cursor-not-allowed' : 'hover:opacity-90'}`}
+        style={{ backgroundColor: PRIMARY_COLOR, boxShadow: '0 4px 15px rgba(45, 91, 255, 0.4)' }}
+        disabled={loading}
+        {...props}
+    >
+        {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : children}
+    </button>
+);
+
+/**
+ * ToggleSwitch Component (Бегунок)
+ */
+const ToggleSwitch = ({ label, checked, onChange }) => (
+    <label className="flex items-center justify-between text-gray-700 cursor-pointer">
+        <span className="text-sm">{label}</span>
+        <div 
+            onClick={() => onChange(!checked)}
+            className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${
+                checked ? 'bg-[' + PRIMARY_COLOR + ']' : 'bg-gray-300'
+            }`}
+            style={{ backgroundColor: checked ? PRIMARY_COLOR : '#d1d5db' }}
+        >
+            <div 
+                className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
+                    checked ? 'translate-x-4' : 'translate-x-0'
+                }`}
+            />
+        </div>
+    </label>
+);
+
 
 /**
  * TabBar (Таббар)
@@ -36,13 +79,15 @@ function TabBar({ active, onChange }) {
     ];
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 flex bg-white border-t border-gray-200 shadow-xl p-2 z-10">
+        <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto flex bg-white border-t border-gray-200 shadow-2xl p-2 z-10">
             {items.map((i) => (
                 <div
                     key={i.id}
                     onClick={() => onChange(i.id)}
                     className={`flex-1 text-center cursor-pointer p-1 transition-colors duration-200 
-                        ${active === i.id ? 'text-[' + PRIMARY_COLOR + '] font-bold' : 'text-gray-500 hover:text-blue-500'}`
+                        ${active === i.id 
+                            ? 'text-[' + PRIMARY_COLOR + '] font-bold transform scale-105' 
+                            : 'text-gray-500 hover:text-gray-700'}`
                     }
                 >
                     <i.Icon className="h-6 w-6 mx-auto mb-1" />
@@ -67,9 +112,11 @@ function App() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
+    // Локальное состояние для хранения авторизационных данных (имитация сессии)
     const [authData, setAuthData] = useState(null); 
     const [activeTab, setActiveTab] = useState("cargo");
     
+    // В чисто клиентском режиме проверка сессии не нужна
     const sessionChecked = true; 
 
     // Обработчик входа в систему (полностью локальная логика)
@@ -94,7 +141,7 @@ function App() {
         try {
             setLoading(true);
 
-            // ИМИТАЦИЯ успешной авторизации
+            // ИМИТАЦИЯ успешной авторизации 
             await new Promise((res) => setTimeout(res, 500)); 
             
             // Сохранение данных в локальном состоянии
@@ -126,84 +173,59 @@ function App() {
     }
 
     if (!authData) {
-        // --- Экран Аутентификации с восстановленным стилем ---
+        // --- Экран Аутентификации (Улучшенный дизайн с тумблерами) ---
         return (
-            <div className="p-6 max-w-sm mx-auto bg-white min-h-screen">
-                <div className="flex justify-center mb-6">
-                    <LogIn className={`h-8 w-8 text-[${PRIMARY_COLOR}] mr-2`} />
-                    <h1 className="text-3xl font-bold" style={{ color: PRIMARY_COLOR }}>HAULZ</h1>
-                </div>
-                <p className="text-center text-sm text-gray-500 mb-8">
-                    Доставка грузов в Калининград
-                </p>
+            <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+                <div className="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl transition duration-500">
+                    <div className="text-center mb-8">
+                        <LogIn className={`h-10 w-10 mx-auto mb-2`} style={{ color: PRIMARY_COLOR }} />
+                        <h1 className="text-4xl font-extrabold" style={{ color: PRIMARY_COLOR }}>HAULZ</h1>
+                        <p className="text-sm text-gray-500 mt-1">Вход в систему для партнеров</p>
+                    </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <input
-                        placeholder="Email"
-                        type="email"
-                        // Имитация tg-input
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition duration-150 bg-gray-50 text-gray-800"
-                        value={login}
-                        onChange={(e) => setLogin(e.target.value)}
-                    />
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <input
+                            placeholder="Email"
+                            type="email"
+                            className="w-full p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition duration-200 bg-gray-50 text-gray-800 shadow-inner"
+                            value={login}
+                            onChange={(e) => setLogin(e.target.value)}
+                        />
 
-                    <input
-                        type="password"
-                        placeholder="Пароль"
-                        // Имитация tg-input
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 transition duration-150 bg-gray-50 text-gray-800"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                    />
+                        <input
+                            type="password"
+                            placeholder="Пароль"
+                            className="w-full p-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition duration-200 bg-gray-50 text-gray-800 shadow-inner"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                        />
 
-                    <div className="space-y-2 pt-2">
-                        <label className="flex items-center text-sm text-gray-700 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                // Используем акцентный цвет для флажка
-                                className={`h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500`}
+                        <div className="space-y-4 pt-2">
+                            {/* Заменен чекбокс на тумблер (бегунок) */}
+                            <ToggleSwitch
+                                label="Согласие с офертой"
                                 checked={agreeOffer}
-                                onChange={(e) => setAgreeOffer(e.target.checked)}
+                                onChange={setAgreeOffer}
                             />
-                            <span className="ml-2">Согласие с офертой</span>
-                        </label>
 
-                        <label className="flex items-center text-sm text-gray-700 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                // Используем акцентный цвет для флажка
-                                className={`h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500`}
+                            {/* Заменен чекбокс на тумблер (бегунок) */}
+                            <ToggleSwitch
+                                label="Обработка персональных данных"
                                 checked={agreePersonal}
-                                onChange={(e) => setAgreePersonal(e.target.checked)}
+                                onChange={setAgreePersonal}
                             />
-                            <span className="ml-2">Обработка персональных данных</span>
-                        </label>
-                    </div>
+                        </div>
 
-                    <button
-                        type="submit"
-                        // Имитация tg-main-button
-                        className={`w-full py-3 rounded-lg font-semibold text-white transition duration-200 flex items-center justify-center 
-                            ${loading 
-                                ? 'bg-blue-400 cursor-not-allowed' 
-                                : 'shadow-lg hover:shadow-xl'
-                            }`}
-                        style={{ backgroundColor: loading ? '#6A87FF' : PRIMARY_COLOR }}
-                        disabled={loading}
-                    >
-                        {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : 'Войти'}
-                    </button>
-                </form>
+                        <PrimaryButton loading={loading}>
+                            Войти
+                        </PrimaryButton>
+                    </form>
 
-                {error && (
-                    <div className="mt-6 p-3 bg-red-100 border border-red-300 text-red-700 rounded-lg text-center text-sm">
-                        {error}
-                    </div>
-                )}
-                
-                <div className="mt-8 text-xs text-gray-400 border-t pt-4">
-                    <p>Auth Status: {isReady ? 'Ready (Local)' : 'Pending'}</p>
-                    <p className="break-all">Simulated UID: {userId}</p>
+                    {error && (
+                        <div className="mt-6 p-4 bg-red-50 border border-red-300 text-red-700 rounded-xl text-center text-sm shadow-md">
+                            {error}
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -215,52 +237,59 @@ function App() {
     
     // В зависимости от активной вкладки отображаем содержимое
     const renderContent = () => {
-        switch (activeTab) {
-            case 'home':
-                return <div className="text-center p-8 bg-white rounded-xl shadow-lg mt-4">
-                    <Home className={`h-8 w-8 mx-auto mb-3`} style={{ color: PRIMARY_COLOR }} />
-                    <h3 className="text-xl font-bold text-gray-800">Главная страница</h3>
-                    <p className="text-gray-600 mt-2">Здесь будет дашборд и общая информация.</p>
-                </div>
-            case 'cargo':
-                return <div className="text-center p-8 bg-blue-50 rounded-xl shadow-lg mt-4 border border-blue-200">
-                    <Package className={`h-8 w-8 mx-auto mb-3`} style={{ color: PRIMARY_COLOR }} />
-                    <h3 className="text-xl font-bold text-blue-800">Управление грузами</h3>
-                    <p className="text-gray-600 mt-2">Рабочая область для создания и отслеживания заказов.</p>
-                </div>
-            case 'docs':
-                return <div className="text-center p-8 bg-white rounded-xl shadow-lg mt-4">
-                    <FileText className={`h-8 w-8 mx-auto mb-3`} style={{ color: PRIMARY_COLOR }} />
-                    <h3 className="text-xl font-bold text-gray-800">Документы</h3>
-                    <p className="text-gray-600 mt-2">Электронный документооборот.</p>
-                </div>
-            case 'profile':
-                return <div className="text-center p-8 bg-white rounded-xl shadow-lg mt-4">
-                    <User className={`h-8 w-8 mx-auto mb-3`} style={{ color: PRIMARY_COLOR }} />
-                    <h3 className="text-xl font-bold text-gray-800">Профиль</h3>
-                    <p className="text-gray-600 mt-2">Настройки и личные данные пользователя **{authData.login}**.</p>
-                </div>
-            default:
-                return null;
-        }
+        const baseCardStyle = "p-6 rounded-2xl shadow-lg mt-4 transition-all duration-300 transform hover:scale-[1.01] flex flex-col items-center text-center";
+        
+        const cardData = {
+            home: {
+                title: "Главная страница",
+                desc: "Здесь будет дашборд, ключевые метрики и общая информация.",
+                Icon: Home,
+                style: "bg-white border-b-4 border-gray-300",
+            },
+            cargo: {
+                title: "Управление грузами",
+                desc: "Рабочая область для создания, редактирования и отслеживания заказов.",
+                Icon: Package,
+                style: `bg-white border-b-4 border-green-500`,
+            },
+            docs: {
+                title: "Документы",
+                desc: "Электронный документооборот: счета, накладные, акты.",
+                Icon: FileText,
+                style: "bg-white border-b-4 border-yellow-500",
+            },
+            profile: {
+                title: "Профиль",
+                desc: `Настройки и личные данные пользователя **${authData.login}**.`,
+                Icon: User,
+                style: "bg-white border-b-4 border-indigo-500",
+            },
+        };
+
+        const currentCard = cardData[activeTab];
+
+        return (
+            <div className={`${baseCardStyle} ${currentCard.style}`}>
+                <currentCard.Icon className={`h-10 w-10 mb-3`} style={{ color: PRIMARY_COLOR }} />
+                <h3 className="text-xl font-bold text-gray-800">{currentCard.title}</h3>
+                <p className="text-gray-600 mt-2 text-sm">{currentCard.desc}</p>
+            </div>
+        );
     }
     
     return (
-        <div className="p-4 sm:p-6 bg-gray-50 min-h-screen pb-24">
-            <header className="text-center mb-6 p-4 bg-white rounded-xl shadow-md border-b-4 border-green-500">
-                <div className="flex items-center justify-center text-green-700 mb-2">
+        <div className="p-4 sm:p-6 bg-gray-100 min-h-screen pb-24 max-w-md mx-auto">
+            <header className="text-center mb-8 p-6 bg-white rounded-2xl shadow-xl">
+                <div className="flex items-center justify-center text-green-600 mb-2">
                     <Check className="h-6 w-6 mr-2" />
-                    <p className="font-semibold">Вы успешно вошли в систему!</p>
+                    <p className="font-semibold text-lg">Авторизация успешна</p>
                 </div>
                 <h2 className="text-2xl font-bold text-gray-800">Добро пожаловать, {authData.login}</h2>
-                <p className="text-gray-500 text-sm mt-1">
-                    Ваш ID: <code className="break-all">{userId} (локальная симуляция)</code>
-                </p>
             </header>
             
             {renderContent()}
 
-            <div className="h-4" /> {/* Пустое место для отступов */}
+            <div className="h-4" /> 
 
             <TabBar active={activeTab} onChange={setActiveTab} />
         </div>
