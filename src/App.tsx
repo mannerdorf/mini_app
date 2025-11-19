@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Home, Package, FileText, User, LogIn, Loader2, Check, Moon, Sun } from 'lucide-react';
 
-// --- КОНСТАНТЫ ПРИЛОЖЕНИЯ ---
-// Акцентный цвет (Telegram Blue)
+// --- КОНСТАНТЫ И ЦВЕТА ---
 const PRIMARY_COLOR = '#2D5BFF';
-const DANGER_COLOR = '#ef4444'; // Красный
-const SUCCESS_COLOR = '#10b981'; // Зеленый
+const DANGER_COLOR = '#ef4444'; // Red
+const SUCCESS_COLOR = '#10b981'; // Green
 
 // Определение цветовых схем для светлой и темной тем
 const LIGHT_THEME = {
@@ -18,7 +17,7 @@ const LIGHT_THEME = {
 };
 
 const DARK_THEME = {
-    BACKGROUND: '#1f2937',      // Темный фон (почти черный)
+    BACKGROUND: '#1f2937',      // Темный фон
     CARD_BG: '#374151',           // Темно-серый фон карточек
     TEXT: 'white',              // Белый текст
     SECONDARY_TEXT: '#9ca3af',   // Светло-серый вторичный текст
@@ -75,7 +74,8 @@ const PrimaryButton = ({ children, loading, ...props }) => (
             justifyContent: 'center',
             boxShadow: '0 4px 15px rgba(45, 91, 255, 0.4)',
             opacity: loading ? 0.7 : 1,
-            cursor: loading ? 'not-allowed' : 'pointer'
+            cursor: loading ? 'not-allowed' : 'pointer',
+            border: 'none',
         }}
         disabled={loading}
         {...props}
@@ -85,50 +85,83 @@ const PrimaryButton = ({ children, loading, ...props }) => (
 );
 
 /**
- * ToggleSwitch Component (Бегунок)
+ * ToggleSwitch Component (Изящный бегунок Солнце/Луна)
+ * @param {boolean} checked - true для Dark Mode (Луна)
+ * @param {function} onChange - функция переключения
+ * @param {object} theme - текущая тема
  */
-const ToggleSwitch = ({ label, checked, onChange, icon }) => {
-    const Icon = icon;
+const ToggleSwitch = ({ checked, onChange, theme }) => {
+    // Размеры иконки и тумблера
+    const iconSize = '14px';
+    const switchHeight = '28px';
+    const switchWidth = '52px';
+    const handleSize = '20px'; // Размер ручки
+    const padding = '4px';
+
     return (
-        <label 
+        <div 
+            onClick={() => onChange(!checked)}
             style={{ 
+                width: switchWidth, 
+                height: switchHeight, 
                 display: 'flex', 
                 alignItems: 'center', 
-                justifyContent: 'space-between', 
-                color: 'inherit', // Наследуем цвет текста от родителя (темы)
-                cursor: 'pointer'
+                borderRadius: '9999px', 
+                padding: padding, 
+                transition: 'background-color 0.3s',
+                cursor: 'pointer',
+                // Цвет фона тумблера: синий в темном режиме, серый в светлом
+                backgroundColor: checked ? PRIMARY_COLOR : theme.BORDER, 
+                position: 'relative',
+                boxShadow: `inset 0 1px 3px ${theme.SHADOW}`
             }}
         >
-            <span style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center' }}>
-                {Icon && <Icon style={{ height: '18px', width: '18px', marginRight: '8px' }} />}
-                {label}
-            </span>
-            <div 
-                onClick={() => onChange(!checked)}
-                style={{ 
-                    width: '44px', 
-                    height: '24px', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    borderRadius: '9999px', 
-                    padding: '4px', 
-                    transition: 'background-color 0.3s',
-                    backgroundColor: checked ? PRIMARY_COLOR : '#d1d5db' 
+            {/* Иконка Солнца (Дневной режим) */}
+            <Sun 
+                style={{
+                    position: 'absolute',
+                    left: `calc(100% - ${handleSize} - 6px)`, // Справа
+                    height: iconSize,
+                    width: iconSize,
+                    color: 'white',
+                    transition: 'opacity 0.3s, transform 0.3s',
+                    opacity: checked ? 0 : 1,
+                    transform: checked ? 'scale(0.8)' : 'scale(1)',
+                    pointerEvents: 'none',
                 }}
-            >
-                <div 
-                    style={{ 
-                        backgroundColor: 'white', 
-                        width: '16px', 
-                        height: '16px', 
-                        borderRadius: '9999px', 
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                        transform: checked ? 'translateX(20px)' : 'translateX(0)', 
-                        transition: 'transform 0.3s',
-                    }}
-                />
-            </div>
-        </label>
+            />
+
+            {/* Иконка Луны (Ночной режим) */}
+            <Moon 
+                style={{
+                    position: 'absolute',
+                    left: '6px', // Слева
+                    height: iconSize,
+                    width: iconSize,
+                    color: '#fcd34d', // Желтая луна
+                    transition: 'opacity 0.3s, transform 0.3s',
+                    opacity: checked ? 1 : 0,
+                    transform: checked ? 'scale(1)' : 'scale(0.8)',
+                    pointerEvents: 'none',
+                }}
+            />
+
+            {/* Ручка (белый кружок) */}
+            <div 
+                style={{ 
+                    backgroundColor: 'white', 
+                    width: handleSize, 
+                    height: handleSize, 
+                    borderRadius: '9999px', 
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                    // Сдвигаем ручку вправо, если checked (темный режим)
+                    transform: checked ? `translateX(calc(${switchWidth} - ${handleSize} - (2 * ${padding})))` : 'translateX(0)', 
+                    transition: 'transform 0.3s',
+                    position: 'relative', // Для z-index
+                    zIndex: 2,
+                }}
+            />
+        </div>
     );
 };
 
@@ -189,14 +222,25 @@ function App() {
     const { tg } = useTelegram();
     const { userId, isReady } = useLocalAuth(); 
     
-    // Инициализация режима на основе системных настроек
+    // Инициализация режима на основе системных настроек и localStorage
     const prefersDark = usePrefersColorScheme();
-    const [isDarkMode, setIsDarkMode] = useState(prefersDark);
+    const [isDarkMode, setIsDarkMode] = useState(() => {
+        const savedMode = localStorage.getItem('isDarkMode');
+        if (savedMode !== null) {
+            return JSON.parse(savedMode);
+        }
+        return prefersDark;
+    });
     
+    // Сохраняем выбор темы в localStorage
+    useEffect(() => {
+        localStorage.setItem('isDarkMode', JSON.stringify(isDarkMode));
+    }, [isDarkMode]);
+
     const theme = isDarkMode ? DARK_THEME : LIGHT_THEME;
 
-    const [login, setLogin] = useState("");
-    const [password, setPassword] = useState("");
+    const [login, setLogin] = useState("order@lal-auto.com"); 
+    const [password, setPassword] = useState("password"); 
     const [agreeOffer, setAgreeOffer] = useState(false);
     const [agreePersonal, setAgreePersonal] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -205,6 +249,13 @@ function App() {
     const [authData, setAuthData] = useState(null); 
     const [activeTab, setActiveTab] = useState("cargo");
     const sessionChecked = true; 
+    
+    // Глобальные стили для body
+    useEffect(() => {
+        document.body.style.margin = '0';
+        document.body.style.padding = '0';
+        document.body.style.boxSizing = 'border-box';
+    }, []);
 
     // Обработчик входа в систему (полностью локальная логика)
     const handleSubmit = async (e) => {
@@ -259,74 +310,112 @@ function App() {
     if (!authData) {
         // --- Экран Аутентификации ---
         return (
-            <div style={{ minHeight: '100vh', backgroundColor: theme.BACKGROUND, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+            <div style={{ 
+                minHeight: '100vh', 
+                backgroundColor: theme.BACKGROUND, 
+                display: 'flex', 
+                flexDirection: 'column',
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                padding: '16px',
+                transition: 'background-color 0.3s',
+            }}>
                 <div style={{ 
                     width: '100%', 
                     maxWidth: '384px', 
                     backgroundColor: theme.CARD_BG, 
                     padding: '32px', 
                     borderRadius: '24px', 
-                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                    boxShadow: `0 20px 25px -5px ${theme.SHADOW}`,
                     transition: 'all 0.5s',
-                    color: theme.TEXT // Устанавливаем цвет текста для всего блока
+                    color: theme.TEXT,
+                    position: 'relative' // Для позиционирования тумблера
                 }}>
-                    <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+                    
+                    {/* Тумблер для переключения темы (Справа вверху) */}
+                    <div style={{ position: 'absolute', top: '24px', right: '24px' }}>
+                        <ToggleSwitch
+                            checked={isDarkMode}
+                            onChange={setIsDarkMode}
+                            theme={theme}
+                        />
+                    </div>
+
+                    <div style={{ textAlign: 'center', marginBottom: '32px', marginTop: '32px' }}> {/* Добавляем отступ сверху, чтобы не закрывать тумблером */}
                         <LogIn style={{ height: '40px', width: '40px', margin: '0 auto 8px', color: PRIMARY_COLOR }} />
                         <h1 style={{ fontSize: '36px', fontWeight: '800', color: PRIMARY_COLOR }}>HAULZ</h1>
                         <p style={{ fontSize: '14px', color: theme.SECONDARY_TEXT, marginTop: '4px' }}>Вход в систему для партнеров</p>
                     </div>
 
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                        <input
-                            placeholder="Email"
-                            type="email"
-                            style={{
-                                width: '100%',
-                                padding: '16px',
-                                border: `1px solid ${theme.BORDER}`,
-                                borderRadius: '12px',
-                                transition: 'all 0.2s',
-                                backgroundColor: theme.BACKGROUND,
-                                color: theme.TEXT,
-                                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
-                            }}
-                            onFocus={(e) => { e.target.style.border = `1px solid ${PRIMARY_COLOR}`; e.target.style.boxShadow = `0 0 0 3px rgba(45, 91, 255, 0.3)`; }}
-                            onBlur={(e) => { e.target.style.border = `1px solid ${theme.BORDER}`; e.target.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.06)'; }}
-                            value={login}
-                            onChange={(e) => setLogin(e.target.value)}
-                        />
+                        {/* Поле для Email */}
+                        <div>
+                            <input
+                                placeholder="Email"
+                                type="email"
+                                style={{
+                                    boxSizing: 'border-box',
+                                    width: '100%',
+                                    padding: '16px',
+                                    border: `1px solid ${theme.BORDER}`,
+                                    borderRadius: '12px',
+                                    transition: 'all 0.2s',
+                                    backgroundColor: theme.BACKGROUND,
+                                    color: theme.TEXT,
+                                    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
+                                }}
+                                onFocus={(e) => { e.target.style.border = `1px solid ${PRIMARY_COLOR}`; e.target.style.boxShadow = `0 0 0 3px rgba(45, 91, 255, 0.3)`; }}
+                                onBlur={(e) => { e.target.style.border = `1px solid ${theme.BORDER}`; e.target.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.06)'; }}
+                                value={login}
+                                onChange={(e) => setLogin(e.target.value)}
+                            />
+                        </div>
 
-                        <input
-                            type="password"
-                            placeholder="Пароль"
-                            style={{
-                                width: '100%',
-                                padding: '16px',
-                                border: `1px solid ${theme.BORDER}`,
-                                borderRadius: '12px',
-                                transition: 'all 0.2s',
-                                backgroundColor: theme.BACKGROUND,
-                                color: theme.TEXT,
-                                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
-                            }}
-                            onFocus={(e) => { e.target.style.border = `1px solid ${PRIMARY_COLOR}`; e.target.style.boxShadow = `0 0 0 3px rgba(45, 91, 255, 0.3)`; }}
-                            onBlur={(e) => { e.target.style.border = `1px solid ${theme.BORDER}`; e.target.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.06)'; }}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
+                        {/* Поле для Пароля */}
+                        <div>
+                            <input
+                                type="password"
+                                placeholder="Пароль"
+                                style={{
+                                    boxSizing: 'border-box',
+                                    width: '100%',
+                                    padding: '16px',
+                                    border: `1px solid ${theme.BORDER}`,
+                                    borderRadius: '12px',
+                                    transition: 'all 0.2s',
+                                    backgroundColor: theme.BACKGROUND,
+                                    color: theme.TEXT,
+                                    boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)',
+                                }}
+                                onFocus={(e) => { e.target.style.border = `1px solid ${PRIMARY_COLOR}`; e.target.style.boxShadow = `0 0 0 3px rgba(45, 91, 255, 0.3)`; }}
+                                onBlur={(e) => { e.target.style.border = `1px solid ${theme.BORDER}`; e.target.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.06)'; }}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                        </div>
 
+                        {/* Согласия */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '8px' }}>
-                            <ToggleSwitch
-                                label="Согласие с офертой"
-                                checked={agreeOffer}
-                                onChange={setAgreeOffer}
-                            />
+                            {/* Используем обычный чекбокс для согласий, т.к. ToggleSwitch без текста выглядит тут странно */}
+                            <label style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', color: theme.SECONDARY_TEXT, cursor: 'pointer' }}>
+                                <input 
+                                    type="checkbox" 
+                                    checked={agreeOffer}
+                                    onChange={(e) => setAgreeOffer(e.target.checked)}
+                                    style={{ marginRight: '8px', accentColor: PRIMARY_COLOR, width: '16px', height: '16px' }}
+                                />
+                                Согласие с офертой
+                            </label>
 
-                            <ToggleSwitch
-                                label="Обработка персональных данных"
-                                checked={agreePersonal}
-                                onChange={setAgreePersonal}
-                            />
+                            <label style={{ display: 'flex', alignItems: 'center', fontSize: '0.875rem', color: theme.SECONDARY_TEXT, cursor: 'pointer' }}>
+                                <input 
+                                    type="checkbox" 
+                                    checked={agreePersonal}
+                                    onChange={(e) => setAgreePersonal(e.target.checked)}
+                                    style={{ marginRight: '8px', accentColor: PRIMARY_COLOR, width: '16px', height: '16px' }}
+                                />
+                                Обработка персональных данных
+                            </label>
                         </div>
 
                         <PrimaryButton loading={loading}>
@@ -338,7 +427,7 @@ function App() {
                         <div style={{
                             marginTop: '24px',
                             padding: '16px',
-                            backgroundColor: '#fee2e2', // bg-red-100
+                            backgroundColor: '#fee2e2', 
                             border: `1px solid #fca5a5`, 
                             color: DANGER_COLOR, 
                             borderRadius: '12px',
@@ -434,19 +523,16 @@ function App() {
                 <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: theme.TEXT }}>Добро пожаловать, {authData.login}</h2>
             </header>
             
-            {/* Тумблер для переключения темы */}
+            {/* Тумблер для переключения темы (на авторизованном экране) */}
             <div style={{ 
-                backgroundColor: theme.CARD_BG, 
-                padding: '16px', 
-                borderRadius: '16px', 
-                boxShadow: `0 1px 3px ${theme.SHADOW}`, 
+                display: 'flex',
+                justifyContent: 'flex-end', // Выравнивание по правому краю
                 marginBottom: '16px'
             }}>
                 <ToggleSwitch
-                    label={isDarkMode ? "Ночной режим активен" : "Дневной режим активен"}
                     checked={isDarkMode}
                     onChange={setIsDarkMode}
-                    icon={isDarkMode ? Moon : Sun}
+                    theme={theme}
                 />
             </div>
 
