@@ -19,8 +19,8 @@ import {
   orderBy
 } from 'firebase/firestore';
 
-// Hardcoded Firebase Config loaded from the user's uploaded image (image_b100bd.jpg)
-// The error was caused by the environment variable __firebase_config not being available.
+// --- НАЧАЛО ЖЕСТКОГО КОДИРОВАНИЯ КОНФИГУРАЦИИ (ВРЕМЕННОЕ РЕШЕНИЕ) ---
+// Конфигурация взята из загруженного вами изображения (image_b1e1ff.jpg)
 const firebaseConfig = {
     apiKey: "AIzaSyC6zS1Ew3KD663R693NR_L21x_aF7KTk",
     authDomain: "mini-app-3e9e3.firebaseapp.com",
@@ -30,9 +30,12 @@ const firebaseConfig = {
     appId: "1:91549594192:web:d65c3555bc4f87f59c1755",
     measurementId: "G-F9FN4T5RYL"
 };
+// --- КОНЕЦ ЖЕСТКОГО КОДИРОВАНИЯ ---
+
 
 // Mandatory Global Variables provided by the Canvas Environment
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+// Мы игнорируем __firebase_config, так как оно, похоже, не работает.
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
 // The main application component
@@ -51,7 +54,7 @@ export default function App() {
     setLogLevel('debug');
 
     try {
-      // The configuration is now hardcoded, so we skip the check for empty config.
+      // Инициализируем приложение с жестко закодированной конфигурацией
       const app = initializeApp(firebaseConfig);
       const firestoreDb = getFirestore(app);
       const firebaseAuth = getAuth(app);
@@ -86,7 +89,7 @@ export default function App() {
       return () => unsubscribeAuth();
     } catch (e) {
       console.error("Firebase Init Error:", e);
-      // Removed the custom error check and replaced it with a generic error
+      // Это сообщение об ошибке будет показано, если даже жесткое кодирование не помогло.
       setError("Ошибка инициализации Firebase: " + e.message);
       setLoading(false);
     }
