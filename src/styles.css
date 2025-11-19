@@ -1,220 +1,25 @@
+/* Скрываем скроллбар для горизонтального списка фильтров */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Основные цвета берутся из Telegram (работает автоматически и для светлой, и для темной темы) */
 body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial,
-    sans-serif;
-  background: #ffffff;
-  color: #111827;
+  background-color: var(--tg-theme-bg-color, #ffffff);
+  color: var(--tg-theme-text-color, #000000);
 }
 
-.page {
-  min-height: 100vh;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 40px 16px 80px; /* снизу оставляем место под таббар */
-  box-sizing: border-box;
+/* Анимация нажатия (Active state) */
+.cargo-card:active {
+    transform: scale(0.98);
+    opacity: 0.9;
 }
 
-.page-with-tabs {
-  padding-bottom: 80px;
-}
-
-.card {
-  width: 100%;
-  max-width: 520px;
-}
-
-.card-content {
-  padding-bottom: 8px;
-}
-
-.logo-text {
-  font-size: 32px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: #2d5bff;
-  margin-bottom: 8px;
-}
-
-.tagline {
-  font-size: 16px;
-  color: #4b5563;
-  margin-bottom: 24px;
-}
-
-.title {
-  margin: 0 0 8px;
-  font-size: 22px;
-  font-weight: 700;
-}
-
-.subtitle {
-  margin: 0 0 16px;
-  font-size: 14px;
-  color: #4b5563;
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.field-label {
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.input {
-  width: 100%;
-  padding: 12px 16px;
-  border-radius: 16px;
-  border: 1px solid #e5e7eb;
-  background: #f4f7ff;
-  font-size: 15px;
-  box-sizing: border-box;
-}
-
-.input:focus {
-  outline: none;
-  border-color: #2d5bff;
-  background: #edf3ff;
-}
-
-.input::placeholder {
-  color: #9ca3af;
-}
-
-.checkbox-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 14px;
-  color: #111827;
-}
-
-.checkbox-row input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  margin-top: 3px;
-  accent-color: #2d5bff;
-}
-
-.checkbox-row a {
-  color: #4c2fff;
-  text-decoration: underline;
-}
-
-.button {
-  margin-top: 8px;
-  width: 100%;
-  padding: 14px 18px;
-  border-radius: 24px;
-  border: none;
-  font-weight: 700;
-  font-size: 16px;
-  background: #2d5bff;
-  color: #ffffff;
-  cursor: pointer;
-  box-shadow: 0 14px 30px rgba(45, 91, 255, 0.35);
-}
-
-.button:disabled {
-  opacity: 0.7;
-  cursor: default;
-  box-shadow: none;
-}
-
-.error {
-  margin-top: 14px;
-  font-size: 13px;
-  color: #d30000;
-}
-
-/* ---------- Грузы ---------- */
-
-.cargo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.cargo-card {
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-  font-size: 13px;
-}
-
-.cargo-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.cargo-row.main {
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.cargo-label {
-  color: #6b7280;
-}
-
-.cargo-value {
-  text-align: right;
-}
-
-/* ---------- ТАББАР ---------- */
-
-.app-shell {
-  position: relative;
-  min-height: 100vh;
-  padding-bottom: 64px; /* место под таббар */
-  box-sizing: border-box;
-}
-
-.tabbar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 60px;
-  background: #05070b;
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  padding: 4px 6px 8px;
-  box-sizing: border-box;
-}
-
-.tab-btn {
-  flex: 1;
-  background: none;
-  border: none;
-  color: #9ca3af;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.tab-icon {
-  font-size: 18px;
-  line-height: 1;
-  margin-bottom: 2px;
-}
-
-.tab-btn-active {
-  color: #2d5bff;
+/* Убираем синий хайлайт при тапе на мобилках */
+button, div {
+    -webkit-tap-highlight-color: transparent;
 }
