@@ -1,195 +1,268 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { getFirestore, setLogLevel } from 'firebase/firestore';
-import { DatabaseIcon, UserIcon, CheckCircleIcon, XCircleIcon, KeyIcon, Loader2 } from 'lucide-react';
+import { 
+    getAuth, 
+    signInAnonymously, 
+    onAuthStateChanged, 
+    signInWithCustomToken 
+} from 'firebase/auth';
+import { 
+    getFirestore, 
+    doc, 
+    setDoc, 
+    serverTimestamp,
+    setLogLevel
+} from 'firebase/firestore';
+import { Truck, Package, User, CheckCircle, XCircle, Loader2, Route } from 'lucide-react';
 
 // Устанавливаем уровень логирования для Firebase (полезно для отладки)
 setLogLevel('debug');
 
-// *** ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ (Canvas Environment) ***
-// Эти переменные предоставляются средой, в которой работает код
+// --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ СРЕДЫ CANVAS (ОБЯЗАТЕЛЬНЫЕ) ---
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+const firebaseConfig = typeof __firebase_config !== 'undefined' 
+    ? JSON.parse(__firebase_config) 
+    : null; // null, если конфигурация не найдена
+
+// --- КОНСТАНТЫ ПРИЛОЖЕНИЯ ---
+const SHIPMENTS_COLLECTION = 'shipments'; // Коллекция для хранения данных о грузах
+const PATH_PREFIX = `/artifacts/${appId}/users`; // Путь для приватных данных пользователя
 
 // Компонент для отображения критических ошибок
 const ErrorBox = ({ title, message }) => (
-  <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-6 rounded-xl shadow-lg m-4">
-    <div className="flex items-center mb-2">
-      <XCircleIcon className="h-6 w-6 mr-3 flex-shrink-0" />
-      <p className="font-bold text-xl">{title}</p>
+    <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-6 rounded-xl shadow-lg m-4">
+        <div className="flex items-center mb-2">
+            <XCircleIcon className="h-6 w-6 mr-3 flex-shrink-0" />
+            <p className="font-bold text-xl">{title}</p>
+        </div>
+        <p className="mt-2 text-sm">{message}</p>
+        <p className="mt-4 text-xs italic opacity-80">
+            Для работы приложения необходимо, чтобы в консоли Firebase был включен Анонимный вход.
+        </p>
     </div>
-    <p className="mt-2 text-sm">{message}</p>
-    <p className="mt-4 text-xs italic opacity-80">
-      Пожалуйста, проверьте консоль разработчика для получения подробностей или убедитесь, что ваш API Key не ограничен в Google Cloud Console.
-    </p>
-  </div>
 );
 
-// Главный компонент приложения
+// Компонент для отображения статуса инициализации
+const StatusPill = ({ status }) => {
+    let style = '';
+    let text = '';
+    let Icon = null;
+
+    if (status === 'ready') {
+        style = 'bg-green-100 text-green-700 border-green-300';
+        text = 'Готов к работе';
+        Icon = CheckCircle;
+    } else if (status === 'loading') {
+        style = 'bg-blue-100 text-blue-700 border-blue-300';
+        text = 'Загрузка...';
+        Icon = Loader2;
+    } else {
+        style = 'bg-red-100 text-red-700 border-red-300';
+        text = 'Ошибка';
+        Icon = XCircle;
+    }
+
+    return (
+        <span className={`inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full border ${style}`}>
+            {Icon && <Icon className={`h-4 w-4 mr-2 ${status === 'loading' ? 'animate-spin' : ''}`} />}
+            {text}
+        </span>
+    );
+};
+
+// --- ГЛАВНЫЙ КОМПОНЕНТ ПРИЛОЖЕНИЯ ---
 const App = () => {
-  // Состояние для хранения экземпляров Firebase и данных пользователя
-  const [db, setDb] = useState(null);
-  const [auth, setAuth] = useState(null);
-  const [userId, setUserId] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
-  // Состояние для управления UI: загрузка и ошибки
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+    // Состояние для Firebase
+    const [db, setDb] = useState(null);
+    const [auth, setAuth] = useState(null);
+    const [userId, setUserId] = useState(null);
+    
+    // Состояние для UI
+    const [authStatus, setAuthStatus] = useState('loading');
+    const [error, setError] = useState(null);
+    const [shipments, setShipments] = useState([]); // Для данных приложения HAULZ
 
-  // 1. Инициализация Firebase и Аутентификация
-  useEffect(() => {
-    // 1.1 Проверка конфигурации
-    if (!firebaseConfig) {
-      setError("Конфигурация Firebase отсутствует. Переменная __firebase_config не найдена.");
-      setIsLoading(false);
-      return;
-    }
-    if (!firebaseConfig.apiKey) {
-        setError("API Key Firebase отсутствует. Проверьте правильность настройки переменных.");
-        setIsLoading(false);
-        return;
-    }
+    // 1. Инициализация Firebase и Аутентификация
+    useEffect(() => {
+        if (!firebaseConfig) {
+            setError("Критическая ошибка: Конфигурация Firebase не найдена.");
+            setAuthStatus('error');
+            return;
+        }
 
-    try {
-      // Инициализация
-      const firebaseApp = initializeApp(firebaseConfig);
-      const authInstance = getAuth(firebaseApp);
-      const dbInstance = getFirestore(firebaseApp);
-      
-      setDb(dbInstance);
-      setAuth(authInstance);
-
-      // Установка персистентности (опционально)
-      setPersistence(authInstance, browserSessionPersistence).catch(e => {
-        console.warn("Не удалось установить персистентность сессии:", e);
-      });
-
-      // Логика попытки аутентификации
-      const authenticateUser = async (auth) => {
         try {
-          if (initialAuthToken) {
-            // Использование предоставленного Canvas Custom Auth Token
-            await signInWithCustomToken(auth, initialAuthToken);
-          } else {
-            // Анонимный вход (требуется включение в консоли Firebase)
-            await signInAnonymously(auth);
-          }
-        } catch (e) {
-          console.error("Ошибка при аутентификации:", e);
-          setError(`Error (auth/${e.code}): ${e.message}. Проверьте, что анонимная аутентификация включена, и API Key действителен.`);
-          setIsLoading(false);
-        }
-      };
-
-      // Слушатель состояния аутентификации
-      const unsubscribe = onAuthStateChanged(authInstance, (user) => {
-        if (user) {
-          setUserId(user.uid);
-          setIsAuthenticated(true);
-          console.log("Пользователь успешно аутентифицирован. UID:", user.uid);
-        } else {
-          setUserId(null);
-          setIsAuthenticated(false);
-          // Если пользователь не аутентифицирован, и мы еще не пытались, пробуем аутентифицироваться.
-          if (isLoading) {
-              authenticateUser(authInstance);
-          }
-        }
-        // Завершаем состояние загрузки после первой проверки
-        if (isLoading) setIsLoading(false);
-      });
-
-      // Очистка слушателя при размонтировании
-      return () => unsubscribe();
-
-    } catch (e) {
-      console.error("Ошибка при инициализации Firebase:", e);
-      setError(`Ошибка инициализации Firebase: ${e.message}`);
-      setIsLoading(false);
-    }
-  }, []);
-
-  // --- UI Рендеринг ---
-
-  if (error) {
-    return <ErrorBox title="Критическая ошибка Firebase" message={error} />;
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-6 text-center">
-        <Loader2 className="h-8 w-8 text-blue-600 animate-spin mb-4" />
-        <p className="text-xl font-semibold text-gray-700">Загрузка приложения...</p>
-        <p className="text-sm text-gray-500 mt-1">Инициализация Firebase и аутентификация.</p>
-      </div>
-    );
-  }
-  
-  // Если Firebase инициализирован и пользователь аутентифицирован
-  if (db && userId && isAuthenticated) {
-    return (
-      <div className="p-8 max-w-4xl mx-auto bg-white min-h-screen font-sans">
-        <div className="text-center mb-10 border-b pb-4">
-          <h1 className="text-4xl font-extrabold text-blue-700 mb-2">
-            HAULZ: Приложение для логистики
-          </h1>
-          <p className="text-gray-600">Готов к работе. Firebase инициализирован и пользователь аутентифицирован.</p>
-        </div>
-
-        <div className="p-6 border border-green-200 bg-green-50 rounded-xl shadow-lg mb-8">
-          <h2 className="text-2xl font-semibold text-green-700 mb-3 flex items-center">
-            <CheckCircleIcon className="h-6 w-6 mr-3" />
-            Рабочий статус
-          </h2>
-          <p className="text-lg text-gray-700">
-            <span className="font-medium text-green-800">Идентификатор Пользователя (UID):</span>
-            <code className="ml-2 bg-green-200 text-green-800 p-2 rounded text-sm font-mono break-all inline-block mt-1">
-              {userId}
-            </code>
-          </p>
-          <p className="text-sm text-gray-500 mt-2">
-            Используйте этот `userId` для создания коллекций, доступных только текущему пользователю, по пути:
-            <code className="bg-gray-100 p-1 rounded text-xs block mt-1 break-all">
-                artifacts/{appId}/users/{userId}/[ваша_коллекция]
-            </code>
-          </p>
-        </div>
-
-        {/* !!! ЗДЕСЬ НАЧИНАЕТСЯ ВАШ ОСНОВНОЙ КОД ПРИЛОЖЕНИЯ !!!
+            const firebaseApp = initializeApp(firebaseConfig);
+            const authInstance = getAuth(firebaseApp);
+            const dbInstance = getFirestore(firebaseApp);
             
-            Вы можете создать другие компоненты (например, <ShipmentList db={db} userId={userId} />) 
-            и передать им экземпляры db и userId.
-        */}
+            setDb(dbInstance);
+            setAuth(authInstance);
+
+            // Аутентификация: попытка входа с токеном или анонимно
+            const authenticateUser = async () => {
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(authInstance, initialAuthToken);
+                    } else {
+                        await signInAnonymously(authInstance);
+                    }
+                } catch (e) {
+                    setError(`Ошибка аутентификации Firebase (${e.code}): ${e.message}`);
+                    setAuthStatus('error');
+                }
+            };
+
+            // Слушатель состояния аутентификации
+            const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+                if (user) {
+                    setUserId(user.uid);
+                    setAuthStatus('ready');
+                } else {
+                    setUserId(null);
+                    setAuthStatus('loading');
+                    // Если пользователь вышел, пытаемся войти снова
+                    authenticateUser();
+                }
+            });
+
+            return () => unsubscribe(); // Очистка слушателя
+
+        } catch (e) {
+            console.error("Ошибка при инициализации Firebase:", e);
+            setError(`Ошибка инициализации Firebase: ${e.message}`);
+            setAuthStatus('error');
+        }
+    }, []);
+
+    // 2. Логика приложения: добавление тестового груза (пример)
+    const addTestShipment = async () => {
+        if (!db || !userId) {
+            console.error("Firebase не готов.");
+            return;
+        }
+
+        const newShipment = {
+            id: Date.now().toString(),
+            from: "Москва",
+            to: "Санкт-Петербург",
+            status: "Pending",
+            weight: Math.floor(Math.random() * 500) + 50,
+            timestamp: serverTimestamp(),
+            driver: `Driver-${userId.substring(0, 4)}`,
+        };
+
+        const docRef = doc(db, PATH_PREFIX, userId, SHIPMENTS_COLLECTION, newShipment.id);
         
-        <div className="mt-12 p-8 border-2 border-dashed border-gray-300 rounded-xl text-center">
-            <DatabaseIcon className="h-10 w-10 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-gray-800">Область Приложения</h3>
-            <p className="text-gray-600 mt-2">
-                Добавьте здесь компоненты для отображения грузов, маршрутов и управления заказами.
-            </p>
-            <button 
-                className="mt-6 px-6 py-3 bg-blue-600 text-white font-semibold rounded-full shadow-lg hover:bg-blue-700 transition duration-200"
-                onClick={() => console.log('db instance:', db, 'auth instance:', auth)}
-            >
-                Начать Разработку
-            </button>
+        try {
+            await setDoc(docRef, newShipment);
+            console.log("Тестовый груз добавлен:", newShipment.id);
+            // В реальном приложении вы бы использовали onSnapshot для обновления списка
+            setShipments(prev => [...prev, newShipment]);
+        } catch (e) {
+            console.error("Ошибка при добавлении груза:", e);
+            // Замена alert() на консольное сообщение, как того требуют инструкции
+            console.warn(`Не удалось добавить груз: ${e.message}. Проверьте правила безопасности Firestore.`);
+        }
+    };
+
+    // --- РЕНДЕРИНГ UI ---
+
+    if (error) {
+        return <ErrorBox title="Ошибка Инициализации/Аутентификации" message={error} />;
+    }
+
+    const isReady = authStatus === 'ready' && db !== null;
+
+    return (
+        <div className="p-4 sm:p-8 max-w-5xl mx-auto bg-gray-50 min-h-screen font-sans">
+            <header className="text-center mb-8 border-b pb-4 bg-white p-4 rounded-xl shadow-md">
+                <div className="flex justify-center items-center mb-2">
+                    <Truck className="h-8 w-8 text-blue-600 mr-3" />
+                    <h1 className="text-3xl font-extrabold text-gray-900">
+                        HAULZ - Система Управления Грузами
+                    </h1>
+                </div>
+                <p className="text-gray-600">Основа на React и Firebase/Firestore</p>
+            </header>
+
+            {/* БЛОК СТАТУСА */}
+            <div className="mb-8 p-5 border border-indigo-200 bg-indigo-50 rounded-xl shadow-lg">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-bold text-indigo-700 flex items-center">
+                        <User className="h-5 w-5 mr-2" />
+                        Статус Пользователя
+                    </h2>
+                    <StatusPill status={authStatus} />
+                </div>
+                <p className="mt-3 text-sm text-gray-700 break-all">
+                    <span className="font-semibold">UID:</span> 
+                    <code className="ml-2 bg-indigo-100 text-indigo-800 p-1 rounded font-mono">
+                        {userId || 'Аутентификация...'}
+                    </code>
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                    Это ваш уникальный идентификатор в системе Firebase.
+                </p>
+            </div>
+            
+            {/* БЛОК ПРИЛОЖЕНИЯ */}
+            <div className="p-6 bg-white rounded-xl shadow-2xl">
+                <h2 className="text-2xl font-bold text-gray-800 border-b pb-2 mb-4 flex items-center">
+                    <Route className="h-6 w-6 mr-3 text-blue-600" />
+                    Управление Грузами (Прототип)
+                </h2>
+                
+                <div className="flex justify-center mb-6">
+                    <button 
+                        className={`flex items-center px-6 py-3 rounded-full font-bold transition duration-300 shadow-lg ${isReady ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
+                        onClick={addTestShipment}
+                        disabled={!isReady}
+                    >
+                        {isReady ? (
+                            <><Package className="h-5 w-5 mr-2" /> Добавить Тестовый Груз</>
+                        ) : (
+                            <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Ожидание Firebase...</>
+                        )}
+                    </button>
+                </div>
+
+                {/* Список тестовых грузов */}
+                <h3 className="text-xl font-semibold text-gray-700 mt-8 mb-3">
+                    Тестовые Грузы ({shipments.length})
+                </h3>
+                
+                {shipments.length === 0 && isReady ? (
+                    <div className="text-center p-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                        <Package className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+                        <p className="text-gray-500">Грузы не добавлены. Нажмите кнопку выше, чтобы добавить первый тестовый груз.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {shipments.map((shipment, index) => (
+                            <div key={shipment.id} className="p-4 border border-gray-200 rounded-lg bg-white hover:shadow-sm transition duration-150">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="text-lg font-semibold text-gray-900">
+                                            {shipment.from} → {shipment.to}
+                                        </p>
+                                        <p className="text-sm text-gray-500">
+                                            Водитель: {shipment.driver} | Вес: {shipment.weight} кг
+                                        </p>
+                                    </div>
+                                    <span className="px-3 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
+                                        {shipment.status}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                
+            </div>
+            
         </div>
-
-      </div>
     );
-  }
-
-  // Если аутентификация не удалась, но нет критической ошибки (например, проблемы с сетью)
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-6 text-center">
-      <XCircleIcon className="h-10 w-10 text-red-500 mb-4" />
-      <p className="text-xl font-semibold text-gray-700">Проблема с доступом</p>
-      <p className="text-sm text-gray-500 mt-1">Не удалось аутентифицировать пользователя. Пожалуйста, проверьте статус анонимной аутентификации в консоли Firebase.</p>
-    </div>
-  );
 };
 
 export default App;
