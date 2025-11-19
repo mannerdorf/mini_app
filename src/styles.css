@@ -1,55 +1,25 @@
-:root {
-  /* Базовые переменные - фоллбек для браузера */
-  --tg-theme-bg-color: #fff;
-  --tg-theme-text-color: #000;
-  --tg-theme-hint-color: #999;
-  --tg-theme-link-color: #2481cc;
-  --tg-theme-button-color: #3390ec;
-  --tg-theme-button-text-color: #ffffff;
-  --tg-theme-secondary-bg-color: #f4f4f5;
+/* Скрываем скроллбар для горизонтального списка фильтров */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
+/* Основные цвета берутся из Telegram (работает автоматически и для светлой, и для темной темы) */
 body {
-  background-color: var(--tg-theme-bg-color);
-  color: var(--tg-theme-text-color);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  margin: 0;
-  padding: 0;
-  /* Убираем эластичный скролл iOS, чтобы не "тянуть" все приложение */
-  overscroll-behavior-y: none;
+  background-color: var(--tg-theme-bg-color, #ffffff);
+  color: var(--tg-theme-text-color, #000000);
 }
 
-/* Класс для контейнера страницы */
-.page-container {
-  padding: 16px;
-  min-height: 100vh;
-  box-sizing: border-box;
-  background-color: var(--tg-theme-secondary-bg-color); /* Чуть темнее фона, для контраста */
+/* Анимация нажатия (Active state) */
+.cargo-card:active {
+    transform: scale(0.98);
+    opacity: 0.9;
 }
 
-/* Карточка контента (как сообщения в ТГ) */
-.card {
-  background: var(--tg-theme-bg-color);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-}
-
-/* Кнопка в стиле Телеграм */
-.tg-button {
-  background-color: var(--tg-theme-button-color);
-  color: var(--tg-theme-button-text-color);
-  border: none;
-  border-radius: 8px;
-  padding: 12px 20px;
-  font-weight: 600;
-  width: 100%;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.tg-button:active {
-  opacity: 0.8;
-  transform: scale(0.98);
+/* Убираем синий хайлайт при тапе на мобилках */
+button, div {
+    -webkit-tap-highlight-color: transparent;
 }
