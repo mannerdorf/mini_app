@@ -3,13 +3,14 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, getDoc, doc, setDoc, collection, onSnapshot, query, addDoc, serverTimestamp } from 'firebase/firestore';
 import { 
-    Loader2, LogOut, Truck, 
+    Loader2, LogOut, Truck, Sun, Moon,
     MapPin, DollarSign, Calendar, Volume2, Mic, 
     LogIn, Check, X, Info
 } from 'lucide-react';
 
 // --- API CONFIGURATION ---
 const API_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki?DateB=2024-01-01&DateE=2026-01-01';
+// Базовый заголовок авторизации для API
 const API_AUTH_BASIC = 'Basic YWRtaW46anVlYmZueWU='; 
 const LLM_API_KEY = ""; 
 const LLM_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${LLM_API_KEY}`;
@@ -17,56 +18,21 @@ const TTS_API_KEY = "";
 const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${TTS_API_KEY}`;
 
 
-// --- FIREBASE SETUP (Опционально для получения уникального ID пользователя) ---
+// --- FIREBASE SETUP (Опционально) ---
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 const dummyFirebaseConfig = { apiKey: "dummy", authDomain: "dummy", projectId: "dummy" };
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : dummyFirebaseConfig;
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-// --- FALLBACK DATA (На случай ошибки 500) ---
-const MOCK_PEREVOZKI = [
-    {
-        ID: "000003872",
-        Nomer: "ЗК-003872",
-        Date: "20.11.2025 14:30:00",
-        Status: "В пути",
-        FromPoint: "Москва, склад №1 (ОТГР-1)",
-        ToPoint: "Санкт-Петербург, ул. Ленина 10",
-        Summa: 45000,
-        GosNum: "А 123 АА 777",
-        Voditel: "Иванов И.И.",
-        Time: "8 ч 30 мин"
-    },
-    {
-        ID: "000003875",
-        Nomer: "ЗК-003875",
-        Date: "21.11.2025 09:00:00",
-        Status: "Создан",
-        FromPoint: "Казань, ПВЗ (ОТГР-2)",
-        ToPoint: "Самара, пр. Победы 5",
-        Summa: 12000,
-        GosNum: "В 456 ВВ 116",
-        Voditel: "Петров П.П.",
-        Time: "4 ч 15 мин"
-    },
-    {
-        ID: "000003880",
-        Nomer: "ЗК-003880",
-        Date: "22.11.2025 18:00:00",
-        Status: "Доставлен",
-        FromPoint: "Екатеринбург, ДЭК (ОТГР-3)",
-        ToPoint: "Тюмень, ул. Мира 23",
-        Summa: 25000,
-        GosNum: "С 789 СС 66",
-        Voditel: "Сидоров С.С.",
-        Time: "5 ч 00 мин"
-    }
-];
+// Используем contentFetchId для доступа к загруженному PNG файлу логотипа
+const LOGO_IMAGE_SRC = "uploaded:image_bf1f8b.png-1fb3a87b-ad4a-425e-8d1d-1fb9052b9d9c";
+
 
 // ==========================================
 // --- AUDIO & DATA UTILITIES ---
 // ==========================================
 
+// Функции для конвертации PCM аудиоданных из API в формат WAV для воспроизведения
 const pcmToWav = (pcmData, sampleRate = 24000) => {
     const numChannels = 1;
     const bytesPerSample = 2; 
@@ -109,33 +75,34 @@ const base64ToArrayBuffer = (base64) => {
 
 // ==========================================
 // --- UI COMPONENTS ---
-// Используются CSS-классы, которые должны быть определены в styles.css
 // ==========================================
 
-const LabeledSwitch = ({ label, isChecked, onToggle }) => {
+const LabeledSwitch = ({ label, isChecked, onToggle, isThemeSwitch = false }) => {
     return (
         <div 
-            className="flex items-center space-x-3 cursor-pointer p-2 rounded hover:bg-gray-700/50 transition-colors"
+            className={`flex items-center justify-between cursor-pointer p-2 rounded transition-colors ${isThemeSwitch ? 'theme-switch-wrapper' : 'login-switch-wrapper'}`}
             onClick={onToggle}
         >
+            <div className={`text-sm font-medium select-none ${isThemeSwitch ? 'text-theme-primary' : 'text-theme-text'}`}>
+                {label}
+            </div>
             <div className={`switch-container ${isChecked ? 'checked' : ''}`}>
                 <div className="switch-knob"></div>
-            </div>
-            <div className="text-sm text-gray-300 font-medium select-none">
-                {label}
             </div>
         </div>
     );
 };
 
-const TableRow = ({ label, value, icon }) => (
-    <div className="flex items-start space-x-3 p-3 border-b border-gray-700 last:border-b-0">
-        <div className="flex-shrink-0 text-blue-400 mt-0.5">
+// Компонент строки таблицы
+const TableRow = ({ label, value, icon, isThemeLight }) => (
+    <div className="flex items-start space-x-3 p-3 border-b border-theme-border last:border-b-0">
+        <div className={`flex-shrink-0 mt-0.5 ${isThemeLight ? 'text-blue-600' : 'text-blue-400'}`}>
             {icon}
         </div>
         <div className="flex-grow min-w-0">
-            <p className="text-xs font-medium text-gray-500 uppercase">{label}</p>
-            <p className="text-sm font-semibold text-gray-200 break-words">{value || 'N/A'}</p>
+            <p className="text-xs font-medium text-theme-secondary uppercase">{label}</p>
+            {/* Используем whitespace-nowrap для предотвращения переноса длинных значений */}
+            <p className="text-sm font-semibold text-theme-text whitespace-nowrap overflow-hidden text-ellipsis">{value || 'N/A'}</p> 
         </div>
     </div>
 );
@@ -144,7 +111,7 @@ const IconButton = ({ children, onClick, disabled, className = '', label = '' })
     <button
         onClick={onClick}
         disabled={disabled}
-        className={`p-2 rounded-full transition-colors relative group ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-700'} ${className}`}
+        className={`p-2 rounded-full transition-colors relative group ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-theme-hover-bg'} ${className}`}
         aria-label={label}
     >
         {children}
@@ -155,16 +122,17 @@ const IconButton = ({ children, onClick, disabled, className = '', label = '' })
 // ==========================================
 // --- COMPONENT: TableDisplay ---
 // ==========================================
-const TableDisplay = ({ data, loading, error, summary, generateSummary, isMockData }) => {
+const TableDisplay = ({ data, loading, summary, generateSummary, isThemeLight }) => {
     const [ttsLoading, setTtsLoading] = useState({});
-    const [ttsAudioUrl, setTtsAudioUrl] = useState(null);
     const [ttsError, setTtsError] = useState(null);
 
+    // Функция для генерации и воспроизведения аудио сводки по перевозке
     const generateAndPlayTTS = async (item, index) => {
         setTtsLoading(prev => ({ ...prev, [index]: true }));
         setTtsError(null);
         
-        const promptText = `Перевозка ${item.Nomer || item.ID}. Маршрут ${item.FromPoint || item.AdresOtgruzki} - ${item.ToPoint || item.AdresDostavki}. Дата ${item.Date || item.DataOtgruzki}. Статус: ${item.Status}.`;
+        const dateString = item.Date ? new Date(item.Date).toLocaleDateString() : 'Неизвестна';
+        const promptText = `Перевозка ${item.Nomer || item.ID}. Маршрут ${item.FromPoint || item.AdresOtgruzki} из ${item.ToPoint || item.AdresDostavki}. Дата ${dateString}. Статус: ${item.Status}. Сумма ${item.Summa ? item.Summa.toLocaleString('ru-RU') : 'ноль'} рублей.`;
 
         const payload = {
             contents: [{ parts: [{ text: promptText }] }],
@@ -188,9 +156,10 @@ const TableDisplay = ({ data, loading, error, summary, generateSummary, isMockDa
                 const pcmData = base64ToArrayBuffer(audioData);
                 const wavBlob = pcmToWav(pcmData);
                 const url = URL.createObjectURL(wavBlob);
-                setTtsAudioUrl(url); // Сохраняем URL для возможной очистки
                 const audio = new Audio(url);
                 audio.play();
+                // Освобождаем URL после окончания воспроизведения
+                audio.onended = () => URL.revokeObjectURL(url);
             } else {
                  throw new Error("Не удалось получить аудиоданные.");
             }
@@ -202,26 +171,25 @@ const TableDisplay = ({ data, loading, error, summary, generateSummary, isMockDa
         }
     };
 
-    if (loading) return <div className="flex justify-center p-10"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>;
+    if (loading) return <div className="flex justify-center p-10"><Loader2 className={`w-8 h-8 ${isThemeLight ? 'text-blue-600' : 'text-blue-500'} animate-spin`} /></div>;
     
-    // Предупреждение о моковых данных/ошибке
-    const statusMessage = isMockData ? (
-        <div className="status-message error"><Info className="w-5 h-5 mr-2" /> Ошибка API. Показаны демонстрационные данные.</div>
-    ) : error ? (
-        <div className="status-message error"><X className="w-5 h-5 mr-2" /> Ошибка API: {error}</div>
-    ) : null;
-
-    if (!data || data.length === 0) return <div className="text-center text-gray-500 p-10">Нет данных о перевозках</div>;
+    if (!data || data.length === 0) return (
+        <div className="empty-state-card">
+            <Truck className={`w-16 h-16 mb-4 ${isThemeLight ? 'text-gray-400' : 'text-gray-500'}`} />
+            <p className="text-xl font-semibold text-theme-text mb-2">Перевозки не найдены</p>
+            <p className="text-theme-secondary text-sm">Проверьте, правильно ли указан диапазон дат и доступы API.</p>
+        </div>
+    );
 
     return (
         <div className="pb-20 w-full max-w-4xl mx-auto">
-             {statusMessage}
+             {ttsError && <div className="status-message error"><Volume2 className="w-5 h-5 mr-2" /> {ttsError}</div>}
              
              {/* AI Summary Block */}
              <div className="ai-summary-card">
                 <div className="flex justify-between items-center mb-2">
-                    <h3 className="text-lg font-bold text-white flex items-center">
-                        <Mic className="w-5 h-5 mr-2 text-purple-400" />
+                    <h3 className="text-lg font-bold text-theme-text flex items-center">
+                        <Mic className={`w-5 h-5 mr-2 ${isThemeLight ? 'text-purple-600' : 'text-purple-400'}`} />
                         AI Аналитика
                     </h3>
                     <button 
@@ -233,9 +201,9 @@ const TableDisplay = ({ data, loading, error, summary, generateSummary, isMockDa
                     </button>
                 </div>
                 {summary.text ? (
-                    <p className="text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg whitespace-pre-line">{summary.text}</p>
+                    <p className="text-sm text-theme-text p-3 rounded-lg whitespace-pre-line ai-text-bg">{summary.text}</p>
                 ) : (
-                    <p className="text-sm text-gray-500 p-3 bg-gray-900/50 rounded-lg">Нажмите "Обновить анализ", чтобы получить сводку данных о перевозках с помощью AI.</p>
+                    <p className="text-sm text-theme-secondary p-3 rounded-lg ai-text-bg">Нажмите "Обновить анализ", чтобы получить сводку данных о перевозках с помощью AI.</p>
                 )}
             </div>
 
@@ -244,20 +212,44 @@ const TableDisplay = ({ data, loading, error, summary, generateSummary, isMockDa
                 {data.map((item, index) => (
                     <div key={index} className="perevozka-card">
                         <div className="card-header">
-                            <span className="font-bold text-blue-400 text-lg">{item.Nomer || item.ID}</span>
+                            <span className={`font-bold ${isThemeLight ? 'text-blue-600' : 'text-blue-400'} text-lg`}>{item.Nomer || item.ID}</span>
                             <IconButton 
                                 onClick={() => generateAndPlayTTS(item, index)}
                                 disabled={ttsLoading[index]}
                                 label="Озвучить информацию о перевозке"
                             >
-                                {ttsLoading[index] ? <Loader2 className="w-4 h-4 animate-spin text-purple-400" /> : <Volume2 className="w-5 h-5 text-gray-400" />}
+                                {ttsLoading[index] ? <Loader2 className={`w-4 h-4 animate-spin ${isThemeLight ? 'text-purple-600' : 'text-purple-400'}`} /> : <Volume2 className="w-5 h-5 text-theme-secondary" />}
                             </IconButton>
                         </div>
                         <div className="card-body-details">
-                            <TableRow label="Маршрут" value={`${item.FromPoint || item.AdresOtgruzki} → ${item.ToPoint || item.AdresDostavki}`} icon={<MapPin className="w-4 h-4" />} />
-                            <TableRow label="Дата" value={item.Date ? new Date(item.Date).toLocaleDateString() : 'N/A'} icon={<Calendar className="w-4 h-4" />} />
-                            <TableRow label="Сумма" value={`${item.Summa ? item.Summa.toLocaleString('ru-RU') : '0'} ₽`} icon={<DollarSign className="w-4 h-4" />} />
-                            <TableRow label="Статус" value={item.Status} icon={<Check className="w-4 h-4" />} />
+                            {/* Маршрут */}
+                            <TableRow 
+                                label="Маршрут" 
+                                value={`${item.FromPoint || item.AdresOtgruzki} → ${item.ToPoint || item.AdresDostavki}`} 
+                                icon={<MapPin className="w-4 h-4" />} 
+                                isThemeLight={isThemeLight}
+                            />
+                            {/* Дата */}
+                            <TableRow 
+                                label="Дата" 
+                                value={item.Date ? new Date(item.Date).toLocaleDateString() : 'N/A'} 
+                                icon={<Calendar className="w-4 h-4" />} 
+                                isThemeLight={isThemeLight}
+                            />
+                            {/* Сумма */}
+                            <TableRow 
+                                label="Сумма" 
+                                value={`${item.Summa ? item.Summa.toLocaleString('ru-RU') : '0'} ₽`} 
+                                icon={<DollarSign className="w-4 h-4" />} 
+                                isThemeLight={isThemeLight}
+                            />
+                            {/* Статус */}
+                            <TableRow 
+                                label="Статус" 
+                                value={item.Status} 
+                                icon={<Check className="w-4 h-4" />} 
+                                isThemeLight={isThemeLight}
+                            />
                         </div>
                     </div>
                 ))}
@@ -275,19 +267,21 @@ export default function App() {
     const [loginPassword, setLoginPassword] = useState('ZakaZ656565');
     const [isOfferAccepted, setIsOfferAccepted] = useState(false);
     const [isDataProcessed, setIsDataProcessed] = useState(false);
-    const [showLoginError, setShowLoginError] = useState(false);
+    
+    // Состояние для темы: 'dark' или 'light'
+    const [theme, setTheme] = useState('dark'); 
+    const isThemeLight = theme === 'light';
 
     const [perevozki, setPerevozki] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [loginError, setLoginError] = useState(null);
     const [view, setView] = useState('login'); 
     const [summary, setSummary] = useState({ text: '', loading: false });
-    const [isMockData, setIsMockData] = useState(false);
 
     const [userId, setUserId] = useState(null);
     const [db, setDb] = useState(null); 
 
-    // Init Auth (Optional but good for user ID)
+    // Инициализация Firebase/Auth (для получения userId)
     useEffect(() => {
         try {
             const app = initializeApp(firebaseConfig);
@@ -304,25 +298,24 @@ export default function App() {
         } catch (e) { console.log('Firebase/Auth init (optional) skipped or failed'); }
     }, []);
 
-    // --- API FETCH ---
+    // --- API FETCH (Строгий режим: вход только при успешном API) ---
     const fetchPerevozki = useCallback(async () => {
         setLoading(true);
-        setError(null);
-        setIsMockData(false);
+        setLoginError(null); 
         
+        // Создаем заголовок авторизации из введенных данных
         const authHeaderValue = `Basic ${btoa(`${loginEmail}:${loginPassword}`)}`;
         
         try {
-            // Попытка 1: GET (как просили последний раз)
             let response = await fetch(API_URL, {
                 method: 'GET', 
                 headers: {
                     'Auth': authHeaderValue, 
-                    'Authorization': API_AUTH_BASIC, 
+                    'Authorization': API_AUTH_BASIC, // Дополнительный заголовок API
                 },
             });
 
-            // Попытка 2: Если 405, пробуем POST (как в Postman иногда требуется)
+            // Повторная попытка с POST, если GET не разрешен
             if (response.status === 405) {
                 console.warn("GET method not allowed (405), retrying with POST...");
                 response = await fetch(API_URL, {
@@ -337,9 +330,9 @@ export default function App() {
             }
 
             if (!response.ok) {
-                 // Если API все еще падает (например 500), мы выбрасываем ошибку,
-                 // но в блоке catch переключаемся на демо-данные.
-                 throw new Error(`Ошибка API: ${response.status} (${response.statusText})`);
+                 // Ошибка API (например, 401 Unauthorized)
+                 let errorText = await response.text();
+                 throw new Error(`Ошибка подключения: ${response.status} ${response.statusText}. Проверьте логин/пароль и доступы. Подробности: ${errorText.substring(0, 100)}...`);
             }
 
             const data = await response.json();
@@ -347,18 +340,15 @@ export default function App() {
 
             if (Array.isArray(result)) {
                 setPerevozki(result);
-                setView('perevozki');
+                setView('perevozki'); // Успешный вход
             } else {
-                throw new Error("Некорректный формат данных от API");
+                throw new Error("Некорректный формат данных от API. Ожидался массив.");
             }
         } catch (e) {
-            // --- FALLBACK MECHANISM ---
-            console.error("API Request Failed. Using Mock Data:", e);
-            setError(e.message);
-            // В случае ошибки сервера показываем демо-данные, чтобы интерфейс работал
-            setPerevozki(MOCK_PEREVOZKI);
-            setIsMockData(true);
-            setView('perevozki');
+            // При любой ошибке
+            setLoginError(e.message);
+            setPerevozki(null); 
+            setView('login');  
         } finally {
             setLoading(false);
         }
@@ -366,11 +356,10 @@ export default function App() {
 
     // --- AI Summary ---
     const generateSummary = async () => {
-        if (!perevozki) return;
+        if (!perevozki || perevozki.length === 0) return;
         setSummary({ ...summary, loading: true });
         try {
-            // Берем первые 5 элементов для краткого анализа
-            const prompt = `Проанализируй следующие данные о перевозках и дай краткую сводку на русском языке, не более 50 слов. Выдели ключевую информацию, например, общую сумму и статусы: ${JSON.stringify(perevozki.slice(0, 5))}.`;
+            const prompt = `Проанализируй следующие данные о перевозках и дай краткую сводку на русском языке, не более 50 слов. Выдели ключевую информацию, например, общую сумму и статусы. Данные: ${JSON.stringify(perevozki.slice(0, 5))}.`;
             const response = await fetch(LLM_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -390,49 +379,71 @@ export default function App() {
     // --- HANDLERS ---
     const handleLogin = (e) => {
         e.preventDefault();
-        setShowLoginError(false);
+        setLoginError(null);
         if (!isOfferAccepted || !isDataProcessed) {
-            setShowLoginError(true);
+            setLoginError("Необходимо принять все условия для входа.");
             return;
         }
-        fetchPerevozki();
+        fetchPerevozki(); 
     };
 
     const handleLogout = () => {
         setPerevozki(null);
         setSummary({ text: '', loading: false });
-        setError(null);
+        setLoginError(null);
         setView('login');
+    };
+
+    const toggleTheme = () => {
+        setTheme(prevTheme => (prevTheme === 'dark' ? 'light' : 'dark'));
     };
 
     // --- RENDER ---
     return (
-        // Используются классы из styles.css
-        <div className="app-container">
+        // Устанавливаем класс для темы
+        <div className={`app-container ${theme}-mode`}> 
             {/* Header */}
             <header className="app-header">
                 <div className="header-title">
                     <Truck className="header-icon" />
-                    <h1 className="text-xl font-bold tracking-wide text-white">HAULZ</h1>
+                    <h1 className="text-xl font-bold tracking-wide text-theme-text">HAULZ</h1>
                 </div>
-                {view === 'perevozki' && (
-                    <IconButton onClick={handleLogout} label="Выйти">
-                        <LogOut className="w-5 h-5 text-gray-400" />
+                <div className='flex items-center space-x-3'>
+                    {/* Кнопка переключения темы */}
+                    <IconButton onClick={toggleTheme} label="Переключить тему">
+                        {isThemeLight ? <Moon className="w-5 h-5 text-gray-700" /> : <Sun className="w-5 h-5 text-yellow-400" />}
                     </IconButton>
-                )}
+
+                    {view === 'perevozki' && (
+                        <IconButton onClick={handleLogout} label="Выйти">
+                            <LogOut className="w-5 h-5 text-theme-secondary" />
+                        </IconButton>
+                    )}
+                </div>
             </header>
 
-            {/* Content */}
+            {/* Main Content */}
             <main className="app-main">
                 <div className="w-full max-w-5xl">
                     {view === 'login' ? (
                         <div className="login-card">
                             <div className="text-center mb-8">
-                                <div className="login-icon-container">
-                                    <LogIn className="w-6 h-6 text-blue-500" />
+                                {/* Блок для логотипа, который вы запросили */}
+                                <div className="login-icon-container-logo">
+                                    <img 
+                                        src={LOGO_IMAGE_SRC}
+                                        alt="HAULZ Logo"
+                                        className="login-logo-image" 
+                                        // Заглушка на случай, если файл не загрузится
+                                        onError={(e) => {
+                                            e.target.onerror = null;
+                                            e.target.src = "https://placehold.co/100x40/3b82f6/ffffff?text=HAULZ+Logo";
+                                            e.target.className = "w-24 h-10 object-contain mx-auto";
+                                        }}
+                                    />
                                 </div>
-                                <h2 className="text-2xl font-bold text-white">Вход в систему</h2>
-                                <p className="text-gray-400 text-sm mt-1">Для партнеров</p>
+                                <h2 className="text-2xl font-bold text-theme-text">Вход в систему</h2>
+                                <p className="text-theme-secondary text-sm mt-1">Для партнеров</p>
                             </div>
 
                             <form onSubmit={handleLogin} className="space-y-4">
@@ -455,13 +466,13 @@ export default function App() {
                                     />
                                 </div>
 
-                                <div className="pt-2 space-y-2">
+                                <div className="pt-4 space-y-4">
                                     <LabeledSwitch 
                                         label="Я согласен с Условиями оферты" 
                                         isChecked={isOfferAccepted} 
                                         onToggle={() => {
                                             setIsOfferAccepted(!isOfferAccepted);
-                                            if (showLoginError) setShowLoginError(false);
+                                            if (loginError) setLoginError(null);
                                         }} 
                                     />
                                     <LabeledSwitch 
@@ -469,16 +480,16 @@ export default function App() {
                                         isChecked={isDataProcessed} 
                                         onToggle={() => {
                                             setIsDataProcessed(!isDataProcessed);
-                                            if (showLoginError) setShowLoginError(false);
+                                            if (loginError) setLoginError(null);
                                         }} 
                                     />
                                 </div>
 
-                                {showLoginError && <div className="login-error">Необходимо принять все условия для входа.</div>}
+                                {loginError && <div className="login-error flex items-center"><X className="w-4 h-4 mr-2" />{loginError}</div>}
                                 
                                 <button 
                                     type="submit" 
-                                    disabled={loading}
+                                    disabled={loading || !isOfferAccepted || !isDataProcessed}
                                     className="button-primary flex justify-center items-center"
                                 >
                                     {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Войти"}
@@ -489,14 +500,14 @@ export default function App() {
                         <TableDisplay 
                             data={perevozki} 
                             loading={loading} 
-                            error={error} 
-                            isMockData={isMockData}
+                            isThemeLight={isThemeLight}
                             summary={summary}
                             generateSummary={generateSummary}
                         />
                     )}
                 </div>
             </main>
+            {/* Футер отсутствует */}
         </div>
     );
 }
