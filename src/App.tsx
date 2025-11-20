@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, collection, onSnapshot, query, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, getDoc, doc, setDoc, collection, onSnapshot, query, addDoc, serverTimestamp } from 'firebase/firestore';
 import { 
     Loader2, LogOut, Truck, 
     MapPin, DollarSign, Calendar, Volume2, Mic, 
-    LogIn, // <-- ЭТО БЫЛО ДОБАВЛЕНО/ИСПРАВЛЕНО
-    Check
+    LogIn, Check, X, Info
 } from 'lucide-react';
 
 // --- API CONFIGURATION ---
-// Полный диапазон дат, как в запросе Postman
 const API_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki?DateB=2024-01-01&DateE=2026-01-01';
 const API_AUTH_BASIC = 'Basic YWRtaW46anVlYmZueWU='; 
 const LLM_API_KEY = ""; 
 const LLM_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${LLM_API_KEY}`;
-const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${LLM_API_KEY}`;
+const TTS_API_KEY = "";
+const TTS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${TTS_API_KEY}`;
+
 
 // --- FIREBASE SETUP (Опционально для получения уникального ID пользователя) ---
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -30,7 +30,7 @@ const MOCK_PEREVOZKI = [
         Nomer: "ЗК-003872",
         Date: "20.11.2025 14:30:00",
         Status: "В пути",
-        FromPoint: "Москва, склад №1",
+        FromPoint: "Москва, склад №1 (ОТГР-1)",
         ToPoint: "Санкт-Петербург, ул. Ленина 10",
         Summa: 45000,
         GosNum: "А 123 АА 777",
@@ -42,8 +42,8 @@ const MOCK_PEREVOZKI = [
         Nomer: "ЗК-003875",
         Date: "21.11.2025 09:00:00",
         Status: "Создан",
-        FromPoint: "Казань",
-        ToPoint: "Самара",
+        FromPoint: "Казань, ПВЗ (ОТГР-2)",
+        ToPoint: "Самара, пр. Победы 5",
         Summa: 12000,
         GosNum: "В 456 ВВ 116",
         Voditel: "Петров П.П.",
@@ -54,8 +54,8 @@ const MOCK_PEREVOZKI = [
         Nomer: "ЗК-003880",
         Date: "22.11.2025 18:00:00",
         Status: "Доставлен",
-        FromPoint: "Екатеринбург",
-        ToPoint: "Тюмень",
+        FromPoint: "Екатеринбург, ДЭК (ОТГР-3)",
+        ToPoint: "Тюмень, ул. Мира 23",
         Summa: 25000,
         GosNum: "С 789 СС 66",
         Voditel: "Сидоров С.С.",
@@ -108,43 +108,47 @@ const base64ToArrayBuffer = (base64) => {
 
 
 // ==========================================
-// --- UI COMPONENTS (Styles matched to image) ---
+// --- UI COMPONENTS ---
+// Используются CSS-классы, которые должны быть определены в styles.css
 // ==========================================
 
-// Стильный переключатель (Свитч)
 const LabeledSwitch = ({ label, isChecked, onToggle }) => {
     return (
         <div 
-            className="flex justify-between items-center py-3 cursor-pointer group" 
+            className="flex items-center space-x-3 cursor-pointer p-2 rounded hover:bg-gray-700/50 transition-colors"
             onClick={onToggle}
         >
-            {/* Текст метки */}
-            <div className="text-sm text-gray-300 font-medium mr-4 select-none group-hover:text-white transition-colors">
-                {label}
+            <div className={`switch-container ${isChecked ? 'checked' : ''}`}>
+                <div className="switch-knob"></div>
             </div>
-
-            {/* Сам переключатель */}
-            <div className={`relative w-11 h-6 rounded-full transition-colors duration-200 ease-in-out flex-shrink-0 ${
-                isChecked ? 'bg-blue-600' : 'bg-gray-600'
-            }`}>
-                <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out ${
-                    isChecked ? 'translate-x-5' : 'translate-x-0'
-                }`}></div>
+            <div className="text-sm text-gray-300 font-medium select-none">
+                {label}
             </div>
         </div>
     );
 };
 
 const TableRow = ({ label, value, icon }) => (
-    <div className="flex items-center space-x-3 p-3 border-b border-gray-700 last:border-b-0">
-        <div className="flex-shrink-0 text-blue-400">
+    <div className="flex items-start space-x-3 p-3 border-b border-gray-700 last:border-b-0">
+        <div className="flex-shrink-0 text-blue-400 mt-0.5">
             {icon}
         </div>
-        <div className="flex-grow">
+        <div className="flex-grow min-w-0">
             <p className="text-xs font-medium text-gray-500 uppercase">{label}</p>
             <p className="text-sm font-semibold text-gray-200 break-words">{value || 'N/A'}</p>
         </div>
     </div>
+);
+
+const IconButton = ({ children, onClick, disabled, className = '', label = '' }) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`p-2 rounded-full transition-colors relative group ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-700'} ${className}`}
+        aria-label={label}
+    >
+        {children}
+    </button>
 );
 
 
@@ -159,15 +163,14 @@ const TableDisplay = ({ data, loading, error, summary, generateSummary, isMockDa
     const generateAndPlayTTS = async (item, index) => {
         setTtsLoading(prev => ({ ...prev, [index]: true }));
         setTtsError(null);
-        setTtsAudioUrl(null);
-
-        const promptText = `Перевозка ${item.ID}. Маршрут ${item.FromPoint} - ${item.ToPoint}. Дата ${item.Date}. Сумма ${item.Summa}.`;
+        
+        const promptText = `Перевозка ${item.Nomer || item.ID}. Маршрут ${item.FromPoint || item.AdresOtgruzki} - ${item.ToPoint || item.AdresDostavki}. Дата ${item.Date || item.DataOtgruzki}. Статус: ${item.Status}.`;
 
         const payload = {
             contents: [{ parts: [{ text: promptText }] }],
-            generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } } },
+            generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } },
             model: "gemini-2.5-flash-preview-tts"
-        };
+        }};
         
         try {
             const response = await fetch(TTS_API_URL, {
@@ -185,9 +188,11 @@ const TableDisplay = ({ data, loading, error, summary, generateSummary, isMockDa
                 const pcmData = base64ToArrayBuffer(audioData);
                 const wavBlob = pcmToWav(pcmData);
                 const url = URL.createObjectURL(wavBlob);
-                setTtsAudioUrl(url);
+                setTtsAudioUrl(url); // Сохраняем URL для возможной очистки
                 const audio = new Audio(url);
                 audio.play();
+            } else {
+                 throw new Error("Не удалось получить аудиоданные.");
             }
         } catch (e) {
             console.error(e);
@@ -199,21 +204,21 @@ const TableDisplay = ({ data, loading, error, summary, generateSummary, isMockDa
 
     if (loading) return <div className="flex justify-center p-10"><Loader2 className="w-8 h-8 text-blue-500 animate-spin" /></div>;
     
-    // Если данные моковые, показываем предупреждение, но не блокирующую ошибку
-    const errorMessage = error ? (
-        <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg text-red-300 text-sm mb-4">
-            Ошибка API: {error}. Показаны демонстрационные данные.
-        </div>
+    // Предупреждение о моковых данных/ошибке
+    const statusMessage = isMockData ? (
+        <div className="status-message error"><Info className="w-5 h-5 mr-2" /> Ошибка API. Показаны демонстрационные данные.</div>
+    ) : error ? (
+        <div className="status-message error"><X className="w-5 h-5 mr-2" /> Ошибка API: {error}</div>
     ) : null;
 
-    if (!data || data.length === 0) return <div className="text-center text-gray-500 p-10">Нет данных</div>;
+    if (!data || data.length === 0) return <div className="text-center text-gray-500 p-10">Нет данных о перевозках</div>;
 
     return (
         <div className="pb-20 w-full max-w-4xl mx-auto">
-             {errorMessage}
+             {statusMessage}
              
              {/* AI Summary Block */}
-             <div className="bg-gray-800 rounded-xl p-4 border border-gray-700 mb-6">
+             <div className="ai-summary-card">
                 <div className="flex justify-between items-center mb-2">
                     <h3 className="text-lg font-bold text-white flex items-center">
                         <Mic className="w-5 h-5 mr-2 text-purple-400" />
@@ -222,32 +227,36 @@ const TableDisplay = ({ data, loading, error, summary, generateSummary, isMockDa
                     <button 
                         onClick={generateSummary}
                         disabled={summary.loading}
-                        className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-md transition disabled:opacity-50"
+                        className="button-primary-sm"
                     >
-                        {summary.loading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Обновить'}
+                        {summary.loading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Обновить анализ'}
                     </button>
                 </div>
-                {summary.text && <p className="text-sm text-gray-300 bg-gray-900/50 p-2 rounded">{summary.text}</p>}
+                {summary.text ? (
+                    <p className="text-sm text-gray-300 bg-gray-900/50 p-3 rounded-lg whitespace-pre-line">{summary.text}</p>
+                ) : (
+                    <p className="text-sm text-gray-500 p-3 bg-gray-900/50 rounded-lg">Нажмите "Обновить анализ", чтобы получить сводку данных о перевозках с помощью AI.</p>
+                )}
             </div>
 
             {/* List */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid-container">
                 {data.map((item, index) => (
-                    <div key={index} className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-md hover:shadow-blue-500/20 transition duration-300">
-                        <div className="p-3 bg-gray-750 border-b border-gray-700 flex justify-between items-center">
-                            <span className="font-bold text-blue-400 text-lg">#{item.Nomer || item.ID}</span>
-                            <button 
+                    <div key={index} className="perevozka-card">
+                        <div className="card-header">
+                            <span className="font-bold text-blue-400 text-lg">{item.Nomer || item.ID}</span>
+                            <IconButton 
                                 onClick={() => generateAndPlayTTS(item, index)}
                                 disabled={ttsLoading[index]}
-                                className="p-2 text-gray-400 hover:text-white transition"
+                                label="Озвучить информацию о перевозке"
                             >
-                                {ttsLoading[index] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Volume2 className="w-5 h-5" />}
-                            </button>
+                                {ttsLoading[index] ? <Loader2 className="w-4 h-4 animate-spin text-purple-400" /> : <Volume2 className="w-5 h-5 text-gray-400" />}
+                            </IconButton>
                         </div>
-                        <div className="divide-y divide-gray-700/50">
+                        <div className="card-body-details">
                             <TableRow label="Маршрут" value={`${item.FromPoint || item.AdresOtgruzki} → ${item.ToPoint || item.AdresDostavki}`} icon={<MapPin className="w-4 h-4" />} />
-                            <TableRow label="Дата" value={item.Date || item.DataOtgruzki} icon={<Calendar className="w-4 h-4" />} />
-                            <TableRow label="Сумма" value={`${item.Summa} ₽`} icon={<DollarSign className="w-4 h-4" />} />
+                            <TableRow label="Дата" value={item.Date ? new Date(item.Date).toLocaleDateString() : 'N/A'} icon={<Calendar className="w-4 h-4" />} />
+                            <TableRow label="Сумма" value={`${item.Summa ? item.Summa.toLocaleString('ru-RU') : '0'} ₽`} icon={<DollarSign className="w-4 h-4" />} />
                             <TableRow label="Статус" value={item.Status} icon={<Check className="w-4 h-4" />} />
                         </div>
                     </div>
@@ -266,6 +275,7 @@ export default function App() {
     const [loginPassword, setLoginPassword] = useState('ZakaZ656565');
     const [isOfferAccepted, setIsOfferAccepted] = useState(false);
     const [isDataProcessed, setIsDataProcessed] = useState(false);
+    const [showLoginError, setShowLoginError] = useState(false);
 
     const [perevozki, setPerevozki] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -329,7 +339,7 @@ export default function App() {
             if (!response.ok) {
                  // Если API все еще падает (например 500), мы выбрасываем ошибку,
                  // но в блоке catch переключаемся на демо-данные.
-                 throw new Error(`Ошибка API: ${response.status}`);
+                 throw new Error(`Ошибка API: ${response.status} (${response.statusText})`);
             }
 
             const data = await response.json();
@@ -339,11 +349,11 @@ export default function App() {
                 setPerevozki(result);
                 setView('perevozki');
             } else {
-                throw new Error("Некорректный формат данных");
+                throw new Error("Некорректный формат данных от API");
             }
         } catch (e) {
             // --- FALLBACK MECHANISM ---
-            console.error("API Request Failed:", e);
+            console.error("API Request Failed. Using Mock Data:", e);
             setError(e.message);
             // В случае ошибки сервера показываем демо-данные, чтобы интерфейс работал
             setPerevozki(MOCK_PEREVOZKI);
@@ -359,24 +369,30 @@ export default function App() {
         if (!perevozki) return;
         setSummary({ ...summary, loading: true });
         try {
-            const prompt = `Проанализируй: ${JSON.stringify(perevozki.slice(0, 5))}. Кратко на русском.`;
+            // Берем первые 5 элементов для краткого анализа
+            const prompt = `Проанализируй следующие данные о перевозках и дай краткую сводку на русском языке, не более 50 слов. Выдели ключевую информацию, например, общую сумму и статусы: ${JSON.stringify(perevozki.slice(0, 5))}.`;
             const response = await fetch(LLM_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
             });
+
+            if (!response.ok) throw new Error(`LLM API Error: ${response.status}`);
+
             const data = await response.json();
-            setSummary({ text: data.candidates?.[0]?.content?.parts?.[0]?.text || "Ошибка", loading: false });
+            setSummary({ text: data.candidates?.[0]?.content?.parts?.[0]?.text || "Не удалось сгенерировать анализ.", loading: false });
         } catch (e) {
-            setSummary({ text: "Ошибка анализа", loading: false });
+            console.error("AI Summary Error:", e);
+            setSummary({ text: "Ошибка при обращении к AI сервису.", loading: false });
         }
     };
 
     // --- HANDLERS ---
     const handleLogin = (e) => {
         e.preventDefault();
+        setShowLoginError(false);
         if (!isOfferAccepted || !isDataProcessed) {
-            setError("Необходимо принять условия.");
+            setShowLoginError(true);
             return;
         }
         fetchPerevozki();
@@ -384,34 +400,35 @@ export default function App() {
 
     const handleLogout = () => {
         setPerevozki(null);
-        setView('login');
+        setSummary({ text: '', loading: false });
         setError(null);
+        setView('login');
     };
 
     // --- RENDER ---
     return (
-        // Используем стандартный CSS (Tailwind) для гарантированного отображения в Web
-        <div className="min-h-screen bg-gray-900 text-gray-100 font-sans flex flex-col">
+        // Используются классы из styles.css
+        <div className="app-container">
             {/* Header */}
-            <header className="p-4 bg-gray-800 shadow-md flex justify-between items-center sticky top-0 z-10 border-b border-gray-700">
-                <div className="flex items-center">
-                    <Truck className="w-6 h-6 text-blue-500 mr-2" />
+            <header className="app-header">
+                <div className="header-title">
+                    <Truck className="header-icon" />
                     <h1 className="text-xl font-bold tracking-wide text-white">HAULZ</h1>
                 </div>
                 {view === 'perevozki' && (
-                    <button onClick={handleLogout} className="text-gray-400 hover:text-red-500 transition p-2 rounded-full hover:bg-gray-700">
-                        <LogOut className="w-5 h-5" />
-                    </button>
+                    <IconButton onClick={handleLogout} label="Выйти">
+                        <LogOut className="w-5 h-5 text-gray-400" />
+                    </IconButton>
                 )}
             </header>
 
             {/* Content */}
-            <main className="flex-grow p-4 flex justify-center items-start pt-10">
-                <div className="w-full max-w-4xl">
+            <main className="app-main">
+                <div className="w-full max-w-5xl">
                     {view === 'login' ? (
-                        <div className="max-w-md mx-auto bg-gray-800 p-8 rounded-2xl shadow-2xl border border-gray-700">
+                        <div className="login-card">
                             <div className="text-center mb-8">
-                                <div className="mx-auto w-12 h-12 mb-4 flex items-center justify-center rounded-full bg-gray-700/50">
+                                <div className="login-icon-container">
                                     <LogIn className="w-6 h-6 text-blue-500" />
                                 </div>
                                 <h2 className="text-2xl font-bold text-white">Вход в систему</h2>
@@ -424,7 +441,7 @@ export default function App() {
                                         type="text" 
                                         value={loginEmail} 
                                         onChange={e => setLoginEmail(e.target.value)}
-                                        className="w-full bg-gray-700 border border-gray-600 text-white p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition placeholder-gray-400"
+                                        className="login-input"
                                         placeholder="Email"
                                     />
                                 </div>
@@ -433,7 +450,7 @@ export default function App() {
                                         type="password" 
                                         value={loginPassword} 
                                         onChange={e => setLoginPassword(e.target.value)}
-                                        className="w-full bg-gray-700 border border-gray-600 text-white p-3 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition placeholder-gray-400"
+                                        className="login-input"
                                         placeholder="Пароль"
                                     />
                                 </div>
@@ -442,21 +459,27 @@ export default function App() {
                                     <LabeledSwitch 
                                         label="Я согласен с Условиями оферты" 
                                         isChecked={isOfferAccepted} 
-                                        onToggle={() => setIsOfferAccepted(!isOfferAccepted)} 
+                                        onToggle={() => {
+                                            setIsOfferAccepted(!isOfferAccepted);
+                                            if (showLoginError) setShowLoginError(false);
+                                        }} 
                                     />
                                     <LabeledSwitch 
                                         label="Я даю согласие на обработку данных" 
                                         isChecked={isDataProcessed} 
-                                        onToggle={() => setIsDataProcessed(!isDataProcessed)} 
+                                        onToggle={() => {
+                                            setIsDataProcessed(!isDataProcessed);
+                                            if (showLoginError) setShowLoginError(false);
+                                        }} 
                                     />
                                 </div>
 
-                                {error && !isMockData && <div className="p-3 bg-red-900/50 border border-red-700 text-red-200 text-sm rounded-lg">{error}</div>}
-
+                                {showLoginError && <div className="login-error">Необходимо принять все условия для входа.</div>}
+                                
                                 <button 
                                     type="submit" 
                                     disabled={loading}
-                                    className="w-full py-3 mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-900/50 transition transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
+                                    className="button-primary flex justify-center items-center"
                                 >
                                     {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Войти"}
                                 </button>
@@ -466,7 +489,7 @@ export default function App() {
                         <TableDisplay 
                             data={perevozki} 
                             loading={loading} 
-                            error={error} // Передаем ошибку в TableDisplay, чтобы он мог показать предупреждение о мок-данных
+                            error={error} 
                             isMockData={isMockData}
                             summary={summary}
                             generateSummary={generateSummary}
