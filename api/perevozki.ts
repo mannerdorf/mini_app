@@ -9,12 +9,13 @@ const HARDCODED_EXTERNAL_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebServ
 const ADMIN_AUTH_HEADER = 'Basic YWRtaW46anVlYmZueWU='; 
 
 // --- ДАННЫЕ КЛИЕНТА (для 'Auth') ---
-// order@lal-auto.com:ZakaZ656565 -> b3JkZXJAbGFsLWF1dG8uY29tOlpha2FaNjU2NTY1
-// Мы кодируем этот пароль, чтобы его принял Axios и 1С, т.к. Axios не примет незакодированный логин:пароль в заголовке
-const CLIENT_AUTH_BASE64_FOR_AUTH_HEADER = 'Basic b3JkZXJAbGFsLWF1dG8uY29tOlpha2FaNjU2NTY1';
+// !!! ВНИМАНИЕ: СТРОГОЕ СООТВЕТСТВИЕ POSTMAN-У !!!
+// Мы отправляем незакодированный логин:пароль, хотя это нарушает стандарт Basic Auth.
+// Если 1С этого требует, Axios должен это отправить.
+const CLIENT_AUTH_RAW_VALUE = 'Basic order@lal-auto.com:ZakaZ656565'; 
 
 /**
- * ПРОКСИ ДЛЯ АБСОЛЮТНОЙ ТОЧНОСТИ:
+ * ПРОКСИ ДЛЯ АБСОЛЮТНОЙ ТОЧНОСТИ (Версия с незакодированным 'Auth').
  * Использует жёсткий URL и жёстко заданные рабочие заголовки из Postman.
  */
 export default async function handler(
@@ -31,20 +32,20 @@ export default async function handler(
     }
 
     try {
-        console.log("PEREVOZKI GET CALL - ABSOLUTE POSTMAN REPLICA", {
+        console.log("PEREVOZKI GET CALL - FINAL RAW AUTH DEBUG", {
             TargetURL: HARDCODED_EXTERNAL_URL,
             AuthorizationHeader: ADMIN_AUTH_HEADER, 
-            AuthHeader: CLIENT_AUTH_BASE64_FOR_AUTH_HEADER,
-            Message: "Используются жестко заданные URL и заголовки, как в рабочем Postman-запросе."
+            AuthHeader: CLIENT_AUTH_RAW_VALUE, // *** Незакодированное значение ***
+            Message: "Используется незакодированный клиентский Auth-токен (Raw Value) для абсолютной точности."
         });
 
         const response = await axios.get(HARDCODED_EXTERNAL_URL, {
             headers: {
-                // 1. АДМИНСКИЙ ТОКЕН идет в 'Authorization' (как в вашем рабочем CURL)
+                // 1. АДМИНСКИЙ ТОКЕН идет в 'Authorization'
                 'Authorization': ADMIN_AUTH_HEADER, 
                 
-                // 2. КЛИЕНТСКИЙ ТОКЕН идет в 'Auth' (как в вашем рабочем CURL)
-                'Auth': CLIENT_AUTH_BASE64_FOR_AUTH_HEADER, 
+                // 2. КЛИЕНТСКИЙ ТОКЕН идет в 'Auth' (незакодированный)
+                'Auth': CLIENT_AUTH_RAW_VALUE, 
                 
                 'Accept-Encoding': 'identity', 
             },
