@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react"; // Удалены неиспользуемые импорты
+import { FormEvent, useState, useEffect } from "react"; 
 import { LogOut, Home, Truck, FileText, MessageCircle, User, Loader2, Check, X, Moon, Sun, Eye, EyeOff } from 'lucide-react';
 
 // --- ТИПЫ ДАННЫХ ---
@@ -33,8 +33,6 @@ export default function App() {
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
     
-    // ЭТО ПОЛЕ УДАЛЕНО: [curlRequest, setCurlRequest] - больше не используется.
-    
     const [auth, setAuth] = useState<AuthData | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("cargo"); 
     const [theme, setTheme] = useState('dark');
@@ -64,8 +62,7 @@ export default function App() {
             const authHeader = getAuthHeader(cleanLogin, cleanPassword); 
 
             // 2. ОСНОВНОЙ ЗАПРОС К ПРОКСИ (через fetch)
-            // Прокси-функция (api/perevozki.ts) содержит жестко заданный URL 
-            // и все необходимые заголовки для 1С.
+            // Прокси-функция (api/perevozki.ts) пока использует ЖЕСТКИЙ URL/даты.
             const res = await fetch(`${PROXY_API_BASE_URL}`, { 
                 method: "GET", 
                 headers: { 
@@ -78,7 +75,7 @@ export default function App() {
                 if (res.status === 401) {
                     message = "Ошибка авторизации (401). Проверьте логин и пароль.";
                 } else if (res.status === 500) {
-                     message = "Ошибка авторизации: 500. Проверьте логин и пароль.";
+                     message = "Ошибка сервера (500). Проверьте логин и пароль.";
                 }
                 setError(message);
                 setAuth(null);
@@ -377,7 +374,35 @@ export default function App() {
                 .right-0 { right: 0; }
                 .z-50 { z-index: 50; }
                 .shadow-lg { box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -2px rgba(0, 0, 0, 0.06); }
-
+                .button-primary {
+                    background-color: var(--color-primary-blue);
+                    color: white;
+                    padding: 0.75rem 1.5rem;
+                    border-radius: 0.75rem;
+                    font-weight: 600;
+                    transition: background-color 0.15s;
+                    border: none;
+                    cursor: pointer;
+                }
+                .button-primary:hover:not(:disabled) {
+                    background-color: #2563eb;
+                }
+                .button-primary:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
+                }
+                .theme-toggle-button {
+                    background: none;
+                    border: none;
+                    color: var(--color-text-secondary);
+                    cursor: pointer;
+                    padding: 0.5rem;
+                    border-radius: 50%;
+                    transition: background-color 0.15s;
+                }
+                .theme-toggle-button:hover {
+                    background-color: var(--color-bg-hover);
+                }
 
                 `}
             </style>
@@ -473,8 +498,6 @@ export default function App() {
                     </form>
 
                     {error && <p className="login-error mt-4"><X className="w-5 h-5 mr-2" />{error}</p>}
-                    
-                    {/* --- ТЕХНИЧЕСКОЕ ПОЛЕ CURL УДАЛЕНО --- */}
                 </div>
             </div>
             </>
@@ -491,91 +514,7 @@ export default function App() {
                     <span className="logo-text text-theme-primary" style={{ fontSize: '1.5rem', margin: 0 }}>HAULZ</span>
                 </h1>
                 <div className="flex items-center space-x-3">
-                    <button className="text-theme-secondary hover:bg-theme-hover-bg p-2 rounded-full" onClick={handleLogout} title="Выйти">
+                    <button className="theme-toggle-button" onClick={handleLogout} title="Выйти">
                         <LogOut className="w-5 h-5 text-red-500" />
                     </button>
-                    <button className="text-theme-secondary hover:bg-theme-hover-bg p-2 rounded-full" onClick={toggleTheme} title="Переключить тему">
-                        {isThemeLight ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-yellow-400" />}
-                    </button>
-                </div>
-            </header>
-
-            <div className="app-main">
-                <div className="w-full max-w-4xl"> 
-                    {activeTab === "cargo" && <CargoPage auth={auth} />}
-                    {activeTab === "home" && <StubPage title="Главная" />}
-                    {activeTab === "docs" && <StubPage title="Документы" />}
-                    {activeTab === "support" && <StubPage title="Поддержка" />}
-                    {activeTab === "profile" && <StubPage title="Профиль" />}
-                </div>
-            </div>
-
-            <TabBar active={activeTab} onChange={setActiveTab} />
-        </div>
-    );
-}
-
-// ----------------- КОМПОНЕНТ С ГРУЗАМИ -----------------
-
-// Поскольку вы не предоставили код компонента CargoPage, я предполагаю, что он верен.
-type CargoPageProps = { 
-    auth: AuthData; 
-};
-
-function CargoPage({ auth }: CargoPageProps) {
-    const [items, setItems] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [aiSummary, setAiSummary] = useState("Искусственный интеллект анализирует ваши данные...");
-    const [summaryLoading, setSummaryLoading] = useState(true);
-
-    const formatDate = (dateString: string | undefined): string => {
-        if (!dateString) return '-';
-        try {
-            const date = new Date(dateString);
-            if (!isNaN(date.getTime())) {
-                 return date.toLocaleDateString('ru-RU');
-            }
-        } catch (e) { /* ignore */ }
-        const [year, month, day] = dateString.split('-');
-        if (year && month && day) {
-            return `${day}.${month}.${year}`;
-        }
-        return dateString;
-    };
-    
-    const formatCurrency = (value: number | string | undefined): string => {
-        if (value === undefined || value === null || value === "") return '-';
-        const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
-        if (isNaN(num)) return String(value);
-
-        return new Intl.NumberFormat('ru-RU', {
-            style: 'currency',
-            currency: 'RUB',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(num);
-    };
-
-    // Загрузка данных
-    /* УДАЛЕН НЕИСПОЛЬЗУЕМЫЙ useEffect */
-    
-    // Загрузка данных
-    const loadData = async (login: string, password: string) => {
-            setLoading(true);
-            setError(null);
-            setSummaryLoading(true);
-
-            const today = new Date();
-            const oneYearAgo = new Date();
-            oneYearAgo.setFullYear(today.getFullYear() - 1);
-
-            const formatDateForApi = (date: Date): string => {
-                const y = date.getFullYear();
-                const m = String(date.getMonth() + 1).padStart(2, '0');
-                const d = String(date.getDate()).padStart(2, '0');
-                return `${y}-${m}-${d}`;
-            };
-            
-            const dateFrom = formatDateForApi(oneYearAgo);
-            const dateTo = formatDateForApi(today);
+                    <button className="theme-toggle-button" onClick={toggleTheme} title="
