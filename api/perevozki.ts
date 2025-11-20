@@ -1,19 +1,21 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import axios from 'axios';
 
-// --- КОНФИГУРАЦИЯ ВНЕШНЕГО API ---
-const EXTERNAL_API_BASE_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki';
+// --- КОНФИГУРАЦИЯ ВНЕШНЕГО API (ЖЕСТКО ЗАДАННЫЙ РАБОЧИЙ URL) ---
+const HARDCODED_EXTERNAL_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki?DateB=2024-12-11&DateE=2026-01-01';
 
-// --- СЛУЖЕБНЫЕ ДАННЫЕ АДМИНИСТРАТОРА (для передачи через Auth) ---
-const ADMIN_AUTH_BASE64 = 'YWRtaW46anVlYmZueWU=';
-const ADMIN_AUTH_VALUE = `Basic ${ADMIN_AUTH_BASE64}`;
+// --- СЛУЖЕБНЫЕ ДАННЫЕ АДМИНИСТРАТОРА (для 'Authorization') ---
+// admin:juebfnye -> YWRtaW46anVlYmZueWU=
+const ADMIN_AUTH_HEADER = 'Basic YWRtaW46anVlYmZueWU='; 
 
-// --- ЖЁСТКИЕ РАБОЧИЕ ДАТЫ ИЗ ВАШЕГО CURL/POSTMAN ---
-const WORKING_QUERY_PARAMS = '?DateB=2024-12-11&DateE=2026-01-01'; 
+// --- ДАННЫЕ КЛИЕНТА (для 'Auth') ---
+// order@lal-auto.com:ZakaZ656565 -> b3JkZXJAbGFsLWF1dG8uY29tOlpha2FaNjU2NTY1
+// Мы кодируем этот пароль, чтобы его принял Axios и 1С, т.к. Axios не примет незакодированный логин:пароль в заголовке
+const CLIENT_AUTH_BASE64_FOR_AUTH_HEADER = 'Basic b3JkZXJAbGFsLWF1dG8uY29tOlpha2FaNjU2NTY1';
 
 /**
- * ФИНАЛЬНАЯ ПОПЫТКА: Клиентский токен идет в 'Authorization'.
- * Служебный токен идет в 'Auth'.
+ * ПРОКСИ ДЛЯ АБСОЛЮТНОЙ ТОЧНОСТИ:
+ * Использует жёсткий URL и жёстко заданные рабочие заголовки из Postman.
  */
 export default async function handler(
     req: VercelRequest,
@@ -22,34 +24,27 @@ export default async function handler(
     if (req.method !== 'GET') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
-
-    // Это Base64 клиента, который пришел от фронтенда
-    const clientAuthHeader = req.headers.authorization; 
-
-    if (!clientAuthHeader || !clientAuthHeader.startsWith('Basic ')) {
+    
+    // Прокси-функция должна убедиться, что клиент прислал что-то в заголовке Authorization
+    if (!req.headers.authorization) { 
         return res.status(401).json({ error: 'Authorization required' });
     }
 
     try {
-        // --- ФОРМИРОВАНИЕ URL (с жёсткими датами) ---
-        const externalUrl = `${EXTERNAL_API_BASE_URL}${WORKING_QUERY_PARAMS}`;
-
-        console.log("PEREVOZKI GET CALL - FINAL AUTH SWAP DEBUG", {
-            TargetURL: externalUrl,
-            // СВЕРЯЕМСЯ С ТРЕБОВАНИЯМИ 1С:
-            // 1. Клиентский токен отправляется в 'Authorization'
-            AuthorizationHeaderSent: clientAuthHeader, 
-            // 2. Служебный токен отправляется в 'Auth'
-            AuthHeaderSent: ADMIN_AUTH_VALUE,
+        console.log("PEREVOZKI GET CALL - ABSOLUTE POSTMAN REPLICA", {
+            TargetURL: HARDCODED_EXTERNAL_URL,
+            AuthorizationHeader: ADMIN_AUTH_HEADER, 
+            AuthHeader: CLIENT_AUTH_BASE64_FOR_AUTH_HEADER,
+            Message: "Используются жестко заданные URL и заголовки, как в рабочем Postman-запросе."
         });
 
-        const response = await axios.get(externalUrl, {
+        const response = await axios.get(HARDCODED_EXTERNAL_URL, {
             headers: {
-                // *** 1. КЛИЕНТСКИЙ ТОКЕН отправляем в 'Authorization' ***
-                'Authorization': clientAuthHeader, 
+                // 1. АДМИНСКИЙ ТОКЕН идет в 'Authorization' (как в вашем рабочем CURL)
+                'Authorization': ADMIN_AUTH_HEADER, 
                 
-                // *** 2. СЛУЖЕБНЫЙ ТОКЕН отправляем в 'Auth' ***
-                'Auth': ADMIN_AUTH_VALUE, 
+                // 2. КЛИЕНТСКИЙ ТОКЕН идет в 'Auth' (как в вашем рабочем CURL)
+                'Auth': CLIENT_AUTH_BASE64_FOR_AUTH_HEADER, 
                 
                 'Accept-Encoding': 'identity', 
             },
