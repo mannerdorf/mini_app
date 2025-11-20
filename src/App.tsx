@@ -24,9 +24,8 @@ const getAuthHeader = (login: string, password: string): { Authorization: string
 // --- ФУНКЦИЯ ДЛЯ ГЕНЕРАЦИИ ДИНАМИЧЕСКОГО CURL (для отображения) ---
 const generateDynamicCurlString = (clientLogin: string, clientPassword: string): string => {
     // Параметры 1С (DateB, DateE) и заголовок Authorization (Admin) 
-    // остаются статичными, как в вашем эталоне
-    const dateB = '2024-12-11';
-    const dateE = '2026-01-01';
+    const dateB = '2024-01-01'; // Используем те же даты, что и в запросе
+    const dateE = '2025-01-01';
     const adminAuthBase64 = 'Basic YWRtaW46anVlYmZueWU='; 
     
     // Заголовок Auth (Client) - КРИТИЧНО: НЕКОДИРОВАННЫЕ учетные данные
@@ -47,7 +46,6 @@ export default function App() {
     const [showPassword, setShowPassword] = useState(false);
     
     const [auth, setAuth] = useState<AuthData | null>(null);
-    // Удален state activeTab
     const [theme, setTheme] = useState('dark');
     const isThemeLight = theme === 'light';
 
@@ -55,7 +53,6 @@ export default function App() {
     const [curlCommand, setCurlCommand] = useState<string>(''); 
     
     // --- ХУК ДЛЯ ОБНОВЛЕНИЯ CURL ---
-    // Обновляем curlCommand при изменении логина или пароля
     useEffect(() => {
         const dynamicCurl = generateDynamicCurlString(login.trim(), password.trim());
         setCurlCommand(dynamicCurl);
@@ -79,7 +76,6 @@ export default function App() {
             return;
         }
         
-        // Получаем закодированный заголовок для отправки на прокси
         const { Authorization } = getAuthHeader(cleanLogin, cleanPassword);
 
         // Используем фиксированные даты для первого запроса авторизации
@@ -89,7 +85,7 @@ export default function App() {
         try {
             setLoading(true);
             
-            // 1. ОСНОВНОЙ ЗАПРОС К ПРОКСИ (через fetch)
+            // Запрос на Vercel Proxy
             const res = await fetch(`${PROXY_API_BASE_URL}?dateFrom=${fixedDateFrom}&dateTo=${fixedDateTo}`, { 
                 method: "GET", 
                 headers: { 
@@ -102,8 +98,8 @@ export default function App() {
                 let message = `Ошибка авторизации: ${res.status}. Проверьте логин и пароль.`;
                 if (res.status === 401) {
                     message = "Ошибка авторизации (401). Проверьте логин и пароль.";
-                } else if (res.status === 500) {
-                     message = "Ошибка сервера (500). Проверьте логин и пароль.";
+                } else if (res.status >= 500) {
+                     message = `Ошибка сервера (5xx). Проверьте логику прокси-файла.`;
                 }
                 setError(message);
                 setAuth(null);
@@ -131,7 +127,7 @@ export default function App() {
     };
 
 
-    // --------------- СТИЛИ (оставлены без изменений для сохранения темы) ---------------
+    // --------------- СТИЛИ (оставлены без изменений) ---------------
     const globalStyles = (
         <style>
             {`
@@ -348,7 +344,7 @@ export default function App() {
                 padding: 1.5rem 1rem;
                 display: flex;
                 justify-content: center;
-                align-items: center; /* Центрируем по вертикали для сообщения об успехе */
+                align-items: center; 
             }
             .button-primary {
                 background-color: var(--color-primary-blue);
