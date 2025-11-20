@@ -1,7 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import axios from 'axios';
 
-// 1. URL внешнего API 1С (из вашего эталона)
+// 1. URL внешнего API 1С
 const EXTERNAL_API_BASE_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki';
 
 // 2. Admin Basic Auth Header для 1С. Этот заголовок должен быть BASE64-кодирован.
@@ -36,13 +36,14 @@ export default async function (req: VercelRequest, res: VercelResponse) {
     }
     
     // 3. Формирование заголовка Auth: 'Basic order@lal-auto.com:ZakaZ656565' (RAW-строка)
+    // ВНИМАНИЕ: Формат заголовка 'Auth' в 1С требует RAW-строку login:password
     const clientAuthHeaderFor1C = `Basic ${rawCredentials}`; 
 
     // 4. Извлечение query параметров от фронтенда (dateFrom, dateTo)
     const { dateFrom, dateTo } = req.query; 
 
     if (!dateFrom || !dateTo) {
-         return res.status(400).json({ error: 'Missing dateFrom or dateTo query parameters.' });
+        return res.status(400).json({ error: 'Missing dateFrom or dateTo query parameters.' });
     }
 
     try {
@@ -57,15 +58,18 @@ export default async function (req: VercelRequest, res: VercelResponse) {
         // 6. Выполнение запроса к 1С с ДВОЙНОЙ авторизацией
         const apiResponse = await axios.get(urlWithParams, {
             headers: {
-                // Заголовок Auth (Client) - КРИТИЧНО: RAW credentials
+                // Заголовок Auth (Client) - RAW credentials
                 'Auth': clientAuthHeaderFor1C, 
                 
                 // Заголовок Authorization (Admin) - BASE64 credentials
                 'Authorization': ADMIN_BASIC_AUTH_HEADER,
                 
+                // 🛑 ИСПРАВЛЕНИЕ: Отключаем автоматическое сжатие (gzip) Axios/Vercel
+                'Accept-Encoding': 'identity', 
+                
                 'Content-Type': 'application/json',
             },
-             // Важно: не выбрасываем исключение на 4xx/5xx, чтобы пробросить статус 1С на фронтенд
+            // Важно: не выбрасываем исключение на 4xx/5xx, чтобы пробросить статус 1С на фронтенд
             validateStatus: () => true, 
         });
 
@@ -77,6 +81,7 @@ export default async function (req: VercelRequest, res: VercelResponse) {
 
     } catch (error: any) {
         console.error('Proxy error:', error?.message || error);
-        res.status(500).json({ error: 'Proxy error', details: error?.message || String(error) });
+        // Возвращаем 500 в случае ошибки сети или сбоя прокси
+        res.status(500).json({ error: 'Proxy internal error', details: error?.message || String(error) });
     }
 }
