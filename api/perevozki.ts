@@ -1,65 +1,82 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { VercelRequest, VercelResponse } from '@vercel/node';
 import axios from 'axios';
 
-// --- URL и Даты из рабочего запроса Postman ---
-const HARDCODED_EXTERNAL_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki?DateB=2024-12-11&DateE=2026-01-01'; // Точные рабочие даты
+// 1. URL внешнего API 1С (из вашего эталона)
+const EXTERNAL_API_BASE_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki';
 
-// --- 1. АДМИНСКИЙ ТОКЕН (Authorization: Base64) ---
-// Соответствует: --header 'Authorization: Basic YWRtaW46anVlYmZueWU='
-const ADMIN_AUTH_HEADER = 'Basic YWRtaW46anVlYmZueWU='; 
+// 2. Admin Basic Auth Header для 1С. Этот заголовок должен быть BASE64-кодирован.
+// Значение: 'Basic YWRtaW46anVlYmZueWU=' (admin:juebfnye)
+const ADMIN_BASIC_AUTH_HEADER = 'Basic YWRtaW46anVlYmZueWU=';
 
-// --- 2. КЛИЕНТСКИЙ ТОКЕН (Auth: НЕКОДИРОВАННЫЙ логин:пароль) ---
-// Соответствует: --header 'Auth: Basic order@lal-auto.com:ZakaZ656565'
-const CLIENT_AUTH_RAW_VALUE = 'Basic order@lal-auto.com:ZakaZ656565'; 
+// --------------------------------------------------------------------------------------
 
-/**
- * ПРОКСИ: ТОЧНАЯ КОПИЯ РАБОЧЕГО ЗАПРОСА.
- * Устраняет проблему с нестандартным, незакодированным заголовком 'Auth'.
- */
-export default async function handler(
-    req: VercelRequest,
-    res: VercelResponse,
-) {
+export default async function (req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'GET') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
+
+    // 1. Получение Base64-кодированного токена клиента из заголовка Authorization фронтенда
+    const clientAuthHeader = req.headers.authorization;
     
-    // Проверка наличия заголовка Authorization (для Vercel)
-    if (!req.headers.authorization) { 
-        return res.status(401).json({ error: 'Authorization required' });
+    if (!clientAuthHeader || !clientAuthHeader.startsWith('Basic ')) {
+        return res.status(401).json({ error: 'Authorization header (client) is missing or invalid.' });
+    }
+    
+    // Извлекаем Base64-токен (обрезаем префикс "Basic ")
+    const base64Token = clientAuthHeader.substring(6); 
+    
+    // 2. 🔑 ДЕКОДИРОВАНИЕ: Получение RAW-строки 'login:password' для заголовка Auth
+    let rawCredentials;
+    try {
+        // Используем Node.js Buffer для декодирования Base64
+        rawCredentials = Buffer.from(base64Token, 'base64').toString('utf8');
+    } catch (e) {
+        console.error("Failed to decode base64 token", e);
+        return res.status(400).json({ error: 'Invalid Base64 token provided.' });
+    }
+    
+    // 3. Формирование заголовка Auth: 'Basic order@lal-auto.com:ZakaZ656565' (RAW-строка)
+    const clientAuthHeaderFor1C = `Basic ${rawCredentials}`; 
+
+    // 4. Извлечение query параметров от фронтенда (dateFrom, dateTo)
+    const { dateFrom, dateTo } = req.query; 
+
+    if (!dateFrom || !dateTo) {
+         return res.status(400).json({ error: 'Missing dateFrom or dateTo query parameters.' });
     }
 
     try {
-        console.log("PEREVOZKI GET CALL - FINAL PURE REPLICA", {
-            TargetURL: HARDCODED_EXTERNAL_URL,
-            AuthorizationHeader: ADMIN_AUTH_HEADER, 
-            AuthHeader: CLIENT_AUTH_RAW_VALUE, 
-            Message: "Отправляется максимально точная копия рабочего запроса."
-        });
-
-        const response = await axios.get(HARDCODED_EXTERNAL_URL, {
+        // 5. Формирование URL с query параметрами 1С (DateB, DateE)
+        const queryParams = new URLSearchParams({
+            DateB: dateFrom as string, // Фронтенд: dateFrom -> API 1C: DateB
+            DateE: dateTo as string,   // Фронтенд: dateTo   -> API 1C: DateE
+        }).toString();
+        
+        const urlWithParams = `${EXTERNAL_API_BASE_URL}?${queryParams}`;
+        
+        // 6. Выполнение запроса к 1С с ДВОЙНОЙ авторизацией
+        const apiResponse = await axios.get(urlWithParams, {
             headers: {
-                // АДМИНСКИЙ ТОКЕН (Кодированный)
-                'Authorization': ADMIN_AUTH_HEADER, 
+                // Заголовок Auth (Client) - КРИТИЧНО: RAW credentials
+                'Auth': clientAuthHeaderFor1C, 
                 
-                // КЛИЕНТСКИЙ ТОКЕН (НЕКОДИРОВАННЫЙ)
-                'Auth': CLIENT_AUTH_RAW_VALUE,
+                // Заголовок Authorization (Admin) - BASE64 credentials
+                'Authorization': ADMIN_BASIC_AUTH_HEADER,
+                
+                'Content-Type': 'application/json',
             },
-            timeout: 15000, 
+             // Важно: не выбрасываем исключение на 4xx/5xx, чтобы пробросить статус 1С на фронтенд
+            validateStatus: () => true, 
         });
 
-        // Возвращаем успешный ответ от 1С клиенту
-        res.status(response.status).json(response.data);
-        
-    } catch (error: any) {
-        console.error('External API Request Failed:', error.message);
-        
-        if (axios.isAxiosError(error) && error.response) {
-            console.error('External API Response Status:', error.response.status);
-            // Возвращаем клиенту ошибку, полученную от 1С
-            return res.status(error.response.status).json(error.response.data || { error: 'External API Error' });
-        }
+        // 7. Проброс статуса и данных как есть
+        res
+          .status(apiResponse.status)
+          .setHeader('Content-Type', apiResponse.headers['content-type'] || 'application/json')
+          .send(apiResponse.data);
 
-        res.status(500).json({ error: 'Internal Server Error or Network Issue' });
+    } catch (error: any) {
+        console.error('Proxy error:', error?.message || error);
+        res.status(500).json({ error: 'Proxy error', details: error?.message || String(error) });
     }
 }
