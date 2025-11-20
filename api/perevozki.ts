@@ -1,116 +1,82 @@
-import type { VercelRequest, VencilResponse } from "@vercel/node";
-import { Buffer } from "buffer";
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import axios from 'axios';
 
-const BASE_URL =
-  "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
+// --- КОНФИГУРАЦИЯ ВНЕШНЕГО API ---
+// Используем ваш реальный URL из запроса Postman
+const EXTERNAL_API_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki';
 
-// сервисный Basic-auth (должен быть закодирован в Base64)
-const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
+/**
+ * Обработчик для прокси-запросов.
+ * Принимает GET-запрос от фронтенда, извлекает заголовок Authorization: Basic,
+ * и перенаправляет запрос с этим заголовком на внешний API 1С.
+ */
+export default async function handler(
+    req: VercelRequest,
+    res: VercelResponse,
+) {
+    // Разрешаем только GET-запросы
+    if (req.method !== 'GET') {
+        console.log(`Method Not Allowed: ${req.method}`);
+        return res.status(405).json({ error: 'Method Not Allowed' });
+    }
 
-// Определяем тип для ожидаемых параметров (DateB, DateE)
-interface RequestQuery {
-  dateFrom?: string;
-  dateTo?: string;
-}
+    const authHeader = req.headers.authorization;
+    
+    // Проверка наличия заголовка авторизации
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+        console.log('Authorization header missing or invalid format.');
+        return res.status(401).json({ error: 'Authorization required' });
+    }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // --- ИСПРАВЛЕНИЕ: Разрешаем только GET запросы ---
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed. Use GET." });
-  }
+    try {
+        // Извлечение Base64 части
+        const userAuthBase64 = authHeader.replace('Basic ', '').trim();
+        
+        // --- ДЕКОДИРОВАНИЕ ДЛЯ ЛОГИРОВАНИЯ И ПРОВЕРКИ ---
+        const decoded = Buffer.from(userAuthBase64, 'base64').toString();
+        const [login] = decoded.split(":");
+        const cleanLogin = (login || "").trim();
 
-  // 1. Получение данных для фильтрации из URL-параметров (req.query)
-  const { dateFrom, dateTo } = req.query as RequestQuery;
+        // --- УСИЛЕННОЕ ЛОГИРОВАНИЕ ДЛЯ ОТЛАДКИ 401 ОШИБКИ ---
+        // КРИТИЧЕСКИ ВАЖНО: UpstreamAuthHeader должен совпадать с тем, что работает в Postman
+        console.log("PEREVOZKI GET CALL", {
+            ReceivedAuthHeader: req.headers.authorization, 
+            DecodedLogin: cleanLogin, 
+            UpstreamAuthHeader: `Basic ${userAuthBase64}`, 
+            query: req.query,
+            externalUrl: `${EXTERNAL_API_URL}${req.url?.replace('/api/perevozki', '')}`
+        });
+        // -----------------------------------------------------------------
 
-  // 2. Получение данных для авторизации из заголовка (Authorization Header)
-  const authHeader = req.headers.authorization;
+        // Формирование URL для внешнего API, включая все query-параметры (DateB, DateE и т.д.)
+        const externalUrl = `${EXTERNAL_API_URL}${req.url?.replace('/api/perevozki', '')}`;
 
-  if (!authHeader || !authHeader.startsWith("Basic ")) {
-    return res
-      .status(401)
-      .json({ error: "Authorization header (Basic Auth) is required." });
-  }
+        // Выполнение запроса к внешнему API
+        const response = await axios.get(externalUrl, {
+            headers: {
+                // Передача заголовка Basic Auth, который мы получили от клиента
+                'Authorization': `Basic ${userAuthBase64}`, 
+                // Отключение Gzip, чтобы избежать проблем совместимости с 1С
+                'Accept-Encoding': 'identity', 
+            },
+            timeout: 15000, 
+        });
 
-  // Извлекаем Base64 часть и декодируем её
-  const encodedCredentials = authHeader.replace("Basic ", "").trim();
-  let login = "";
-  let password = "";
+        // Если запрос успешен, возвращаем данные клиенту
+        res.status(response.status).json(response.data);
+        
+    } catch (error: any) {
+        console.error('External API Request Failed:', error.message);
+        
+        // Обработка ошибок, полученных от внешнего API (например, 401)
+        if (axios.isAxiosError(error) && error.response) {
+            console.error('External API Response Status:', error.response.status);
+            
+            // Если 401 от 1С, возвращаем 401 клиенту
+            return res.status(error.response.status).json(error.response.data || { error: 'External API Error' });
+        }
 
-  try {
-    const decoded = Buffer.from(encodedCredentials, "base64").toString("utf-8");
-    [login, password] = decoded.split(":");
-  } catch (e) {
-    return res.status(400).json({ error: "Invalid Basic Auth format." });
-  }
-
-  const cleanLogin = (login || "").trim();
-  const cleanPassword = (password || "").trim();
-
-  if (!cleanLogin || !cleanPassword) {
-    return res.status(400).json({ error: "login and password are required" });
-  }
-
-  // Логирование (без чувствительных данных)
-  console.log("PEREVOZKI GET CALL", {
-    login: cleanLogin,
-    ua: req.headers["user-agent"],
-  });
-
-  const url = new URL(BASE_URL);
-  // Используем DateB/DateE для внешнего API 1С
-  url.searchParams.set("DateB", dateFrom || "2024-01-01"); 
-  url.searchParams.set("DateE", dateTo || "2026-01-01");
-
-  // --- Basic Auth: кодирование пользовательских данных для внешнего API ---
-  const userAuthBase64 = Buffer.from(`${cleanLogin}:${cleanPassword}`).toString(
-    "base64"
-  );
-
-  try {
-    const upstream = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        // Заголовок с пользовательским Basic Auth для внешнего API (как на скриншоте Postman)
-        // Используем 'Authorization' для 1С, так как это стандартный заголовок Basic Auth.
-        Authorization: `Basic ${userAuthBase64}`,
-        
-        // (Удалил SERVICE_AUTH, так как он, вероятно, не нужен для Upstream-запроса, 
-        // если только вы не используете его как часть механизма прокси. 
-        // Если внешний API требует SERVICE_AUTH, добавьте его обратно в заголовок `Authorization` или другой заголовок.)
-      },
-    });
-    // ... (оставшаяся часть логики обработки ответа остается без изменений)
-
-    const text = await upstream.text();
-
-    console.log("PEREVOZKI AUTH RESPONSE", {
-      status: upstream.status,
-      ok: upstream.ok,
-      bodyPreview: text.slice(0, 200),
-    });
-
-    if (!upstream.ok) {
-      // Возвращаем статус и текст из 1С как есть
-      return res
-        .status(upstream.status)
-        .send(text || `Upstream error: ${upstream.status}`);
-    }
-
-    // Если 1С вернул JSON — пробуем распарсить
-    try {
-      const json = JSON.parse(text);
-      return res.status(200).json(json);
-    } catch {
-      // Не JSON — возвращаем текст как есть
-      return res.status(200).send(text);
-    }
-  } catch (error) {
-    // Улучшенная обработка ошибок
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("Proxy error:", error);
-    return res
-      .status(500)
-      .json({ error: "Proxy error", details: errorMessage });
-  }
+        // Внутренняя ошибка сервера или сети
+        res.status(500).json({ error: 'Internal Server Error or Network Issue' });
+    }
 }
