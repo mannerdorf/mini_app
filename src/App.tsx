@@ -61,7 +61,6 @@ export default function App() {
             const authHeader = getAuthHeader(cleanLogin, cleanPassword);
 
             // --- КОРРЕКЦИЯ: Используем GET для авторизации и запроса данных ---
-            // Отправляем запрос на прокси. Если он вернет 200, авторизация успешна.
             const res = await fetch(`${PROXY_API_BASE_URL}`, { 
                 method: "GET", 
                 headers: { 
@@ -73,6 +72,8 @@ export default function App() {
                 let message = `Ошибка авторизации: ${res.status}. Проверьте логин и пароль.`;
                 if (res.status === 401) {
                     message = "Ошибка авторизации (401). Проверьте логин и пароль.";
+                } else if (res.status === 405) {
+                    message = "Ошибка: Метод не разрешен (405). Проверьте прокси-файл.";
                 }
                 setError(message);
                 setAuth(null);
@@ -105,10 +106,6 @@ export default function App() {
     if (!auth) {
         return (
             <>
-            {/* ВНИМАНИЕ: Стили для theme/login/switch/password-toggle 
-                были перемещены в App.tsx для удобства в песочнице,
-                но в реальном проекте их лучше держать в styles.css.
-            */}
             <style>
                 {`
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
@@ -124,35 +121,35 @@ export default function App() {
                 
                 :root {
                     /* Dark Mode Defaults */
-                    --color-bg-primary: #1f2937; /* gray-900 - Фон страницы */
-                    --color-bg-secondary: #374151; /* gray-800 - Фон шапки */
-                    --color-bg-card: #374151; /* gray-800 - Фон карточек/модалов */
-                    --color-bg-hover: #4b5563; /* gray-600 */
-                    --color-bg-input: #4b5563; /* gray-600 */
-                    --color-text-primary: #e5e7eb; /* gray-100 */
-                    --color-text-secondary: #9ca3af; /* gray-400 */
-                    --color-border: #4b5563; /* gray-600 */
-                    --color-ai-bg: rgba(75, 85, 99, 0.5); /* gray-600/50 */
-                    --color-primary-blue: #3b82f6; /* Blue 500 */
-                    --color-error-bg: rgba(185, 28, 28, 0.1); /* red-700 / 10% opacity */
-                    --color-error-border: #b91c1c; /* red-700 */
-                    --color-error-text: #fca5a5; /* red-200 */
+                    --color-bg-primary: #1f2937;
+                    --color-bg-secondary: #374151;
+                    --color-bg-card: #374151;
+                    --color-bg-hover: #4b5563;
+                    --color-bg-input: #4b5563;
+                    --color-text-primary: #e5e7eb;
+                    --color-text-secondary: #9ca3af;
+                    --color-border: #4b5563;
+                    --color-ai-bg: rgba(75, 85, 99, 0.5);
+                    --color-primary-blue: #3b82f6;
+                    --color-error-bg: rgba(185, 28, 28, 0.1);
+                    --color-error-border: #b91c1c;
+                    --color-error-text: #fca5a5;
                 }
                 
                 .light-mode {
-                    --color-bg-primary: #f9fafb; /* gray-50 */
-                    --color-bg-secondary: #ffffff; /* white */
+                    --color-bg-primary: #f9fafb;
+                    --color-bg-secondary: #ffffff;
                     --color-bg-card: #ffffff;
-                    --color-bg-hover: #f3f4f6; /* gray-100 */
-                    --color-bg-input: #f3f4f6; /* gray-100 */
-                    --color-text-primary: #1f2937; /* gray-900 */
-                    --color-text-secondary: #6b7280; /* gray-500 */
-                    --color-border: #e5e7eb; /* gray-200 */
-                    --color-ai-bg: #f3f4f6; /* gray-100 */
-                    --color-primary-blue: #2563eb; /* Blue 700 */
-                    --color-error-bg: #fee2e2; /* red-100 */
-                    --color-error-border: #fca5a5; /* red-300 */
-                    --color-error-text: #b91c1c; /* red-700 */
+                    --color-bg-hover: #f3f4f6;
+                    --color-bg-input: #f3f4f6;
+                    --color-text-primary: #1f2937;
+                    --color-text-secondary: #6b7280;
+                    --color-border: #e5e7eb;
+                    --color-ai-bg: #f3f4f6;
+                    --color-primary-blue: #2563eb;
+                    --color-error-bg: #fee2e2;
+                    --color-error-border: #fca5a5;
+                    --color-error-text: #b91c1c;
                 }
 
                 .app-container {
@@ -209,19 +206,14 @@ export default function App() {
                     flex-direction: column;
                     gap: 1.5rem;
                 }
-                .field-label {
-                    font-size: 0.875rem;
-                    font-weight: 600;
-                    color: var(--color-text-primary);
-                    margin-bottom: 0.3rem;
-                }
+                /* .field-label - УДАЛЕНЫ */
                 .login-input {
                     width: 100%;
                     background-color: var(--color-bg-input);
                     border: 1px solid var(--color-border);
                     color: var(--color-text-primary);
                     padding: 0.75rem;
-                    padding-right: 3rem; /* Отступ для кнопки глаза */
+                    padding-right: 3rem; 
                     border-radius: 0.75rem;
                     transition: all 0.15s;
                     outline: none;
@@ -401,21 +393,21 @@ export default function App() {
 
                     <form onSubmit={handleSubmit} className="form">
                         <div className="field">
-                            <div className="field-label text-theme-text">Логин (email)</div>
+                            {/* УДАЛЕНО: <div className="field-label text-theme-text">Логин (email)</div> */}
                             <input
                                 className="login-input"
                                 type="text"
-                                placeholder="Введите ваш email"
+                                placeholder="order@lal-auto.com" // Установили примерный текст в placeholder
                                 value={login}
                                 onChange={(e) => setLogin(e.target.value)}
                                 autoComplete="username"
-                                style={{paddingRight: '0.75rem'}} /* Убираем лишний отступ для "глаза" */
+                                style={{paddingRight: '0.75rem'}} 
                             />
                         </div>
 
                         {/* Поле для пароля с переключением видимости */}
                         <div className="field">
-                            <div className="field-label text-theme-text">Пароль</div>
+                            {/* УДАЛЕНО: <div className="field-label text-theme-text">Пароль</div> */}
                             <div className="password-input-container">
                                 <input
                                     className="login-input"
