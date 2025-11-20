@@ -9,14 +9,12 @@ const HARDCODED_EXTERNAL_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebServ
 const ADMIN_AUTH_HEADER = 'Basic YWRtaW46anVlYmZueWU='; 
 
 // --- ДАННЫЕ КЛИЕНТА (для 'Auth') ---
-// !!! ВНИМАНИЕ: СТРОГОЕ СООТВЕТСТВИЕ POSTMAN-У !!!
-// Мы отправляем незакодированный логин:пароль, хотя это нарушает стандарт Basic Auth.
-// Если 1С этого требует, Axios должен это отправить.
+// order@lal-auto.com:ZakaZ656565 -> НЕ ЗАКОДИРОВАННЫЕ, как в рабочем CURL
 const CLIENT_AUTH_RAW_VALUE = 'Basic order@lal-auto.com:ZakaZ656565'; 
 
 /**
- * ПРОКСИ ДЛЯ АБСОЛЮТНОЙ ТОЧНОСТИ (Версия с незакодированным 'Auth').
- * Использует жёсткий URL и жёстко заданные рабочие заголовки из Postman.
+ * ПРОКСИ ДЛЯ АБСОЛЮТНОЙ ТОЧНОСТИ (Строго по рабочему CURL).
+ * Использует жёсткий URL, жёсткие рабочие даты и строго незакодированный клиентский Auth-заголовок.
  */
 export default async function handler(
     req: VercelRequest,
@@ -32,11 +30,11 @@ export default async function handler(
     }
 
     try {
-        console.log("PEREVOZKI GET CALL - FINAL RAW AUTH DEBUG", {
+        console.log("PEREVOZKI GET CALL - PURE REPLICA DEBUG", {
             TargetURL: HARDCODED_EXTERNAL_URL,
             AuthorizationHeader: ADMIN_AUTH_HEADER, 
-            AuthHeader: CLIENT_AUTH_RAW_VALUE, // *** Незакодированное значение ***
-            Message: "Используется незакодированный клиентский Auth-токен (Raw Value) для абсолютной точности."
+            AuthHeader: CLIENT_AUTH_RAW_VALUE, 
+            Message: "Используется точная копия рабочего CURL-запроса (включая незакодированный Auth-заголовок)."
         });
 
         const response = await axios.get(HARDCODED_EXTERNAL_URL, {
@@ -47,7 +45,7 @@ export default async function handler(
                 // 2. КЛИЕНТСКИЙ ТОКЕН идет в 'Auth' (незакодированный)
                 'Auth': CLIENT_AUTH_RAW_VALUE, 
                 
-                'Accept-Encoding': 'identity', 
+                // *** НЕТ ДРУГИХ ЗАГОЛОВКОВ ***
             },
             timeout: 15000, 
         });
