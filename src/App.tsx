@@ -11,20 +11,11 @@ type AuthData = {
 // Точка входа для запросов на ваш прокси-сервер Vercel
 const PROXY_API_BASE_URL = '/api/perevozki'; 
 
-// --- ФУНКЦИЯ ДЛЯ ГЕНЕРАЦИИ ДИНАМИЧЕСКОГО CURL (для отображения) ---
-// Этот CURL теперь отражает, как фронтенд обращается к вашему прокси-серверу (POST с JSON Body)
+// --- ФУНКЦИЯ ДЛЯ ГЕНЕРАЦИИ ДИНАМИЧЕСКОГО CURL (удалена, но оставим пустой, чтобы не удалять useEffect) ---
 const generateDynamicCurlString = (clientLogin: string, clientPassword: string): string => {
-    return `curl --location --request POST 'https://[YOUR_VERCEL_URL]${PROXY_API_BASE_URL}' \\
-  --header 'Content-Type: application/json' \\
-  --data-raw '{
-    "login": "${clientLogin}",
-    "password": "${clientPassword}"
-}'`;
+    // Эта функция теперь не используется для отображения, но сохранена для структуры
+    return ''; 
 };
-
-// В старой логике функция getAuthHeader не нужна, так как данные отправляются в теле запроса.
-// Если в вашем старом коде App (5).tsx она использовалась, то только для формирования 
-// тела запроса, а не заголовков.
 
 export default function App() {
     const [login, setLogin] = useState("order@lal-auto.com"); 
@@ -43,6 +34,7 @@ export default function App() {
     const [curlCommand, setCurlCommand] = useState<string>(''); 
     
     // --- ХУК ДЛЯ ОБНОВЛЕНИЯ CURL ---
+    // Здесь мы просто вызываем функцию, но результат (curlCommand) больше не отображается
     useEffect(() => {
         const dynamicCurl = generateDynamicCurlString(login.trim(), password.trim());
         setCurlCommand(dynamicCurl);
@@ -70,13 +62,12 @@ export default function App() {
             setLoading(true);
             
             // 1. ОСНОВНОЙ ЗАПРОС К ПРОКСИ (через fetch)
-            // ИСПОЛЬЗУЕМ СТАРУЮ ЛОГИКУ: POST + JSON BODY
+            // ЛОГИКА: POST + JSON BODY (старая рабочая конфигурация)
             const res = await fetch(PROXY_API_BASE_URL, { 
-                method: "POST", // <-- ИЗМЕНЕНИЕ: Используем POST
+                method: "POST", 
                 headers: { 
-                    'Content-Type': 'application/json' // Важно для JSON Body
+                    'Content-Type': 'application/json' 
                 },
-                // <-- ИЗМЕНЕНИЕ: Передаем логин/пароль в теле запроса
                 body: JSON.stringify({ 
                     login: cleanLogin, 
                     password: cleanPassword 
@@ -116,7 +107,7 @@ export default function App() {
     };
 
 
-    // --------------- СТИЛИ (остались из предыдущего шага) ---------------
+    // --------------- СТИЛИ ---------------
     const globalStyles = (
         <style>
             {`
@@ -490,11 +481,7 @@ export default function App() {
 
                     {error && <p className="login-error mt-4"><X className="w-5 h-5 mr-2" />{error}</p>}
                     
-                    {/* Поле для отображения динамического CURL */}
-                    <div className="curl-display">
-                        <strong className="text-xs block mb-1">CURL-запрос с фронтенда к прокси (старая логика)</strong>
-                        <pre>{curlCommand}</pre>
-                    </div>
+                    {/* Блок CURL-запроса удален */}
                 </div>
             </div>
             </>
