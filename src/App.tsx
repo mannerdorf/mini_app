@@ -23,52 +23,46 @@ const PROXY_API_BASE_URL = '/api/perevozki';
 
 // --- КОНСТАНТЫ ДЛЯ ОТОБРАЖЕНИЯ CURL (только для отладки) ---
 const EXTERNAL_API_BASE_URL_FOR_CURL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki';
+// Этот токен администратора используется для заголовка Authorization в 1С (через прокси)
 const ADMIN_AUTH_BASE64_FOR_CURL = 'YWRtaW46anVlYmZueWU='; 
 const DEFAULT_LOGIN = "order@lal-auto.com";
 const DEFAULT_PASSWORD = "ZakaZ656565";
 
-// --- ФУНКЦИЯ ДЛЯ BASIC AUTH (для заголовка Authorization) ---
-const getAuthHeader = (login: string, password: string): { Authorization: string } => {
-    const credentials = `${login}:${password}`;
-    // btoa доступен в браузере
-    const encoded = btoa(credentials);
-    return {
-        Authorization: `Basic ${encoded}`,
-    };
-};
 
 // --- ФУНКЦИЯ ДЛЯ ГЕНЕРАЦИИ ДИНАМИЧЕСКОГО CURL (для отображения) ---
 const generateDynamicCurlString = (clientLogin: string, clientPassword: string): string => {
-    const dateB = '2024-01-01'; 
-    const dateE = '2026-01-01'; // Используем широкий диапазон для теста
-
-    const clientBasicAuthValue = btoa(`${clientLogin}:${clientPassword}`);
+    // В вашем прокси (perevozki (2).ts) вы декодируете Basic Auth
+    // Но для отображения CURL, который должен работать, нужно показать правильные заголовки 1С.
     
-    // В 1С заголовок клиента называется 'Auth', и он RAW-строка.
-    // Но в CURL-запросе для 1С он, как правило, должен быть Base64, если API 1С его ожидает в таком виде.
-    // Для нашего прокси он декодируется, но для отображения в CURL лучше показать, как он идет к 1С.
-    const clientAuthHeaderForCURL = `Basic ${clientBasicAuthValue}`;
+    // Auth (Client) - В 1С она ожидает RAW, но часто в виде Basic Auth
+    const clientAuthHeaderFor1C = `Basic ${clientLogin}:${clientPassword}`; 
+    
+    // Authorization (Admin)
+    const adminAuthHeaderFor1C = `Basic ${ADMIN_AUTH_BASE64_FOR_CURL}`; 
+
+    const dateB = '2024-01-01'; 
+    const dateE = '2026-01-01'; 
     
     return `curl -X GET '${EXTERNAL_API_BASE_URL_FOR_CURL}?DateB=${dateB}&DateE=${dateE}' \\
-  -H 'Authorization: Basic ${ADMIN_AUTH_BASE64_FOR_CURL}' \\
-  -H 'Auth: ${clientAuthHeaderForCURL}' \\
+  -H 'Authorization: ${adminAuthHeaderFor1C}' \\
+  -H 'Auth: ${clientAuthHeaderFor1C}' \\
   -H 'Accept-Encoding: identity'`;
 };
 
 
 export default function App() {
-    const [login, setLogin] = useState(DEFAULT_LOGIN); // Предзаполненный логин
-    const [password, setPassword] = useState(DEFAULT_PASSWORD); // Предзаполненный пароль
+    const [login, setLogin] = useState(DEFAULT_LOGIN); 
+    const [password, setPassword] = useState(DEFAULT_PASSWORD); 
     const [agreeOffer, setAgreeOffer] = useState(true);
     const [agreePersonal, setAgreePersonal] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showPassword, setShowPassword] = useState(false); // Для переключения видимости пароля
-    const [curlRequest, setCurlRequest] = useState<string>(""); // Для отображения CURL-запроса
+    const [showPassword, setShowPassword] = useState(false); 
+    const [curlRequest, setCurlRequest] = useState<string>(""); 
 
     const [auth, setAuth] = useState<AuthData | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("cargo");
-    const [theme, setTheme] = useState('dark'); // Состояние для темы
+    const [theme, setTheme] = useState('dark'); 
     const isThemeLight = theme === 'light';
 
     // Применяем класс темы к body
@@ -80,10 +74,11 @@ export default function App() {
         setTheme(prevTheme => (prevTheme === 'dark' ? 'light' : 'dark'));
     };
     
+    // 🔑 ЛОГИКА ВХОДА С ИСПОЛЬЗОВАНИЕМ POST (как в perevozki (2).ts)
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError(null);
-        setCurlRequest(""); // Сбрасываем CURL-запрос
+        setCurlRequest(""); 
 
         const cleanLogin = login.trim();
         const cleanPassword = password.trim();
@@ -104,25 +99,33 @@ export default function App() {
             // Формируем CURL-запрос для отображения
             setCurlRequest(generateDynamicCurlString(cleanLogin, cleanPassword));
 
-            // Параметры для тестового запроса (для проверки авторизации и прокси)
-            const queryParams = new URLSearchParams({
-                dateFrom: "2024-01-01", 
-                dateTo: "2026-01-01", 
-            }).toString();
-            
-            // Выполняем GET-запрос к прокси, который использует Basic Auth
-            const res = await fetch(`${PROXY_API_BASE_URL}?${queryParams}`, {
-                method: "GET", 
-                headers: getAuthHeader(cleanLogin, cleanPassword),
+            // Отправляем POST-запрос с логином/паролем в теле (как в perevozki (2).ts)
+            const res = await fetch(PROXY_API_BASE_URL, {
+                method: "POST", 
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    login: cleanLogin, 
+                    password: cleanPassword,
+                    // Даты передаются прокси, но могут быть опущены, т.к. прокси использует дефолты
+                }),
             });
 
             if (!res.ok) {
                 let message = `Ошибка авторизации: ${res.status}. Проверьте логин и пароль.`;
                 if (res.status === 401) {
-                    message = "Ошибка авторизации (401). Неверный логин/пароль или проблема с декодированием в прокси.";
+                    message = "Ошибка авторизации (401). Неверный логин/пароль.";
                 } else if (res.status === 405) {
-                    message = "Ошибка: Метод не разрешен (405). Проверьте, что ваш прокси-файл ожидает метод GET.";
+                    message = "Ошибка: Метод не разрешен (405). Проверьте, что ваш прокси-файл ожидает метод POST.";
                 }
+                
+                // Пытаемся получить текст ошибки от прокси/1С
+                try {
+                    const errorData = await res.json() as ApiError;
+                    if (errorData.error) {
+                         message = errorData.error;
+                    }
+                } catch { /* ignore */ }
+                
                 setError(message);
                 setAuth(null);
                 return;
@@ -144,7 +147,6 @@ export default function App() {
         setAuth(null);
         setActiveTab("cargo");
         setError(null);
-        // Очищаем пароль и curl при выходе для безопасности/чистоты
         setPassword(DEFAULT_PASSWORD); 
         setCurlRequest(""); 
     }
@@ -423,7 +425,7 @@ export default function App() {
         }
         .app-main {
             flex-grow: 1;
-            padding: 1.5rem 1rem 5.5rem 1rem; /* Увеличили нижний паддинг для таббара */
+            padding: 1.5rem 1rem 5.5rem 1rem; 
             display: flex;
             justify-content: center;
             width: 100%;
@@ -689,13 +691,11 @@ function CargoPage({ auth }: CargoPageProps) {
     const formatDate = (dateString: string | undefined): string => {
         if (!dateString) return '-';
         try {
-            // Пытаемся обработать ISO-строку
             const date = new Date(dateString);
             if (!isNaN(date.getTime())) {
                  return date.toLocaleDateString('ru-RU');
             }
         } catch (e) { /* ignore */ }
-        // Если не удалось, возвращаем как есть
         return dateString;
     };
     
@@ -713,7 +713,7 @@ function CargoPage({ auth }: CargoPageProps) {
         }).format(num);
     };
 
-
+    // 📦 ЛОГИКА ЗАПРОСА ДАННЫХ С ИСПОЛЬЗОВАНИЕМ POST (как в perevozki (2).ts)
     useEffect(() => {
         let cancelled = false;
 
@@ -721,34 +721,21 @@ function CargoPage({ auth }: CargoPageProps) {
             setLoading(true);
             setError(null);
 
-            // Запрос данных за последний год
-            const today = new Date();
-            const oneYearAgo = new Date();
-            oneYearAgo.setFullYear(today.getFullYear() - 1);
-
-            const formatDateForApi = (date: Date): string => {
-                const y = date.getFullYear();
-                const m = String(date.getMonth() + 1).padStart(2, '0');
-                const d = String(date.getDate()).padStart(2, '0');
-                return `${y}-${m}-${d}`;
-            };
+            // Запрос данных за последний год (по умолчанию для прокси 2024-01-01 до 2026-01-01)
+            const dateFrom = "2024-01-01";
+            const dateTo = "2026-01-01";
             
-            const dateFrom = formatDateForApi(oneYearAgo);
-            const dateTo = formatDateForApi(today);
-            
-            const queryParams = new URLSearchParams({
-                dateFrom: dateFrom,
-                dateTo: dateTo,
-            }).toString();
-
             try {
-                const url = `${PROXY_API_BASE_URL}?${queryParams}`;
-                
-                const res = await fetch(url, {
-                    method: "GET",
-                    headers: { 
-                        ...getAuthHeader(auth.login, auth.password)
-                    },
+                // Отправляем POST-запрос с логином/паролем и датами в теле
+                const res = await fetch(PROXY_API_BASE_URL, {
+                    method: "POST", 
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ 
+                        login: auth.login, 
+                        password: auth.password,
+                        dateFrom: dateFrom,
+                        dateTo: dateTo,
+                    }),
                 });
 
                 if (!res.ok) {
@@ -775,16 +762,16 @@ function CargoPage({ auth }: CargoPageProps) {
 
         load();
 
-        return () => {
-            cancelled = true;
-        };
-    }, [auth.login, auth.password]); // Перезагружаем при смене пользователя
+        // Зависимости: Перезагружаем при смене пользователя
+        // Важно: не включаем весь объект auth, чтобы избежать бесконечного цикла, 
+        // но здесь безопасно, т.к. auth меняется только при логине/логауте
+    }, [auth.login, auth.password]); 
 
     return (
         <div className="w-full">
             <h2 className="title text-theme-text">Мои Грузы</h2>
             <p className="subtitle">
-                Здесь отображаются все перевозки за последний год, полученные из системы 1С.
+                Здесь отображаются все перевозки за выбранный период, полученные из системы 1С.
             </p>
 
             {loading && (
@@ -883,31 +870,31 @@ function TabBar({ active, onChange }: TabBarProps) {
         <div className="tabbar-container">
             <TabButton
                 label="Главная"
-                icon={<Home className="w-5 h-5" />}
+                icon={<Home />}
                 active={active === "home"}
                 onClick={() => onChange("home")}
             />
             <TabButton
                 label="Грузы"
-                icon={<Truck className="w-5 h-5" />}
+                icon={<Truck />}
                 active={active === "cargo"}
                 onClick={() => onChange("cargo")}
             />
             <TabButton
                 label="Документы"
-                icon={<FileText className="w-5 h-5" />}
+                icon={<FileText />}
                 active={active === "docs"}
                 onClick={() => onChange("docs")}
             />
             <TabButton
                 label="Поддержка"
-                icon={<MessageCircle className="w-5 h-5" />}
+                icon={<MessageCircle />}
                 active={active === "support"}
                 onClick={() => onChange("support")}
             />
             <TabButton
                 label="Профиль"
-                icon={<User className="w-5 h-5" />}
+                icon={<User />}
                 active={active === "profile"}
                 onClick={() => onChange("profile")}
             />
@@ -923,12 +910,10 @@ type TabButtonProps = {
 };
 
 function TabButton({ label, icon, active, onClick }: TabButtonProps) {
-    const activeClass = active ? 'tab-btn-active' : '';
-    
     return (
         <button
             type="button"
-            className={`tab-button ${activeClass}`}
+            className={`tab-button ${active ? 'active' : ''}`}
             onClick={onClick}
         >
             <span className="tab-icon">{icon}</span>
