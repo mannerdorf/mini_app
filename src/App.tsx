@@ -1,5 +1,5 @@
 import { FormEvent, useState, useEffect } from "react"; 
-import { LogOut, Loader2, Check, X, Moon, Sun, Eye, EyeOff, Home, Truck, FileText, MessageCircle, User, RefreshCw, AlertTriangle } from 'lucide-react';
+import { LogOut, Loader2, Check, X, Moon, Sun, Eye, EyeOff, Home, Truck, FileText, MessageCircle, User, RefreshCw, AlertTriangle, Download } from 'lucide-react';
 
 // --- ТИПЫ ДАННЫХ ---
 type AuthData = {
@@ -22,6 +22,7 @@ type CargoItem = {
 
 // --- КОНФИГУРАЦИЯ ---
 const PROXY_API_BASE_URL = '/api/perevozki'; 
+const FILE_PROXY_API_BASE_URL = '/api/getfile'; // <-- НОВЫЙ URL ДЛЯ ФАЙЛОВ
 
 // --- ОСНОВНОЙ КОМПОНЕНТ APP ---
 export default function App() {
@@ -34,7 +35,7 @@ export default function App() {
     const [showPassword, setShowPassword] = useState(false);
     
     const [auth, setAuth] = useState<AuthData | null>(null);
-    const [activeTab, setActiveTab] = useState<Tab>("cargo"); // <-- ИЗМЕНЕНИЕ: Дефолтная вкладка после логина
+    const [activeTab, setActiveTab] = useState<Tab>("cargo"); 
     const [theme, setTheme] = useState('dark');
     const isThemeLight = theme === 'light';
 
@@ -85,7 +86,7 @@ export default function App() {
 
             // УСПЕХ: Устанавливаем данные авторизации и переключаемся на вкладку "Грузы"
             setAuth({ login: cleanLogin, password: cleanPassword });
-            setActiveTab("cargo"); // <-- ИЗМЕНЕНИЕ: Переход на вкладку "cargo"
+            setActiveTab("cargo"); 
             setError(null);
         } catch (err: any) {
             setError(err?.message || "Ошибка сети. Проверьте адрес прокси.");
@@ -116,6 +117,8 @@ export default function App() {
                 loading={loading} error={error}
                 showPassword={showPassword} setShowPassword={setShowPassword}
                 handleSubmit={handleSubmit}
+                // Наша кнопка переключения темы осталась в App, ее тут нет,
+                // но в LoginForm ее можно снова вывести
             />;
         }
 
@@ -148,6 +151,11 @@ export default function App() {
                 </>
             ) : (
                 <div className="login-form-wrapper">
+                    <div className="theme-toggle-container absolute top-4 right-4" style={{position: 'absolute', top: '1rem', right: '1rem', zIndex: 10}}>
+                        <button className="theme-toggle-button" onClick={toggleTheme} title="Переключить тему">
+                            {isThemeLight ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+                        </button>
+                    </div>
                     {renderContent()}
                 </div>
             )}
@@ -166,11 +174,9 @@ function LoginForm({
     agreeOffer, setAgreeOffer, agreePersonal, setAgreePersonal,
     loading, error, showPassword, setShowPassword, handleSubmit
 }: any) {
-    const isThemeLight = useState(false); // Предполагаем, что App передает theme, но для простоты оставим
     
     return (
         <div className={`login-card relative`}>
-            {/* Кнопка переключения темы (удалена из LoginForm, т.к. должна быть в App или Header) */}
             
             <div className="flex justify-center mb-4 h-10 mt-6">
                 <div className="logo-text">HAULZ</div>
@@ -251,6 +257,7 @@ function CargoPage({ auth }: { auth: AuthData }) {
     const [cargoList, setCargoList] = useState<CargoItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [downloading, setDownloading] = useState<string | null>(null); // State для отслеживания скачиваемого груза
 
     const loadCargo = async () => {
         setError(null);
@@ -291,12 +298,66 @@ function CargoPage({ auth }: { auth: AuthData }) {
         }
     };
 
+    // --- ФУНКЦИЯ СКАЧИВАНИЯ ФАЙЛА ---
+    const handleDownload = async (cargoNumber: string) => {
+        setDownloading(cargoNumber); // Устанавливаем статус скачивания
+        setError(null);
+        
+        try {
+            // ЛОГИКА: POST + JSON BODY для прокси-функции файла
+            const res = await fetch(FILE_PROXY_API_BASE_URL, { 
+                method: "POST", 
+                headers: { 
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ 
+                    login: auth.login, 
+                    password: auth.password,
+                    metod: 'ЭР', // Параметр из вашего запроса
+                    Number: cargoNumber, 
+                }),
+            });
+
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`Ошибка скачивания файла (${res.status}): ${errorText.substring(0, 100)}...`);
+            }
+            
+            // Получаем заголовки Content-Disposition
+            const contentDisposition = res.headers.get('content-disposition') || `attachment; filename="document.pdf"`;
+            
+            // Получаем бинарные данные
+            const blob = await res.blob();
+            
+            // Создаем URL для скачивания файла
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            // Извлекаем имя файла
+            const filenameMatch = contentDisposition.match(/filename="(.+?)"/);
+            const filename = filenameMatch ? filenameMatch[1] : `document_${cargoNumber}.pdf`;
+            
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            
+        } catch (err: any) {
+            setError(err.message || "Не удалось загрузить файл.");
+        } finally {
+            setDownloading(null);
+        }
+    };
+
+
     // Загрузка данных при монтировании компонента
     useEffect(() => {
         loadCargo();
     }, []);
 
-    if (loading) {
+    if (loading && cargoList.length === 0) {
         return <div className="loading-screen"><Loader2 className="animate-spin w-8 h-8 text-theme-primary" /> <p>Загрузка грузов...</p></div>;
     }
 
@@ -321,14 +382,19 @@ function CargoPage({ auth }: { auth: AuthData }) {
         <div className="cargo-list-container">
              <h2 className="section-title">Активные перевозки ({cargoList.length})</h2>
             {cargoList.map((item, index) => (
-                <CargoCard key={index} item={item} />
+                <CargoCard 
+                    key={index} 
+                    item={item} 
+                    onDownloadClick={handleDownload} 
+                    isDownloading={downloading === item.Number}
+                /> 
             ))}
         </div>
     );
 }
 
 // Компонент одной карточки груза
-function CargoCard({ item }: { item: CargoItem }) {
+function CargoCard({ item, onDownloadClick, isDownloading }: { item: CargoItem, onDownloadClick: (number: string) => void, isDownloading: boolean }) {
     return (
         <div className="cargo-card">
             <div className="cargo-row main">
@@ -347,6 +413,19 @@ function CargoCard({ item }: { item: CargoItem }) {
                 <span className="cargo-label">Куда:</span>
                 <span className="cargo-value">{item.CityTo}</span>
             </div>
+            {/* КНОПКА СКАЧИВАНИЯ */}
+            <button 
+                className="button-download" 
+                onClick={() => onDownloadClick(item.Number)}
+                disabled={isDownloading}
+            >
+                {isDownloading ? (
+                    <Loader2 className="animate-spin w-4 h-4 mr-2" />
+                ) : (
+                    <Download className="w-4 h-4 mr-2" />
+                )}
+                 Скачать ЭР
+            </button>
         </div>
     );
 }
@@ -498,6 +577,7 @@ function GlobalStyles() {
                 align-items: center;
                 padding: 2rem;
                 width: 100%;
+                position: relative; /* Для позиционирования кнопки темы */
             }
             .login-card {
                 max-width: 28rem;
@@ -734,6 +814,28 @@ function GlobalStyles() {
             }
             .cargo-value.status {
                 color: var(--color-primary-blue);
+            }
+            .button-download {
+                width: 100%;
+                background-color: var(--color-bg-input);
+                color: var(--color-text-primary);
+                padding: 0.75rem 1rem;
+                border-radius: 0.5rem;
+                font-weight: 600;
+                border: 1px solid var(--color-border);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-top: 1rem;
+                transition: background-color 0.15s;
+            }
+            .button-download:hover:not(:disabled) {
+                background-color: var(--color-bg-hover);
+            }
+            .button-download:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
             }
             `}
         </style>
