@@ -13,14 +13,21 @@ type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 // Точка входа для запросов на ваш прокси-сервер Vercel
 const PROXY_API_BASE_URL = '/api/perevozki'; 
 
+// --- КОНСТАНТЫ ДЛЯ ОТОБРАЖЕНИЯ CURL ---
+// Эти константы используются ТОЛЬКО для демонстрации CURL-строки,
+// а фактическая логика Dual Auth происходит в прокси-файле.
+const ADMIN_AUTH_BASE64_FOR_CURL = 'YWRtaW46anVlYmZueWU='; 
+const EXTERNAL_API_BASE_URL_FOR_CURL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki';
+
 // --- ФУНКЦИЯ ДЛЯ BASIC AUTH ---
 // Фронтенд всегда должен кодировать логин:пароль, отправляя его в прокси
-const getAuthHeader = (login: string, password: string): { Authorization: string } => {
+const getAuthHeader = (login: string, password: string): { Authorization: string, encodedCredentials: string } => {
     const credentials = `${login}:${password}`;
     // btoa доступен в браузере
     const encoded = btoa(credentials); 
     return {
         Authorization: `Basic ${encoded}`,
+        encodedCredentials: encoded, // Возвращаем закодированную строку
     };
 };
 
@@ -38,6 +45,17 @@ export default function App() {
     const [theme, setTheme] = useState('dark');
     const isThemeLight = theme === 'light';
 
+    // --- НОВОЕ СОСТОЯНИЕ ДЛЯ CURL ---
+    const [curlCommand, setCurlCommand] = useState<string>('');
+    
+    // Функция для генерации curl команды
+    const generateCurlString = (authHeaderValue: string) => {
+        // Мы показываем, какой запрос уйдет с фронтенда на Vercel (PROXY)
+        return `curl --location --request GET '${PROXY_API_BASE_URL}?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD' \\
+  --header 'Authorization: ${authHeaderValue}' \\
+  --header 'Content-Type: application/json'`;
+    }
+
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError(null);
@@ -54,19 +72,24 @@ export default function App() {
             setError("Подтвердите согласие с условиями");
             return;
         }
+        
+        const { Authorization, encodedCredentials } = getAuthHeader(cleanLogin, cleanPassword);
 
+        // 1. Сгенерировать и показать CURL команду, используя фактический заголовок
+        const clientAuthValue = `Basic ${encodedCredentials}`;
+        setCurlCommand(generateCurlString(clientAuthValue));
+        
+        
         try {
             setLoading(true);
             
-            // 1. Формируем заголовок для отправки на прокси Vercel
-            const authHeader = getAuthHeader(cleanLogin, cleanPassword); 
-
             // 2. ОСНОВНОЙ ЗАПРОС К ПРОКСИ (через fetch)
-            // Прокси-функция (api/perevozki.ts) пока использует ЖЕСТКИЙ URL/даты.
-            const res = await fetch(`${PROXY_API_BASE_URL}`, { 
+            // Здесь мы используем URL прокси, а заголовки авторизации клиента
+            const res = await fetch(`${PROXY_API_BASE_URL}?dateFrom=2024-01-01&dateTo=2025-01-01`, { 
                 method: "GET", 
                 headers: { 
-                    ...authHeader 
+                    'Authorization': Authorization, // Передаем закодированные данные
+                    'Content-Type': 'application/json'
                 },
             });
 
@@ -97,6 +120,7 @@ export default function App() {
         setAuth(null);
         setActiveTab("cargo");
         setError(null);
+        setCurlCommand(''); // Очищаем команду при выходе
     }
     
     const toggleTheme = () => {
@@ -111,6 +135,7 @@ export default function App() {
             {/* Ваши стили */}
             <style>
                 {`
+                /* ... (Ваши стили без изменений) ... */
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
                 
                 * {
@@ -403,6 +428,23 @@ export default function App() {
                 .theme-toggle-button:hover {
                     background-color: var(--color-bg-hover);
                 }
+                .curl-display {
+                    background-color: var(--color-bg-secondary);
+                    border: 1px solid var(--color-border);
+                    border-radius: 0.5rem;
+                    padding: 0.75rem;
+                    margin-top: 1.5rem;
+                    font-family: monospace;
+                    font-size: 0.8rem;
+                    white-space: pre-wrap;
+                    word-break: break-all;
+                    color: var(--color-text-secondary);
+                    position: relative;
+                }
+                .curl-display strong {
+                    color: var(--color-text-primary);
+                }
+
 
                 `}
             </style>
@@ -498,6 +540,15 @@ export default function App() {
                     </form>
 
                     {error && <p className="login-error mt-4"><X className="w-5 h-5 mr-2" />{error}</p>}
+                    
+                    {/* --- НОВОЕ ПОЛЕ ДЛЯ ОТОБРАЖЕНИЯ CURL --- */}
+                    {curlCommand && (
+                        <div className="curl-display">
+                            <strong className="text-xs block mb-1">CURL (Frontend → Vercel Proxy)</strong>
+                            <pre>{curlCommand}</pre>
+                        </div>
+                    )}
+                    {/* -------------------------------------- */}
                 </div>
             </div>
             </>
@@ -539,6 +590,7 @@ export default function App() {
 }
 
 // ----------------- КОМПОНЕНТ С ГРУЗАМИ -----------------
+// ... (Остальная часть кода CargoPage, StubPage, TabBar и TabButton остается прежней)
 
 type CargoPageProps = { 
     auth: AuthData; 
@@ -609,11 +661,15 @@ function CargoPage({ auth }: CargoPageProps) {
                 // --- ИСПОЛЬЗУЕТСЯ МЕТОД GET ---
                 const url = `${PROXY_API_BASE_URL}?${queryParams}`;
                 
+                // ВАЖНО: Мы снова генерируем заголовок, так как это новая функция
+                const { Authorization } = getAuthHeader(login, password);
+
                 const res = await fetch(url, {
                     method: "GET",
                     headers: { 
-                        // Basic Auth Header
-                        ...getAuthHeader(login, password)
+                        // Basic Auth Header (для прокси)
+                        'Authorization': Authorization,
+                        'Content-Type': 'application/json'
                     },
                 });
 
@@ -622,6 +678,7 @@ function CargoPage({ auth }: CargoPageProps) {
                     if (res.status === 401) {
                         message = "Ошибка авторизации (401). Проверьте логин и пароль.";
                     }
+                    // Если прокси вернул 500, сообщение будет: Ошибка загрузки: 500. Убедитесь...
                     setError(message);
                     setItems([]);
                     setSummaryLoading(false);
@@ -660,7 +717,7 @@ function CargoPage({ auth }: CargoPageProps) {
         <div className="p-4">
             <h2 className="text-3xl font-bold text-theme-text mb-2">Мои перевозки</h2>
             <p className="text-theme-secondary mb-4 pb-4 border-b border-theme-border">
-                Данные загружаются методом **GET** с передачей учетных данных в заголовке **Authorization: Basic**.
+                Данные загружаются методом **GET** с передачей учетных данных в заголовке **Authorization: Basic** на Vercel Proxy, который затем выполняет двойную авторизацию в 1С.
             </p>
 
             {/* AI Summary Card */}
