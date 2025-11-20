@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { Buffer } from "buffer"; // Важно: Buffer доступен в Node.js средах
+import { Buffer } from "buffer"; 
 
 const BASE_URL =
-  "[https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki](https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki)";
+  "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 
-// сервисный Basic-auth: admin:juebfnye
+// сервисный Basic-auth (должен быть закодирован в Base64)
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 // Определяем тип для ожидаемого тела запроса
@@ -47,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "login and password are required" });
   }
 
-  // Логирование: убраны чувствительные данные (пароль)
+  // Логирование (без чувствительных данных)
   console.log("PEREVOZKI AUTH CALL", {
     login: cleanLogin,
     ua: req.headers["user-agent"],
@@ -58,6 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   url.searchParams.set("DateE", dateTo);
 
   // --- КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Base64 кодирование пользовательских данных ---
+  // API 1С ожидает Basic Auth, где данные пользователя закодированы в Base64.
   const userAuthBase64 = Buffer.from(`${cleanLogin}:${cleanPassword}`).toString(
     "base64"
   );
@@ -66,9 +67,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const upstream = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        // ИСПРАВЛЕНО: Теперь данные логина:пароля кодируются в Base64
+        // Заголовок с пользовательским Basic Auth
         Auth: `Basic ${userAuthBase64}`,
-        // SERVICE_AUTH остается как есть
+        // Заголовок с сервисным Basic Auth для доступа к прокси
         Authorization: SERVICE_AUTH, 
       },
     });
@@ -82,21 +83,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     if (!upstream.ok) {
-      // возвращаем и статус, и текст из 1С как есть
+      // Возвращаем статус и текст из 1С как есть
       return res
         .status(upstream.status)
         .send(text || `Upstream error: ${upstream.status}`);
     }
 
-    // если 1С вернул JSON — пробуем распарсить
+    // Если 1С вернул JSON — пробуем распарсить
     try {
       const json = JSON.parse(text);
       return res.status(200).json(json);
     } catch {
-      // не JSON — возвращаем текст как есть
+      // Не JSON — возвращаем текст как есть
       return res.status(200).send(text);
     }
   } catch (error) {
+    // Улучшенная обработка ошибок
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Proxy error:", error);
     return res
