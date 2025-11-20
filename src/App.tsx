@@ -69,7 +69,7 @@ export default function App() {
 
             // --- ФОРМИРОВАНИЕ CURL-СТРОКИ, КОТОРУЮ ОТПРАВЛЯЕТ ПРОКСИ В 1С ---
             // Включает двойные заголовки и фиктивные даты для демонстрации
-            const curl = `curl -X GET '${EXTERNAL_API_BASE_URL_FOR_CURL}?DateB=2024-01-01&DateE=2025-01-01' \\
+            const curl = `curl -X GET '${EXTERNAL_API_BASE_URL_FOR_CURL}?DateB=2024-01-01&DateE=2026-01-01' \\
   -H 'Authorization: Basic ${ADMIN_AUTH_BASE64_FOR_CURL}' \\
   -H 'Auth: Basic ${clientBasicAuthValue}' \\
   -H 'Accept-Encoding: identity'`;
