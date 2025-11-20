@@ -1,10 +1,16 @@
 import { FormEvent, useEffect, useState } from "react";
+// Импортируем все необходимые иконки
 import { 
-    LogOut, Home, Truck, FileText, MessageCircle, User, Loader2, Check, X, Moon, Sun, Eye, EyeOff, 
-    AlertTriangle, Download, RefreshCw 
+    LogOut, Home, Truck, FileText, MessageCircle, User, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package
 } from 'lucide-react';
+import React from "react";
 
 // --- ТИПЫ ДАННЫХ ---
+type ApiError = {
+    error?: string;
+    [key: string]: unknown;
+};
+
 type AuthData = {
     login: string;
     password: string;
@@ -12,62 +18,72 @@ type AuthData = {
 
 type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 
-// --- ТИП ДАННЫХ ГРУЗА ---
-type CargoItem = {
-    Nomer?: string;
-    Number?: string;
-    number?: string;
-    Status?: string;
-    State?: string;
-    state?: string;
-    DatePrih?: string;
-    DatePr?: string;
-    datePr?: string;
-    CityFrom?: string;
-    CityTo?: string;
-    PW?: string;
-    Weight?: string;
-    Sum?: string;
-    Total?: string;
-};
-
-
 // --- КОНФИГУРАЦИЯ ---
 const PROXY_API_BASE_URL = '/api/perevozki'; 
-const FILE_PROXY_API_BASE_URL = '/api/getfile'; 
 
-// --- КОНСТАНТЫ ДЛЯ ОТОБРАЖЕНИЯ CURL ---
-const ADMIN_AUTH_BASE64_FOR_CURL = 'YWRtaW46anVlYmZueWU='; 
+// --- КОНСТАНТЫ ДЛЯ ОТОБРАЖЕНИЯ CURL (только для отладки) ---
 const EXTERNAL_API_BASE_URL_FOR_CURL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki';
+const ADMIN_AUTH_BASE64_FOR_CURL = 'YWRtaW46anVlYmZueWU='; 
+const DEFAULT_LOGIN = "order@lal-auto.com";
+const DEFAULT_PASSWORD = "ZakaZ656565";
 
-// --- ФУНКЦИЯ ДЛЯ BASIC AUTH ---
+// --- ФУНКЦИЯ ДЛЯ BASIC AUTH (для заголовка Authorization) ---
 const getAuthHeader = (login: string, password: string): { Authorization: string } => {
     const credentials = `${login}:${password}`;
+    // btoa доступен в браузере
     const encoded = btoa(credentials);
     return {
         Authorization: `Basic ${encoded}`,
     };
 };
 
+// --- ФУНКЦИЯ ДЛЯ ГЕНЕРАЦИИ ДИНАМИЧЕСКОГО CURL (для отображения) ---
+const generateDynamicCurlString = (clientLogin: string, clientPassword: string): string => {
+    const dateB = '2024-01-01'; 
+    const dateE = '2026-01-01'; // Используем широкий диапазон для теста
+
+    const clientBasicAuthValue = btoa(`${clientLogin}:${clientPassword}`);
+    
+    // В 1С заголовок клиента называется 'Auth', и он RAW-строка.
+    // Но в CURL-запросе для 1С он, как правило, должен быть Base64, если API 1С его ожидает в таком виде.
+    // Для нашего прокси он декодируется, но для отображения в CURL лучше показать, как он идет к 1С.
+    const clientAuthHeaderForCURL = `Basic ${clientBasicAuthValue}`;
+    
+    return `curl -X GET '${EXTERNAL_API_BASE_URL_FOR_CURL}?DateB=${dateB}&DateE=${dateE}' \\
+  -H 'Authorization: Basic ${ADMIN_AUTH_BASE64_FOR_CURL}' \\
+  -H 'Auth: ${clientAuthHeaderForCURL}' \\
+  -H 'Accept-Encoding: identity'`;
+};
+
+
 export default function App() {
-    const [login, setLogin] = useState("order@lal-auto.com"); 
-    const [password, setPassword] = useState("ZakaZ656565"); 
+    const [login, setLogin] = useState(DEFAULT_LOGIN); // Предзаполненный логин
+    const [password, setPassword] = useState(DEFAULT_PASSWORD); // Предзаполненный пароль
     const [agreeOffer, setAgreeOffer] = useState(true);
     const [agreePersonal, setAgreePersonal] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [showPassword, setShowPassword] = useState(false);
-    const [curlRequest, setCurlRequest] = useState<string>(""); 
+    const [showPassword, setShowPassword] = useState(false); // Для переключения видимости пароля
+    const [curlRequest, setCurlRequest] = useState<string>(""); // Для отображения CURL-запроса
 
     const [auth, setAuth] = useState<AuthData | null>(null);
-    const [activeTab, setActiveTab] = useState<Tab>("cargo"); 
-    const [theme, setTheme] = useState('dark');
+    const [activeTab, setActiveTab] = useState<Tab>("cargo");
+    const [theme, setTheme] = useState('dark'); // Состояние для темы
     const isThemeLight = theme === 'light';
 
+    // Применяем класс темы к body
+    useEffect(() => {
+        document.body.className = `${theme}-mode`;
+    }, [theme]);
+
+    const toggleTheme = () => {
+        setTheme(prevTheme => (prevTheme === 'dark' ? 'light' : 'dark'));
+    };
+    
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError(null);
-        setCurlRequest(""); 
+        setCurlRequest(""); // Сбрасываем CURL-запрос
 
         const cleanLogin = login.trim();
         const cleanPassword = password.trim();
@@ -85,45 +101,34 @@ export default function App() {
         try {
             setLoading(true);
             
-            const authHeader = getAuthHeader(cleanLogin, cleanPassword);
-            const clientBasicAuthValue = authHeader.Authorization.replace('Basic ', ''); 
-            
-            // --- ДОБАВЛЕННЫЕ ПАРАМЕТРЫ ДАТЫ ДЛЯ ЗАПРОСА ВХОДА ---
-            const dateFrom = '2024-01-01';
-            const dateTo = '2026-01-01';
+            // Формируем CURL-запрос для отображения
+            setCurlRequest(generateDynamicCurlString(cleanLogin, cleanPassword));
 
-            const curl = `curl -X GET '${EXTERNAL_API_BASE_URL_FOR_CURL}?DateB=${dateFrom}&DateE=${dateTo}' \\
-  -H 'Authorization: Basic ${ADMIN_AUTH_BASE64_FOR_CURL}' \\
-  -H 'Auth: Basic ${clientBasicAuthValue}' \\
-  -H 'Accept-Encoding: identity'`;
-            
-            setCurlRequest(curl);
-            
-            // Формируем URL с query параметрами
+            // Параметры для тестового запроса (для проверки авторизации и прокси)
             const queryParams = new URLSearchParams({
-                dateFrom: dateFrom,
-                dateTo: dateTo,
+                dateFrom: "2024-01-01", 
+                dateTo: "2026-01-01", 
             }).toString();
-
-            const res = await fetch(`${PROXY_API_BASE_URL}?${queryParams}`, { // <-- ИСПРАВЛЕНИЕ: URL теперь содержит параметры
+            
+            // Выполняем GET-запрос к прокси, который использует Basic Auth
+            const res = await fetch(`${PROXY_API_BASE_URL}?${queryParams}`, {
                 method: "GET", 
-                headers: { 
-                    ...authHeader 
-                },
+                headers: getAuthHeader(cleanLogin, cleanPassword),
             });
 
             if (!res.ok) {
                 let message = `Ошибка авторизации: ${res.status}. Проверьте логин и пароль.`;
                 if (res.status === 401) {
-                    message = "Ошибка авторизации (401). Проверьте логин и пароль.";
+                    message = "Ошибка авторизации (401). Неверный логин/пароль или проблема с декодированием в прокси.";
                 } else if (res.status === 405) {
-                    message = "Ошибка: Метод не разрешен (405). Проверьте прокси-файл.";
+                    message = "Ошибка: Метод не разрешен (405). Проверьте, что ваш прокси-файл ожидает метод GET.";
                 }
                 setError(message);
                 setAuth(null);
                 return;
             }
 
+            // Авторизация ок
             setAuth({ login: cleanLogin, password: cleanPassword });
             setActiveTab("cargo");
             setError(null);
@@ -139,326 +144,404 @@ export default function App() {
         setAuth(null);
         setActiveTab("cargo");
         setError(null);
+        // Очищаем пароль и curl при выходе для безопасности/чистоты
+        setPassword(DEFAULT_PASSWORD); 
+        setCurlRequest(""); 
     }
-    
-    const toggleTheme = () => {
-        setTheme(prevTheme => (prevTheme === 'dark' ? 'light' : 'dark'));
-    };
+
+    // Встраиваем стили (как в styles (1).css)
+    const injectedStyles = `
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+                
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            background-color: var(--color-bg-primary); 
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        /* --------------------------------- */
+        /* --- THEME VARIABLES --- */
+        /* --------------------------------- */
+        
+        :root {
+            /* Dark Mode Defaults */
+            --color-bg-primary: #1f2937; /* gray-900 - Фон страницы */
+            --color-bg-secondary: #374151; /* gray-800 - Фон шапки/таббара */
+            --color-bg-card: #374151; /* gray-800 - Фон карточек/модалов */
+            --color-bg-hover: #4b5563; /* gray-600 */
+            --color-bg-input: #4b5563; /* gray-600 */
+            --color-text-primary: #e5e7eb; /* gray-100 */
+            --color-text-secondary: #9ca3af; /* gray-400 */
+            --color-border: #4b5563; /* gray-600 */
+            --color-primary-blue: #3b82f6; /* blue-500 */
+            
+            --color-tumbler-bg-off: #6b7280; /* Серый для выключенного тумблера */
+            --color-tumbler-bg-on: #3b82f6;  /* Синий для включенного тумблера */
+            --color-tumbler-knob: white; 
+            
+            --color-error-bg: rgba(185, 28, 28, 0.1); 
+            --color-error-border: #b91c1c; 
+            --color-error-text: #fca5a5; 
+        }
+        
+        .light-mode {
+            --color-bg-primary: #f9fafb; /* Светло-серый фон */
+            --color-bg-secondary: #ffffff; /* Белый фон для шапки */
+            --color-bg-card: #ffffff; /* Белый фон карточек */
+            --color-bg-hover: #f3f4f6; /* Светло-серый при наведении */
+            --color-bg-input: #f3f4f6; /* Светлый фон для инпутов */
+            --color-text-primary: #1f2937; /* Темный текст */
+            --color-text-secondary: #6b7280; /* Серый вторичный текст */
+            --color-border: #e5e7eb; /* Светлая граница */
+            --color-primary-blue: #2563eb; /* Чуть темнее синий */
+
+            --color-tumbler-bg-off: #ccc; 
+            --color-tumbler-bg-on: #2563eb; 
+            --color-tumbler-knob: white; 
+
+            --color-error-bg: #fee2e2;
+            --color-error-border: #fca5a5;
+            --color-error-text: #b91c1c;
+        }
+
+        /* --------------------------------- */
+        /* --- GENERAL & UTILS --- */
+        /* --------------------------------- */
+        .app-container {
+            min-height: 100vh;
+            color: var(--color-text-primary);
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+        .text-theme-text { color: var(--color-text-primary); }
+        .text-theme-secondary { color: var(--color-text-secondary); }
+        .text-theme-primary { color: var(--color-primary-blue); }
+        .border-theme-border { border-color: var(--color-border); }
+        .hover\\:bg-theme-hover-bg:hover { background-color: var(--color-bg-hover); }
+        .title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            font-size: 0.9rem;
+            color: var(--color-text-secondary);
+            margin-bottom: 1.5rem;
+        }
+
+        /* --------------------------------- */
+        /* --- LOGIN SCREEN --- */
+        /* --------------------------------- */
+        .login-form-wrapper {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            width: 100%;
+        }
+        .login-card {
+            max-width: 28rem;
+            width: 100%;
+            background-color: var(--color-bg-card);
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--color-border);
+            position: relative;
+        }
+        .logo-text {
+            font-size: 2.5rem;
+            font-weight: 900;
+            text-align: center;
+            margin-bottom: 0.5rem;
+            color: var(--color-primary-blue);
+        }
+        .tagline {
+            text-align: center;
+            margin-bottom: 2rem;
+            color: var(--color-text-secondary);
+            font-size: 0.9rem;
+        }
+        .form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .login-input {
+            width: 100%;
+            background-color: var(--color-bg-input);
+            border: 1px solid var(--color-border);
+            color: var(--color-text-primary);
+            padding: 0.75rem;
+            padding-right: 3rem; 
+            border-radius: 0.75rem;
+            transition: all 0.15s;
+            outline: none;
+        }
+        .login-input::placeholder {
+             color: var(--color-text-secondary);
+             opacity: 0.7;
+        }
+        .login-input:focus {
+            box-shadow: 0 0 0 2px var(--color-primary-blue);
+            border-color: var(--color-primary-blue);
+        }
+        .password-input-container {
+            position: relative;
+            width: 100%;
+        }
+        .toggle-password-visibility {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        .toggle-password-visibility:hover {
+            color: var(--color-primary-blue);
+        }
+        .login-error {
+            padding: 0.75rem;
+            background-color: var(--color-error-bg);
+            border: 1px solid var(--color-error-border);
+            color: var(--color-error-text); 
+            font-size: 0.875rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            display: flex;
+            align-items: center;
+        }
+        .tech-info {
+            background-color: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            border-radius: 0.5rem;
+        }
+        .tech-info pre {
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: var(--color-text-secondary);
+            font-size: 0.75rem;
+        }
+
+        /* --------------------------------- */
+        /* --- SWITCH/TUMBLER --- */
+        /* --------------------------------- */
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            font-size: 0.875rem; 
+            color: var(--color-text-secondary);
+            cursor: pointer;
+        }
+        .checkbox-row a {
+            color: var(--color-primary-blue);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .switch-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+        .switch-container {
+            position: relative;
+            width: 2.75rem; 
+            height: 1.5rem; 
+            border-radius: 9999px;
+            transition: background-color 0.2s ease-in-out;
+            flex-shrink: 0;
+            background-color: var(--color-tumbler-bg-off); 
+        }
+        .switch-container.checked {
+            background-color: var(--color-tumbler-bg-on); 
+        }
+        .switch-knob {
+            position: absolute;
+            top: 0.125rem; 
+            left: 0.125rem; 
+            width: 1.25rem; 
+            height: 1.25rem; 
+            background-color: var(--color-tumbler-knob);
+            border-radius: 9999px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transform: translateX(0);
+            transition: transform 0.2s ease-in-out;
+        }
+        .switch-container.checked .switch-knob {
+            transform: translateX(1.25rem); 
+        }
+
+        /* --------------------------------- */
+        /* --- BUTTONS & HEADER/MAIN --- */
+        /* --------------------------------- */
+        .button-primary {
+            background-color: var(--color-primary-blue);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: background-color 0.15s;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 100%;
+        }
+        .button-primary:hover:not(:disabled) {
+            background-color: #2563eb; 
+        }
+        .button-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .app-header {
+            padding: 1rem;
+            background-color: var(--color-bg-secondary);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 1px solid var(--color-border);
+        }
+        .app-main {
+            flex-grow: 1;
+            padding: 1.5rem 1rem 5.5rem 1rem; /* Увеличили нижний паддинг для таббара */
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+
+        /* --------------------------------- */
+        /* --- CARGO PAGE --- */
+        /* --------------------------------- */
+        .cargo-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .cargo-card {
+            background-color: var(--color-bg-card);
+            border-radius: 0.75rem;
+            border: 1px solid var(--color-border);
+            padding: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            font-size: 0.875rem;
+        }
+        .cargo-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.25rem 0;
+            border-bottom: 1px dashed var(--color-border);
+        }
+        .cargo-row:last-child {
+            border-bottom: none;
+        }
+        .cargo-row.main {
+            font-weight: 600;
+            font-size: 1rem;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid var(--color-primary-blue);
+        }
+        .cargo-label {
+            color: var(--color-text-secondary);
+            font-weight: 500;
+        }
+        .cargo-value {
+            text-align: right;
+            font-weight: 600;
+        }
+        .cargo-value-sum {
+            color: var(--color-primary-blue);
+            font-weight: 700;
+        }
+        /* Адаптивность для CargoPage */
+        @media (min-width: 640px) {
+            .cargo-list {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 1.5rem;
+            }
+        }
 
 
-    // --------------- ЭКРАН АВТОРИЗАЦИИ (с интегрированными стилями) ---------------
+        /* --------------------------------- */
+        /* --- TAB BAR --- */
+        /* --------------------------------- */
+        .tabbar-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-around;
+            background-color: var(--color-bg-secondary);
+            border-top: 1px solid var(--color-border);
+            padding: 0.5rem 0;
+            z-index: 20;
+            box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .tab-button {
+            background: none;
+            border: none;
+            min-width: 4rem;
+            padding: 0.25rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 500;
+            transition: color 0.2s, background-color 0.2s;
+            cursor: pointer;
+            border-radius: 0.5rem;
+        }
+        .tab-button .tab-icon {
+            margin-bottom: 0.25rem;
+            height: 1.25rem;
+            width: 1.25rem;
+        }
+        .tab-button.active {
+            color: var(--color-primary-blue);
+        }
+        .tab-button:not(.active) {
+            color: var(--color-text-secondary);
+        }
+        .tab-button:hover:not(.active) {
+            background-color: var(--color-bg-hover);
+        }
+    `;
+
+    // --------------- ЭКРАН АВТОРИЗАЦИИ ---------------
     if (!auth) {
         return (
             <>
-            {/* Встроенные стили */}
-            <style>
-                {`
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-                
-                * {
-                    box-sizing: border-box;
-                }
-                body {
-                    margin: 0;
-                    background-color: var(--color-bg-primary); 
-                    font-family: 'Inter', sans-serif;
-                }
-                
-                :root {
-                    /* Dark Mode Defaults */
-                    --color-bg-primary: #1f2937;
-                    --color-bg-secondary: #374151;
-                    --color-bg-card: #374151;
-                    --color-bg-hover: #4b5563;
-                    --color-bg-input: #4b5563;
-                    --color-text-primary: #e5e7eb;
-                    --color-text-secondary: #9ca3af;
-                    --color-border: #4b5563;
-                    --color-ai-bg: rgba(75, 85, 99, 0.5);
-                    --color-primary-blue: #3b82f6;
-                    --color-error-bg: rgba(185, 28, 28, 0.1);
-                    --color-error-border: #b91c1c;
-                    --color-error-text: #fca5a5;
-
-                    /* Tumbler colors */
-                    --color-tumbler-bg-off: #6b7280; 
-                    --color-tumbler-bg-on: #3b82f6;  
-                    --color-tumbler-knob: white;
-                }
-                
-                .light-mode {
-                    --color-bg-primary: #f9fafb;
-                    --color-bg-secondary: #ffffff;
-                    --color-bg-card: #ffffff;
-                    --color-bg-hover: #f3f4f6;
-                    --color-bg-input: #f3f4f6;
-                    --color-text-primary: #1f2937;
-                    --color-text-secondary: #6b7280;
-                    --color-border: #e5e7eb;
-                    --color-ai-bg: #f3f4f6;
-                    --color-primary-blue: #2563eb;
-                    --color-error-bg: #fee2e2;
-                    --color-error-border: #fca5a5;
-                    --color-error-text: #b91c1c;
-
-                    --color-tumbler-bg-off: #ccc;
-                    --color-tumbler-bg-on: #2563eb;
-                    --color-tumbler-knob: white;
-                }
-
-                .app-container {
-                    min-height: 100vh;
-                    background-color: var(--color-bg-primary);
-                    color: var(--color-text-primary);
-                    font-family: 'Inter', sans-serif;
-                    display: flex;
-                    flex-direction: column;
-                    transition: background-color 0.3s, color 0.3s;
-                }
-                
-                /* Custom utility classes */
-                .text-theme-text { color: var(--color-text-primary); }
-                .text-theme-secondary { color: var(--color-text-secondary); }
-                .text-theme-primary { color: var(--color-primary-blue); }
-                .border-theme-border { border-color: var(--color-border); }
-                .hover\\:bg-theme-hover-bg:hover { background-color: var(--color-bg-hover); }
-
-                /* Login screen styles */
-                .login-form-wrapper {
-                    min-height: 100vh;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    padding: 2rem;
-                    width: 100%;
-                }
-                .login-card {
-                    max-width: 28rem;
-                    width: 100%;
-                    margin: 0 auto;
-                    background-color: var(--color-bg-card);
-                    padding: 2.5rem;
-                    border-radius: 1rem;
-                    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-                    border: 1px solid var(--color-border);
-                    position: relative;
-                }
-                .logo-text {
-                    font-size: 2.5rem;
-                    font-weight: 900;
-                    text-align: center;
-                    margin-bottom: 0.5rem;
-                    color: var(--color-primary-blue);
-                }
-                .tagline {
-                    text-align: center;
-                    margin-bottom: 2rem;
-                    color: var(--color-text-secondary);
-                    font-size: 0.9rem;
-                }
-                .form {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 1.5rem;
-                }
-                .login-input {
-                    width: 100%;
-                    background-color: var(--color-bg-input);
-                    border: 1px solid var(--color-border);
-                    color: var(--color-text-primary);
-                    padding: 0.75rem;
-                    padding-right: 3rem; 
-                    border-radius: 0.75rem;
-                    transition: all 0.15s;
-                    outline: none;
-                }
-                .login-input:focus {
-                    box-shadow: 0 0 0 2px var(--color-primary-blue);
-                    border-color: var(--color-primary-blue);
-                }
-                .password-input-container {
-                    position: relative;
-                    width: 100%;
-                }
-                .toggle-password-visibility {
-                    position: absolute;
-                    right: 0.75rem;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    background: none;
-                    border: none;
-                    color: var(--color-text-secondary);
-                    cursor: pointer;
-                    padding: 0;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    z-index: 10;
-                }
-                .toggle-password-visibility:hover {
-                    color: var(--color-primary-blue);
-                }
-
-                .login-error {
-                    padding: 0.75rem;
-                    background-color: var(--color-error-bg);
-                    border: 1px solid var(--color-error-border);
-                    color: var(--color-error-text); 
-                    font-size: 0.875rem;
-                    border-radius: 0.5rem;
-                    margin-top: 1rem;
-                    display: flex;
-                    align-items: center;
-                }
-
-                /* Switch/Tumbler styles */
-                .checkbox-row {
-                    display: flex;
-                    align-items: center;
-                    font-size: 0.875rem;
-                    color: var(--color-text-secondary);
-                    cursor: pointer;
-                }
-                .checkbox-row a {
-                    color: var(--color-primary-blue);
-                    text-decoration: none;
-                    font-weight: 600;
-                }
-                .switch-wrapper {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    width: 100%;
-                }
-                .switch-container {
-                    position: relative;
-                    width: 2.75rem; 
-                    height: 1.5rem; 
-                    border-radius: 9999px;
-                    transition: background-color 0.2s ease-in-out;
-                    flex-shrink: 0;
-                    background-color: var(--color-tumbler-bg-off);
-                }
-                .switch-container.checked {
-                    background-color: var(--color-tumbler-bg-on);
-                }
-                .switch-knob {
-                    position: absolute;
-                    top: 0.125rem; 
-                    left: 0.125rem; 
-                    width: 1.25rem; 
-                    height: 1.25rem; 
-                    background-color: var(--color-tumbler-knob);
-                    border-radius: 9999px;
-                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-                    transform: translateX(0);
-                    transition: transform 0.2s ease-in-out;
-                }
-                .switch-container.checked .switch-knob {
-                    transform: translateX(1.25rem); 
-                }
-
-                /* Other styles (header, cards, etc.) */
-                .app-header {
-                    padding: 1rem;
-                    background-color: var(--color-bg-secondary);
-                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    position: sticky;
-                    top: 0;
-                    z-index: 10;
-                    border-bottom: 1px solid var(--color-border);
-                }
-                .app-main {
-                    flex-grow: 1;
-                    padding: 1.5rem 1rem 4rem 1rem;
-                    display: flex;
-                    justify-content: center;
-                    align-items: flex-start;
-                }
-                .ai-summary-card {
-                    background-color: var(--color-bg-card);
-                    border-radius: 0.75rem;
-                    padding: 1rem;
-                    border: 1px solid var(--color-border);
-                    margin-bottom: 1.5rem;
-                }
-                .empty-state-card {
-                    background-color: var(--color-bg-card);
-                    border: 1px solid var(--color-border);
-                    border-radius: 1rem;
-                    padding: 3rem;
-                    text-align: center;
-                    margin-top: 5rem;
-                }
-                .grid-container {
-                    display: grid;
-                    grid-template-columns: 1fr;
-                    gap: 1rem;
-                    width: 100%; 
-                }
-                @media (min-width: 768px) {
-                    .grid-container {
-                        grid-template-columns: 1fr 1fr;
-                    }
-                }
-                .perevozka-card {
-                    background-color: var(--color-bg-card);
-                    border-radius: 0.75rem;
-                    border: 1px solid var(--color-border);
-                    overflow: hidden;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                    transition: box-shadow 0.3s, border-color 0.3s;
-                }
-                .card-header {
-                    padding: 0.75rem;
-                    background-color: var(--color-bg-secondary);
-                    border-bottom: 1px solid var(--color-border);
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }
-                /* Стили для кнопки загрузки */
-                .button-download {
-                    width: 100%;
-                    background-color: var(--color-primary-blue);
-                    color: white;
-                    padding: 0.75rem 1rem;
-                    border-radius: 0.5rem;
-                    font-weight: 600;
-                    border: none;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    margin-top: 0.5rem;
-                    transition: background-color 0.15s;
-                }
-                .button-download:hover:not(:disabled) {
-                    background-color: #2563eb; 
-                }
-                .button-download:disabled {
-                    opacity: 0.6;
-                    cursor: not-allowed;
-                    background-color: var(--color-text-secondary);
-                }
-
-                .fixed { position: fixed; }
-                .bottom-0 { bottom: 0; }
-                .left-0 { left: 0; }
-                .right-0 { right: 0; }
-                .z-50 { z-index: 50; }
-                .shadow-lg { box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -2px rgba(0, 0, 0, 0.06); }
-                `}
-            </style>
+            <style>{injectedStyles}</style>
             
-            <div className={`app-container ${theme}-mode login-form-wrapper`}>
-                <div className={`login-card relative`}>
-                    <div className="theme-toggle-container absolute top-4 right-4">
-                        <button className="theme-toggle-button" onClick={toggleTheme} title="Переключить тему">
-                            {isThemeLight ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            <div className={`app-container login-form-wrapper`}>
+                <div className="login-card">
+                    <div className="absolute top-4 right-4">
+                        <button className="theme-toggle-button text-theme-secondary hover:bg-theme-hover-bg p-2 rounded-full" onClick={toggleTheme} title="Переключить тему">
+                            {isThemeLight ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-yellow-400" />}
                         </button>
                     </div>
 
@@ -474,11 +557,10 @@ export default function App() {
                             <input
                                 className="login-input"
                                 type="text"
-                                placeholder="order@lal-auto.com"
+                                placeholder="Логин (email)"
                                 value={login}
                                 onChange={(e) => setLogin(e.target.value)}
                                 autoComplete="username"
-                                style={{paddingRight: '0.75rem'}} 
                             />
                         </div>
 
@@ -487,7 +569,7 @@ export default function App() {
                                 <input
                                     className="login-input"
                                     type={showPassword ? "text" : "password"}
-                                    placeholder="Введите пароль"
+                                    placeholder="Пароль"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     autoComplete="current-password"
@@ -541,18 +623,15 @@ export default function App() {
                         </button>
                     </form>
 
-                    {error && <p className="login-error mt-4"><X className="w-5 h-5 mr-2" />{error}</p>}
+                    {error && <p className="login-error mt-4"><AlertTriangle className="w-5 h-5 mr-2" />{error}</p>}
                     
                     {/* --- ТЕХНИЧЕСКОЕ ПОЛЕ CURL --- */}
                     {curlRequest && (
-                        <div className="mt-4 p-3 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg">
-                            <h3 className="text-sm font-semibold text-theme-text mb-1">Итоговый CURL-запрос, отправляемый **прокси** в 1С:</h3>
-                            <pre className="whitespace-pre-wrap break-all text-xs text-[var(--color-text-secondary)] font-mono">
+                        <div className="mt-4 p-3 tech-info">
+                            <h3 className="text-sm font-semibold text-theme-text mb-1">Итоговый CURL-запрос (для отладки прокси):</h3>
+                            <pre className="whitespace-pre-wrap break-all p-2 rounded">
                                 {curlRequest}
                             </pre>
-                            <p className="text-xs text-yellow-500 mt-2">
-                                **Внимание:** Проверьте, что запрос, который вы видите выше, работает в Postman/терминале. Если он работает, проблема в логике прокси-файла.
-                            </p>
                         </div>
                     )}
 
@@ -565,8 +644,9 @@ export default function App() {
     // --------------- АВТОРИЗОВАННАЯ ЧАСТЬ ---------------
 
     return (
-        <div className={`app-container ${theme}-mode`}>
-            
+        <div className={`app-container`}>
+            <style>{injectedStyles}</style>
+
             <header className="app-header">
                 <h1 className="header-title">
                     <span className="logo-text text-theme-primary" style={{ fontSize: '1.5rem', margin: 0 }}>HAULZ</span>
@@ -582,8 +662,7 @@ export default function App() {
             </header>
 
             <div className="app-main">
-                <div className="w-full max-w-4xl"> 
-                    {/* Передаем auth, чтобы дочерние компоненты могли использовать логин/пароль */}
+                <div className="w-full max-w-4xl">
                     {activeTab === "cargo" && <CargoPage auth={auth} />}
                     {activeTab === "home" && <StubPage title="Главная" />}
                     {activeTab === "docs" && <StubPage title="Документы" />}
@@ -597,95 +676,30 @@ export default function App() {
     );
 }
 
-
-// ----------------- КОМПОНЕНТ КАРТОЧКИ ГРУЗА (PerevozkaCard) -----------------
-
-type PerevozkaCardProps = {
-    item: CargoItem;
-    onDownloadClick: (number: string) => void;
-    isDownloading: boolean;
-    formatDate: (dateString: string | undefined) => string;
-    formatCurrency: (value: number | string | undefined) => string;
-};
-
-function PerevozkaCard({ item, onDownloadClick, isDownloading, formatDate, formatCurrency }: PerevozkaCardProps) {
-    const number = item.Nomer || item.Number || item.number || "-";
-    const status = item.Status || item.State || item.state || "-";
-    const date = formatDate(item.DatePrih || item.DatePr || item.datePr);
-    const weight = item.PW || item.Weight || "-";
-    const sum = formatCurrency(item.Sum || item.Total);
-
-    return (
-        <div className="perevozka-card">
-            <div className="card-header">
-                <span className="text-sm font-semibold text-theme-secondary">Перевозка №</span>
-                <span className="text-lg font-bold text-theme-primary">{number}</span>
-            </div>
-            <div className="p-3">
-                <div className="flex justify-between items-center py-2 border-b border-theme-border">
-                    <span className="text-sm text-theme-secondary flex items-center"><Check className="w-4 h-4 mr-2 text-green-500" /> Статус</span>
-                    <span className="text-theme-text font-semibold">{status}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-theme-border">
-                    <span className="text-sm text-theme-secondary flex items-center"><Truck className="w-4 h-4 mr-2 text-indigo-400" /> Дата прибытия</span>
-                    <span className="text-theme-text font-semibold">{date}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 border-b border-theme-border">
-                    <span className="text-sm text-theme-secondary flex items-center"><span className="text-xs font-extrabold mr-2">W</span> Вес, кг</span>
-                    <span className="text-theme-text font-semibold">{weight}</span>
-                </div>
-                <div className="flex justify-between items-center py-2">
-                    <span className="text-sm text-theme-secondary flex items-center"><span className="text-md font-extrabold mr-2 text-yellow-500">₽</span> Сумма</span>
-                    <span className="text-lg font-bold text-yellow-500">{sum}</span>
-                </div>
-                {/* Кнопка скачивания */}
-                <button 
-                    className="button-download" 
-                    onClick={() => onDownloadClick(number)}
-                    disabled={isDownloading}
-                >
-                    {isDownloading ? (
-                        <Loader2 className="animate-spin w-4 h-4 mr-2" />
-                    ) : (
-                        <Download className="w-4 h-4 mr-2" />
-                    )}
-                    {isDownloading ? "Загрузка..." : "Скачать ЭР"}
-                </button>
-            </div>
-        </div>
-    );
-}
-
 // ----------------- КОМПОНЕНТ С ГРУЗАМИ (CargoPage) -----------------
 
-type CargoPageProps = { 
-    auth: AuthData; 
-};
+type CargoPageProps = { auth: AuthData };
 
 function CargoPage({ auth }: CargoPageProps) {
-    const [items, setItems] = useState<CargoItem[]>([]); 
+    const [items, setItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [aiSummary, setAiSummary] = useState("Искусственный интеллект анализирует ваши данные...");
-    const [summaryLoading, setSummaryLoading] = useState(true);
-    const [downloading, setDownloading] = useState<string | null>(null); 
 
-
+    // Функция для форматирования даты (например, из "2024-01-11T00:00:00" в "11.01.2024")
     const formatDate = (dateString: string | undefined): string => {
         if (!dateString) return '-';
         try {
+            // Пытаемся обработать ISO-строку
             const date = new Date(dateString);
             if (!isNaN(date.getTime())) {
                  return date.toLocaleDateString('ru-RU');
             }
         } catch (e) { /* ignore */ }
-        const [year, month, day] = dateString.split('-');
-        if (year && month && day) {
-            return `${day}.${month}.${year}`;
-        }
+        // Если не удалось, возвращаем как есть
         return dateString;
     };
     
+    // Функция для форматирования валюты
     const formatCurrency = (value: number | string | undefined): string => {
         if (value === undefined || value === null || value === "") return '-';
         const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
@@ -694,68 +708,20 @@ function CargoPage({ auth }: CargoPageProps) {
         return new Intl.NumberFormat('ru-RU', {
             style: 'currency',
             currency: 'RUB',
-            minimumFractionDigits: 0,
+            minimumFractionDigits: 0, 
             maximumFractionDigits: 0
         }).format(num);
     };
 
-    // --- ФУНКЦИЯ СКАЧИВАНИЯ ФАЙЛА ---
-    const handleDownload = async (cargoNumber: string) => {
-        setDownloading(cargoNumber); 
-        setError(null);
-        
-        try {
-            const res = await fetch(FILE_PROXY_API_BASE_URL, { 
-                method: "POST", 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    login: auth.login, 
-                    password: auth.password,
-                    metod: 'ЭР', // Параметр из вашего запроса
-                    Number: cargoNumber, 
-                }),
-            });
 
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`Ошибка скачивания файла (${res.status}): ${errorText.substring(0, 100)}...`);
-            }
-            
-            const contentDisposition = res.headers.get('content-disposition') || `attachment; filename="document.pdf"`;
-            const blob = await res.blob();
-            
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            
-            // Извлечение имени файла
-            const filenameMatch = contentDisposition.match(/filename="(.+?)"/);
-            const filename = filenameMatch ? filenameMatch[1] : `document_${cargoNumber}.pdf`;
-            
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-            
-        } catch (err: any) {
-            setError(err.message || "Не удалось загрузить файл.");
-        } finally {
-            setDownloading(null); // Убираем статус загрузки
-        }
-    };
-    // -----------------------------------------------------------------
-
-
-    // Загрузка данных
     useEffect(() => {
         let cancelled = false;
 
         const load = async () => {
             setLoading(true);
             setError(null);
-            setSummaryLoading(true);
 
+            // Запрос данных за последний год
             const today = new Date();
             const oneYearAgo = new Date();
             oneYearAgo.setFullYear(today.getFullYear() - 1);
@@ -786,34 +752,22 @@ function CargoPage({ auth }: CargoPageProps) {
                 });
 
                 if (!res.ok) {
-                    let message = `Ошибка загрузки: ${res.status}. Убедитесь в корректности данных и прокси.`;
-                    if (res.status === 401) {
-                        message = "Ошибка авторизации (401). Проверьте логин и пароль.";
-                    }
+                    let message = `Ошибка загрузки грузов: ${res.status}.`;
+                    try {
+                        const data = (await res.json()) as ApiError;
+                        if (data.error) message = data.error;
+                    } catch { /* ignore */ }
                     if (!cancelled) setError(message);
                     return;
                 }
 
                 const data = await res.json();
-                
-                const list: CargoItem[] = Array.isArray(data) ? data : data.Perevozki || data.items || [];
-                
+                // Обрабатываем как массив или как объект с полем 'items'
+                const list = Array.isArray(data) ? data : data.items || [];
                 if (!cancelled) setItems(list);
 
-                setTimeout(() => {
-                    if (!cancelled) {
-                        const totalSum = list.reduce((sum: number, item: CargoItem) => {
-                             const value = item.Sum || item.Total;
-                             const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : (value || 0);
-                             return sum + (num || 0);
-                        }, 0);
-                        setAiSummary(`За последний год вы совершили ${list.length} перевозок. Общая сумма составила ${formatCurrency(totalSum)}.`);
-                        setSummaryLoading(false);
-                    }
-                }, 1500);
-
             } catch (e: any) {
-                if (!cancelled) setError(e?.message || "Ошибка сети при загрузке данных.");
+                if (!cancelled) setError(e?.message || "Ошибка сети при загрузке грузов.");
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -824,56 +778,79 @@ function CargoPage({ auth }: CargoPageProps) {
         return () => {
             cancelled = true;
         };
-    }, [auth.login, auth.password]); 
-
+    }, [auth.login, auth.password]); // Перезагружаем при смене пользователя
 
     return (
-        <div className="p-4 w-full"> 
-            <h2 className="text-3xl font-bold text-theme-text mb-2">Мои перевозки</h2>
-            <p className="text-theme-secondary mb-4 pb-4 border-b border-theme-border">
-                Данные загружаются методом **GET** с передачей учетных данных в заголовке **Authorization: Basic**.
+        <div className="w-full">
+            <h2 className="title text-theme-text">Мои Грузы</h2>
+            <p className="subtitle">
+                Здесь отображаются все перевозки за последний год, полученные из системы 1С.
             </p>
 
-            {/* AI Summary Card */}
-            <div className="ai-summary-card">
-                <div className="flex items-start">
-                    <span className="mr-3 text-theme-primary font-bold text-xl">AI</span>
-                    <div>
-                        <p className="text-sm font-semibold mb-1 text-theme-text">Краткая сводка</p>
-                        <p className={`text-theme-text text-sm ${summaryLoading ? 'italic text-theme-secondary' : 'font-medium'}`}>
-                            {summaryLoading ? <span className="flex items-center"><Loader2 className="animate-spin w-4 h-4 mr-2" /> Анализ данных...</span> : aiSummary}
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-
-            {loading && <p className="flex items-center text-lg text-yellow-500"><Loader2 className="animate-spin mr-2 w-5 h-5" /> Загружаем данные...</p>}
-            
-            {error && <p className="login-error flex items-center"><X className="w-5 h-5 mr-2" />{error}</p>}
-
-            {!loading && !error && items.length === 0 && (
-                <div className="empty-state-card text-theme-secondary">
-                    <Truck className="w-12 h-12 mx-auto mb-3 text-theme-primary" />
-                    <p className="text-lg font-semibold text-theme-text">Перевозок не найдено</p>
-                    <p className="text-sm">Проверьте, правильно ли указаны логин и пароль.</p>
+            {loading && (
+                <div className="flex justify-center items-center py-8 text-theme-secondary">
+                    <Loader2 className="animate-spin w-6 h-6 mr-2" />
+                    <p>Загружаем данные...</p>
                 </div>
             )}
+            
+            {error && (
+                 <p className="login-error mt-4"><AlertTriangle className="w-5 h-5 mr-2" />{error}</p>
+            )}
 
-            <div className="grid-container mt-6">
-                {items.map((item, idx) => {
-                    const number = item.Nomer || item.Number || item.number;
-                    return (
-                        <PerevozkaCard 
-                            key={idx}
-                            item={item}
-                            onDownloadClick={handleDownload}
-                            isDownloading={downloading === number}
-                            formatDate={formatDate}
-                            formatCurrency={formatCurrency}
-                        />
-                    );
-                })}
+            {!loading && !error && items.length === 0 && (
+                 <div className="p-8 my-8 text-center bg-[var(--color-bg-card)] border border-theme-border rounded-xl">
+                    <Package className="w-12 h-12 mx-auto mb-4 text-theme-secondary opacity-50" />
+                    <p className="text-theme-secondary">Перевозок не найдено за выбранный период.</p>
+                 </div>
+            )}
+
+            <div className="cargo-list">
+                {items.map((item, idx) => (
+                    <div className="cargo-card" key={idx}>
+                        <div className="cargo-row main">
+                            <span className="cargo-label text-theme-text">№</span>
+                            <span className="cargo-value text-theme-text">
+                                {item.Number || item.number || "-"}
+                            </span>
+                        </div>
+
+                        <div className="cargo-row">
+                            <span className="cargo-label">Статус</span>
+                            <span className="cargo-value text-theme-text">
+                                {item.State || item.state || "-"}
+                            </span>
+                        </div>
+
+                        <div className="cargo-row">
+                            <span className="cargo-label">Дата прибытия</span>
+                            <span className="cargo-value text-theme-text">
+                                {formatDate(item.DatePrih || item.DatePr)}
+                            </span>
+                        </div>
+
+                        <div className="cargo-row">
+                            <span className="cargo-label">Мест</span>
+                            <span className="cargo-value text-theme-text">
+                                {item.Mest || item.mest || "-"}
+                            </span>
+                        </div>
+
+                        <div className="cargo-row">
+                            <span className="cargo-label">Вес, кг</span>
+                            <span className="cargo-value text-theme-text">
+                                {item.PW || item.Weight || "-"}
+                            </span>
+                        </div>
+
+                        <div className="cargo-row">
+                            <span className="cargo-label">Сумма</span>
+                            <span className="cargo-value cargo-value-sum">
+                                {formatCurrency(item.Sum || item.Total)}
+                            </span>
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -883,20 +860,18 @@ function CargoPage({ auth }: CargoPageProps) {
 
 function StubPage({ title }: { title: string }) {
     return (
-        <div className="p-4 w-full">
-            <h2 className="text-3xl font-bold text-theme-text mb-2">{title}</h2>
-            <p className="text-theme-secondary mb-4 pb-4 border-b border-theme-border">Этот раздел мы заполним позже.</p>
-            
-            <div className="empty-state-card text-theme-secondary mt-10">
-                <FileText className="w-12 h-12 mx-auto mb-3 text-theme-primary" />
-                <p className="text-lg font-semibold text-theme-text">В разработке</p>
-                <p className="text-sm">Возвращайтесь позже, чтобы увидеть {title.toLowerCase()}.</p>
+        <div className="w-full">
+            <h2 className="title text-theme-text">{title}</h2>
+            <p className="subtitle">Этот раздел мы заполним позже.</p>
+            <div className="p-8 my-8 text-center bg-[var(--color-bg-card)] border border-theme-border rounded-xl">
+                <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-theme-secondary opacity-50" />
+                <p className="text-theme-secondary">Контент в разработке.</p>
             </div>
         </div>
     );
 }
 
-// ----------------- НИЖНЕЕ МЕНЮ -----------------
+// ----------------- НИЖНЕЕ МЕНЮ (TabBar) -----------------
 
 type TabBarProps = {
     active: Tab;
@@ -905,7 +880,7 @@ type TabBarProps = {
 
 function TabBar({ active, onChange }: TabBarProps) {
     return (
-        <div className="fixed bottom-0 left-0 right-0 flex justify-around bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg p-2 z-50 bg-[var(--color-bg-card)] border-theme-border">
+        <div className="tabbar-container">
             <TabButton
                 label="Главная"
                 icon={<Home className="w-5 h-5" />}
@@ -948,16 +923,16 @@ type TabButtonProps = {
 };
 
 function TabButton({ label, icon, active, onClick }: TabButtonProps) {
-    const activeClass = active ? 'text-theme-primary' : 'text-theme-secondary';
-    const hoverClass = 'hover:bg-theme-hover-bg';
+    const activeClass = active ? 'tab-btn-active' : '';
     
     return (
         <button
-            className={`flex flex-col items-center justify-center p-2 rounded-lg text-sm font-medium transition-colors ${activeClass} ${hoverClass}`}
+            type="button"
+            className={`tab-button ${activeClass}`}
             onClick={onClick}
         >
-            <span className="tab-icon mb-0.5">{icon}</span>
-            <span className="text-xs">{label}</span>
+            <span className="tab-icon">{icon}</span>
+            <span className="tab-label">{label}</span>
         </button>
     );
 }
