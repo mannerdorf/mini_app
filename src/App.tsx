@@ -11,30 +11,20 @@ type AuthData = {
 // Точка входа для запросов на ваш прокси-сервер Vercel
 const PROXY_API_BASE_URL = '/api/perevozki'; 
 
-// --- ФУНКЦИЯ ДЛЯ BASIC AUTH (для отправки на прокси) ---
-const getAuthHeader = (login: string, password: string): { Authorization: string } => {
-    const credentials = `${login}:${password}`;
-    // btoa доступен в браузере
-    const encoded = btoa(credentials); 
-    return {
-        Authorization: `Basic ${encoded}`,
-    };
-};
-
 // --- ФУНКЦИЯ ДЛЯ ГЕНЕРАЦИИ ДИНАМИЧЕСКОГО CURL (для отображения) ---
+// Этот CURL теперь отражает, как фронтенд обращается к вашему прокси-серверу (POST с JSON Body)
 const generateDynamicCurlString = (clientLogin: string, clientPassword: string): string => {
-    // Параметры 1С (DateB, DateE) и заголовок Authorization (Admin) 
-    const dateB = '2024-01-01'; // Используем те же даты, что и в запросе
-    const dateE = '2025-01-01';
-    const adminAuthBase64 = 'Basic YWRtaW46anVlYmZueWU='; 
-    
-    // Заголовок Auth (Client) - КРИТИЧНО: НЕКОДИРОВАННЫЕ учетные данные
-    const clientAuthRaw = `Basic ${clientLogin}:${clientPassword}`; 
-
-    return `curl --location 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki?DateB=${dateB}&DateE=${dateE}' \\
-  --header 'Auth: ${clientAuthRaw}' \\
-  --header 'Authorization: ${adminAuthBase64}'`;
+    return `curl --location --request POST 'https://[YOUR_VERCEL_URL]${PROXY_API_BASE_URL}' \\
+  --header 'Content-Type: application/json' \\
+  --data-raw '{
+    "login": "${clientLogin}",
+    "password": "${clientPassword}"
+}'`;
 };
+
+// В старой логике функция getAuthHeader не нужна, так как данные отправляются в теле запроса.
+// Если в вашем старом коде App (5).tsx она использовалась, то только для формирования 
+// тела запроса, а не заголовков.
 
 export default function App() {
     const [login, setLogin] = useState("order@lal-auto.com"); 
@@ -76,22 +66,21 @@ export default function App() {
             return;
         }
         
-        const { Authorization } = getAuthHeader(cleanLogin, cleanPassword);
-
-        // Используем фиксированные даты для первого запроса авторизации
-        const fixedDateFrom = '2024-01-01';
-        const fixedDateTo = '2025-01-01';
-        
         try {
             setLoading(true);
             
-            // Запрос на Vercel Proxy
-            const res = await fetch(`${PROXY_API_BASE_URL}?dateFrom=${fixedDateFrom}&dateTo=${fixedDateTo}`, { 
-                method: "GET", 
+            // 1. ОСНОВНОЙ ЗАПРОС К ПРОКСИ (через fetch)
+            // ИСПОЛЬЗУЕМ СТАРУЮ ЛОГИКУ: POST + JSON BODY
+            const res = await fetch(PROXY_API_BASE_URL, { 
+                method: "POST", // <-- ИЗМЕНЕНИЕ: Используем POST
                 headers: { 
-                    'Authorization': Authorization, // Передаем закодированные данные
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json' // Важно для JSON Body
                 },
+                // <-- ИЗМЕНЕНИЕ: Передаем логин/пароль в теле запроса
+                body: JSON.stringify({ 
+                    login: cleanLogin, 
+                    password: cleanPassword 
+                }),
             });
 
             if (!res.ok) {
@@ -127,7 +116,7 @@ export default function App() {
     };
 
 
-    // --------------- СТИЛИ (оставлены без изменений) ---------------
+    // --------------- СТИЛИ (остались из предыдущего шага) ---------------
     const globalStyles = (
         <style>
             {`
@@ -144,19 +133,24 @@ export default function App() {
             
             :root {
                 /* Dark Mode Defaults */
-                --color-bg-primary: #1f2937;
-                --color-bg-secondary: #374151;
-                --color-bg-card: #374151;
-                --color-bg-hover: #4b5563;
-                --color-bg-input: #4b5563;
-                --color-text-primary: #e5e7eb;
-                --color-text-secondary: #9ca3af;
-                --color-border: #4b5563;
+                --color-bg-primary: #1f2937; 
+                --color-bg-secondary: #374151; 
+                --color-bg-card: #374151; 
+                --color-bg-hover: #4b5563; 
+                --color-bg-input: #4b5563; 
+                --color-text-primary: #e5e7eb; 
+                --color-text-secondary: #9ca3af; 
+                --color-border: #4b5563; 
                 --color-ai-bg: rgba(75, 85, 99, 0.5);
-                --color-primary-blue: #3b82f6;
+                --color-primary-blue: #5b7efc; 
                 --color-error-bg: rgba(185, 28, 28, 0.1);
                 --color-error-border: #b91c1c;
                 --color-error-text: #fca5a5;
+
+                /* Tumbler colors */
+                --color-tumbler-bg-off: #6b7280; 
+                --color-tumbler-bg-on: #5b7efc;  
+                --color-tumbler-knob: white;
             }
             
             .light-mode {
@@ -173,6 +167,10 @@ export default function App() {
                 --color-error-bg: #fee2e2;
                 --color-error-border: #fca5a5;
                 --color-error-text: #b91c1c;
+
+                --color-tumbler-bg-off: #ccc;
+                --color-tumbler-bg-on: #2563eb;
+                --color-tumbler-knob: white;
             }
 
             .app-container {
@@ -235,7 +233,6 @@ export default function App() {
                 border: 1px solid var(--color-border);
                 color: var(--color-text-primary);
                 padding: 0.75rem;
-                padding-right: 3rem; 
                 border-radius: 0.75rem;
                 transition: all 0.15s;
                 outline: none;
@@ -283,40 +280,37 @@ export default function App() {
             .checkbox-row {
                 display: flex;
                 align-items: center;
-                font-size: 0.875rem;
-                color: var(--color-text-secondary);
+                font-size: 0.9rem; 
+                color: var(--color-text-primary); 
                 cursor: pointer;
+                justify-content: space-between; 
+                width: 100%; 
             }
             .checkbox-row a {
                 color: var(--color-primary-blue);
                 text-decoration: none;
                 font-weight: 600;
             }
-            .switch-wrapper {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                width: 100%;
-            }
             .switch-container {
                 position: relative;
-                width: 2.75rem; 
-                height: 1.5rem; 
+                width: 2.5rem; 
+                height: 1.25rem; 
                 border-radius: 9999px;
                 transition: background-color 0.2s ease-in-out;
                 flex-shrink: 0;
-                background-color: var(--color-text-secondary);
+                background-color: var(--color-tumbler-bg-off); 
+                cursor: pointer;
             }
             .switch-container.checked {
-                background-color: var(--color-primary-blue);
+                background-color: var(--color-tumbler-bg-on); 
             }
             .switch-knob {
                 position: absolute;
                 top: 0.125rem; 
                 left: 0.125rem; 
-                width: 1.25rem; 
-                height: 1.25rem; 
-                background-color: white;
+                width: 1rem; 
+                height: 1rem; 
+                background-color: var(--color-tumbler-knob);
                 border-radius: 9999px;
                 box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
                 transform: translateX(0);
@@ -355,9 +349,10 @@ export default function App() {
                 transition: background-color 0.15s;
                 border: none;
                 cursor: pointer;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             }
             .button-primary:hover:not(:disabled) {
-                background-color: #2563eb;
+                background-color: #4c6ee5; 
             }
             .button-primary:disabled {
                 opacity: 0.6;
@@ -404,6 +399,7 @@ export default function App() {
             
             <div className={`app-container ${theme}-mode login-form-wrapper`}>
                 <div className={`login-card relative`}>
+                    {/* Кнопка переключения темы */}
                     <div className="theme-toggle-container absolute top-4 right-4">
                         <button className="theme-toggle-button" onClick={toggleTheme}>
                             {isThemeLight ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
@@ -450,7 +446,8 @@ export default function App() {
                             </div>
                         </div>
 
-                        <label className="checkbox-row switch-wrapper">
+                        {/* Переключатель "Согласие с публичной офертой" */}
+                        <label className="checkbox-row">
                             <span>
                                 Согласие с{" "}
                                 <a href="#" target="_blank" rel="noreferrer">
@@ -465,7 +462,8 @@ export default function App() {
                             </div>
                         </label>
 
-                        <label className="checkbox-row switch-wrapper">
+                        {/* Переключатель "Согласие на обработку персональных данных" */}
+                        <label className="checkbox-row">
                             <span>
                                 Согласие на{" "}
                                 <a href="#" target="_blank" rel="noreferrer">
@@ -480,6 +478,7 @@ export default function App() {
                             </div>
                         </label>
 
+                        {/* Кнопка "Подтвердить" */}
                         <button className="button-primary mt-4 flex justify-center items-center" type="submit" disabled={loading}>
                             {loading ? (
                                 <Loader2 className="animate-spin w-5 h-5" />
@@ -491,9 +490,9 @@ export default function App() {
 
                     {error && <p className="login-error mt-4"><X className="w-5 h-5 mr-2" />{error}</p>}
                     
-                    {/* ПОЛЕ ДЛЯ ОТОБРАЖЕНИЯ ДИНАМИЧЕСКОГО CURL */}
+                    {/* Поле для отображения динамического CURL */}
                     <div className="curl-display">
-                        <strong className="text-xs block mb-1">Эталонный CURL (Vercel Proxy → Внешний API 1С)</strong>
+                        <strong className="text-xs block mb-1">CURL-запрос с фронтенда к прокси (старая логика)</strong>
                         <pre>{curlCommand}</pre>
                     </div>
                 </div>
