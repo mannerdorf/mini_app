@@ -1,57 +1,52 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import axios from 'axios';
 
-// --- ВНЕШНЕЕ API 1С ---
-const EXTERNAL_API_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki';
+// --- ЖЁСТКО ЗАДАННЫЙ URL С ДАТАМИ ---
+const HARDCODED_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki?DateB=2024-11-20&DateE=2025-11-20';
 
-// --- БАЗОВАЯ АВТОРИЗАЦИЯ ДЛЯ ПРОКСИ (admin:juebfnye) ---
-const ADMIN_AUTH_HEADER = 'Basic YWRtaW46anVlYmZueWU=';
+// --- АВТОРИЗАЦИЯ ---
+const ADMIN_AUTH_BASE64 = 'YWRtaW46anVlYmZueWU=';
+const ADMIN_AUTH_HEADER = `Basic ${ADMIN_AUTH_BASE64}`;
 
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse,
-) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  const clientAuthHeader = req.headers.authorization;
-
-  if (!clientAuthHeader || !clientAuthHeader.startsWith('Basic ')) {
-    return res.status(401).json({ error: 'Authorization header missing or invalid' });
-  }
-
-  const clientAuthBase64 = clientAuthHeader.replace('Basic ', '').trim();
-
-  try {
-    const decoded = Buffer.from(clientAuthBase64, 'base64').toString();
-    const [clientLogin, clientPassword] = decoded.split(':');
-
-    if (!clientLogin || !clientPassword) {
-      return res.status(400).json({ error: 'Invalid client credentials format' });
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+    if (req.method !== 'GET') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    // Собираем проксируемый URL
-    const externalUrl = `${EXTERNAL_API_URL}${req.url?.replace('/api/perevozki', '') || ''}`;
+    const clientAuthHeader = req.headers.authorization;
 
-    const response = await axios.get(externalUrl, {
-      headers: {
-        'Authorization': ADMIN_AUTH_HEADER, // доступ прокси в 1С
-        'Auth': `Basic ${clientLogin}:${clientPassword}`, // оригинальные данные клиента
-        'Accept-Encoding': 'identity',
-      },
-      timeout: 15000,
-    });
-
-    return res.status(response.status).json(response.data);
-  } catch (error: any) {
-    console.error('Proxy error:', error.message);
-
-    if (axios.isAxiosError(error) && error.response) {
-      console.error('1C error status:', error.response.status);
-      return res.status(error.response.status).json(error.response.data || { error: 'External API Error' });
+    if (!clientAuthHeader || !clientAuthHeader.startsWith('Basic ')) {
+        return res.status(401).json({ error: 'Authorization required' });
     }
 
-    return res.status(500).json({ error: 'Internal Server Error' });
-  }
+    const clientAuthBase64 = clientAuthHeader.replace('Basic ', '').trim();
+
+    try {
+        const decoded = Buffer.from(clientAuthBase64, 'base64').toString();
+        const [clientLogin] = decoded.split(":");
+
+        console.log("HARDCODED PEREVOZKI FETCH", {
+            login: clientLogin,
+            url: HARDCODED_URL
+        });
+
+        const response = await axios.get(HARDCODED_URL, {
+            headers: {
+                'Authorization': ADMIN_AUTH_HEADER,
+                'Auth': `Basic ${clientAuthBase64}`,
+                'Accept-Encoding': 'identity',
+            },
+            timeout: 15000,
+        });
+
+        res.status(response.status).json(response.data);
+    } catch (error: any) {
+        console.error('External API Request Failed:', error.message);
+
+        if (axios.isAxiosError(error) && error.response) {
+            return res.status(error.response.status).json(error.response.data || { error: 'External API Error' });
+        }
+
+        res.status(500).json({ error: 'Internal Server Error or Network Issue' });
+    }
 }
