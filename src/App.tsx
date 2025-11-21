@@ -351,19 +351,25 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         try {
             const res = await fetch(PROXY_API_DOWNLOAD_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, metod: docType, number: item.Number }) });
             if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
-            const text = await res.text();
+            const data = await res.json();
 
-// Если пришла ссылка — открываем её как файл
-if (text.startsWith('http')) {
-    const link = document.createElement('a');
-    link.href = text;
-    link.download = `${docType}_${item.Number}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-} else {
-    throw new Error("Сервер вернул неожиданный ответ, ожидается ссылка.");
+if (!data?.data || !data.name) {
+    throw new Error("Ответ от сервера не содержит файл.");
 }
+
+// Декодируем base64 в бинарный файл
+const byteCharacters = atob(data.data);
+const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
+const byteArray = new Uint8Array(byteNumbers);
+const blob = new Blob([byteArray], { type: "application/pdf" });
+
+const url = URL.createObjectURL(blob);
+const a = document.createElement("a");
+a.href = url;
+a.download = data.name || `${docType}_${item.Number}.pdf`;
+document.body.appendChild(a);
+a.click();
+document.body.removeChild(a);
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
