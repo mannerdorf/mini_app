@@ -63,7 +63,7 @@ body {
     transition: background-color 0.3s, color 0.3s;
 }
 
-/* Custom Tailwind utility classes for theme variables (если используете Tailwind) */
+/* Custom Tailwind utility classes for theme variables */
 .text-theme-text { color: var(--color-text-primary); }
 .text-theme-secondary { color: var(--color-text-secondary); }
 .text-theme-primary { color: var(--color-primary-blue); }
@@ -85,42 +85,53 @@ body {
     border-bottom: 1px solid var(--color-border);
 }
 
+.header-content {
+    width: 100%;
+    max-width: 520px; /* Ограничиваем контент в шапке */
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .header-title {
     display: flex;
     align-items: center;
 }
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+}
+
 /* Main Content */
-.app-main {
+.page {
+    /* Основной контейнер страницы, который заменил app-main */
     flex-grow: 1;
-    padding: 1.5rem 1rem 4rem 1rem; /* Добавлен нижний padding для таббара */
+    padding: 1.5rem 1rem 4rem 1rem; 
     display: flex;
     justify-content: center;
     align-items: flex-start;
+    box-sizing: border-box;
+    width: 100%;
+}
+.page-with-tabs {
+    padding-bottom: calc(1.5rem + 72px); /* 1.5rem + высота таббара */
+}
+
+/* Контейнеры для логина/карточек */
+.card {
+    width: 100%;
+    max-width: 520px;
+}
+
+.card-content {
+    padding-bottom: 8px;
 }
 
 /* --------------------------------- */
 /* --- LOGIN SCREEN --- */
 /* --------------------------------- */
-.login-form-wrapper {
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 2rem;
-}
-
-.login-card {
-    max-width: 28rem;
-    width: 100%;
-    margin: 0 auto;
-    background-color: var(--color-bg-card);
-    padding: 2.5rem; /* Увеличен padding для лучшего соответствия скриншоту */
-    border-radius: 1rem;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    border: 1px solid var(--color-border);
-    position: relative; /* Для позиционирования переключателя темы */
-}
-
 .logo-text {
     font-size: 2.5rem;
     font-weight: 900;
@@ -134,19 +145,17 @@ body {
     color: var(--color-text-secondary);
     font-size: 0.9rem;
 }
-.form {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
+.input-group {
+    margin-bottom: 1rem;
 }
-.field-label {
+.input-label {
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--color-text-primary);
     margin-bottom: 0.3rem;
+    display: block;
 }
-
-.login-input {
+.input {
     width: 100%;
     background-color: var(--color-bg-input);
     border: 1px solid var(--color-border);
@@ -156,45 +165,57 @@ body {
     transition: all 0.15s;
     outline: none;
 }
-.login-input:focus {
+.input:focus {
     box-shadow: 0 0 0 2px var(--color-primary-blue);
     border-color: var(--color-primary-blue);
+}
+
+.password-wrapper {
+    position: relative;
+}
+.password-toggle {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 0;
+}
+.password-toggle:hover {
+    color: var(--color-text-primary);
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+.checkbox {
+    margin-right: 0.5rem;
+    accent-color: var(--color-primary-blue);
+    width: 1rem;
+    height: 1rem;
+}
+.checkbox-label {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
 }
 
 .login-error {
     padding: 0.75rem;
     background-color: var(--color-error-bg);
     border: 1px solid var(--color-error-border);
-    color: var(--color-error-text); 
+    color: var(--color-error-text);
     font-size: 0.875rem;
     border-radius: 0.5rem;
     margin-top: 1rem;
-}
-
-/* Checkboxes */
-.checkbox-row {
     display: flex;
     align-items: center;
-    font-size: 0.875rem;
-    color: var(--color-text-secondary);
-}
-.checkbox-row input[type="checkbox"] {
-    margin-right: 0.6rem;
-    accent-color: var(--color-primary-blue);
-    width: 1rem;
-    height: 1rem;
-    flex-shrink: 0;
-}
-.checkbox-row a {
-    color: var(--color-primary-blue);
-    text-decoration: none;
-    font-weight: 600;
-}
-.checkbox-row a:hover {
-    text-decoration: underline;
 }
 
-/* Buttons */
 .button-primary {
     width: 100%;
     padding: 0.75rem 0;
@@ -207,6 +228,9 @@ body {
     box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.25);
     border: none;
     cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 .button-primary:hover:not(:disabled) {
     background-color: #2563eb;
@@ -222,14 +246,8 @@ body {
     transform: none;
 }
 
-/* Theme Toggle */
-.theme-toggle-container {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-}
 .theme-toggle-button {
-    background-color: transparent; 
+    background-color: transparent; 
     border: none;
     padding: 0.5rem;
     cursor: pointer;
@@ -239,25 +257,132 @@ body {
 .theme-toggle-button:hover {
     color: var(--color-primary-blue);
 }
-.theme-toggle-button svg {
-    width: 1.25rem;
-    height: 1.25rem;
-    transition: color 0.2s;
+
+/* --------------------------------- */
+/* --- CARGO PAGE LAYOUT & STATS --- */
+/* --------------------------------- */
+
+/* HEADER С ЛОГИНОМ И ПОИСКОМ */
+.cargo-header {
+    display: flex;
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 1.5rem; 
+    width: 100%; 
+    padding: 0 0.5rem; 
 }
 
-/* --------------------------------- */
-/* --- CARGO DISPLAY (PEREVOZKA) --- */
-/* --------------------------------- */
+.user-greeting {
+    flex-shrink: 0; 
+}
 
-.grid-container {
+/* МАЛАЯ СТРОКА ПОИСКА (СПРАВА) */
+.search-bar-small {
+    position: relative;
+    max-width: 180px; 
+    flex-grow: 1; 
+}
+
+.search-input-small {
+    width: 100%;
+    padding: 0.5rem 0.75rem 0.5rem 2rem; 
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg-input);
+    color: var(--color-text-primary);
+    font-size: 0.875rem; 
+    transition: border-color 0.2s;
+}
+
+.search-input-small::placeholder {
+    color: var(--color-text-secondary);
+}
+
+.search-input-small:focus {
+    border-color: var(--color-primary-blue);
+    outline: none;
+}
+
+/* СЕТКА СТАТИСТИКИ (Контейнер) */
+.stats-grid {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
+    /* 2 колонки */
+    grid-template-columns: repeat(2, 1fr); 
+    gap: 12px;
+    margin-bottom: 1.5rem; 
 }
-@media (min-width: 768px) {
-    .grid-container {
-        grid-template-columns: 1fr 1fr;
-    }
+
+/* ОБЩИЙ СТИЛЬ ПЛИТКИ */
+.stat-card {
+    padding: 1rem;
+    border-radius: 0.75rem;
+    color: white; 
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.2s;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+    user-select: none; 
+}
+
+.stat-card:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+}
+
+/* Стили для 1 уровня */
+.stat-card-primary {
+    min-height: 100px;
+}
+
+/* Стили для 2 уровня */
+.stat-card-secondary {
+    min-height: 80px;
+}
+
+/* ВВОД ДАТЫ И КНОПКА ОБНОВЛЕНИЯ */
+.date-input {
+    flex-grow: 1;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg-input);
+    color: var(--color-text-primary);
+    font-size: 0.875rem;
+}
+.date-input:focus {
+    border-color: var(--color-primary-blue);
+    outline: none;
+}
+
+.button-icon {
+    flex-shrink: 0;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    background-color: var(--color-primary-blue);
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+.button-icon:hover:not(:disabled) {
+    background-color: #2563eb;
+}
+.button-icon:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
+/* --------------------------------- */
+/* --- CARGO DISPLAY (СПИСОК) --- */
+/* --------------------------------- */
+
+.cargo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .perevozka-card {
@@ -267,6 +392,7 @@ body {
     overflow: hidden;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     transition: box-shadow 0.3s, border-color 0.3s;
+    cursor: pointer;
 }
 .perevozka-card:hover {
     box-shadow: 0 6px 10px rgba(59, 130, 246, 0.15);
@@ -274,52 +400,200 @@ body {
 
 .card-header {
     padding: 0.75rem;
-    background-color: var(--color-bg-secondary); /* Используем secondary для выделения шапки */
+    background-color: var(--color-bg-secondary);
     border-bottom: 1px solid var(--color-border);
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-/* AI Summary */
-.ai-summary-card {
-    background-color: var(--color-bg-card);
-    border-radius: 0.75rem;
-    padding: 1rem;
-    border: 1px solid var(--color-border);
-    margin-bottom: 1.5rem;
-}
-
-/* Empty State Card */
-.empty-state-card {
+.loading-card, .error-card, .empty-state-card {
     background-color: var(--color-bg-card);
     border: 1px solid var(--color-border);
     border-radius: 1rem;
-    padding: 3rem;
+    padding: 2rem;
     text-align: center;
-    margin-top: 5rem;
+    margin-top: 1.5rem;
+}
+
+/* --------------------------------- */
+/* --- MODAL WINDOWS (ДЕТАЛИ) --- */
+/* --------------------------------- */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: flex-end; /* Модалка снизу */
+    z-index: 100;
+}
+
+.modal-content {
+    background-color: var(--color-bg-card);
+    width: 100%;
+    max-width: 520px;
+    padding: 1.5rem;
+    border-top-left-radius: 1rem;
+    border-top-right-radius: 1rem;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideIn 0.3s forwards;
+    box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.75rem;
+}
+
+.modal-header h3 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.modal-close-button {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.modal-close-button:hover {
+    color: var(--color-text-primary);
+}
+
+/* СЕТКА ДЕТАЛЕЙ В МОДАЛЕ */
+.details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Две колонки */
+    gap: 12px;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.details-label {
+    font-size: 0.75rem; /* 12px */
+    color: var(--color-text-secondary);
+    margin-bottom: 2px;
+}
+
+.details-value {
+    font-size: 0.9rem; /* 14px */
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+/* КНОПКИ ДОКУМЕНТОВ/ЧАТА */
+.document-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 1.5rem;
+}
+
+.doc-button {
+    flex-grow: 1; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-theme-primary);
+    background-color: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.doc-button:hover:not(:disabled) {
+    background-color: var(--color-bg-hover);
+}
+
+.doc-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+    .doc-button {
+        flex-basis: calc(50% - 4px); /* 2 кнопки в ряд */
+    }
 }
 
 /* --------------------------------- */
 /* --- TABBAR (НИЖНЕЕ МЕНЮ) --- */
 /* --------------------------------- */
-.fixed {
+
+.tabbar {
     position: fixed;
-}
-.bottom-0 {
     bottom: 0;
-}
-.left-0 {
     left: 0;
-}
-.right-0 {
     right: 0;
-}
-.z-50 {
     z-index: 50;
-}
-.shadow-lg {
-    box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -2px rgba(0, 0, 0, 0.06);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background-color: var(--color-bg-secondary);
+    box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+    border-top: 1px solid var(--color-border);
+    padding: 8px 0; /* Вертикальный отступ */
+    height: 72px; /* Фиксированная высота */
 }
 
-/* Стили для кнопок таббара определены через комбинацию классов в App.tsx */
+.tab-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color 0.2s;
+    flex: 1; /* Равномерное распределение */
+    min-width: 50px;
+    max-width: 100px;
+}
+
+.tab-button.active {
+    color: var(--color-primary-blue);
+}
+
+.tab-button:hover {
+    color: var(--color-primary-blue);
+}
+
+.tab-icon {
+    font-size: 1.25rem; /* Размер эмодзи */
+    margin-bottom: 2px;
+}
+
+.tab-label {
+    font-size: 0.7rem; /* Маленький размер текста */
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+}
