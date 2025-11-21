@@ -275,7 +275,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
             <div className="cargo-list">
                 {filteredItems.map((item: CargoItem, idx: number) => (
                     <div key={item.Number || idx} className="cargo-card mb-4" onClick={() => setSelectedCargo(item)}>
-                        <div className="cargo-header-row"><span className="order-number">№ {item.Number}</span><span className="date"><Calendar className="w-3 h-3 mr-1"/>{formatDate(item.DatePrih)}</span></div>
+                        <div className="cargo-header-row"><span className="order-number">{item.Number}</span><span className="date"><Calendar className="w-3 h-3 mr-1"/>{formatDate(item.DatePrih)}</span></div>
                         <div className="cargo-details-grid">
                             <div className="detail-item"><Tag className="w-4 h-4 text-theme-primary"/><div className="detail-item-label">Статус</div><div className={getStatusClass(item.State)}>{item.State}</div></div>
                             <div className="detail-item"><Layers className="w-4 h-4 text-theme-primary"/><div className="detail-item-label">Мест</div><div className="detail-item-value">{item.Mest || '-'}</div></div>
