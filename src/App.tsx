@@ -344,65 +344,73 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         
         return `${val}${unit ? ' ' + unit : ''}`;
     };
-const handleDownload = async (docType: string) => {
-    if (!item.Number) {
-        alert("Нет номера перевозки");
-        return;
-    }
-
-    const payload = {
-        login: auth.login,
-        password: auth.password,
-        metod: docType,
-        number: item.Number,
+    
+    const handleDownload = async (docType: string) => {
+        if (!item.Number) return alert("Нет номера перевозки");
+        setDownloading(docType); setDownloadError(null);
+        try {
+            const res = await fetch(PROXY_API_DOWNLOAD_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, metod: docType, number: item.Number }) });
+            if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `${docType}_${item.Number}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
-    // 🔍 Лог: что шлём на прокси
-    console.groupCollapsed("[DOWNLOAD DEBUG] → proxy /api/download");
-    console.log("Proxy URL:", PROXY_API_DOWNLOAD_URL);
-    console.log("Body → proxy:", {
-        ...payload,
-        password: "********",
-    });
-    console.groupEnd();
+    // Список явно отображаемых полей (из API примера)
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender'];
 
-    setDownloading(docType);
-    setDownloadError(null);
-
-    try {
-        const res = await fetch(PROXY_API_DOWNLOAD_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-        });
-
-        // 🔍 Лог: что вернул прокси + что он отправил в 1С
-        console.groupCollapsed("[DOWNLOAD DEBUG] ← proxy /api/download");
-        console.log("HTTP status:", res.status);
-        console.log("Content-Type:", res.headers.get("Content-Type"));
-        console.log("X-1C-URL:", res.headers.get("X-1C-URL"));
-        console.log("X-1C-Auth:", res.headers.get("X-1C-Auth"));
-        console.log("X-1C-Authorization:", res.headers.get("X-1C-Authorization"));
-        console.groupEnd();
-
-        if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
-
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${docType}_${item.Number}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    } catch (e: any) {
-        setDownloadError(e.message);
-        console.error("[DOWNLOAD ERROR]", e);
-    } finally {
-        setDownloading(null);
-    }
-};
-
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                    {/* Заголовок без "Перевозка" */}
+                    <button className="modal-close-button" onClick={onClose}><X size={20} /></button>
+                </div>
+                {downloadError && <p className="login-error mb-2">{downloadError}</p>}
+                
+                {/* Явно отображаемые поля (из API примера) */}
+                <div className="details-grid-modal">
+                    <DetailItem label="Номер" value={item.Number} />
+                    <DetailItem label="Статус" value={item.State} statusClass={getStatusClass(item.State)} />
+                    <DetailItem label="Приход" value={formatDate(item.DatePrih)} />
+                    <DetailItem label="Доставка" value={formatDate(item.DateVr)} /> {/* Используем DateVr */}
+                    <DetailItem label="Отправитель" value={item.Sender || '-'} /> {/* Добавляем Sender */}
+                    <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary"/>} />
+                    <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary"/>} highlighted /> {/* Используем PW */}
+                    <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем W */}
+                    <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем Value */}
+                    <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} icon={<RussianRuble className="w-4 h-4 mr-1 text-theme-primary"/>} />
+                    <DetailItem label="Статус Счета" value={item.StateBill || '-'} highlighted /> {/* Используем StateBill */}
+                </div>
+                
+                {/* ДОПОЛНИТЕЛЬНЫЕ поля из API - УДАЛЕН ЗАГОЛОВОК "Прочие данные из API" */}
+                
+                <div className="details-grid-modal">
+                    {Object.entries(item)
+                        .filter(([key]) => !EXCLUDED_KEYS.includes(key))
+                        .map(([key, val]) => {
+                            // Пропускаем, если значение пустое
+                            if (val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "") || (typeof val === 'object' && val !== null && Object.keys(val).length === 0)) return null; 
+                            // Пропускаем, если значение - 0
+                            if (val === 0 && key.toLowerCase().includes('date') === false) return null;
+                            
+                            return <DetailItem key={key} label={key} value={renderValue(val)} />;
+                        })}
+                </div>
+                
+                <h4 style={{marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>Документы</h4>
+                <div className="document-buttons">
+                    {['ЭР', 'АПП', 'СЧЕТ', 'УПД'].map(doc => (
+                        <button key={doc} className="doc-button" onClick={() => handleDownload(doc)} disabled={downloading === doc}>
+                            {downloading === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} {doc}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const DetailItem = ({ label, value, icon, statusClass, highlighted }: any) => (
     <div className={`details-item-modal ${highlighted ? 'highlighted-detail' : ''}`}>
