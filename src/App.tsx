@@ -1482,7 +1482,7 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
             
             {/* ТЕКУЩИЙ ДИАПАЗОН (для информации) */}
             <p className="text-sm text-theme-secondary mb-4">
-                 Текущий период запроса: {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
+                 период запроса: {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
             </p>
 
             {loading && (
