@@ -530,4 +530,189 @@ body {
     top: 0;
     left: 0;
     right: 0;
-    bottom:
+    bottom: 0;
+    background-color: var(--color-modal-bg);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 5vh;
+    z-index: 50;
+    overflow-y: auto; 
+}
+.modal-content {
+    background-color: var(--color-bg-card);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--color-border);
+    animation: fadeIn 0.3s;
+    margin-bottom: 2rem; 
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+.modal-close-button {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 0;
+}
+.modal-close-button:hover {
+    color: var(--color-text-primary);
+}
+
+/* Cargo Details Specific Styles */
+.document-buttons { 
+    display: flex; 
+    gap: 0.5rem; 
+    margin-bottom: 1.5rem; 
+    flex-wrap: wrap; 
+}
+.doc-button { 
+    flex: 1; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    padding: 0.5rem; 
+    background-color: var(--color-primary-blue); 
+    color: white; 
+    border-radius: 0.5rem; 
+    border: none; 
+    cursor: pointer; 
+    font-size: 0.8rem; 
+    min-width: 80px;
+    transition: opacity 0.15s;
+}
+.doc-button:hover {
+    opacity: 0.9;
+}
+
+.details-grid-modal { 
+    display: grid; 
+    grid-template-columns: 1fr; 
+    gap: 1rem; 
+    margin-bottom: 1.5rem; 
+}
+@media (min-width: 400px) {
+    .details-grid-modal { 
+        grid-template-columns: 1fr 1fr; 
+    }
+}
+.details-item-modal { 
+    padding: 0.75rem 1rem; 
+    background-color: var(--color-bg-hover); 
+    border-radius: 0.5rem; 
+    border: 1px solid transparent;
+}
+.details-item-modal.highlighted-detail {
+    border-color: var(--color-primary-blue);
+}
+.details-label { 
+    font-size: 0.75rem; 
+    color: var(--color-text-secondary); 
+    text-transform: uppercase; 
+    font-weight: 600; 
+    margin-bottom: 0.25rem; 
+}
+.details-value {
+     font-size: 1rem;
+}
+
+.modal-button-container {
+    margin-top: 1rem;
+}
+
+/* --------------------------------- */
+/* --- PROFILE PAGE STYLES --- */
+/* --------------------------------- */
+.info-card {
+    background-color: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px dashed var(--color-border);
+}
+.info-item:last-child {
+    border-bottom: none;
+}
+.info-label {
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+.info-value {
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+
+/* --------------------------------- */
+/* --- TABBAR (НИЖНЕЕ МЕНЮ) --- */
+/* --------------------------------- */
+.tabbar-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4.5rem; /* 72px */
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    background-color: var(--color-bg-secondary);
+    box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -2px rgba(0, 0, 0, 0.06);
+    z-index: 50;
+    border-top: 1px solid var(--color-border);
+}
+.tab-button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+    transition: color 0.15s, background-color 0.15s;
+    padding: 0.5rem 0;
+    min-width: 0; /* Для flex-распределения */
+}
+.tab-button:hover {
+    color: var(--color-primary-blue);
+}
+.tab-button.active {
+    color: var(--color-primary-blue);
+}
+.tab-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.tab-icon {
+    transition: transform 0.15s;
+}
