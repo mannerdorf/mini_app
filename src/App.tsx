@@ -511,8 +511,10 @@ export default function App() {
                 <div className="login-card">
                     <div className="absolute top-4 right-4">
                         <button className="theme-toggle-button-login" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'}>
-                            {/* ЛОГИКА ИКОНОК ТЕМЫ ИСПРАВЛЕНА: Показывает, на что переключится. */}
-                            {theme === 'dark' ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5" />}
+                            {/* ИСПРАВЛЕНИЕ: Убран class text-yellow-400 */}
+                            {theme === 'dark' 
+                                ? <Sun className="w-5 h-5" /> 
+                                : <Moon className="w-5 h-5" />}
                         </button>
                     </div>
                     <div className="flex justify-center mb-4 h-10 mt-6"><div className="logo-text">HAULZ</div></div>
