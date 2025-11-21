@@ -18,7 +18,7 @@ type AuthData = {
 
 type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 
-type DateFilter = "all" | "today" | "week" | "month" | "custom";
+type DateFilter = "all" | "сегодня" | "неделя" | "месяц" | "период";
 type StatusFilter = "all" | "accepted" | "in_transit" | "ready" | "delivering" | "delivered";
 
 // Тип для данных о перевозке (для ясности)
@@ -1411,7 +1411,7 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
 
     return (
         <div className="w-full">
-            <h2 className="title text-theme-text">Грузы</h2>
+          
             
             {/* КОНТЕЙНЕР ФИЛЬТРОВ */}
             <div className="filters-container">
