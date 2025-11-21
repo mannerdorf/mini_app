@@ -18,7 +18,7 @@ type AuthData = {
 
 type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 
-type DateFilter = "all" | "today" | "week" | "month" | "custom";
+type DateFilter = "all" | "сегодня" | "неделя" | "месяц" | "период";
 type StatusFilter = "all" | "accepted" | "in_transit" | "ready" | "delivering" | "delivered";
 
 // Тип для данных о перевозке (для ясности)
@@ -1258,7 +1258,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: CargoDetailsModalPro
           <div className="details-item" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}>
             <span className="details-label" style={{ color: '#2563eb' }}>Платный вес</span>
             <span className="details-value" style={{ color: '#2563eb' }}>
-              {renderValue(item.PV ?? item.PaymentWeight, "кг")}
+              {renderValue(item.PV || item.PaymentWeight, "кг")}
             </span>
           </div>
 
@@ -1378,7 +1378,7 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
                 DateVruch: item.DateVruch || item.DateVr,
                 State: item.State || item.state,
                 Mest: item.Mest || item.mest,
-                PV: item.PV ?? item.PaymentWeight ?? null, // Платный вес
+                PV: item.PV || item.PaymentWeight, // Платный вес
                 Weight: item.Weight || item.weight, // Общий вес
                 Volume: item.Volume || item.volume, // Объем
                 Sum: item.Sum || item.Total,
@@ -1442,7 +1442,7 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
                     formatDate(item.DatePrih),
                     formatCurrency(item.Sum),
                     String(item.Mest || ''),
-                    String(item.PV ?? ''), // Используем Платный вес для поиска
+                    String(item.PV || ''), // Используем Платный вес для поиска
                     String(item.Weight || ''),
                 ].join(' ').toLowerCase();
 
@@ -1592,7 +1592,7 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
                                 {/* ИЗМЕНЕНО: Иконка весов, Платный вес */}
                                 <Scale className="w-5 h-5 text-theme-primary" /> 
                                 <div className="detail-item-value">
-                                    {(item.PV ?? item.PaymentWeight ?? "-")} кг
+                                    {item.PV || "-"} кг
                                 </div>
                                 <div className="detail-item-label">Платный вес</div>
                             </div>
@@ -1623,7 +1623,6 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
                     item={selectedCargo} 
                     isOpen={true}
                     onClose={() => setSelectedCargo(null)}
-                    auth={auth}
                 />
             )}
         </div>
