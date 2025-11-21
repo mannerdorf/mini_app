@@ -244,8 +244,6 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
 
     return (
         <div className="w-full">
-            {/* УДАЛЕНО: Плитки статистики, которые дублировали HomePage */}
-
             {/* Filters */}
             <div className="filters-container">
                 <div className="filter-group">
@@ -408,7 +406,12 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     {Object.entries(item)
                         .filter(([key]) => !EXCLUDED_KEYS.includes(key))
                         .map(([key, val]) => {
-                            if (val === undefined || val === null || val === "" || (typeof val === 'object' && Object.keys(val).length === 0)) return null; 
+                            // УСИЛЕННАЯ ПРОВЕРКА: Пропускаем, если значение пустое
+                            if (val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "") || (typeof val === 'object' && val !== null && Object.keys(val).length === 0)) return null; 
+                            
+                            // Дополнительная проверка: пропускаем, если значение - 0 (и это не сумма/вес)
+                            if (val === 0 && key.toLowerCase().includes('date') === false) return null;
+                            
                             return <DetailItem key={key} label={key} value={renderValue(val)} />;
                         })}
                 </div>
