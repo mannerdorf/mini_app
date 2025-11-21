@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
-    LogOut, Home, Truck, FileText, MessageCircle, User, Loader2, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, X, Search, ChevronDown, User as UserIcon
+    LogOut, Home, Truck, FileText, MessageCircle, User, Loader2, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, X, Search, ChevronDown, User as UserIcon, Scale, DollarSign, List, Download, FileText as FileTextIcon
 } from 'lucide-react';
 import React from "react";
 
@@ -20,6 +20,21 @@ type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 
 type DateFilter = "all" | "today" | "week" | "month" | "custom";
 type StatusFilter = "all" | "accepted" | "in_transit" | "ready" | "delivering" | "delivered";
+
+// Тип для данных о перевозке (для ясности)
+type CargoItem = {
+    Number?: string; // Номер перевозки
+    DatePrih?: string; // Дата прихода
+    DateVruch?: string; // Дата вручения (если есть)
+    State?: string; // Статус
+    Mest?: number | string; // Кол-во мест
+    PV?: number | string; // Платный вес (Payment Weight)
+    Weight?: number | string; // Общий вес
+    Volume?: number | string; // Объем
+    Sum?: number | string; // Стоимость
+    StatusSchet?: string; // Статус счета
+    [key: string]: any; // Дополнительные поля
+};
 
 
 // --- КОНФИГУРАЦИЯ ---
@@ -85,7 +100,6 @@ export default function App() {
     const [auth, setAuth] = useState<AuthData | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("cargo");
     const [theme, setTheme] = useState('dark'); 
-    const isThemeLight = theme === 'light';
     
     // Состояние для поиска (в шапке)
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -96,9 +110,6 @@ export default function App() {
         document.body.className = `${theme}-mode`;
     }, [theme]);
 
-    const toggleTheme = () => {
-        setTheme(prevTheme => (prevTheme === 'dark' ? 'light' : 'dark'));
-    };
     
     // Функция для применения поиска (передаем в CargoPage)
     const handleSearch = (text: string) => {
@@ -222,7 +233,7 @@ export default function App() {
             --color-success-status: #34d399; 
             --color-pending-status: #facc15; 
 
-            --color-modal-bg: rgba(31, 41, 55, 0.8); /* Полупрозрачный фон модала (темный) */
+            --color-modal-bg: rgba(31, 41, 55, 0.9); /* Полупрозрачный фон модала (темный), более плотный */
             
             /* Новые цвета для фильтров */
             --color-filter-bg: var(--color-bg-input);
@@ -252,7 +263,7 @@ export default function App() {
             --color-success-status: #10b981; 
             --color-pending-status: #f59e0b; 
 
-            --color-modal-bg: rgba(249, 250, 251, 0.8); /* Полупрозрачный фон модала (светлый) */
+            --color-modal-bg: rgba(249, 250, 251, 0.9); /* Полупрозрачный фон модала (светлый), более плотный */
 
             --color-filter-bg: #ffffff;
             --color-filter-border: #e5e7eb;
@@ -283,20 +294,6 @@ export default function App() {
             font-size: 0.9rem;
             color: var(--color-text-secondary);
             margin-bottom: 1.5rem;
-        }
-        .theme-toggle-button-login {
-            background: none; 
-            border: none;
-            color: var(--color-text-secondary);
-            cursor: pointer;
-            padding: 0; 
-            transition: color 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .theme-toggle-button-login:hover {
-            color: var(--color-primary-blue);
         }
         .login-error {
             padding: 0.75rem;
@@ -345,7 +342,7 @@ export default function App() {
         }
         
         /* --------------------------------- */
-        /* --- PASSWORD INPUT FIX (NEW/FIXED STYLES) --- */
+        /* --- PASSWORD INPUT FIX --- */
         /* --------------------------------- */
         .password-input-container {
             position: relative; 
@@ -596,26 +593,6 @@ export default function App() {
         }
 
         /* Остальные стили для CargoPage, TabBar и т.д. остаются как в предыдущей версии */
-        .cargo-header-row-buttons {
-            display: flex;
-            justify-content: flex-end;
-            margin-bottom: 1rem;
-        }
-        .cargo-header-row-buttons .filter-button-date-range {
-            display: flex;
-            align-items: center;
-            background-color: var(--color-bg-card);
-            color: var(--color-text-primary);
-            border: 1px solid var(--color-border);
-            padding: 0.5rem 1rem;
-            border-radius: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.15s;
-        }
-        .cargo-header-row-buttons .filter-button-date-range:hover {
-            background-color: var(--color-bg-hover);
-        }
         .cargo-list {
             display: flex;
             flex-direction: column;
@@ -628,6 +605,12 @@ export default function App() {
             padding: 1rem;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             font-size: 0.875rem;
+            cursor: pointer; /* Делаем кликабельным */
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .cargo-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(59, 130, 246, 0.2); /* Легкий синий оттенок при наведении */
         }
         .cargo-header-row {
             display: flex;
@@ -705,7 +688,7 @@ export default function App() {
             }
         }
         /* --------------------------------- */
-        /* --- FILTER DIALOG / MODAL (CUSTOM DATE) --- */
+        /* --- MODAL STYLES (GENERAL & CARGO) --- */
         /* --------------------------------- */
         .modal-overlay {
             position: fixed;
@@ -719,16 +702,18 @@ export default function App() {
             align-items: flex-start;
             padding-top: 5vh;
             z-index: 50;
+            overflow-y: auto; /* Для длинного контента */
         }
         .modal-content {
             background-color: var(--color-bg-card);
             border-radius: 1rem;
             padding: 1.5rem;
             width: 90%;
-            max-width: 400px;
+            max-width: 500px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
             border: 1px solid var(--color-border);
             animation: fadeIn 0.3s;
+            margin-bottom: 2rem; /* Отступ снизу для прокрутки */
         }
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(-20px); }
@@ -755,32 +740,66 @@ export default function App() {
         .modal-close-button:hover {
             color: var(--color-text-primary);
         }
-        .modal-form-group {
-            margin-bottom: 1rem;
+
+        /* Cargo Details Specific Styles */
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
         }
-        .modal-form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
+        @media (min-width: 400px) {
+            .details-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        .details-item {
+            padding: 0.75rem 1rem;
+            background-color: var(--color-bg-hover);
+            border-radius: 0.5rem;
+        }
+        .details-label {
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        .details-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--color-text-primary);
+        }
+        .document-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--color-border);
+        }
+        .doc-button {
+            display: flex;
+            align-items: center;
+            background-color: var(--color-primary-blue);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
             font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.15s;
+        }
+        .doc-button:hover {
+            background-color: #2563eb; 
+        }
+        .doc-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background-color: var(--color-bg-hover);
             color: var(--color-text-secondary);
         }
-        .modal-form-group input {
-            width: 100%;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            border: 1px solid var(--color-border);
-            background-color: var(--color-bg-input);
-            color: var(--color-text-primary);
-            outline: none;
-            transition: border-color 0.15s;
-        }
-        .modal-form-group input:focus {
-            border-color: var(--color-primary-blue);
-            box-shadow: 0 0 0 1px var(--color-primary-blue);
-        }
-        .modal-button-container {
-            margin-top: 1.5rem;
-        }
+
 
         /* --------------------------------- */
         /* --- TAB BAR (BOTTOM MENU) --- */
@@ -840,12 +859,6 @@ export default function App() {
             
             <div className={`app-container login-form-wrapper`}>
                 <div className="login-card">
-                    <div className="absolute top-4 right-4">
-                        <button className="theme-toggle-button-login" onClick={toggleTheme} title="Переключить тему">
-                            {isThemeLight ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-yellow-400" />}
-                        </button>
-                    </div>
-
                     <div className="flex justify-center mb-4 h-10 mt-6">
                         <div className="logo-text">HAULZ</div>
                     </div>
@@ -866,7 +879,6 @@ export default function App() {
                         </div>
 
                         <div className="field">
-                            {/* КОНТЕЙНЕР ДЛЯ ФИКСА ГЛАЗИКА */}
                             <div className="password-input-container">
                                 <input
                                     className="login-input"
@@ -962,13 +974,6 @@ export default function App() {
                         >
                             {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
                         </button>
-
-                        <button className="text-theme-secondary hover:bg-theme-hover-bg p-2 rounded-full" onClick={handleLogout} title="Выйти">
-                            <LogOut className="w-5 h-5 text-red-500" />
-                        </button>
-                        <button className="text-theme-secondary hover:bg-theme-hover-bg p-2 rounded-full" onClick={toggleTheme} title="Переключить тему">
-                            {isThemeLight ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-yellow-400" />}
-                        </button>
                     </div>
                 </div>
                 
@@ -977,7 +982,7 @@ export default function App() {
                     <Search className="w-5 h-5 text-theme-secondary flex-shrink-0 ml-1" />
                     <input
                         type="search"
-                        placeholder="Поиск по номеру заказа..."
+                        placeholder="Поиск по любому значению..."
                         className="search-input"
                         value={searchText}
                         onChange={(e) => {
@@ -1015,8 +1020,66 @@ export default function App() {
     );
 }
 
+// ----------------- УТИЛИТЫ -----------------
+
+// Функция для форматирования даты (например, из "2024-01-11T00:00:00" в "11.01.2024")
+const formatDate = (dateString: string | undefined): string => {
+    if (!dateString) return '-';
+    try {
+        const date = new Date(dateString.includes('T') ? dateString : dateString + 'T00:00:00');
+        if (!isNaN(date.getTime())) {
+             return date.toLocaleDateString('ru-RU');
+        }
+    } catch (e) { /* ignore */ }
+    return dateString;
+};
+
+// Функция для форматирования валюты
+const formatCurrency = (value: number | string | undefined): string => {
+    if (value === undefined || value === null || value === "") return '-';
+    const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
+    if (isNaN(num)) return String(value);
+
+    return new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB',
+        minimumFractionDigits: 0, 
+        maximumFractionDigits: 0
+    }).format(num);
+};
+
+// Определяет класс статуса
+const getStatusClass = (status: string | undefined) => {
+    const lowerStatus = (status || '').toLowerCase();
+    if (lowerStatus.includes('доставлен') || lowerStatus.includes('заверш')) {
+        return 'status-value success';
+    }
+    return 'status-value';
+};
+
+// Map для статусов
+const STATUS_MAP: Record<StatusFilter, string> = {
+    "all": "Все",
+    "accepted": "Принят",
+    "in_transit": "В пути",
+    "ready": "Готов к выдаче",
+    "delivering": "На доставке",
+    "delivered": "Доставлено",
+};
+
+// Функция для сопоставления статусов API с нашими фильтрами
+const getFilterKeyByStatus = (status: string | undefined): StatusFilter => {
+    if (!status) return "all";
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus.includes('доставлен') || lowerStatus.includes('заверш')) return "delivered";
+    if (lowerStatus.includes('в пути')) return "in_transit";
+    if (lowerStatus.includes('принят') || lowerStatus.includes('оформлен')) return "accepted";
+    if (lowerStatus.includes('готов к выдаче')) return "ready";
+    if (lowerStatus.includes('на доставке')) return "delivering";
+    return "all";
+}
+
 // ----------------- КОМПОНЕНТ ФИЛЬТРАЦИИ (FilterDialog) -----------------
-// ... (Остается как раньше, для кастомного выбора дат)
 
 type FilterDialogProps = {
     isOpen: boolean;
@@ -1087,6 +1150,117 @@ function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: FilterDial
     );
 }
 
+
+// ----------------- КОМПОНЕНТ ДЕТАЛИЗАЦИИ ГРУЗА (CargoDetailsModal) -----------------
+
+type CargoDetailsModalProps = {
+    item: CargoItem;
+    isOpen: boolean;
+    onClose: () => void;
+};
+
+function CargoDetailsModal({ item, isOpen, onClose }: CargoDetailsModalProps) {
+    if (!isOpen) return null;
+
+    // Вспомогательная функция для отображения значения
+    const renderValue = (value: number | string | undefined, unit: string = '') => {
+        if (value === undefined || value === null || value === "") return '-';
+        return `${value} ${unit}`;
+    };
+
+    // Заглушка для скачивания
+    const handleDownload = (docType: string) => {
+        alert(`Функция скачивания документа "${docType}" пока не реализована. Номер перевозки: ${item.Number || '-'}`);
+        // Здесь будет логика запроса к API для получения ссылки на документ
+    };
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                    <h3 className="flex items-center">
+                        <Truck className="w-5 h-5 mr-2 text-theme-primary" />
+                        Перевозка №{item.Number || '-'}
+                    </h3>
+                    <button className="modal-close-button" onClick={onClose}>
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+                
+                <div className="details-grid">
+                    {/* Номер перевозки */}
+                    <div className="details-item">
+                        <div className="details-label">Номер перевозки</div>
+                        <div className="details-value">{item.Number || '-'}</div>
+                    </div>
+                    {/* Статус */}
+                    <div className="details-item">
+                        <div className="details-label">Статус</div>
+                        <div className={getStatusClass(item.State)}>{item.State || '-'}</div>
+                    </div>
+                    {/* Дата прихода */}
+                    <div className="details-item">
+                        <div className="details-label">Дата прихода</div>
+                        <div className="details-value">{formatDate(item.DatePrih)}</div>
+                    </div>
+                    {/* Дата вручения */}
+                    <div className="details-item">
+                        <div className="details-label">Дата вручения</div>
+                        <div className="details-value">{formatDate(item.DateVruch)}</div>
+                    </div>
+                    {/* Кол-во мест */}
+                    <div className="details-item">
+                        <div className="details-label">Кол-во мест</div>
+                        <div className="details-value flex items-center"><Layers className="w-4 h-4 mr-1 text-theme-primary" />{renderValue(item.Mest)}</div>
+                    </div>
+                    {/* Платный вес */}
+                    <div className="details-item">
+                        <div className="details-label">Платный вес</div>
+                        <div className="details-value flex items-center"><Scale className="w-4 h-4 mr-1 text-theme-primary" />{renderValue(item.PV || item.PaymentWeight, 'кг')}</div>
+                    </div>
+                    {/* Общий вес */}
+                    <div className="details-item">
+                        <div className="details-label">Общий вес</div>
+                        <div className="details-value flex items-center"><Weight className="w-4 h-4 mr-1 text-theme-primary" />{renderValue(item.Weight, 'кг')}</div>
+                    </div>
+                    {/* Объем */}
+                    <div className="details-item">
+                        <div className="details-label">Объем</div>
+                        <div className="details-value flex items-center"><List className="w-4 h-4 mr-1 text-theme-primary" />{renderValue(item.Volume, 'м³')}</div>
+                    </div>
+                    {/* Стоимость */}
+                    <div className="details-item">
+                        <div className="details-label">Стоимость</div>
+                        <div className="details-value flex items-center"><DollarSign className="w-4 h-4 mr-1 text-theme-primary" />{formatCurrency(item.Sum || item.Total)}</div>
+                    </div>
+                    {/* Статус счета */}
+                    <div className="details-item">
+                        <div className="details-label">Статус счета</div>
+                        <div className="details-value">{item.StatusSchet || '-'}</div>
+                    </div>
+                </div>
+
+                <h4><FileTextIcon className="w-4 h-4 mr-2 inline-block text-theme-secondary" />Документы для скачивания</h4>
+                <div className="document-buttons">
+                    <button className="doc-button" onClick={() => handleDownload('ЭР')}>
+                        <Download className="w-4 h-4 mr-2" /> ЭР
+                    </button>
+                    <button className="doc-button" onClick={() => handleDownload('АПП')}>
+                        <Download className="w-4 h-4 mr-2" /> АПП
+                    </button>
+                    <button className="doc-button" onClick={() => handleDownload('СЧЕТ')}>
+                        <Download className="w-4 h-4 mr-2" /> СЧЕТ
+                    </button>
+                    <button className="doc-button" onClick={() => handleDownload('УПД')}>
+                        <Download className="w-4 h-4 mr-2" /> УПД
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    );
+}
+
 // ----------------- КОМПОНЕНТ С ГРУЗАМИ (CargoPage) -----------------
 
 type CargoPageProps = { 
@@ -1094,33 +1268,14 @@ type CargoPageProps = {
     searchText: string;
 };
 
-// Map для статусов
-const STATUS_MAP: Record<StatusFilter, string> = {
-    "all": "Все",
-    "accepted": "Принят",
-    "in_transit": "В пути",
-    "ready": "Готов к выдаче",
-    "delivering": "На доставке",
-    "delivered": "Доставлено",
-};
-
-// Функция для сопоставления статусов API с нашими фильтрами
-const getFilterKeyByStatus = (status: string | undefined): StatusFilter => {
-    if (!status) return "all";
-    const lowerStatus = status.toLowerCase();
-    if (lowerStatus.includes('доставлен') || lowerStatus.includes('заверш')) return "delivered";
-    if (lowerStatus.includes('в пути')) return "in_transit";
-    if (lowerStatus.includes('принят') || lowerStatus.includes('оформлен')) return "accepted";
-    if (lowerStatus.includes('готов к выдаче')) return "ready";
-    if (lowerStatus.includes('на доставке')) return "delivering";
-    return "all";
-}
-
 
 function CargoPage({ auth, searchText }: CargoPageProps) {
-    const [items, setItems] = useState<any[]>([]);
+    const [items, setItems] = useState<CargoItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Состояние для модального окна деталей
+    const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
 
     // СОСТОЯНИЯ ДЛЯ ФИЛЬТРОВ
     const [dateFilter, setDateFilter] = useState<DateFilter>("all");
@@ -1141,41 +1296,7 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
         return getDateRange(dateFilter);
     }, [dateFilter, customDateFrom, customDateTo]);
 
-    // Функция для форматирования даты (например, из "2024-01-11T00:00:00" в "11.01.2024")
-    const formatDate = (dateString: string | undefined): string => {
-        if (!dateString) return '-';
-        try {
-            const date = new Date(dateString.includes('T') ? dateString : dateString + 'T00:00:00');
-            if (!isNaN(date.getTime())) {
-                 return date.toLocaleDateString('ru-RU');
-            }
-        } catch (e) { /* ignore */ }
-        return dateString;
-    };
     
-    // Функция для форматирования валюты
-    const formatCurrency = (value: number | string | undefined): string => {
-        if (value === undefined || value === null || value === "") return '-';
-        const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
-        if (isNaN(num)) return String(value);
-
-        return new Intl.NumberFormat('ru-RU', {
-            style: 'currency',
-            currency: 'RUB',
-            minimumFractionDigits: 0, 
-            maximumFractionDigits: 0
-        }).format(num);
-    };
-    
-    // Определяет класс статуса
-    const getStatusClass = (status: string | undefined) => {
-        const lowerStatus = (status || '').toLowerCase();
-        if (lowerStatus.includes('доставлен') || lowerStatus.includes('заверш')) {
-            return 'status-value success';
-        }
-        return 'status-value';
-    };
-
     // ФУНКЦИЯ ЗАГРУЗКИ ДАННЫХ
     const loadCargo = useCallback(async (dateFrom: string, dateTo: string) => {
         setLoading(true);
@@ -1205,7 +1326,20 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
 
             const data = await res.json();
             const list = Array.isArray(data) ? data : data.items || [];
-            setItems(list);
+            // Приводим поля к CargoItem
+            setItems(list.map((item: any) => ({
+                Number: item.Number || item.number,
+                DatePrih: item.DatePrih || item.DatePr,
+                DateVruch: item.DateVruch || item.DateVr,
+                State: item.State || item.state,
+                Mest: item.Mest || item.mest,
+                PV: item.PV || item.PaymentWeight, // Платный вес
+                Weight: item.Weight || item.weight, // Общий вес
+                Volume: item.Volume || item.volume, // Объем
+                Sum: item.Sum || item.Total,
+                StatusSchet: item.StatusSchet || item.statusSchet,
+                ...item // Оставляем все остальные поля
+            } as CargoItem)));
 
         } catch (e: any) {
             setError(e?.message || "Ошибка сети при загрузке грузов.");
@@ -1243,20 +1377,31 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
     // --- ФИЛЬТРАЦИЯ НА КЛИЕНТЕ ---
     const filteredItems = useMemo(() => {
         let result = items;
+        const searchLower = searchText.toLowerCase();
         
         // 1. Фильтр по статусу
         if (statusFilter !== "all") {
             result = result.filter(item => {
-                const itemStatusKey = getFilterKeyByStatus(item.State || item.state);
+                const itemStatusKey = getFilterKeyByStatus(item.State);
                 return itemStatusKey === statusFilter;
             });
         }
         
-        // 2. Фильтр по поисковому тексту
-        if (searchText) {
+        // 2. Фильтр по поисковому тексту (по любому значению)
+        if (searchLower) {
             result = result.filter(item => {
-                const number = String(item.Number || item.number || '');
-                return number.toLowerCase().includes(searchText);
+                // Преобразуем все ключевые поля в строку и ищем совпадение
+                const searchableString = [
+                    String(item.Number || ''),
+                    String(item.State || ''),
+                    formatDate(item.DatePrih),
+                    formatCurrency(item.Sum),
+                    String(item.Mest || ''),
+                    String(item.PV || ''), // Используем Платный вес для поиска
+                    String(item.Weight || ''),
+                ].join(' ').toLowerCase();
+
+                return searchableString.includes(searchLower);
             });
         }
         
@@ -1280,7 +1425,7 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
                             setIsStatusDropdownOpen(false); // Закрыть другой
                         }}
                     >
-                        Дата: **{dateFilter === "custom" ? "Произвольная" : dateFilter === "all" ? "Все" : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)}**
+                        Дата: {dateFilter === "custom" ? "Произвольная" : dateFilter === "all" ? "Все" : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)}
                         <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${isDateDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
                     
@@ -1314,7 +1459,7 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
                             setIsDateDropdownOpen(false); // Закрыть другой
                         }}
                     >
-                        Статус: **{STATUS_MAP[statusFilter]}**
+                        Статус: {STATUS_MAP[statusFilter]}
                         <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${isStatusDropdownOpen ? 'rotate-180' : ''}`} />
                     </button>
                     
@@ -1337,7 +1482,7 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
             
             {/* ТЕКУЩИЙ ДИАПАЗОН (для информации) */}
             <p className="text-sm text-theme-secondary mb-4">
-                 Текущий период запроса: **{formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}**
+                 Текущий период запроса: {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
             </p>
 
             {loading && (
@@ -1364,41 +1509,47 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
 
             <div className="cargo-list">
                 {filteredItems.map((item, idx) => (
-                    <div className="cargo-card" key={idx}>
+                    // Добавляем обработчик клика для открытия модального окна
+                    <div 
+                        className="cargo-card" 
+                        key={idx} 
+                        onClick={() => setSelectedCargo(item)}
+                    >
                         
                         {/* 1. ЗАГОЛОВОК: № заказа и Дата прибытия */}
                         <div className="cargo-header-row">
                             <span className="order-number">
-                                № {item.Number || item.number || "-"}
+                                № {item.Number || "-"}
                             </span>
                             <span className="date">
                                 <Calendar className="w-4 h-4 mr-1" />
-                                {formatDate(item.DatePrih || item.DatePr)}
+                                {formatDate(item.DatePrih)}
                             </span>
                         </div>
 
-                        {/* 2. СЕТКА ДЕТАЛЕЙ: Статус, Мест, Вес */}
+                        {/* 2. СЕТКА ДЕТАЛЕЙ: Статус, Мест, Платный вес (ИЗМЕНЕНО) */}
                         <div className="cargo-details-grid">
                             <div className="detail-item">
                                 <Tag className="w-5 h-5 text-theme-primary" />
-                                <div className={getStatusClass(item.State || item.state)}>
-                                    {item.State || item.state || "Неизвестно"}
+                                <div className={getStatusClass(item.State)}>
+                                    {item.State || "Неизвестно"}
                                 </div>
                                 <div className="detail-item-label">Статус</div>
                             </div>
                             <div className="detail-item">
                                 <Layers className="w-5 h-5 text-theme-primary" />
                                 <div className="detail-item-value">
-                                    {item.Mest || item.mest || "-"}
+                                    {item.Mest || "-"}
                                 </div>
                                 <div className="detail-item-label">Мест</div>
                             </div>
                             <div className="detail-item">
-                                <Weight className="w-5 h-5 text-theme-primary" />
+                                {/* ИЗМЕНЕНО: Иконка весов, Платный вес */}
+                                <Scale className="w-5 h-5 text-theme-primary" /> 
                                 <div className="detail-item-value">
-                                    {item.PW || item.Weight || "-"} кг
+                                    {item.PV || "-"} кг
                                 </div>
-                                <div className="detail-item-label">Вес</div>
+                                <div className="detail-item-label">Платный вес</div>
                             </div>
                         </div>
 
@@ -1406,7 +1557,7 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
                         <div className="cargo-footer">
                             <span className="sum-label">Общая сумма</span>
                             <span className="sum-value">
-                                {formatCurrency(item.Sum || item.Total)}
+                                {formatCurrency(item.Sum)}
                             </span>
                         </div>
                     </div>
@@ -1420,6 +1571,15 @@ function CargoPage({ auth, searchText }: CargoPageProps) {
                 dateTo={customDateTo}
                 onApply={handleApplyCustomDate}
             />
+
+            {/* МОДАЛЬНОЕ ОКНО ДЕТАЛЕЙ */}
+            {selectedCargo && (
+                <CargoDetailsModal 
+                    item={selectedCargo} 
+                    isOpen={true}
+                    onClose={() => setSelectedCargo(null)}
+                />
+            )}
         </div>
     );
 }
