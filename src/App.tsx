@@ -1,7 +1,7 @@
 import { FormEvent, useState, useEffect, useCallback, useMemo } from "react";
 import { 
   LogOut, Loader2, Check, X, Moon, Sun, Eye, EyeOff, 
-  Search, RefreshCw, XCircle, AlertTriangle, Info, Download
+  Search, RefreshCw, XCircle, AlertTriangle, Info, Download, Calendar
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -245,6 +245,8 @@ function CargoPage({ auth, logout, toggleTheme, isThemeLight }: CargoPageProps) 
                     auth={auth} // Pass auth data for download
                 />
             )}
+            
+            <TabBar active={"cargo"} onChange={() => {}} />
         </>
     );
 }
@@ -263,25 +265,27 @@ type HeaderProps = {
 
 function Header({ authLogin, logout, toggleTheme, isThemeLight, searchQuery, setSearchQuery }: HeaderProps) {
     return (
-        <div className="cargo-header">
-            <h1 className="user-greeting text-lg font-bold">
-                Hello, {authLogin}!
-            </h1>
-            <div className="flex items-center gap-2">
-                <div className="search-bar-small">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-theme-secondary pointer-events-none" />
-                    <input
-                        type="text"
-                        placeholder="Search trip..."
-                        className="search-input-small"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+        <div className="app-header">
+            <div className="header-content">
+                <h1 className="user-greeting text-lg font-bold">
+                    Hello, {authLogin}!
+                </h1>
+                <div className="flex items-center gap-2">
+                    <div className="search-bar-small">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-theme-secondary pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder="Search trip..."
+                            className="search-input-small"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <ThemeToggleButton toggleTheme={toggleTheme} isThemeLight={isThemeLight} />
+                    <button className="button-icon bg-red-600 hover:bg-red-700" onClick={logout} title="Logout">
+                        <LogOut className="w-5 h-5" />
+                    </button>
                 </div>
-                <ThemeToggleButton toggleTheme={toggleTheme} isThemeLight={isThemeLight} />
-                <button className="button-icon bg-red-600 hover:bg-red-700" onClick={logout} title="Logout">
-                    <LogOut className="w-5 h-5" />
-                </button>
             </div>
         </div>
     );
@@ -289,10 +293,10 @@ function Header({ authLogin, logout, toggleTheme, isThemeLight, searchQuery, set
 
 function ThemeToggleButton({ toggleTheme, isThemeLight }: { toggleTheme: () => void, isThemeLight: boolean }) {
     return (
-        <button className="theme-toggle-button button-icon bg-theme-secondary hover:bg-theme-hover" onClick={toggleTheme} title="Toggle Theme">
+        <button className="theme-toggle-button button-icon bg-transparent hover:bg-theme-hover" onClick={toggleTheme} title="Toggle Theme">
             {isThemeLight 
-                ? <Moon className="w-5 h-5 text-yellow-400" /> 
-                : <Sun className="w-5 h-5 text-yellow-400" />
+                ? <Moon className="w-5 h-5 text-theme-secondary hover:text-yellow-400" /> 
+                : <Sun className="w-5 h-5 text-yellow-400 hover:text-yellow-300" />
             }
         </button>
     );
@@ -359,7 +363,7 @@ function DateRangeFilter({ dateFrom, setDateFrom, dateTo, setDateTo, fetchCargo,
         { label: "Today", days: 0 },
         { label: "Week", days: 7 },
         { label: "Month", days: 30 },
-        { label: "All", days: 365 * 10 }, // Approximation for "all"
+        { label: "All", days: 365 * 10 }, 
     ];
 
     const applyQuickFilter = (days: number) => {
@@ -541,7 +545,6 @@ function CargoDetailModal({ cargo, onClose, auth }: CargoDetailModalProps) {
 // ----------------- OTHER UI COMPONENTS (Localized) -----------------
 
 function LoadingCard({ message }: { message: string }) {
-    // ... (same as previous, localized messages)
     return (
         <div className="loading-card flex flex-col items-center justify-center">
             <Loader2 className="w-8 h-8 text-theme-primary animate-spin mb-3" />
@@ -551,7 +554,6 @@ function LoadingCard({ message }: { message: string }) {
 }
 
 function ErrorCard({ message }: { message: string }) {
-    // ... (same as previous, localized messages)
     return (
         <div className="error-card flex flex-col items-center justify-center">
             <XCircle className="w-8 h-8 text-red-500 mb-3" />
@@ -562,7 +564,6 @@ function ErrorCard({ message }: { message: string }) {
 }
 
 function EmptyStateCard({ message }: { message: string }) {
-    // ... (same as previous, localized messages)
     return (
         <div className="empty-state-card flex flex-col items-center justify-center">
             <AlertTriangle className="w-8 h-8 text-yellow-500 mb-3" />
@@ -602,13 +603,13 @@ function TabButton({ label, icon, active, onClick }: TabButtonProps) {
     );
 }
 
-// ----------------- LOGIN SCREEN (Localized) -----------------
+// ----------------- LOGIN SCREEN (Corrected) -----------------
 
 function LoginScreen({ setAuth }: { setAuth: (auth: AuthData) => void }) {
     const [login, setLogin] = useState("");
     const [password, setPassword] = useState("");
-    const [agreeOffer, setAgreeOffer] = useState(false);
-    const [agreePersonal, setAgreePersonal] = useState(false);
+    // УДАЛЕНО: [agreeOffer, setAgreeOffer]
+    // УДАЛЕНО: [agreePersonal, setAgreePersonal]
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
@@ -628,10 +629,7 @@ function LoginScreen({ setAuth }: { setAuth: (auth: AuthData) => void }) {
             return;
         }
 
-        if (!agreeOffer || !agreePersonal) {
-            setError("You must agree to the terms.");
-            return;
-        }
+        // УДАЛЕНО: Проверка согласия с условиями
 
         try {
             setLoading(true);
@@ -682,93 +680,70 @@ function LoginScreen({ setAuth }: { setAuth: (auth: AuthData) => void }) {
 
     return (
         <div className="login-form-wrapper app-container">
-            <div className="login-card">
-                <div className="theme-toggle-container">
-                    <button className="theme-toggle-button" onClick={toggleTheme} title="Toggle Theme">
-                        {isThemeLight ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-yellow-400" />}
-                    </button>
-                </div>
-
-                <h1 className="logo-text">HAULZ</h1>
-                <p className="tagline">Log in to the Transportation Management System</p>
-
-                <form className="form" onSubmit={handleSubmit}>
-                    <div className="input-group">
-                        <label className="input-label" htmlFor="login">Login</label>
-                        <input
-                            id="login"
-                            type="text"
-                            className="input"
-                            placeholder="Enter login"
-                            value={login}
-                            onChange={(e) => setLogin(e.target.value)}
-                            disabled={loading}
-                        />
+            <div className="page card">
+                <div className="card-content">
+                    <div className="flex justify-end">
+                        <ThemeToggleButton toggleTheme={toggleTheme} isThemeLight={isThemeLight} />
                     </div>
-                    
-                    <div className="input-group">
-                        <label className="input-label" htmlFor="password">Password</label>
-                        <div className="password-wrapper">
+
+                    <h1 className="logo-text">HAULZ</h1>
+                    <p className="tagline">Log in to the Transportation Management System</p>
+
+                    <form className="form" onSubmit={handleSubmit}>
+                        <div className="input-group">
+                            <label className="input-label" htmlFor="login">Login</label>
                             <input
-                                id="password"
-                                type={showPassword ? "text" : "password"}
+                                id="login"
+                                type="text"
                                 className="input"
-                                placeholder="Enter password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Enter login"
+                                value={login}
+                                onChange={(e) => setLogin(e.target.value)}
                                 disabled={loading}
                             />
-                            <button 
-                                type="button" 
-                                className="password-toggle" 
-                                onClick={() => setShowPassword(!showPassword)}
-                            >
-                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                            </button>
                         </div>
-                    </div>
-
-                    <div className="checkbox-row">
-                        <label className="checkbox-group">
-                            <input
-                                type="checkbox"
-                                className="checkbox"
-                                checked={agreeOffer}
-                                onChange={(e) => setAgreeOffer(e.target.checked)}
-                                disabled={loading}
-                            />
-                            <span className="checkbox-label">I agree to the <a href="#">offer terms</a></span>
-                        </label>
-                    </div>
-                    <div className="checkbox-row">
-                        <label className="checkbox-group">
-                            <input
-                                type="checkbox"
-                                className="checkbox"
-                                checked={agreePersonal}
-                                onChange={(e) => setAgreePersonal(e.target.checked)}
-                                disabled={loading}
-                            />
-                            <span className="checkbox-label">Consent to <a href="#">personal data processing</a></span>
-                        </label>
-                    </div>
-
-                    {error && (
-                        <div className="login-error">
-                            <XCircle className="w-4 h-4 mr-2 flex-shrink-0" />
-                            {error}
+                        
+                        <div className="input-group">
+                            <label className="input-label" htmlFor="password">Password</label>
+                            <div className="password-wrapper">
+                                <input
+                                    id="password"
+                                    type={showPassword ? "text" : "password"}
+                                    className="input"
+                                    placeholder="Enter password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    disabled={loading}
+                                />
+                                <button 
+                                    type="button" 
+                                    className="password-toggle" 
+                                    onClick={() => setShowPassword(!showPassword)}
+                                >
+                                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                </button>
+                            </div>
                         </div>
-                    )}
 
-                    <button
-                        type="submit"
-                        className="button-primary"
-                        disabled={loading}
-                    >
-                        {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-                        {loading ? "Logging in..." : "Login"}
-                    </button>
-                </form>
+                        {/* УДАЛЕНО: Чекбоксы */}
+
+                        {error && (
+                            <div className="login-error">
+                                <XCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+                                {error}
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            className="button-primary"
+                            disabled={loading}
+                        >
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                            {loading ? "Logging in..." : "Login"}
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     );
@@ -778,10 +753,22 @@ function LoginScreen({ setAuth }: { setAuth: (auth: AuthData) => void }) {
 
 function StubPage({ title }: { title: string }) {
     return (
-        <div className="card-content">
-            <h2 className="title">{title}</h2>
-            <p className="subtitle text-theme-secondary">This section will be filled in later.</p>
-        </div>
+        <>
+            <Header 
+                authLogin="User" // Placeholder
+                logout={() => {}} 
+                toggleTheme={() => {}} 
+                isThemeLight={document.body.classList.contains('light-mode')}
+                searchQuery=""
+                setSearchQuery={() => {}}
+            />
+            <div className="page card page-with-tabs">
+                <div className="card-content">
+                    <h2 className="title">{title}</h2>
+                    <p className="subtitle text-theme-secondary">This section will be filled in later.</p>
+                </div>
+            </div>
+        </>
     );
 }
 
@@ -793,9 +780,7 @@ export default function App() {
         return stored ? JSON.parse(stored) : null;
     });
     const [activeTab, setActiveTab] = useState<Tab>("cargo"); 
-    const [isThemeLight, setIsThemeLight] = useState(
-        window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
-    );
+    const [isThemeLight, setIsThemeLight] = useState(false);
 
     const toggleTheme = useCallback(() => {
         const newTheme = !isThemeLight;
@@ -861,25 +846,3 @@ export default function App() {
         </div>
     );
 }
-
-// Global quick filter button style (needs to be added to styles.css)
-// .quick-filter-button {
-//     padding: 0.25rem 0.5rem;
-//     border-radius: 0.5rem;
-//     background-color: var(--color-bg-secondary);
-//     color: var(--color-text-primary);
-//     border: 1px solid var(--color-border);
-//     cursor: pointer;
-//     transition: background-color 0.2s;
-//     font-size: 0.8rem;
-// }
-// .quick-filter-button:hover {
-//     background-color: var(--color-bg-hover);
-// }
-// .highlighted-detail {
-//     grid-column: span 2; /* for full width display of important stats */
-//     border: 1px solid var(--color-primary-blue);
-//     border-radius: 0.5rem;
-//     padding: 0.5rem;
-//     background-color: var(--color-ai-bg);
-// }
