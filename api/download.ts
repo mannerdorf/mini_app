@@ -15,61 +15,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { login, password, metod, number } = req.body || {};
 
-    if (!login || !password || !metod || !number) {
-      return res.status(400).json({
-        error: "Нужны поля: login, password, metod, number",
-      });
-    }
+if (!login || !password || !metod || !number) {
+  return res.status(400).json({
+    error: "Нужны поля: login, password, metod, number",
+  });
+}
 
-    // формируем URL как в curl:
-    // GetFile?metod=%D0%AD%D0%A0&Number=000107984
-    const url =
-      `${EXTERNAL_API_BASE_URL}` +
-      `?metod=${encodeURIComponent(metod)}` +
-      `&Number=${encodeURIComponent(number)}`;
+// 💡 формируем URL ровно как в твоём примере
+const url = `${EXTERNAL_API_BASE_URL}?metod=${metod}&Number=${number}`;
+console.log("GetFile URL:", url);
 
-    const upstream = await fetch(url, {
-      method: "GET", // ВАЖНО: именно GET, как в curl
-      headers: {
-        // 1) Authorization – сервисный Basic, закодированный
-        Authorization: SERVICE_AUTH,
-        // 2) Auth – НЕ закодированный логин:пароль
-        //    'Auth: Basic order@lal-auto.com:ZakaZ656565'
-        Auth: `Basic ${login}:${password}`,
-      },
-    });
+const upstream = await fetch(url, {
+  method: "GET",
+  headers: {
+    Authorization: SERVICE_AUTH,              // "Basic YWRtaW46anVlYmZueWU="
+    Auth: `Basic ${login}:${password}`,       // "Basic login:password"
+  },
+});
 
-    const contentType =
-      upstream.headers.get("content-type") || "application/octet-stream";
-    const contentDisposition =
-      upstream.headers.get("content-disposition") ||
-      `attachment; filename="${encodeURIComponent(
-        `${metod}_${number}.pdf`,
-      )}"`;
+const contentType =
+  upstream.headers.get("content-type") || "application/octet-stream";
+const contentDisposition =
+  upstream.headers.get("content-disposition") ||
+  `attachment; filename="${encodeURIComponent(`${metod}_${number}.pdf`)}"`;
 
-    // Если 1С вернул ошибку – отдаем её как есть, а не 500
-    if (!upstream.ok) {
-      const errorBody = await upstream.text().catch(() => "");
-      console.error(
-        "Upstream error:",
-        upstream.status,
-        errorBody.slice(0, 500),
-      );
-      res.status(upstream.status).send(
-        errorBody || `Upstream error ${upstream.status}`,
-      );
-      return;
-    }
+// Если 1С вернула не 200 — отдаем текст как есть, чтобы было видно, что она отвечает
+if (!upstream.ok) {
+  const errorBody = await upstream.text().catch(() => "");
+  console.error("Upstream error:", upstream.status, errorBody);
+  return res.status(upstream.status).send(errorBody);
+}
 
-    // Читаем файл и отправляем
-    const arrayBuffer = await upstream.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    res
-      .status(200)
-      .setHeader("Content-Type", contentType)
-      .setHeader("Content-Disposition", contentDisposition)
-      .send(buffer);
+// Если 1С всё же шлёт JSON вместо файла — это тоже увидим
+const buffer = Buffer.from(await upstream.arrayBuffer());
+res
+  .status(200)
+  .setHeader("Content-Type", contentType)
+  .setHeader("Content-Disposition", contentDisposition)
+  .send(buffer);
   } catch (error: any) {
     console.error("Proxy error:", error?.message || error);
     res
