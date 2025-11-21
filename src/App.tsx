@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import React from "react";
 import "./styles.css";
+import { DOCUMENT_METHODS } from "./documentMethods";
+
 
 // --- CONFIGURATION ---
 const PROXY_API_BASE_URL = '/api/perevozki'; 
@@ -349,7 +351,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         if (!item.Number) return alert("Нет номера перевозки");
         setDownloading(docType); setDownloadError(null);
         try {
-            const res = await fetch(PROXY_API_DOWNLOAD_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, metod: docType, number: item.Number }) });
+            const res = await fetch(PROXY_API_DOWNLOAD_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, metod: DOCUMENT_METHODS[docType], number: item.Number }) });
             if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
             const data = await res.json();
 
