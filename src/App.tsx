@@ -1,83 +1,58 @@
-
 import { useEffect, useState } from "react";
-import "./styles.css";
+import "./index.css";
+import { getToken, saveToken, removeToken } from "./hooks/auth";
 
-type AuthData = {
-  login: string;
-  token: string;
-};
-
-type Tab = "cargo" | "drivers";
-
-// 🔐 Простая генерация токена (можно заменить на UUID/Hash)
-const generateToken = (login: string) => {
-  return btoa(`${login}_${Date.now()}`);
-};
+type AuthData = { login: string; password: string };
 
 export default function App() {
   const [auth, setAuth] = useState<AuthData | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("cargo");
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
-    const login = localStorage.getItem("authLogin");
-    const token = localStorage.getItem("authToken");
-    if (login && token) {
-      setAuth({ login, token });
+    const saved = getToken();
+    if (saved) {
+      const decoded = atob(saved);
+      const [savedLogin, savedPassword] = decoded.split(":");
+      setAuth({ login: savedLogin, password: savedPassword });
     }
   }, []);
 
-  const handleLogin = (login: string, password: string) => {
-    // ⚠️ Здесь имитируем авторизацию — замените на реальную проверку!
-    if (password === "123") {
-      const token = generateToken(login);
-      localStorage.setItem("authLogin", login);
-      localStorage.setItem("authToken", token);
-      setAuth({ login, token });
-    } else {
-      alert("Неверный пароль");
-    }
+  const handleLogin = () => {
+    const token = btoa(`${login}:${password}`);
+    saveToken(token);
+    setAuth({ login, password });
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("authLogin");
-    localStorage.removeItem("authToken");
+    removeToken();
     setAuth(null);
   };
 
   if (!auth) {
     return (
-      <div className="login">
-        <h2>Вход</h2>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const login = (e.currentTarget.elements.namedItem("login") as HTMLInputElement).value;
-            const password = (e.currentTarget.elements.namedItem("password") as HTMLInputElement).value;
-            handleLogin(login, password);
-          }}
-        >
-          <input name="login" placeholder="Логин" />
-          <input name="password" placeholder="Пароль" type="password" />
-          <button type="submit">Войти</button>
-        </form>
+      <div>
+        <h1>Вход</h1>
+        <input
+          placeholder="Email"
+          value={login}
+          onChange={(e) => setLogin(e.target.value)}
+        />
+        <input
+          type="password"
+          placeholder="Пароль"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <button onClick={handleLogin}>Войти</button>
       </div>
     );
   }
 
   return (
     <div>
-      <header>
-        <h1>Добро пожаловать, {auth.login}</h1>
-        <button onClick={handleLogout}>Выйти</button>
-      </header>
-      <nav>
-        <button onClick={() => setActiveTab("cargo")}>Грузы</button>
-        <button onClick={() => setActiveTab("drivers")}>Водители</button>
-      </nav>
-      <main>
-        {activeTab === "cargo" && <div>Здесь список грузов</div>}
-        {activeTab === "drivers" && <div>Здесь список водителей</div>}
-      </main>
+      <h1>Добро пожаловать</h1>
+      <button onClick={handleLogout}>Выйти</button>
     </div>
   );
 }
