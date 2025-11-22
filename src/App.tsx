@@ -2,57 +2,48 @@
 import { useEffect, useState } from "react";
 import "./styles.css";
 
-// Типизация
 type AuthData = {
-  token: string;
   login: string;
+  token: string;
 };
 
 type Tab = "cargo" | "drivers";
+
+// 🔐 Простая генерация токена (можно заменить на UUID/Hash)
+const generateToken = (login: string) => {
+  return btoa(`${login}_${Date.now()}`);
+};
 
 export default function App() {
   const [auth, setAuth] = useState<AuthData | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("cargo");
 
-  // 🚀 При старте проверяем токен в localStorage
   useEffect(() => {
-    const saved = localStorage.getItem("authToken");
     const login = localStorage.getItem("authLogin");
-    if (saved && login) {
-      setAuth({ token: saved, login });
+    const token = localStorage.getItem("authToken");
+    if (login && token) {
+      setAuth({ login, token });
     }
   }, []);
 
-  // 🔐 Форма авторизации
-  const handleLogin = async (login: string, password: string) => {
-    try {
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login, password }),
-      });
-
-      if (!res.ok) throw new Error("Ошибка авторизации");
-
-      const { token } = await res.json();
-
-      // 💾 Сохраняем токен
-      localStorage.setItem("authToken", token);
+  const handleLogin = (login: string, password: string) => {
+    // ⚠️ Здесь имитируем авторизацию — замените на реальную проверку!
+    if (password === "123") {
+      const token = generateToken(login);
       localStorage.setItem("authLogin", login);
-      setAuth({ token, login });
-    } catch (err) {
-      alert("Неверный логин или пароль");
+      localStorage.setItem("authToken", token);
+      setAuth({ login, token });
+    } else {
+      alert("Неверный пароль");
     }
   };
 
-  // 🚪 Выход
   const handleLogout = () => {
-    localStorage.removeItem("authToken");
     localStorage.removeItem("authLogin");
+    localStorage.removeItem("authToken");
     setAuth(null);
   };
 
-  // UI
   if (!auth) {
     return (
       <div className="login">
@@ -76,8 +67,7 @@ export default function App() {
   return (
     <div>
       <header>
-        <h1>Личный кабинет</h1>
-        <p>Вы вошли как: {auth.login}</p>
+        <h1>Добро пожаловать, {auth.login}</h1>
         <button onClick={handleLogout}>Выйти</button>
       </header>
       <nav>
