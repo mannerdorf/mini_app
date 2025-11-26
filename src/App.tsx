@@ -479,7 +479,7 @@ export default function App() {
     }, []);
 
     const [auth, setAuth] = useState<AuthData | null>(null);
-    const [activeTab, setActiveTab] = useState<Tab>("cargo"); 
+    const [activeTab, setActiveTab] = useState<Tab>("home"); 
     const [theme, setTheme] = useState('dark'); 
     
     // ИНИЦИАЛИЗАЦИЯ ПУСТЫМИ СТРОКАМИ (данные берутся с фронта)
@@ -494,6 +494,34 @@ export default function App() {
     
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [searchText, setSearchText] = useState('');
+
+
+    // --- AUTO AUTH FROM TELEGRAM STORAGE ---
+    useEffect(() => {
+        if (!isTg()) return;
+        const savedAuth = WebApp.storage.getItem("haulz_auth");
+        if (savedAuth === "1") {
+            const savedLogin = WebApp.storage.getItem("haulz_auth_login");
+            const savedPassword = WebApp.storage.getItem("haulz_auth_password");
+            if (savedLogin && savedPassword) {
+                setAuth({ login: savedLogin, password: savedPassword });
+                const savedTab = WebApp.storage.getItem("haulz_last_tab");
+                if (savedTab) {
+                    setActiveTab(savedTab as Tab);
+                } else {
+                    setActiveTab("home");
+                }
+            }
+        }
+    }, []);
+
+    // --- PERSIST LAST ACTIVE TAB IN TELEGRAM STORAGE ---
+    useEffect(() => {
+        if (!isTg()) return;
+        if (auth) {
+            WebApp.storage.setItem("haulz_last_tab", activeTab);
+        }
+    }, [activeTab, auth]);
 
     useEffect(() => { document.body.className = `${theme}-mode`; }, [theme]);
     const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
@@ -524,7 +552,13 @@ export default function App() {
                 return;
             }
             setAuth({ login, password });
-            setActiveTab("cargo"); 
+            setActiveTab("cargo");
+            if (isTg()) {
+                WebApp.storage.setItem("haulz_auth", "1");
+                WebApp.storage.setItem("haulz_auth_login", login);
+                WebApp.storage.setItem("haulz_auth_password", password);
+                WebApp.storage.setItem("haulz_last_tab", "cargo");
+            } 
         } catch (err: any) {
             setError("Ошибка сети.");
         } finally {
@@ -534,9 +568,15 @@ export default function App() {
 
     const handleLogout = () => {
         setAuth(null);
-        setActiveTab("cargo");
+        setActiveTab("home");
         setPassword(""); 
         setIsSearchExpanded(false); setSearchText('');
+        if (isTg()) {
+            WebApp.storage.removeItem("haulz_auth");
+            WebApp.storage.removeItem("haulz_auth_login");
+            WebApp.storage.removeItem("haulz_auth_password");
+            WebApp.storage.removeItem("haulz_last_tab");
+        }
     }
 
     if (!auth) {
