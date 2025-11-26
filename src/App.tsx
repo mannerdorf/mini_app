@@ -6,6 +6,11 @@ import {
 } from 'lucide-react';
 import React from "react";
 import "./styles.css";
+// --- TELEGRAM MINI APP SUPPORT ---
+import WebApp from "@twa-dev/sdk";
+
+const isTg = () => typeof window !== "undefined" && window.Telegram?.WebApp;
+
 import { DOCUMENT_METHODS } from "./documentMethods";
 
 
@@ -459,6 +464,20 @@ const TabBtn = ({ label, icon, active, onClick }: any) => (
 // ----------------- MAIN APP -----------------
 
 export default function App() {
+    // --- Telegram Init ---
+    useEffect(() => {
+        if (!isTg()) return;
+
+        WebApp.ready();
+        WebApp.expand();
+        setTheme(WebApp.colorScheme);
+
+        const themeHandler = () => setTheme(WebApp.colorScheme);
+        WebApp.onEvent("themeChanged", themeHandler);
+
+        return () => WebApp.offEvent("themeChanged", themeHandler);
+    }, []);
+
     const [auth, setAuth] = useState<AuthData | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("cargo"); 
     const [theme, setTheme] = useState('dark'); 
