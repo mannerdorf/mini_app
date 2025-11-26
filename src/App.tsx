@@ -136,54 +136,72 @@ const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "accepted": 
 // ================== COMPONENTS ==================
 
 // --- HOME PAGE (STATISTICS) ---
-function HomePage({ cargoList, isLoading, error }: { cargoList: CargoItem[] | null, isLoading: boolean, error: string | null }) { // Убраны лишние пропсы auth, fetchList
-    const [filterLevel, setFilterLevel] = useState<1 | 2>(1);
+
+function HomePage() {
+    const [filterLevel, setFilterLevel] = useState<number>(1);
     const [currentFilter, setCurrentFilter] = useState<string | null>(null);
 
-    const statsData = useMemo(() => {
-        // Здесь должна быть логика расчета, пока используем заглушки
-        return { level1: STATS_LEVEL_1, level2: STATS_LEVEL_2 };
-    }, [cargoList]);
-
-    const currentStats = useMemo(() => {
-        if (filterLevel === 2 && currentFilter && STATS_LEVEL_2[currentFilter]) {
-            return STATS_LEVEL_2[currentFilter];
-        }
-        return STATS_LEVEL_1;
-    }, [filterLevel, currentFilter]);
-    
-    const handleStatClick = (key: string) => {
-        if (filterLevel === 1 && STATS_LEVEL_2[key]) { setCurrentFilter(key); setFilterLevel(2); }
-        else if (filterLevel === 2) { setCurrentFilter(null); setFilterLevel(1); }
+    const handleFilterLevelChange = (level: number) => {
+        setFilterLevel(level);
+        setCurrentFilter(null);
     };
 
+    const handleFilterClick = (filter: string) => {
+        setCurrentFilter(filter === currentFilter ? null : filter);
+    };
+
+    const statsLevel1 = STATS_LEVEL_1;
+    const statsLevel2 = STATS_LEVEL_2;
+
+    const statsData = { level1: statsLevel1, level2: statsLevel2 };
+
+    const currentStats =
+        filterLevel === 2 && currentFilter && statsData.level2[currentFilter]
+            ? statsData.level2[currentFilter]
+            : statsData.level1;
+
     return (
-        <div className="w-full max-w-lg">
-            <h2 className="title text-center mb-6">Статистика перевозок</h2>
+        <div className="home-page">
+            <div className="stats-header">
+                <button
+                    className={\`filter-level \${filterLevel === 1 ? "active" : ""}\`}
+                    onClick={() => handleFilterLevelChange(1)}
+                >
+                    1 уровень
+                </button>
+                <button
+                    className={\`filter-level \${filterLevel === 2 ? "active" : ""}\`}
+                    onClick={() => handleFilterLevelChange(2)}
+                >
+                    2 уровень
+                </button>
+            </div>
+
+            {filterLevel === 2 && (
+                <div className="filters-row">
+                    {Object.keys(statsData.level2).map((filter) => (
+                        <button
+                            key={filter}
+                            className={\`filter-btn \${filter === currentFilter ? "active" : ""}\`}
+                            onClick={() => handleFilterClick(filter)}
+                        >
+                            {filter}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             <div className="stats-grid">
-                {currentStats.map((stat, idx) => (
-                    <div key={stat.key} className={`stat-card ${stat.bgColor}`} onClick={() => handleStatClick(stat.key)}>
-                        <div className="flex justify-between mb-1">
-                            <span className="text-xs opacity-80">{stat.label}</span>
-                            {filterLevel === 2 && idx === 0 && <CornerUpLeft className="w-4 h-4 opacity-90" />}
-                        </div>
-                        <div className="flex justify-between items-end">
-                            <span className="text-xl font-bold">{stat.value} <span className="text-xs font-normal">{stat.unit}</span></span>
-                            <stat.icon className="w-5 h-5 opacity-80" />
-                        </div>
+                {currentStats.map((stat, index) => (
+                    <div key={index} className="stat-card">
+                        <div className="stat-value">{stat.value}</div>
+                        <div className="stat-name">{stat.name}</div>
                     </div>
                 ))}
             </div>
-            
-            {/* Состояние загрузки для главной */}
-            {isLoading && <div className="text-center py-8"><Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" /><p className="text-sm text-theme-secondary">Обновление данных...</p></div>}
-            {error && <div className="login-error"><AlertTriangle className="w-5 h-5 mr-2"/>{error}</div>}
         </div>
     );
 }
-
-
-// --- CARGO PAGE (LIST ONLY) ---
 function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string }) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -496,43 +514,26 @@ export default function App() {
     const [searchText, setSearchText] = useState('');
 
 
-    
-    // --- AUTO AUTH FROM TELEGRAM STORAGE (WITH VALIDATION) ---
+    // --- AUTO AUTH FROM TELEGRAM STORAGE ---
     useEffect(() => {
         if (!isTg()) return;
         const savedAuth = WebApp.storage.getItem("haulz_auth");
         if (savedAuth === "1") {
-            const login = WebApp.storage.getItem("haulz_auth_login");
-            const password = WebApp.storage.getItem("haulz_auth_password");
-            if (login && password) {
-                // Try validating via API
-                fetch("/api/perevozki", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        login,
-                        password,
-                        dateFrom: "",
-                        dateTo: ""
-                    })
-                })
-                .then(r => r.ok ? r.json() : null)
-                .then(data => {
-                    if (data) {
-                        setAuth({ login, password });
-                        const tab = WebApp.storage.getItem("haulz_last_tab");
-                        setActiveTab(tab || "home");
-                    } else {
-                        // invalid session -> show login form
-                        WebApp.storage.removeItem("haulz_auth");
-                        WebApp.storage.removeItem("haulz_auth_login");
-                        WebApp.storage.removeItem("haulz_auth_password");
-                    }
-                })
+            const savedLogin = WebApp.storage.getItem("haulz_auth_login");
+            const savedPassword = WebApp.storage.getItem("haulz_auth_password");
+            if (savedLogin && savedPassword) {
+                setAuth({ login: savedLogin, password: savedPassword });
+                const savedTab = WebApp.storage.getItem("haulz_last_tab");
+                if (savedTab) {
+                    setActiveTab(savedTab as Tab);
+                } else {
+                    setActiveTab("home");
+                }
             }
         }
     }, []);
-// --- PERSIST LAST ACTIVE TAB IN TELEGRAM STORAGE ---
+
+    // --- PERSIST LAST ACTIVE TAB IN TELEGRAM STORAGE ---
     useEffect(() => {
         if (!isTg()) return;
         if (auth) {
@@ -663,7 +664,7 @@ export default function App() {
             </header>
             <div className="app-main">
                 <div className="w-full max-w-4xl">
-                    {activeTab === "home" && <HomePage cargoList={null} isLoading={false} error={null} />}
+                    {activeTab === "home" && <HomePage />}
                     {activeTab === "cargo" && <CargoPage auth={auth} searchText={searchText} />}
                     {activeTab === "docs" && <StubPage title="Документы" />}
                     {activeTab === "support" && <StubPage title="Поддержка" />}
