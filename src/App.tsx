@@ -229,7 +229,98 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
         } catch (e: any) { setError(e.message); } finally { setLoading(false); }
     }, [auth]);
 
-    item, isOpen, onClose, auth }: { item: CargoItem, isOpen: boolean, onClose: () => void, auth: AuthData }) {
+    useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo]);
+
+    // Client-side filtering
+    const filteredItems = useMemo(() => {
+        let res = items;
+        if (statusFilter !== 'all') res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
+        if (searchText) {
+            const lower = searchText.toLowerCase();
+            // Обновлены поля поиска: PW вместо PV, добавлен Sender
+            res = res.filter(i => [i.Number, i.State, i.Sender, formatDate(i.DatePrih), formatCurrency(i.Sum), String(i.PW), String(i.Mest)].join(' ').toLowerCase().includes(lower));
+        }
+        return res;
+    }, [items, statusFilter, searchText]);
+
+
+    return (
+        <div className="w-full">
+            {/* Filters */}
+            <div className="filters-container">
+                <div className="filter-group">
+                    <button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); }}>
+                        Дата: {dateFilter === 'custom' ? 'Период' : dateFilter} <ChevronDown className="w-4 h-4"/>
+                    </button>
+                    {isDateDropdownOpen && <div className="filter-dropdown">
+                        {['all', 'today', 'week', 'month', 'custom'].map(key => <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key==='custom') setIsCustomModalOpen(true); }}>{key === 'all' ? 'Все' : key === 'today' ? 'Сегодня' : key === 'week' ? 'Неделя' : key === 'month' ? 'Месяц' : 'Период'}</div>)}
+                    </div>}
+                </div>
+                <div className="filter-group">
+                    <button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); }}>
+                        Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
+                    </button>
+                    {isStatusDropdownOpen && <div className="filter-dropdown">
+                        {Object.keys(STATUS_MAP).map(key => <div key={key} className="dropdown-item" onClick={() => { setStatusFilter(key as any); setIsStatusDropdownOpen(false); }}>{STATUS_MAP[key as StatusFilter]}</div>)}
+                    </div>}
+                </div>
+            </div>
+
+            <p className="text-sm text-theme-secondary mb-4 text-center">
+                 Период: {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
+            </p>
+
+            {/* List */}
+            {loading && <div className="text-center py-8"><Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" /></div>}
+            {!loading && !error && filteredItems.length === 0 && (
+                <div className="empty-state-card">
+                    <Package className="w-12 h-12 mx-auto mb-4 text-theme-secondary opacity-50" />
+                    <p className="text-theme-secondary">Ничего не найдено</p>
+                </div>
+            )}
+            
+            <div className="cargo-list">
+                {filteredItems.map((item: CargoItem, idx: number) => (
+                    <div key={item.Number || idx} className="cargo-card mb-4" onClick={() => setSelectedCargo(item)}>
+                        <div className="cargo-header-row"><span className="order-number">{item.Number}</span><span className="date"><Calendar className="w-3 h-3 mr-1"/>{formatDate(item.DatePrih)}</span></div>
+                        <div className="cargo-details-grid">
+                            <div className="detail-item"><Tag className="w-4 h-4 text-theme-primary"/><div className="detail-item-label">Статус</div><div className={getStatusClass(item.State)}>{item.State}</div></div>
+                            <div className="detail-item"><Layers className="w-4 h-4 text-theme-primary"/><div className="detail-item-label">Мест</div><div className="detail-item-value">{item.Mest || '-'}</div></div>
+                            <div className="detail-item"><Scale className="w-4 h-4 text-theme-primary"/><div className="detail-item-label">Плат. вес</div><div className="detail-item-value">{item.PW || '-'}</div></div>
+                        </div>
+                        <div className="cargo-footer"><span className="sum-label">Сумма</span><span className="sum-value">{formatCurrency(item.Sum)}</span></div>
+                    </div>
+                ))}
+            </div>
+
+            {selectedCargo && <CargoDetailsModal item={selectedCargo} isOpen={!!selectedCargo} onClose={() => setSelectedCargo(null)} auth={auth} />}
+            <FilterDialog isOpen={isCustomModalOpen} onClose={() => setIsCustomModalOpen(false)} dateFrom={customDateFrom} dateTo={customDateTo} onApply={(f, t) => { setCustomDateFrom(f); setCustomDateTo(t); }} />
+        </div>
+    );
+}
+
+// --- SHARED COMPONENTS ---
+
+function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: { isOpen: boolean; onClose: () => void; dateFrom: string; dateTo: string; onApply: (from: string, to: string) => void; }) {
+    const [tempFrom, setTempFrom] = useState(dateFrom);
+    const [tempTo, setTempTo] = useState(dateTo);
+    useEffect(() => { if (isOpen) { setTempFrom(dateFrom); setTempTo(dateTo); } }, [isOpen, dateFrom, dateTo]);
+    if (!isOpen) return null;
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <div className="modal-header"><h3>Произвольный диапазон</h3><button className="modal-close-button" onClick={onClose}><X size={20} /></button></div>
+                <form onSubmit={e => { e.preventDefault(); onApply(tempFrom, tempTo); onClose(); }}>
+                    <div style={{marginBottom: '1rem'}}><label className="detail-item-label">Дата начала:</label><input type="date" className="login-input date-input" value={tempFrom} onChange={e => setTempFrom(e.target.value)} required /></div>
+                    <div style={{marginBottom: '1.5rem'}}><label className="detail-item-label">Дата окончания:</label><input type="date" className="login-input date-input" value={tempTo} onChange={e => setTempTo(e.target.value)} required /></div>
+                    <button className="button-primary" type="submit">Применить</button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem; isOpen: boolean; onClose: () => void; auth: AuthData }) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
     if (!isOpen) return null;
@@ -389,7 +480,7 @@ export default function App() {
 
     const [auth, setAuth] = useState<AuthData | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("cargo"); 
-    const [theme, setTheme] = useState(isTg() ? WebApp.colorScheme : 'dark'); 
+    const [theme, setTheme] = useState('dark'); 
     
     // ИНИЦИАЛИЗАЦИЯ ПУСТЫМИ СТРОКАМИ (данные берутся с фронта)
     const [login, setLogin] = useState(""); 
