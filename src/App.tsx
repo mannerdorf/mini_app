@@ -448,7 +448,7 @@ function TabBar({ active, onChange }: { active: Tab, onChange: (t: Tab) => void 
     return (
         <div className="tabbar-container">
             <TabBtn label="Главная" icon={<Home />} active={active === "home"} onClick={() => onChange("home")} />
-            <TabBtn label="" icon={<Truck />} active={active === "cargo"} onClick={() => onChange("cargo")} />
+            <TabBtn label="Грузы" icon={<Truck />} active={active === "cargo"} onClick={() => onChange("cargo")} />
             <TabBtn label="Документы" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />
             <TabBtn label="Поддержка" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />
             <TabBtn label="Профиль" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
