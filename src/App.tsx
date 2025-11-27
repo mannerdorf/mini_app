@@ -439,6 +439,81 @@ function HomePage({ auth }: { auth: AuthData }) {
         </div>
     );
 }
+
+function CustomPeriodModal({
+    isOpen,
+    onClose,
+    dateFrom,
+    dateTo,
+    onApply,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    dateFrom: string;
+    dateTo: string;
+    onApply: (from: string, to: string) => void;
+}) {
+    const [localFrom, setLocalFrom] = useState<string>(dateFrom);
+    const [localTo, setLocalTo] = useState<string>(dateTo);
+
+    useEffect(() => {
+        setLocalFrom(dateFrom);
+        setLocalTo(dateTo);
+    }, [dateFrom, dateTo]);
+
+    if (!isOpen) return null;
+
+    const handleApply = () => {
+        if (!localFrom || !localTo) return;
+        onApply(localFrom, localTo);
+        onClose();
+    };
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div
+                className="modal-content"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="modal-header">
+                    <h3>Произвольный период</h3>
+                    <button
+                        className="modal-close-button"
+                        onClick={onClose}
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="modal-body">
+                    <label className="modal-label">
+                        Дата с
+                        <input
+                            type="date"
+                            className="modal-input"
+                            value={localFrom}
+                            onChange={(e) => setLocalFrom(e.target.value)}
+                        />
+                    </label>
+                    <label className="modal-label">
+                        Дата по
+                        <input
+                            type="date"
+                            className="modal-input"
+                            value={localTo}
+                            onChange={(e) => setLocalTo(e.target.value)}
+                        />
+                    </label>
+                </div>
+                <div className="modal-footer">
+                    <button className="primary-button" onClick={handleApply}>
+                        Применить
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // --- CARGO PAGE (LIST ONLY) ---
 function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string }) {
     const [items, setItems] = useState<CargoItem[]>([]);
