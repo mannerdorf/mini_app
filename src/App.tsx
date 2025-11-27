@@ -24,6 +24,7 @@ type AuthData = { login: string; password: string; };
 type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
 type StatusFilter = "all" | "accepted" | "in_transit" | "ready" | "delivering" | "delivered";
+type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom";
 
 // --- ИСПОЛЬЗУЕМ ТОЛЬКО ПЕРЕМЕННЫЕ ИЗ API ---
 type CargoItem = {
@@ -136,53 +137,308 @@ const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "accepted": 
 // ================== COMPONENTS ==================
 
 // --- HOME PAGE (STATISTICS) ---
-function HomePage({ cargoList, isLoading, error }: { cargoList: CargoItem[] | null, isLoading: boolean, error: string | null }) { // Убраны лишние пропсы auth, fetchList
-    const [filterLevel, setFilterLevel] = useState<1 | 2>(1);
-    const [currentFilter, setCurrentFilter] = useState<string | null>(null);
 
-    const statsData = useMemo(() => {
-        // Здесь должна быть логика расчета, пока используем заглушки
-        return { level1: STATS_LEVEL_1, level2: STATS_LEVEL_2 };
-    }, [cargoList]);
+function HomePage({ auth }: { auth: AuthData }) {
+    const [periodFilter, setPeriodFilter] = useState<HomePeriodFilter>("month");
+    const [customFrom, setCustomFrom] = useState(DEFAULT_DATE_FROM);
+    const [customTo, setCustomTo] = useState(DEFAULT_DATE_TO);
+    const [items, setItems] = useState<CargoItem[]>([]);
+    const [loading, setLoading] = useState<boolean>(false);
+    const [error, setError] = useState<string | null>(null);
+    const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
+    const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
 
-    const currentStats = useMemo(() => {
-        if (filterLevel === 2 && currentFilter && STATS_LEVEL_2[currentFilter]) {
-            return STATS_LEVEL_2[currentFilter];
+    const apiDateRange = useMemo(() => {
+        if (periodFilter === "custom") {
+            return { dateFrom: customFrom, dateTo: customTo };
         }
-        return STATS_LEVEL_1;
-    }, [filterLevel, currentFilter]);
-    
-    const handleStatClick = (key: string) => {
-        if (filterLevel === 1 && STATS_LEVEL_2[key]) { setCurrentFilter(key); setFilterLevel(2); }
-        else if (filterLevel === 2) { setCurrentFilter(null); setFilterLevel(1); }
+        const today = new Date();
+        const dateTo = getTodayDate();
+        let dateFrom = dateTo;
+
+        switch (periodFilter) {
+            case "today":
+                dateFrom = getTodayDate();
+                break;
+            case "week":
+                today.setDate(today.getDate() - 7);
+                dateFrom = today.toISOString().split("T")[0];
+                break;
+            case "month":
+                today.setMonth(today.getMonth() - 1);
+                dateFrom = today.toISOString().split("T")[0];
+                break;
+            case "year":
+                today.setFullYear(today.getFullYear() - 1);
+                dateFrom = today.toISOString().split("T")[0];
+                break;
+            default:
+                break;
+        }
+
+        return { dateFrom, dateTo };
+    }, [periodFilter, customFrom, customTo]);
+
+    const loadStats = useCallback(async (dateFrom: string, dateTo: string) => {
+        if (!auth) return;
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch(PROXY_API_BASE_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    dateFrom,
+                    dateTo,
+                }),
+            });
+            if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : (data.items || []);
+            const mapNumber = (value: any): number => {
+                if (value === null || value === undefined) return 0;
+                if (typeof value === "number") return value;
+                const parsed = parseFloat(String(value).replace(",", "."));
+                return isNaN(parsed) ? 0 : parsed;
+            };
+            setItems(
+                list.map((item: any) => ({
+                    ...item,
+                    Number: item.Number,
+                    DatePrih: item.DatePrih,
+                    DateVr: item.DateVr,
+                    State: item.State,
+                    Mest: mapNumber(item.Mest),
+                    PW: mapNumber(item.PW),
+                    W: mapNumber(item.W),
+                    Value: mapNumber(item.Value),
+                    Sum: mapNumber(item.Sum),
+                    StateBill: item.StateBill,
+                    Sender: item.Sender,
+                }))
+            );
+        } catch (e: any) {
+            setError(e.message || "Ошибка загрузки данных");
+        } finally {
+            setLoading(false);
+        }
+    }, [auth]);
+
+    useEffect(() => {
+        loadStats(apiDateRange.dateFrom, apiDateRange.dateTo);
+    }, [apiDateRange, loadStats]);
+
+    const totalShipments = items.length;
+    const totalPaidWeight = useMemo(
+        () => items.reduce((sum, item) => sum + (Number(item.PW) || 0), 0),
+        [items]
+    );
+    const totalWeight = useMemo(
+        () => items.reduce((sum, item) => sum + (Number(item.W) || 0), 0),
+        [items]
+    );
+    const totalVolume = useMemo(
+        () => items.reduce((sum, item) => sum + (Number(item.Value) || 0), 0),
+        [items]
+    );
+
+    const formatTons = (kg: number) => {
+        if (!kg) return "0 т";
+        return (kg / 1000).toFixed(1) + " т";
+    };
+
+    const periodLabel = useMemo(() => {
+        const { dateFrom, dateTo } = apiDateRange;
+        if (periodFilter === "month") {
+            const d = new Date(dateFrom);
+            if (!isNaN(d.getTime())) {
+                return d.toLocaleDateString("ru-RU", {
+                    month: "long",
+                    year: "numeric",
+                });
+            }
+        }
+        if (periodFilter === "year") {
+            const d = new Date(dateFrom);
+            if (!isNaN(d.getTime())) {
+                return d.getFullYear().toString();
+            }
+        }
+        return `${formatDate(dateFrom)} – ${formatDate(dateTo)}`;
+    }, [apiDateRange, periodFilter]);
+
+    const selectPeriod = (value: HomePeriodFilter) => {
+        setPeriodFilter(value);
+        setIsPeriodModalOpen(false);
+        if (value !== "custom") {
+            // при выборе предустановленного периода сбрасываем кастомные диапазоны к дефолту
+            setCustomFrom(DEFAULT_DATE_FROM);
+            setCustomTo(DEFAULT_DATE_TO);
+        }
     };
 
     return (
         <div className="w-full max-w-lg">
-            <h2 className="title text-center mb-6">Статистика перевозок</h2>
+            {/* Заголовок периода */}
+            <div className="home-period-header mb-6">
+                <button
+                    className="home-period-button"
+                    onClick={() => setIsPeriodModalOpen(true)}
+                >
+                    <span className="home-period-title">
+                        Период:{" "}
+                        <span className="home-period-value">
+                            {periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)}
+                        </span>
+                    </span>
+                    <ChevronDown className="w-5 h-5 ml-2" />
+                </button>
+            </div>
+
+            {/* Карточки статистики */}
             <div className="stats-grid">
-                {currentStats.map((stat, idx) => (
-                    <div key={stat.key} className={`stat-card ${stat.bgColor}`} onClick={() => handleStatClick(stat.key)}>
-                        <div className="flex justify-between mb-1">
-                            <span className="text-xs opacity-80">{stat.label}</span>
-                            {filterLevel === 2 && idx === 0 && <CornerUpLeft className="w-4 h-4 opacity-90" />}
+                <div className="stat-card">
+                    <div className="flex justify-between items-center mb-2">
+                        <Package className="w-5 h-5 text-theme-primary" />
+                        <span className="text-xs text-theme-secondary">
+                            За период
+                        </span>
+                    </div>
+                    <div className="text-2xl font-bold text-white">
+                        {totalShipments}
+                    </div>
+                    <div className="text-sm text-theme-secondary mt-1">
+                        Всего перевозок
+                    </div>
+                </div>
+
+                <div className="stat-card">
+                    <div className="flex justify-between items-center mb-2">
+                        <Scale className="w-5 h-5 text-theme-primary" />
+                        <span className="text-xs text-theme-secondary">
+                            Платный вес
+                        </span>
+                    </div>
+                    <div className="text-2xl font-bold text-white">
+                        {formatTons(totalPaidWeight)}
+                    </div>
+                    <div className="text-sm text-theme-secondary mt-1">
+                        Платный вес за период
+                    </div>
+                </div>
+
+                <div className="stat-card">
+                    <div className="flex justify-between items-center mb-2">
+                        <Weight className="w-5 h-5 text-theme-primary" />
+                        <span className="text-xs text-theme-secondary">Вес</span>
+                    </div>
+                    <div className="text-2xl font-bold text-white">
+                        {formatTons(totalWeight)}
+                    </div>
+                    <div className="text-sm text-theme-secondary mt-1">
+                        Фактический вес за период
+                    </div>
+                </div>
+
+                <div className="stat-card">
+                    <div className="flex justify-between items-center mb-2">
+                        <Maximize className="w-5 h-5 text-theme-primary" />
+                        <span className="text-xs text-theme-secondary">Объем</span>
+                    </div>
+                    <div className="text-2xl font-bold text-white">
+                        {totalVolume.toFixed(1)}м³
+                    </div>
+                    <div className="text-sm text-theme-secondary mt-1">
+                        Объем за период
+                    </div>
+                </div>
+            </div>
+
+            {/* Загрузка / ошибка */}
+            {loading && (
+                <div className="text-center py-8">
+                    <Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" />
+                    <p className="text-sm text-theme-secondary mt-2">
+                        Обновление данных...
+                    </p>
+                </div>
+            )}
+            {error && (
+                <div className="login-error mt-4">
+                    <AlertTriangle className="w-5 h-5 mr-2" />
+                    {error}
+                </div>
+            )}
+
+            {/* Модальное окно выбора периода */}
+            {isPeriodModalOpen && (
+                <div
+                    className="modal-overlay"
+                    onClick={() => setIsPeriodModalOpen(false)}
+                >
+                    <div
+                        className="modal-content"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="modal-header">
+                            <h3>Выбор периода</h3>
+                            <button
+                                className="modal-close-button"
+                                onClick={() => setIsPeriodModalOpen(false)}
+                            >
+                                <X size={20} />
+                            </button>
                         </div>
-                        <div className="flex justify-between items-end">
-                            <span className="text-xl font-bold">{stat.value} <span className="text-xs font-normal">{stat.unit}</span></span>
-                            <stat.icon className="w-5 h-5 opacity-80" />
+                        <div className="space-y-3">
+                            <button
+                                className="period-option-button"
+                                onClick={() => selectPeriod("week")}
+                            >
+                                Неделя
+                            </button>
+                            <button
+                                className="period-option-button"
+                                onClick={() => selectPeriod("month")}
+                            >
+                                Месяц
+                            </button>
+                            <button
+                                className="period-option-button"
+                                onClick={() => selectPeriod("year")}
+                            >
+                                Год
+                            </button>
+                            <button
+                                className="period-option-button"
+                                onClick={() => {
+                                    setIsPeriodModalOpen(false);
+                                    setIsCustomModalOpen(true);
+                                    setPeriodFilter("custom");
+                                }}
+                            >
+                                Произвольный период
+                            </button>
                         </div>
                     </div>
-                ))}
-            </div>
-            
-            {/* Состояние загрузки для главной */}
-            {isLoading && <div className="text-center py-8"><Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" /><p className="text-sm text-theme-secondary">Обновление данных...</p></div>}
-            {error && <div className="login-error"><AlertTriangle className="w-5 h-5 mr-2"/>{error}</div>}
+                </div>
+            )}
+
+            {/* Модальное окно выбора произвольного периода */}
+            <CustomPeriodModal
+                isOpen={isCustomModalOpen}
+                onClose={() => setIsCustomModalOpen(false)}
+                dateFrom={customFrom}
+                dateTo={customTo}
+                onApply={(from, to) => {
+                    setCustomFrom(from);
+                    setCustomTo(to);
+                }}
+            />
         </div>
     );
 }
-
-
 // --- CARGO PAGE (LIST ONLY) ---
 function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string }) {
     const [items, setItems] = useState<CargoItem[]>([]);
@@ -606,7 +862,7 @@ export default function App() {
             </header>
             <div className="app-main">
                 <div className="w-full max-w-4xl">
-                    {activeTab === "home" && <HomePage cargoList={null} isLoading={false} error={null} />}
+                    {activeTab === "home" && <HomePage auth={auth} />}
                     {activeTab === "cargo" && <CargoPage auth={auth} searchText={searchText} />}
                     {activeTab === "docs" && <StubPage title="Документы" />}
                     {activeTab === "support" && <StubPage title="Поддержка" />}
