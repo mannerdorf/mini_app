@@ -816,8 +816,10 @@ export default function App() {
     const [login, setLogin] = useState(""); 
     const [password, setPassword] = useState(""); 
     
-    const [agreeOffer, setAgreeOffer] = useState(true);
-    const [agreePersonal, setAgreePersonal] = useState(true);
+    // УДАЛЕНЫ СОСТОЯНИЯ ДЛЯ СОГЛАСИЯ
+    // const [agreeOffer, setAgreeOffer] = useState(true);
+    // const [agreePersonal, setAgreePersonal = useState(true);
+
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false); 
@@ -833,7 +835,9 @@ export default function App() {
         e.preventDefault();
         setError(null);
         if (!login || !password) return setError("Введите логин и пароль");
-        if (!agreeOffer || !agreePersonal) return setError("Подтвердите согласие с условиями");
+        
+        // УДАЛЕНА ПРОВЕРКА СОГЛАСИЯ
+        // if (!agreeOffer || !agreePersonal) return setError("Подтвердите согласие с условиями");
 
         try {
             setLoading(true);
@@ -896,7 +900,8 @@ export default function App() {
                                 </button>
                             </div>
                         </div>
-                        {/* ТУМБЛЕРЫ ВОССТАНОВЛЕНЫ */}
+                        {/* УДАЛЕНЫ ТУМБЛЕРЫ СОГЛАСИЯ */}
+                        {/*
                         <label className="checkbox-row switch-wrapper">
                             <span>Согласие с <a href="#">публичной офертой</a></span>
                             <div className={`switch-container ${agreeOffer ? 'checked' : ''}`} onClick={() => setAgreeOffer(!agreeOffer)}><div className="switch-knob"></div></div>
@@ -905,6 +910,7 @@ export default function App() {
                             <span>Согласие на <a href="#">обработку данных</a></span>
                             <div className={`switch-container ${agreePersonal ? 'checked' : ''}`} onClick={() => setAgreePersonal(!agreePersonal)}><div className="switch-knob"></div></div>
                         </label>
+                        */}
                         <button className="button-primary" type="submit" disabled={loading}>
                             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
                         </button>
