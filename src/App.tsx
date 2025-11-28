@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
-    LogOut, Home, Truck, FileText, MessageCircle, User, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, FileText as FileTextIcon, Send, 
-    LayoutGrid, Maximize, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus 
+    LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus 
+    // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
 import "./styles.css";
@@ -21,10 +22,11 @@ const PROXY_API_DOWNLOAD_URL = '/api/download';
 // --- TYPES ---
 type ApiError = { error?: string; [key: string]: unknown; };
 type AuthData = { login: string; password: string; };
-type Tab = "home" | "cargo" | "docs" | "support" | "profile";
+// УДАЛЕНО: type Tab = "home" | "cargo" | "docs" | "support" | "profile";
+type Tab = "cargo"; // Оставлена только "cargo"
 type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
 type StatusFilter = "all" | "accepted" | "in_transit" | "ready" | "delivering" | "delivered";
-type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom";
+type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom"; // Оставлено, так как это может использоваться в Home, который пока остается в коде ниже
 
 // --- ИСПОЛЬЗУЕМ ТОЛЬКО ПЕРЕМЕННЫЕ ИЗ API ---
 type CargoItem = {
@@ -47,7 +49,7 @@ const getSixMonthsAgoDate = () => {
 const DEFAULT_DATE_FROM = getSixMonthsAgoDate();
 const DEFAULT_DATE_TO = getTodayDate();
 
-// Статистика (заглушка)
+// Статистика (заглушка) - оставлено, так как компонент HomePage остается, но не используется
 const STATS_LEVEL_1: CargoStat[] = [
     { key: 'total', label: 'Всего перевозок', icon: LayoutGrid, value: 125, unit: 'шт', bgColor: 'bg-indigo-500' },
     { key: 'payments', label: 'Счета', icon: RussianRuble, value: '1,250,000', unit: '₽', bgColor: 'bg-green-500' },
@@ -85,10 +87,10 @@ const getDateRange = (filter: DateFilter) => {
     const dateTo = getTodayDate();
     let dateFrom = getTodayDate();
     switch (filter) {
-        case 'all': dateFrom = getSixMonthsAgoDate(); break;
-        case 'today': dateFrom = getTodayDate(); break;
-        case 'week': today.setDate(today.getDate() - 7); dateFrom = today.toISOString().split('T')[0]; break;
-        case 'month': today.setMonth(today.getMonth() - 1); dateFrom = today.toISOString().split('T')[0]; break;
+        case 'все': dateFrom = getSixMonthsAgoDate(); break; // ИСПРАВЛЕНО: 'all' на 'все'
+        case 'сегодня': dateFrom = getTodayDate(); break;
+        case 'неделя': today.setDate(today.getDate() - 7); dateFrom = today.toISOString().split('T')[0]; break;
+        case 'месяц': today.setMonth(today.getMonth() - 1); dateFrom = today.toISOString().split('T')[0]; break;
         default: break;
     }
     return { dateFrom, dateTo };
@@ -136,7 +138,7 @@ const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "accepted": 
 
 // ================== COMPONENTS ==================
 
-// --- HOME PAGE (STATISTICS) ---
+// --- HOME PAGE (STATISTICS) - ОСТАВЛЕН, но не используется ---
 
 function HomePage({ auth }: { auth: AuthData }) {
     const [periodFilter, setPeriodFilter] = useState<HomePeriodFilter>("month");
@@ -522,7 +524,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
     
     // Filters State
-    const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+    const [dateFilter, setDateFilter] = useState<DateFilter>("все"); // ИСПРАВЛЕНО: 'all' на 'все'
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [customDateFrom, setCustomDateFrom] = useState(DEFAULT_DATE_FROM);
     const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
@@ -530,7 +532,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
 
-    const apiDateRange = useMemo(() => dateFilter === "custom" ? { dateFrom: customDateFrom, dateTo: customDateTo } : getDateRange(dateFilter), [dateFilter, customDateFrom, customDateTo]);
+    const apiDateRange = useMemo(() => dateFilter === "период" ? { dateFrom: customDateFrom, dateTo: customDateTo } : getDateRange(dateFilter), [dateFilter, customDateFrom, customDateTo]); // ИСПРАВЛЕНО: 'custom' на 'период'
 
     // Удалена функция findDeliveryDate, используем DateVr напрямую.
 
@@ -581,10 +583,10 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
             <div className="filters-container">
                 <div className="filter-group">
                     <button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); }}>
-                        Дата: {dateFilter === 'custom' ? 'Период' : dateFilter} <ChevronDown className="w-4 h-4"/>
+                        Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                     </button>
                     {isDateDropdownOpen && <div className="filter-dropdown">
-                        {['all', 'today', 'week', 'month', 'custom'].map(key => <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key==='custom') setIsCustomModalOpen(true); }}>{key === 'all' ? 'Все' : key === 'today' ? 'Сегодня' : key === 'week' ? 'Неделя' : key === 'month' ? 'Месяц' : 'Период'}</div>)}
+                        {['все', 'сегодня', 'неделя', 'месяц', 'период'].map(key => <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key==='период') setIsCustomModalOpen(true); }}>{key.charAt(0).toUpperCase() + key.slice(1)}</div>)}
                     </div>}
                 </div>
                 <div className="filter-group">
@@ -773,16 +775,13 @@ const DetailItem = ({ label, value, icon, statusClass, highlighted }: any) => (
     </div>
 );
 
-function StubPage({ title }: { title: string }) { return <div className="w-full p-8 text-center"><h2 className="title">{title}</h2><p className="subtitle">Раздел в разработке</p></div>; }
+// УДАЛЕНО: function StubPage({ title }: { title: string }) { return <div className="w-full p-8 text-center"><h2 className="title">{title}</h2><p className="subtitle">Раздел в разработке</p></div>; }
 
 function TabBar({ active, onChange }: { active: Tab, onChange: (t: Tab) => void }) {
     return (
         <div className="tabbar-container">
-            <TabBtn label="Главная" icon={<Home />} active={active === "home"} onClick={() => onChange("home")} />
-            <TabBtn label="" icon={<Truck />} active={active === "cargo"} onClick={() => onChange("cargo")} />
-            <TabBtn label="Документы" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />
-            <TabBtn label="Поддержка" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />
-            <TabBtn label="Профиль" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
+            {/* ОСТАВЛЕНА ТОЛЬКО КНОПКА "Грузы" */}
+            <TabBtn label="Грузы" icon={<Truck />} active={active === "cargo"} onClick={() => onChange("cargo")} />
         </div>
     );
 }
@@ -810,7 +809,7 @@ export default function App() {
     }, []);
 
     const [auth, setAuth] = useState<AuthData | null>(null);
-    const [activeTab, setActiveTab] = useState<Tab>("cargo"); 
+    const [activeTab, setActiveTab] = useState<Tab>("cargo"); // ИЗМЕНЕНО: По умолчанию только "cargo"
     const [theme, setTheme] = useState('dark'); 
     
     // ИНИЦИАЛИЗАЦИЯ ПУСТЫМИ СТРОКАМИ (данные берутся с фронта)
@@ -838,7 +837,8 @@ export default function App() {
 
         try {
             setLoading(true);
-            const { dateFrom, dateTo } = getDateRange("all");
+            // ИСПРАВЛЕНО: 'all' на 'все'
+            const { dateFrom, dateTo } = getDateRange("все");
             const res = await fetch(PROXY_API_BASE_URL, {
                 method: "POST", 
                 headers: { "Content-Type": "application/json" },
@@ -937,11 +937,8 @@ export default function App() {
             </header>
             <div className="app-main">
                 <div className="w-full max-w-4xl">
-                    {activeTab === "home" && <HomePage auth={auth} />}
+                    {/* УДАЛЕНЫ УСЛОВНЫЕ РЕНДЕРЫ ДЛЯ home, docs, support, profile */}
                     {activeTab === "cargo" && <CargoPage auth={auth} searchText={searchText} />}
-                    {activeTab === "docs" && <StubPage title="Документы" />}
-                    {activeTab === "support" && <StubPage title="Поддержка" />}
-                    {activeTab === "profile" && <StubPage title="Профиль" />}
                 </div>
             </div>
             <TabBar active={activeTab} onChange={setActiveTab} />
