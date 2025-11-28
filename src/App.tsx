@@ -1,63 +1,136 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import CargoPage from "./hooks/CargoPage"; // грузовая страница — твоя текущая
+import "./index.css";
 import "./styles.css";
 
 export default function App() {
-    const [email, setEmail] = useState("");
+    const [auth, setAuth] = useState(() => {
+        try {
+            const stored = localStorage.getItem("haulz_auth");
+            return stored ? JSON.parse(stored) : null;
+        } catch {
+            return null;
+        }
+    });
+
+    const [passwordVisible, setPasswordVisible] = useState(false);
+    const [theme, setTheme] = useState(() => {
+        return localStorage.getItem("theme") || "light";
+    });
+
+    useEffect(() => {
+        document.documentElement.setAttribute("data-theme", theme);
+        localStorage.setItem("theme", theme);
+    }, [theme]);
+
+    const [login, setLogin] = useState("");
     const [password, setPassword] = useState("");
-    const [showPassword, setShowPassword] = useState(false);
-    const [dark, setDark] = useState(false);
+    const [error, setError] = useState("");
 
-    const toggleTheme = () => setDark(!dark);
+    async function handleLogin(e: React.FormEvent) {
+        e.preventDefault();
+        setError("");
 
-    const handleLogin = () => {
-        console.log("Авторизация:", email, password);
-        // здесь твоя авторизация
-    };
+        if (!login || !password) {
+            setError("Введите логин и пароль");
+            return;
+        }
+
+        try {
+            const result = await fetch("/api/perevozki", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ login, password }),
+            });
+
+            if (!result.ok) {
+                setError("Неверный логин или пароль");
+                return;
+            }
+
+            const data = await result.json();
+
+            const session = {
+                login,
+                password,
+                token: data?.token || "",
+            };
+
+            localStorage.setItem("haulz_auth", JSON.stringify(session));
+            setAuth(session);
+        } catch {
+            setError("Ошибка сети.");
+        }
+    }
+
+    // ============================
+    // 🎯 ЕСЛИ НЕТ АВТОРИЗАЦИИ — ПОКАЗЫВАЕМ СТАРУЮ СТРАНИЦУ ЛОГИНА (НЕ МЕНЯЕМ)
+    // ============================
+
+    if (!auth) {
+        return (
+            <div className="login-wrapper">
+                <div className="login-card-new">
+
+                    {/* Тумблер темы — как был */}
+                    <div
+                        className="theme-toggle"
+                        onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+                    >
+                        {theme === "light" ? "🌞" : "🌙"}
+                    </div>
+
+                    <h1 className="login-title">HAULZ</h1>
+                    <p className="login-subtitle">Доставка грузов в Калининград</p>
+
+                    <form className="login-form-modern" onSubmit={handleLogin}>
+                        <input
+                            type="email"
+                            className="input-modern"
+                            placeholder="Логин"
+                            value={login}
+                            onChange={(e) => setLogin(e.target.value)}
+                        />
+
+                        <div className="password-wrapper">
+                            <input
+                                type={passwordVisible ? "text" : "password"}
+                                className="input-modern"
+                                placeholder="Пароль"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                            <button
+                                type="button"
+                                className="password-eye-modern"
+                                onClick={() => setPasswordVisible(!passwordVisible)}
+                            >
+                                {passwordVisible ? "🙈" : "👁️"}
+                            </button>
+                        </div>
+
+                        {error && <div className="login-error-modern">{error}</div>}
+
+                        <button type="submit" className="button-modern-primary">
+                            Войти
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
+
+    // ============================
+    // 🎯 ЕСЛИ ЕСТЬ АВТОРИЗАЦИЯ — СРАЗУ ПОКАЗЫВАЕМ ГРУЗЫ
+    // ============================
 
     return (
-        <div className={`auth-container ${dark ? "dark" : ""}`}>
-            <button className="theme-toggle" onClick={toggleTheme}>
-                {dark ? "🌙" : "☀️"}
-            </button>
-
-            <div className="auth-card">
-                <h1 className="auth-logo">HAULZ</h1>
-                <p className="auth-subtitle">Доставка грузов в Калининград</p>
-
-                <div className="input-group">
-                    <label className="input-label">Email</label>
-                    <input
-                        className="input-field"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Введите email"
-                    />
-                </div>
-
-                <div className="input-group">
-                    <label className="input-label">Пароль</label>
-                    <div className="password-wrapper">
-                        <input
-                            className="input-field"
-                            type={showPassword ? "text" : "password"}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Введите пароль"
-                        />
-                        <button
-                            className="eye-button"
-                            onClick={() => setShowPassword(!showPassword)}
-                        >
-                            {showPassword ? "🙈" : "👁️"}
-                        </button>
-                    </div>
-                </div>
-
-                <button className="login-btn" onClick={handleLogin}>
-                    Войти
-                </button>
-            </div>
-        </div>
+        <CargoPage
+            auth={auth}
+            onLogout={() => {
+                localStorage.removeItem("haulz_auth");
+                setAuth(null);
+            }}
+        />
     );
 }
