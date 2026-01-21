@@ -136,6 +136,26 @@ const getFilterKeyByStatus = (s: string | undefined): StatusFilter => {
 
 const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "accepted": "Принят", "in_transit": "В пути", "ready": "Готов", "delivering": "На доставке", "delivered": "Доставлено" };
 
+const resolveChecked = (value: unknown): boolean => {
+    if (typeof value === "boolean") return value;
+    if (value && typeof value === "object") {
+        const target = (value as { target?: { checked?: boolean } }).target;
+        if (typeof target?.checked === "boolean") return target.checked;
+    }
+    return false;
+};
+
+const getFileNameFromDisposition = (header: string | null, fallback: string) => {
+    if (!header) return fallback;
+    const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1]);
+    const quotedMatch = header.match(/filename="([^"]+)"/i);
+    if (quotedMatch?.[1]) return quotedMatch[1];
+    const plainMatch = header.match(/filename=([^;]+)/i);
+    if (plainMatch?.[1]) return plainMatch[1].trim();
+    return fallback;
+};
+
 
 // ================== COMPONENTS ==================
 
@@ -732,25 +752,45 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         try {
             const res = await fetch(PROXY_API_DOWNLOAD_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, metod: DOCUMENT_METHODS[docType], number: item.Number }) });
             if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
-            const data = await res.json();
+            const contentType = res.headers.get("content-type") || "";
+            const contentDisposition = res.headers.get("content-disposition");
+            const fallbackName = `${docType}_${item.Number}.pdf`;
 
-if (!data?.data || !data.name) {
-    throw new Error("Ответ от сервера не содержит файл.");
-}
+            if (contentType.includes("application/json")) {
+                const data = await res.json();
+                if (!data?.data) {
+                    throw new Error("Ответ от сервера не содержит файл.");
+                }
+                const byteCharacters = atob(data.data);
+                const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: "application/pdf" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = data.name || fallbackName;
+                a.rel = "noopener";
+                a.target = "_blank";
+                a.style.display = "none";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                return;
+            }
 
-// Декодируем base64 в бинарный файл
-const byteCharacters = atob(data.data);
-const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
-const byteArray = new Uint8Array(byteNumbers);
-const blob = new Blob([byteArray], { type: "application/pdf" });
-
-const url = URL.createObjectURL(blob);
-const a = document.createElement("a");
-a.href = url;
-a.download = data.name || `${docType}_${item.Number}.pdf`;
-document.body.appendChild(a);
-a.click();
-document.body.removeChild(a);
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = getFileNameFromDisposition(contentDisposition, fallbackName);
+            a.rel = "noopener";
+            a.target = "_blank";
+            a.style.display = "none";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
@@ -932,8 +972,8 @@ export default function App() {
                         >
                             {/* ИСПРАВЛЕНИЕ: Убран class text-yellow-400 */}
                             {theme === 'dark' 
-                                ? <Sun className="w-5 h-5" /> 
-                                : <Moon className="w-5 h-5" />}
+                                ? <Sun className="w-5 h-5 text-theme-primary" /> 
+                                : <Moon className="w-5 h-5 text-theme-primary" />}
                         </Button>
                     </div>
                     <Flex justify="center" className="mb-4 h-10 mt-6">
@@ -974,13 +1014,21 @@ export default function App() {
                             <Typography.Body>
                                 Согласие с <a href="#">публичной офертой</a>
                             </Typography.Body>
-                            <Switch checked={agreeOffer} onCheckedChange={setAgreeOffer} />
+                            <Switch
+                                checked={agreeOffer}
+                                onCheckedChange={(value) => setAgreeOffer(resolveChecked(value))}
+                                onChange={(event) => setAgreeOffer(resolveChecked(event))}
+                            />
                         </label>
                         <label className="checkbox-row switch-wrapper">
                             <Typography.Body>
                                 Согласие на <a href="#">обработку данных</a>
                             </Typography.Body>
-                            <Switch checked={agreePersonal} onCheckedChange={setAgreePersonal} />
+                            <Switch
+                                checked={agreePersonal}
+                                onCheckedChange={(value) => setAgreePersonal(resolveChecked(value))}
+                                onChange={(event) => setAgreePersonal(resolveChecked(event))}
+                            />
                         </label>
                         <Button className="button-primary" type="submit" disabled={loading}>
                             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
