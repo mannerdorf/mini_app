@@ -891,37 +891,62 @@ const TabBtn = ({ label, icon, active, onClick }: any) => (
 export default function App() {
     // --- Telegram Init ---
     useEffect(() => {
-        const webApp = getWebApp();
-        if (!webApp) return;
+        let mounted = true;
+        let cleanupHandler: (() => void) | undefined;
+        let attempts = 0;
 
-        try {
-            if (typeof webApp.ready === "function") {
-                webApp.ready();
-            }
-            if (typeof webApp.expand === "function") {
-                webApp.expand();
-            }
-            if (typeof webApp.colorScheme === "string") {
-                setTheme(webApp.colorScheme);
-            }
-        } catch {
-            // Игнорируем, если WebApp API частично недоступен
-        }
+        const initWebApp = () => {
+            const webApp = getWebApp();
+            if (!webApp || !mounted) return false;
 
-        const themeHandler = () => {
-            if (typeof webApp.colorScheme === "string") {
-                setTheme(webApp.colorScheme);
+            try {
+                if (typeof webApp.ready === "function") {
+                    webApp.ready();
+                }
+                if (typeof webApp.expand === "function") {
+                    webApp.expand();
+                }
+                if (typeof webApp.colorScheme === "string") {
+                    setTheme(webApp.colorScheme);
+                }
+            } catch {
+                // Игнорируем, если WebApp API частично недоступен
             }
+
+            const themeHandler = () => {
+                if (typeof webApp.colorScheme === "string") {
+                    setTheme(webApp.colorScheme);
+                }
+            };
+
+            if (typeof webApp.onEvent === "function") {
+                webApp.onEvent("themeChanged", themeHandler);
+                cleanupHandler = () => webApp.offEvent?.("themeChanged", themeHandler);
+            }
+
+            return true;
         };
 
-        if (typeof webApp.onEvent === "function") {
-            webApp.onEvent("themeChanged", themeHandler);
+        // На Android WebApp может появиться позже, поэтому немного подождём
+        if (!initWebApp()) {
+            const timer = setInterval(() => {
+                attempts += 1;
+                const ready = initWebApp();
+                if (ready || attempts > 40) {
+                    clearInterval(timer);
+                }
+            }, 100);
+
+            return () => {
+                mounted = false;
+                clearInterval(timer);
+                cleanupHandler?.();
+            };
         }
 
         return () => {
-            if (typeof webApp.offEvent === "function") {
-                webApp.offEvent("themeChanged", themeHandler);
-            }
+            mounted = false;
+            cleanupHandler?.();
         };
     }, []);
 
