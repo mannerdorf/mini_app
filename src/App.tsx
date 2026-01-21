@@ -9,7 +9,15 @@ import React from "react";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import "./styles.css";
 // --- TELEGRAM MINI APP SUPPORT ---
-const getWebApp = () => (typeof window !== "undefined" ? window.Telegram?.WebApp : undefined);
+const getWebApp = () => {
+    if (typeof window === "undefined") return undefined;
+    return (
+        window.Telegram?.WebApp ||
+        (window as any).MAX?.WebApp ||
+        (window as any).max?.WebApp ||
+        (window as any).Max?.WebApp
+    );
+};
 
 import { DOCUMENT_METHODS } from "./documentMethods";
 
@@ -886,14 +894,35 @@ export default function App() {
         const webApp = getWebApp();
         if (!webApp) return;
 
-        webApp.ready();
-        webApp.expand();
-        setTheme(webApp.colorScheme);
+        try {
+            if (typeof webApp.ready === "function") {
+                webApp.ready();
+            }
+            if (typeof webApp.expand === "function") {
+                webApp.expand();
+            }
+            if (typeof webApp.colorScheme === "string") {
+                setTheme(webApp.colorScheme);
+            }
+        } catch {
+            // Игнорируем, если WebApp API частично недоступен
+        }
 
-        const themeHandler = () => setTheme(webApp.colorScheme);
-        webApp.onEvent("themeChanged", themeHandler);
+        const themeHandler = () => {
+            if (typeof webApp.colorScheme === "string") {
+                setTheme(webApp.colorScheme);
+            }
+        };
 
-        return () => webApp.offEvent("themeChanged", themeHandler);
+        if (typeof webApp.onEvent === "function") {
+            webApp.onEvent("themeChanged", themeHandler);
+        }
+
+        return () => {
+            if (typeof webApp.offEvent === "function") {
+                webApp.offEvent("themeChanged", themeHandler);
+            }
+        };
     }, []);
 
     const [auth, setAuth] = useState<AuthData | null>(null);
