@@ -9,9 +9,7 @@ import React from "react";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import "./styles.css";
 // --- TELEGRAM MINI APP SUPPORT ---
-import WebApp from "@twa-dev/sdk";
-
-const isTg = () => typeof window !== "undefined" && window.Telegram?.WebApp;
+const getWebApp = () => (typeof window !== "undefined" ? window.Telegram?.WebApp : undefined);
 
 import { DOCUMENT_METHODS } from "./documentMethods";
 
@@ -885,16 +883,17 @@ const TabBtn = ({ label, icon, active, onClick }: any) => (
 export default function App() {
     // --- Telegram Init ---
     useEffect(() => {
-        if (!isTg()) return;
+        const webApp = getWebApp();
+        if (!webApp) return;
 
-        WebApp.ready();
-        WebApp.expand();
-        setTheme(WebApp.colorScheme);
+        webApp.ready();
+        webApp.expand();
+        setTheme(webApp.colorScheme);
 
-        const themeHandler = () => setTheme(WebApp.colorScheme);
-        WebApp.onEvent("themeChanged", themeHandler);
+        const themeHandler = () => setTheme(webApp.colorScheme);
+        webApp.onEvent("themeChanged", themeHandler);
 
-        return () => WebApp.offEvent("themeChanged", themeHandler);
+        return () => webApp.offEvent("themeChanged", themeHandler);
     }, []);
 
     const [auth, setAuth] = useState<AuthData | null>(null);
