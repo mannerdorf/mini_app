@@ -6,6 +6,7 @@ import {
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
+import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import "./styles.css";
 // --- TELEGRAM MINI APP SUPPORT ---
 import WebApp from "@twa-dev/sdk";
@@ -285,93 +286,93 @@ function HomePage({ auth }: { auth: AuthData }) {
         <div className="w-full max-w-lg">
             {/* Заголовок периода */}
             <div className="home-period-header mb-6">
-                <button
+                <Button
                     className="home-period-button"
                     onClick={() => setIsPeriodModalOpen(true)}
                 >
-                    <span className="home-period-title">
+                    <Typography.Body className="home-period-title">
                         Период:{" "}
-                        <span className="home-period-value">
+                        <Typography.Label className="home-period-value">
                             {periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)}
-                        </span>
-                    </span>
+                        </Typography.Label>
+                    </Typography.Body>
                     <ChevronDown className="w-5 h-5 ml-2" />
-                </button>
+                </Button>
             </div>
 
             {/* Карточки статистики */}
-            <div className="stats-grid">
-                <div className="stat-card">
+            <Grid className="stats-grid" cols={2} gap={12}>
+                <Panel className="stat-card">
                     <div className="flex justify-between items-center mb-2">
                         <Package className="w-5 h-5 text-theme-primary" />
-                        <span className="text-xs text-theme-secondary">
+                        <Typography.Label className="text-xs text-theme-secondary">
                             За период
-                        </span>
+                        </Typography.Label>
                     </div>
-                    <div className="text-2xl font-bold text-white">
+                    <Typography.Display className="text-2xl font-bold text-white">
                         {totalShipments}
-                    </div>
-                    <div className="text-sm text-theme-secondary mt-1">
+                    </Typography.Display>
+                    <Typography.Label className="text-sm text-theme-secondary mt-1">
                         Всего перевозок
-                    </div>
-                </div>
+                    </Typography.Label>
+                </Panel>
 
-                <div className="stat-card">
+                <Panel className="stat-card">
                     <div className="flex justify-between items-center mb-2">
                         <Scale className="w-5 h-5 text-theme-primary" />
-                        <span className="text-xs text-theme-secondary">
+                        <Typography.Label className="text-xs text-theme-secondary">
                             Платный вес
-                        </span>
+                        </Typography.Label>
                     </div>
-                    <div className="text-2xl font-bold text-white">
+                    <Typography.Display className="text-2xl font-bold text-white">
                         {formatTons(totalPaidWeight)}
-                    </div>
-                    <div className="text-sm text-theme-secondary mt-1">
+                    </Typography.Display>
+                    <Typography.Label className="text-sm text-theme-secondary mt-1">
                         Платный вес за период
-                    </div>
-                </div>
+                    </Typography.Label>
+                </Panel>
 
-                <div className="stat-card">
+                <Panel className="stat-card">
                     <div className="flex justify-between items-center mb-2">
                         <Weight className="w-5 h-5 text-theme-primary" />
-                        <span className="text-xs text-theme-secondary">Вес</span>
+                        <Typography.Label className="text-xs text-theme-secondary">Вес</Typography.Label>
                     </div>
-                    <div className="text-2xl font-bold text-white">
+                    <Typography.Display className="text-2xl font-bold text-white">
                         {formatTons(totalWeight)}
-                    </div>
-                    <div className="text-sm text-theme-secondary mt-1">
+                    </Typography.Display>
+                    <Typography.Label className="text-sm text-theme-secondary mt-1">
                         Фактический вес за период
-                    </div>
-                </div>
+                    </Typography.Label>
+                </Panel>
 
-                <div className="stat-card">
+                <Panel className="stat-card">
                     <div className="flex justify-between items-center mb-2">
                         <Maximize className="w-5 h-5 text-theme-primary" />
-                        <span className="text-xs text-theme-secondary">Объем</span>
+                        <Typography.Label className="text-xs text-theme-secondary">Объем</Typography.Label>
                     </div>
-                    <div className="text-2xl font-bold text-white">
+                    <Typography.Display className="text-2xl font-bold text-white">
                         {totalVolume.toFixed(1)}м³
-                    </div>
-                    <div className="text-sm text-theme-secondary mt-1">
+                    </Typography.Display>
+                    <Typography.Label className="text-sm text-theme-secondary mt-1">
                         Объем за период
-                    </div>
-                </div>
-            </div>
+                    </Typography.Label>
+                </Panel>
+            </Grid>
 
             {/* Загрузка / ошибка */}
             {loading && (
-                <div className="text-center py-8">
+                <Flex direction="column" align="center" className="text-center py-8">
                     <Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" />
-                    <p className="text-sm text-theme-secondary mt-2">
+                    <Typography.Body className="text-sm text-theme-secondary mt-2">
                         Обновление данных...
-                    </p>
-                </div>
+                    </Typography.Body>
+                </Flex>
             )}
             {error && (
-                <div className="login-error mt-4">
+                <Flex align="center" className="login-error mt-4">
                     <AlertTriangle className="w-5 h-5 mr-2" />
-                    {error}
-                </div>
+                    <Typography.Body>{error}</Typography.Body>
+                </Flex>
             )}
 
             {/* Модальное окно выбора периода */}
@@ -385,34 +386,35 @@ function HomePage({ auth }: { auth: AuthData }) {
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="modal-header">
-                            <h3>Выбор периода</h3>
-                            <button
+                            <Typography.Headline>Выбор периода</Typography.Headline>
+                            <Button
                                 className="modal-close-button"
                                 onClick={() => setIsPeriodModalOpen(false)}
+                                aria-label="Закрыть"
                             >
                                 <X size={20} />
-                            </button>
+                            </Button>
                         </div>
                         <div className="space-y-3">
-                            <button
+                            <Button
                                 className="period-option-button"
                                 onClick={() => selectPeriod("week")}
                             >
                                 Неделя
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                                 className="period-option-button"
                                 onClick={() => selectPeriod("month")}
                             >
                                 Месяц
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                                 className="period-option-button"
                                 onClick={() => selectPeriod("year")}
                             >
                                 Год
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                                 className="period-option-button"
                                 onClick={() => {
                                     setIsPeriodModalOpen(false);
@@ -421,7 +423,7 @@ function HomePage({ auth }: { auth: AuthData }) {
                                 }}
                             >
                                 Произвольный период
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 </div>
@@ -478,18 +480,19 @@ function CustomPeriodModal({
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="modal-header">
-                    <h3>Произвольный период</h3>
-                    <button
+                    <Typography.Headline>Произвольный период</Typography.Headline>
+                    <Button
                         className="modal-close-button"
                         onClick={onClose}
+                        aria-label="Закрыть"
                     >
                         <X size={20} />
-                    </button>
+                    </Button>
                 </div>
                 <div className="modal-body">
                     <label className="modal-label">
                         Дата с
-                        <input
+                        <Input
                             type="date"
                             className="modal-input"
                             value={localFrom}
@@ -498,7 +501,7 @@ function CustomPeriodModal({
                     </label>
                     <label className="modal-label">
                         Дата по
-                        <input
+                        <Input
                             type="date"
                             className="modal-input"
                             value={localTo}
@@ -507,9 +510,9 @@ function CustomPeriodModal({
                     </label>
                 </div>
                 <div className="modal-footer">
-                    <button className="primary-button" onClick={handleApply}>
+                    <Button className="primary-button" onClick={handleApply}>
                         Применить
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
@@ -582,47 +585,82 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
             {/* Filters */}
             <div className="filters-container">
                 <div className="filter-group">
-                    <button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); }}>
+                    <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); }}>
                         Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
-                    </button>
+                    </Button>
                     {isDateDropdownOpen && <div className="filter-dropdown">
-                        {['все', 'сегодня', 'неделя', 'месяц', 'период'].map(key => <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key==='период') setIsCustomModalOpen(true); }}>{key.charAt(0).toUpperCase() + key.slice(1)}</div>)}
+                        {['все', 'сегодня', 'неделя', 'месяц', 'период'].map(key => (
+                            <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key==='период') setIsCustomModalOpen(true); }}>
+                                <Typography.Body>{key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
+                            </div>
+                        ))}
                     </div>}
                 </div>
                 <div className="filter-group">
-                    <button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); }}>
+                    <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); }}>
                         Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
-                    </button>
+                    </Button>
                     {isStatusDropdownOpen && <div className="filter-dropdown">
-                        {Object.keys(STATUS_MAP).map(key => <div key={key} className="dropdown-item" onClick={() => { setStatusFilter(key as any); setIsStatusDropdownOpen(false); }}>{STATUS_MAP[key as StatusFilter]}</div>)}
+                        {Object.keys(STATUS_MAP).map(key => (
+                            <div key={key} className="dropdown-item" onClick={() => { setStatusFilter(key as any); setIsStatusDropdownOpen(false); }}>
+                                <Typography.Body>{STATUS_MAP[key as StatusFilter]}</Typography.Body>
+                            </div>
+                        ))}
                     </div>}
                 </div>
             </div>
 
-            <p className="text-sm text-theme-secondary mb-4 text-center">
-                 Период: {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
-            </p>
+            <Typography.Body className="text-sm text-theme-secondary mb-4 text-center">
+                Период: {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
+            </Typography.Body>
 
             {/* List */}
-            {loading && <div className="text-center py-8"><Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" /></div>}
+            {loading && (
+                <Flex justify="center" className="text-center py-8">
+                    <Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" />
+                </Flex>
+            )}
             {!loading && !error && filteredItems.length === 0 && (
-                <div className="empty-state-card">
-                    <Package className="w-12 h-12 mx-auto mb-4 text-theme-secondary opacity-50" />
-                    <p className="text-theme-secondary">Ничего не найдено</p>
-                </div>
+                <Panel className="empty-state-card">
+                    <Flex direction="column" align="center">
+                        <Package className="w-12 h-12 mx-auto mb-4 text-theme-secondary opacity-50" />
+                        <Typography.Body className="text-theme-secondary">Ничего не найдено</Typography.Body>
+                    </Flex>
+                </Panel>
             )}
             
             <div className="cargo-list">
                 {filteredItems.map((item: CargoItem, idx: number) => (
-                    <div key={item.Number || idx} className="cargo-card mb-4" onClick={() => setSelectedCargo(item)}>
-                        <div className="cargo-header-row"><span className="order-number">{item.Number}</span><span className="date"><Calendar className="w-3 h-3 mr-1"/>{formatDate(item.DatePrih)}</span></div>
+                    <Panel key={item.Number || idx} className="cargo-card mb-4" onClick={() => setSelectedCargo(item)}>
+                        <Flex justify="space-between" align="center" className="cargo-header-row">
+                            <Typography.Title className="order-number">{item.Number}</Typography.Title>
+                        <Flex align="center" className="date">
+                                <Calendar className="w-3 h-3 mr-1" />
+                            <Typography.Label>{formatDate(item.DatePrih)}</Typography.Label>
+                            </Flex>
+                        </Flex>
                         <div className="cargo-details-grid">
-                            <div className="detail-item"><Tag className="w-4 h-4 text-theme-primary"/><div className="detail-item-label">Статус</div><div className={getStatusClass(item.State)}>{item.State}</div></div>
-                            <div className="detail-item"><Layers className="w-4 h-4 text-theme-primary"/><div className="detail-item-label">Мест</div><div className="detail-item-value">{item.Mest || '-'}</div></div>
-                            <div className="detail-item"><Scale className="w-4 h-4 text-theme-primary"/><div className="detail-item-label">Плат. вес</div><div className="detail-item-value">{item.PW || '-'}</div></div>
+                            <div className="detail-item">
+                                <Tag className="w-4 h-4 text-theme-primary"/>
+                                <Typography.Label className="detail-item-label">Статус</Typography.Label>
+                                <Typography.Body className={getStatusClass(item.State)}>{item.State}</Typography.Body>
+                            </div>
+                            <div className="detail-item">
+                                <Layers className="w-4 h-4 text-theme-primary"/>
+                                <Typography.Label className="detail-item-label">Мест</Typography.Label>
+                                <Typography.Body className="detail-item-value">{item.Mest || '-'}</Typography.Body>
+                            </div>
+                            <div className="detail-item">
+                                <Scale className="w-4 h-4 text-theme-primary"/>
+                                <Typography.Label className="detail-item-label">Плат. вес</Typography.Label>
+                                <Typography.Body className="detail-item-value">{item.PW || '-'}</Typography.Body>
+                            </div>
                         </div>
-                        <div className="cargo-footer"><span className="sum-label">Сумма</span><span className="sum-value">{formatCurrency(item.Sum)}</span></div>
-                    </div>
+                        <Flex justify="space-between" align="center" className="cargo-footer">
+                            <Typography.Label className="sum-label">Сумма</Typography.Label>
+                            <Typography.Title className="sum-value">{formatCurrency(item.Sum)}</Typography.Title>
+                        </Flex>
+                    </Panel>
                 ))}
             </div>
 
@@ -642,11 +680,14 @@ function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: { isOpen: 
     return (
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
-                <div className="modal-header"><h3>Произвольный диапазон</h3><button className="modal-close-button" onClick={onClose}><X size={20} /></button></div>
+                <div className="modal-header">
+                    <Typography.Headline>Произвольный диапазон</Typography.Headline>
+                    <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></Button>
+                </div>
                 <form onSubmit={e => { e.preventDefault(); onApply(tempFrom, tempTo); onClose(); }}>
-                    <div style={{marginBottom: '1rem'}}><label className="detail-item-label">Дата начала:</label><input type="date" className="login-input date-input" value={tempFrom} onChange={e => setTempFrom(e.target.value)} required /></div>
-                    <div style={{marginBottom: '1.5rem'}}><label className="detail-item-label">Дата окончания:</label><input type="date" className="login-input date-input" value={tempTo} onChange={e => setTempTo(e.target.value)} required /></div>
-                    <button className="button-primary" type="submit">Применить</button>
+                    <div style={{marginBottom: '1rem'}}><Typography.Label className="detail-item-label">Дата начала:</Typography.Label><Input type="date" className="login-input date-input" value={tempFrom} onChange={e => setTempFrom(e.target.value)} required /></div>
+                    <div style={{marginBottom: '1.5rem'}}><Typography.Label className="detail-item-label">Дата окончания:</Typography.Label><Input type="date" className="login-input date-input" value={tempTo} onChange={e => setTempTo(e.target.value)} required /></div>
+                    <Button className="button-primary" type="submit">Применить</Button>
                 </form>
             </div>
         </div>
@@ -721,9 +762,9 @@ document.body.removeChild(a);
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     {/* Заголовок без "Перевозка" */}
-                    <button className="modal-close-button" onClick={onClose}><X size={20} /></button>
+                    <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></Button>
                 </div>
-                {downloadError && <p className="login-error mb-2">{downloadError}</p>}
+                {downloadError && <Typography.Body className="login-error mb-2">{downloadError}</Typography.Body>}
                 
                 {/* Явно отображаемые поля (из API примера) */}
                 <div className="details-grid-modal">
@@ -755,12 +796,14 @@ document.body.removeChild(a);
                         })}
                 </div>
                 
-                <h4 style={{marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>Документы</h4>
+                <Typography.Headline style={{marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
+                    Документы
+                </Typography.Headline>
                 <div className="document-buttons">
                     {['ЭР', 'АПП', 'СЧЕТ', 'УПД'].map(doc => (
-                        <button key={doc} className="doc-button" onClick={() => handleDownload(doc)} disabled={downloading === doc}>
+                        <Button key={doc} className="doc-button" onClick={() => handleDownload(doc)} disabled={downloading === doc}>
                             {downloading === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} {doc}
-                        </button>
+                        </Button>
                     ))}
                 </div>
             </div>
@@ -770,8 +813,11 @@ document.body.removeChild(a);
 
 const DetailItem = ({ label, value, icon, statusClass, highlighted }: any) => (
     <div className={`details-item-modal ${highlighted ? 'highlighted-detail' : ''}`}>
-        <div className="detail-item-label">{label}</div>
-        <div className={`detail-item-value flex items-center ${statusClass || ''}`}>{icon} {value}</div>
+        <Typography.Label className="detail-item-label">{label}</Typography.Label>
+        <Flex align="center" className={`detail-item-value ${statusClass || ''}`}>
+            {icon}
+            <Typography.Body>{value}</Typography.Body>
+        </Flex>
     </div>
 );
 
@@ -786,9 +832,12 @@ function TabBar({ active, onChange }: { active: Tab, onChange: (t: Tab) => void 
     );
 }
 const TabBtn = ({ label, icon, active, onClick }: any) => (
-    <button className={`tab-button ${active ? 'active' : ''}`} onClick={onClick}>
-        <span className="tab-icon">{icon}</span>{label && <span className="tab-label">{label}</span>}
-    </button>
+    <Button className={`tab-button ${active ? 'active' : ''}`} onClick={onClick}>
+        <Flex align="center">
+            <div className="tab-icon">{icon}</div>
+            {label && <Typography.Label className="tab-label">{label}</Typography.Label>}
+        </Flex>
+    </Button>
 );
 
 // ----------------- MAIN APP -----------------
@@ -872,67 +921,103 @@ export default function App() {
 
     if (!auth) {
         return (
-            <div className={`app-container login-form-wrapper`}>
-                <div className="login-card">
+            <Container className={`app-container login-form-wrapper`}>
+                <Panel mode="secondary" className="login-card">
                     <div className="absolute top-4 right-4">
-                        <button className="theme-toggle-button-login" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'}>
+                        <Button
+                            className="theme-toggle-button-login"
+                            onClick={toggleTheme}
+                            title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'}
+                            aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}
+                        >
                             {/* ИСПРАВЛЕНИЕ: Убран class text-yellow-400 */}
                             {theme === 'dark' 
                                 ? <Sun className="w-5 h-5" /> 
                                 : <Moon className="w-5 h-5" />}
-                        </button>
+                        </Button>
                     </div>
-                    <div className="flex justify-center mb-4 h-10 mt-6"><div className="logo-text">HAULZ</div></div>
-                    <div className="tagline">Доставка грузов в Калининград и обратно</div>
+                    <Flex justify="center" className="mb-4 h-10 mt-6">
+                        <Typography.Title className="logo-text">HAULZ</Typography.Title>
+                    </Flex>
+                    <Typography.Body className="tagline">
+                        Доставка грузов в Калининград и обратно
+                    </Typography.Body>
                     <form onSubmit={handleLoginSubmit} className="form">
                         <div className="field">
-                            <input className="login-input" type="text" placeholder="Логин (email)" value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" />
+                            <Input
+                                className="login-input"
+                                type="text"
+                                placeholder="Логин (email)"
+                                value={login}
+                                onChange={(e) => setLogin(e.target.value)}
+                                autoComplete="username"
+                            />
                         </div>
                         <div className="field">
                             <div className="password-input-container">
-                                <input className="login-input password" type={showPassword ? "text" : "password"} placeholder="Пароль" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" style={{paddingRight: '3rem'}} />
-                                <button type="button" className="toggle-password-visibility" onClick={() => setShowPassword(!showPassword)}>
+                                <Input
+                                    className="login-input password"
+                                    type={showPassword ? "text" : "password"}
+                                    placeholder="Пароль"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    autoComplete="current-password"
+                                    style={{paddingRight: '3rem'}}
+                                />
+                                <Button type="button" className="toggle-password-visibility" onClick={() => setShowPassword(!showPassword)}>
                                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                </button>
+                                </Button>
                             </div>
                         </div>
                         {/* ТУМБЛЕРЫ ВОССТАНОВЛЕНЫ */}
                         <label className="checkbox-row switch-wrapper">
-                            <span>Согласие с <a href="#">публичной офертой</a></span>
-                            <div className={`switch-container ${agreeOffer ? 'checked' : ''}`} onClick={() => setAgreeOffer(!agreeOffer)}><div className="switch-knob"></div></div>
+                            <Typography.Body>
+                                Согласие с <a href="#">публичной офертой</a>
+                            </Typography.Body>
+                            <Switch checked={agreeOffer} onCheckedChange={setAgreeOffer} />
                         </label>
                         <label className="checkbox-row switch-wrapper">
-                            <span>Согласие на <a href="#">обработку данных</a></span>
-                            <div className={`switch-container ${agreePersonal ? 'checked' : ''}`} onClick={() => setAgreePersonal(!agreePersonal)}><div className="switch-knob"></div></div>
+                            <Typography.Body>
+                                Согласие на <a href="#">обработку данных</a>
+                            </Typography.Body>
+                            <Switch checked={agreePersonal} onCheckedChange={setAgreePersonal} />
                         </label>
-                        <button className="button-primary" type="submit" disabled={loading}>
+                        <Button className="button-primary" type="submit" disabled={loading}>
                             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
-                        </button>
+                        </Button>
                     </form>
-                    {error && <p className="login-error mt-4"><AlertTriangle className="w-5 h-5 mr-2" />{error}</p>}
-                </div>
-            </div>
+                    {error && (
+                        <Flex align="center" className="login-error mt-4">
+                            <AlertTriangle className="w-5 h-5 mr-2" />
+                            <Typography.Body>{error}</Typography.Body>
+                        </Flex>
+                    )}
+                </Panel>
+            </Container>
         );
     }
 
     return (
-        <div className={`app-container`}>
+        <Container className={`app-container`}>
             <header className="app-header">
-                <div className="header-top-row">
-                    <div className="header-auth-info"><UserIcon className="w-4 h-4 mr-2" /><span>{auth.login}</span></div>
-                    <div className="flex items-center space-x-3">
-                        <button className="search-toggle-button" onClick={() => { setIsSearchExpanded(!isSearchExpanded); if(isSearchExpanded) { handleSearch(''); setSearchText(''); } }}>
+                <Flex align="center" justify="space-between" className="header-top-row">
+                    <Flex align="center" className="header-auth-info">
+                        <UserIcon className="w-4 h-4 mr-2" />
+                        <Typography.Body>{auth.login}</Typography.Body>
+                    </Flex>
+                    <Flex align="center" className="space-x-3">
+                        <Button className="search-toggle-button" onClick={() => { setIsSearchExpanded(!isSearchExpanded); if(isSearchExpanded) { handleSearch(''); setSearchText(''); } }}>
                             {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
-                        </button>
-                        <button className="search-toggle-button" onClick={handleLogout} title="Выход">
+                        </Button>
+                        <Button className="search-toggle-button" onClick={handleLogout} title="Выход" aria-label="Выйти">
                             <LogOut className="w-5 h-5" />
-                        </button>
-                    </div>
-                </div>
+                        </Button>
+                    </Flex>
+                </Flex>
                 <div className={`search-container ${isSearchExpanded ? 'expanded' : 'collapsed'}`}>
                     <Search className="w-5 h-5 text-theme-secondary flex-shrink-0 ml-1" />
-                    <input type="search" placeholder="Поиск..." className="search-input" value={searchText} onChange={(e) => { setSearchText(e.target.value); handleSearch(e.target.value); }} />
-                    {searchText && <button className="search-toggle-button" onClick={() => { setSearchText(''); handleSearch(''); }}><X className="w-4 h-4" /></button>}
+                    <Input type="search" placeholder="Поиск..." className="search-input" value={searchText} onChange={(e) => { setSearchText(e.target.value); handleSearch(e.target.value); }} />
+                    {searchText && <Button className="search-toggle-button" onClick={() => { setSearchText(''); handleSearch(''); }} aria-label="Очистить поиск"><X className="w-4 h-4" /></Button>}
                 </div>
             </header>
             <div className="app-main">
@@ -942,6 +1027,6 @@ export default function App() {
                 </div>
             </div>
             <TabBar active={activeTab} onChange={setActiveTab} />
-        </div>
+        </Container>
     );
 }

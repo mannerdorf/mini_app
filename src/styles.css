@@ -200,8 +200,8 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 }
 .cargo-card:hover { box-shadow: 0 6px 10px rgba(59, 130, 246, 0.15); border-color: var(--color-primary-blue); }
 .cargo-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-.order-number { font-size: 1.1rem; font-weight: 700; color: var(--color-text-primary); }
-.date { font-size: 0.8rem; color: var(--color-text-secondary); display: flex; align-items: center; }
+.order-number { color: var(--color-text-primary); }
+.date { color: var(--color-text-secondary); display: flex; align-items: center; }
 .cargo-details-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -218,11 +218,11 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     padding: 0.25rem;
     border-radius: 0.25rem;
 }
-.detail-item-label { font-size: 0.7rem; color: var(--color-text-secondary); margin-bottom: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.detail-item-value { font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; }
+.detail-item-label { color: var(--color-text-secondary); margin-bottom: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail-item-value { display: flex; align-items: center; }
 .cargo-footer { display: flex; justify-content: space-between; align-items: center; }
-.sum-label { font-size: 0.8rem; color: var(--color-text-secondary); }
-.sum-value { font-size: 1.2rem; font-weight: 700; color: var(--color-success-status); }
+.sum-label { color: var(--color-text-secondary); }
+.sum-value { color: var(--color-success-status); }
 
 /* --- STATUS BADGES --- */
 .status-value { padding: 0.2rem 0.4rem; border-radius: 0.5rem; font-size: 0.8rem; font-weight: 700; color: var(--color-text-primary); background-color: var(--color-bg-hover); }
@@ -242,7 +242,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 /* --- MODAL --- */
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--color-modal-bg); z-index: 50; display: flex; justify-content: center; align-items: center; padding: 1rem; }
 .modal-content { background-color: var(--color-bg-card); width: 90%; max-width: 500px; border-radius: 1rem; padding: 1.5rem; margin-bottom: 2rem; border: 1px solid var(--color-border); max-height: 90vh; overflow-y: auto; }
-.modal-header { display: flex; justify-content: space-between; margin-bottom: 1rem; font-weight: 700; font-size: 1.2rem; align-items: center; }
+.modal-header { display: flex; justify-content: space-between; margin-bottom: 1rem; align-items: center; }
 .modal-close-button { background: none; border: none; color: var(--color-text-secondary); cursor: pointer; }
 .document-buttons { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
 .doc-button { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0.5rem; background-color: var(--color-primary-blue); color: white; border-radius: 0.5rem; border: none; cursor: pointer; font-size: 0.8rem; min-width: 80px; transition: background-color 0.3s; }
