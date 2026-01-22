@@ -74,21 +74,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     };
 
-    const upstreamReq = https.request(options, (upstreamRes) => {
+      const upstreamReq = https.request(options, (upstreamRes) => {
       const statusCode = upstreamRes.statusCode || 500;
-      const contentType =
+      const upstreamContentType =
         upstreamRes.headers["content-type"] || "application/octet-stream";
-      const contentDisposition =
-        upstreamRes.headers["content-disposition"] ||
-        `attachment; filename="${encodeURIComponent(
-          `${metod}_${number}.pdf`,
-        )}"`;
-
+      
       console.log(
         "⬅️ Upstream status:",
         statusCode,
         "type:",
-        contentType,
+        upstreamContentType,
         "len:",
         upstreamRes.headers["content-length"],
       );
@@ -102,9 +97,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       // Нормальный сценарий — прокидываем файл потоком
+      // Для просмотра в браузере используем inline и явный PDF Content-Type
       res.status(200);
-      res.setHeader("Content-Type", contentType);
-      res.setHeader("Content-Disposition", contentDisposition);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(
+        `${metod}_${number}.pdf`,
+      )}"`);
 
       upstreamRes.on("error", (err) => {
         console.error("🔥 Upstream stream error:", err.message);
