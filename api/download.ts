@@ -96,13 +96,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return;
       }
 
-      // Нормальный сценарий — прокидываем файл потоком
-      // Для просмотра в браузере используем inline и явный PDF Content-Type
-      res.status(200);
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(
-        `${metod}_${number}.pdf`,
-      )}"`);
+      // Буферизуем первые байты для проверки формата
+      let firstChunk: Buffer | null = null;
+      let chunks: Buffer[] = [];
+      
+      upstreamRes.on("data", (chunk: Buffer) => {
+        if (firstChunk === null) {
+          firstChunk = chunk;
+          const header = chunk.slice(0, 4).toString();
+          console.log("📄 File header:", header, "isPDF:", header.startsWith("%PDF"));
+          
+          // Если не PDF, логируем первые 100 байт для диагностики
+          if (!header.startsWith("%PDF")) {
+            console.log("⚠️ Not a PDF! First 100 bytes:", chunk.slice(0, 100).toString());
+          }
+        }
+        chunks.push(chunk);
+      });
+
+      upstreamRes.on("end", () => {
+        const fullBuffer = Buffer.concat(chunks);
+        console.log("📦 Total size:", fullBuffer.length, "bytes");
+        
+        // Проверяем, что это действительно PDF
+        if (!fullBuffer.slice(0, 4).toString().startsWith("%PDF")) {
+          console.error("❌ File is not a valid PDF!");
+          // Но всё равно отдаём, может быть это другой формат документа
+        }
+
+        // Нормальный сценарий — отдаём файл
+        res.status(200);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(
+          `${metod}_${number}.pdf`,
+        )}"`);
+        res.setHeader("Content-Length", fullBuffer.length.toString());
+        res.end(fullBuffer);
+      });
 
       upstreamRes.on("error", (err) => {
         console.error("🔥 Upstream stream error:", err.message);
@@ -114,8 +144,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           res.end();
         }
       });
-
-      upstreamRes.pipe(res);
     });
 
     upstreamReq.on("error", (err) => {
