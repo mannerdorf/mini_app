@@ -1322,6 +1322,27 @@ export default function App() {
                         <Button className="button-primary" type="submit" disabled={loading}>
                             {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
                         </Button>
+                        <Flex justify="center" style={{ marginTop: '1rem' }}>
+                            <Typography.Body 
+                                style={{ 
+                                    color: 'var(--color-primary-blue)', 
+                                    cursor: 'pointer',
+                                    textDecoration: 'underline',
+                                    fontSize: '0.9rem'
+                                }}
+                                onClick={() => {
+                                    const webApp = getWebApp();
+                                    const forgotPasswordUrl = 'https://lk.haulz.pro/forgot-password';
+                                    if (webApp && typeof webApp.openLink === 'function') {
+                                        webApp.openLink(forgotPasswordUrl);
+                                    } else {
+                                        window.open(forgotPasswordUrl, '_blank', 'noopener,noreferrer');
+                                    }
+                                }}
+                            >
+                                Забыли пароль?
+                            </Typography.Body>
+                        </Flex>
                     </form>
                     {error && (
                         <Flex align="center" className="login-error mt-4">
