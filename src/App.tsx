@@ -798,10 +798,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                 onClick={() => setShowSummary(!showSummary)}
             >
                 <Flex justify="space-between" align="center">
-                    <Flex align="center" gap="0.5rem">
-                        {showSummary ? <ChevronDown className="w-4 h-4 text-theme-secondary" /> : <ChevronDown className="w-4 h-4 text-theme-secondary" style={{ transform: 'rotate(-90deg)' }} />}
-                        <Typography.Label>Итого</Typography.Label>
-                    </Flex>
+                    {showSummary ? <ChevronDown className="w-4 h-4 text-theme-secondary" /> : <ChevronDown className="w-4 h-4 text-theme-secondary" style={{ transform: 'rotate(-90deg)' }} />}
                     {showSummary && (
                         <Flex gap="1.5rem" align="center" style={{ flexWrap: 'wrap' }}>
                             <Flex direction="column" align="center">
