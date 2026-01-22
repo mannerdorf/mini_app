@@ -849,17 +849,6 @@ function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: { isOpen: 
 function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, isOpen: boolean, onClose: () => void, auth: AuthData }) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
-    const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string; docType: string } | null>(null);
-    const [sendingToChat, setSendingToChat] = useState(false);
-    
-    // Очистка blob URL при закрытии модального окна
-    useEffect(() => {
-        if (!isOpen && pdfViewer) {
-            URL.revokeObjectURL(pdfViewer.url);
-            setPdfViewer(null);
-        }
-    }, [isOpen, pdfViewer]);
-    
     if (!isOpen) return null;
 
     const renderValue = (val: any, unit = '') => {
@@ -916,13 +905,14 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
             const byteArray = new Uint8Array(byteNumbers);
             const blob = new Blob([byteArray], { type: "application/pdf" });
 
-            // Создаем blob URL для просмотра в модальном окне
             const url = URL.createObjectURL(blob);
-            setPdfViewer({
-                url,
-                name: data.name || `${docType}_${item.Number}.pdf`,
-                docType
-            });
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = data.name || `${docType}_${item.Number}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
@@ -980,91 +970,6 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     ))}
                 </div>
             </div>
-            
-            {/* Модальное окно для просмотра PDF */}
-            {pdfViewer && (() => {
-                const handleDownloadPdf = () => {
-                    const a = document.createElement("a");
-                    a.href = pdfViewer.url;
-                    a.download = pdfViewer.name;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                };
-
-                const handleSendPdfToChat = async () => {
-                    if (!item.Number) return;
-                    
-                    const webApp = getWebApp();
-                    const chatId = webApp?.initDataUnsafe?.user?.id;
-                    
-                    if (!chatId) {
-                        setDownloadError("Не удалось получить ID пользователя. Откройте приложение через Telegram.");
-                        return;
-                    }
-                    
-                    setSendingToChat(true);
-                    setDownloadError(null);
-                    
-                    try {
-                        const metod = DOCUMENT_METHODS[pdfViewer.docType];
-                        const response = await fetch(PROXY_API_SEND_DOC_URL, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                login: auth.login,
-                                password: auth.password,
-                                metod,
-                                number: item.Number,
-                                chatId,
-                            }),
-                        });
-                        
-                        const data = await response.json();
-                        
-                        if (!response.ok) {
-                            throw new Error(data.message || data.error || `Ошибка: ${response.status}`);
-                        }
-                        
-                        alert(`✅ Документ ${pdfViewer.docType} отправлен в чат!`);
-                        
-                    } catch (e: any) {
-                        setDownloadError(e.message || "Ошибка отправки");
-                        console.error("Send to chat error:", e);
-                    } finally {
-                        setSendingToChat(false);
-                    }
-                };
-
-                return (
-                    <div className="modal-overlay" style={{ zIndex: 10001 }} onClick={() => {
-                        URL.revokeObjectURL(pdfViewer.url);
-                        setPdfViewer(null);
-                    }}>
-                        <div className="modal-content" style={{ maxWidth: '76vw', maxHeight: '76vh', width: '100%', height: '100%', padding: 0 }} onClick={e => e.stopPropagation()}>
-                            <div className="modal-header" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10002, background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem' }}>
-                                <Flex gap="0.5rem">
-                                    <Button className="doc-button" onClick={handleDownloadPdf} size="small">
-                                        <Download className="w-4 h-4 mr-2" /> Скачать
-                                    </Button>
-                                    <Button className="doc-button" onClick={handleSendPdfToChat} disabled={sendingToChat} size="small">
-                                        {sendingToChat ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />} Отправить в чат
-                                    </Button>
-                                </Flex>
-                                <Button className="modal-close-button" onClick={() => {
-                                    URL.revokeObjectURL(pdfViewer.url);
-                                    setPdfViewer(null);
-                                }} aria-label="Закрыть"><X size={20} /></Button>
-                            </div>
-                            <iframe 
-                                src={pdfViewer.url} 
-                                style={{ width: '100%', height: '100%', border: 'none', marginTop: '3rem' }}
-                                title={pdfViewer.name}
-                            />
-                        </div>
-                    </div>
-                );
-            })()}
         </div>
     );
 }
