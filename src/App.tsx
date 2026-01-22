@@ -892,81 +892,43 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                 </Panel>
             )}
             
-            {/* MAX UI Table для списка грузов */}
+            {/* List */}
             {filteredItems.length > 0 && (
-                <Panel style={{ overflowX: 'auto', marginBottom: '1rem' }}>
-                    <table className="max-ui-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Номер
-                                </th>
-                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Дата
-                                </th>
-                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Статус
-                                </th>
-                                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Мест
-                                </th>
-                                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Вес
-                                </th>
-                                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Сумма
-                                </th>
-                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Статус счета
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                {filteredItems.map((item: CargoItem, idx: number) => (
-                                <tr 
-                                    key={item.Number || idx} 
-                                    onClick={() => setSelectedCargo(item)}
-                                    style={{ 
-                                        cursor: 'pointer',
-                                        borderBottom: '1px solid var(--color-border)',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'transparent';
-                                    }}
-                                >
-                                    <td style={{ padding: '0.75rem', fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                                        {item.Number}
-                                    </td>
-                                    <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                        <Flex align="center" gap="0.25rem">
-                                            <Calendar className="w-3 h-3" />
-                                            {formatDate(item.DatePrih)}
+                <div className="cargo-list">
+                    {filteredItems.map((item: CargoItem, idx: number) => (
+                        <Panel 
+                            key={item.Number || idx} 
+                            className="cargo-card"
+                            onClick={() => setSelectedCargo(item)}
+                            style={{ cursor: 'pointer', marginBottom: '0.75rem' }}
+                        >
+                            <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem' }}>
+                                <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
+                                    {item.Number}
+                                </Typography.Body>
+                                <Flex align="center" gap="0.5rem">
+                                    <Calendar className="w-4 h-4 text-theme-secondary" />
+                                    <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
+                                        {formatDate(item.DatePrih)}
+                                    </Typography.Label>
+                                </Flex>
                             </Flex>
-                                    </td>
-                                    <td style={{ padding: '0.75rem' }}>
-                                        <StatusBadge status={item.State} />
-                                    </td>
-                                    <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
-                                        {item.Mest || '-'}
-                                    </td>
-                                    <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
-                                        {item.PW ? `${item.PW} кг` : '-'}
-                                    </td>
-                                    <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.9rem', fontWeight: 600, color: getSumColorByPaymentStatus(item.StateBill) }}>
-                                        {formatCurrency(item.Sum)}
-                                    </td>
-                                    <td style={{ padding: '0.75rem' }}>
-                                        <StatusBillBadge status={item.StateBill} />
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </Panel>
+                            <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
+                                <StatusBadge status={item.State} />
+                                <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: getSumColorByPaymentStatus(item.StateBill) }}>
+                                    {formatCurrency(item.Sum)}
+                                </Typography.Body>
+                            </Flex>
+                            <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                <Flex gap="1rem">
+                                    <Typography.Label>Мест: {item.Mest || '-'}</Typography.Label>
+                                    <Typography.Label>Вес: {item.PW ? `${item.PW} кг` : '-'}</Typography.Label>
+                                </Flex>
+                                <StatusBillBadge status={item.StateBill} />
+                            </Flex>
+                        </Panel>
+                    ))}
+                </div>
             )}
 
             {selectedCargo && <CargoDetailsModal item={selectedCargo} isOpen={!!selectedCargo} onClose={() => setSelectedCargo(null)} auth={auth} />}
