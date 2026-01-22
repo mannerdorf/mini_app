@@ -760,12 +760,13 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         try {
             const webApp = getWebApp();
             const metod = DOCUMENT_METHODS[docType];
-            const directUrl = `${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}`;
+            const origin = typeof window !== "undefined" ? window.location.origin : "";
+            const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}`;
 
             if (webApp) {
                 debug?.("download.openLink", { url: directUrl });
                 if (typeof webApp.openLink === "function") {
-                    webApp.openLink(directUrl);
+                    webApp.openLink(directUrl, { try_instant_view: false } as any);
                 } else {
                     window.location.href = directUrl;
                 }
