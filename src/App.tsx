@@ -787,30 +787,14 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     throw new Error("Ответ от сервера не содержит файл.");
                 }
                 const dataUrl = `data:application/pdf;base64,${data.data}`;
-                const a = document.createElement("a");
-                a.href = dataUrl;
-                a.download = data.name || fallbackName;
-                a.rel = "noopener";
-                a.target = "_blank";
-                a.style.display = "none";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                window.open(dataUrl, "_blank", "noopener,noreferrer");
                 return;
             }
 
             const blob = await res.blob();
             debug?.("download.blob", { size: blob.size, type: blob.type });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = getFileNameFromDisposition(contentDisposition, fallbackName);
-            a.rel = "noopener";
-            a.target = "_blank";
-            a.style.display = "none";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            window.open(url, "_blank", "noopener,noreferrer");
             URL.revokeObjectURL(url);
         } catch (e: any) {
             debug?.("download.error", e?.message || e);

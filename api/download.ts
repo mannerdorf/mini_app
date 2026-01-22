@@ -80,9 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         upstreamRes.headers["content-type"] || "application/octet-stream";
       const contentDisposition =
         upstreamRes.headers["content-disposition"] ||
-        `attachment; filename="${encodeURIComponent(
-          `${metod}_${number}.pdf`,
-        )}"`;
+        `inline; filename="${encodeURIComponent(`${metod}_${number}.pdf`)}"`;
 
       console.log(
         "⬅️ Upstream status:",
@@ -104,7 +102,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Нормальный сценарий — прокидываем файл потоком
       res.status(200);
       res.setHeader("Content-Type", contentType);
-      res.setHeader("Content-Disposition", contentDisposition);
+      // Просмотр в браузере по умолчанию (без принудительного скачивания)
+      res.setHeader(
+        "Content-Disposition",
+        String(contentDisposition).replace(/^attachment/i, "inline"),
+      );
 
       upstreamRes.on("error", (err) => {
         console.error("🔥 Upstream stream error:", err.message);
