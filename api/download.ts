@@ -54,6 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     fullUrl.searchParams.set("Number", number);
 
     console.log("➡️ GetFile URL:", fullUrl.toString());
+    console.log("➡️ Request params:", { metod, number, login: login?.substring(0, 10) + "..." });
 
     const options: https.RequestOptions = {
       protocol: fullUrl.protocol,
@@ -73,6 +74,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         Host: fullUrl.host,
       },
     };
+    
+    console.log("➡️ Request headers:", {
+      Auth: `Basic ${login?.substring(0, 10)}...`,
+      Authorization: SERVICE_AUTH,
+      Host: fullUrl.host,
+    });
 
       const upstreamReq = https.request(options, (upstreamRes) => {
       const statusCode = upstreamRes.statusCode || 500;
@@ -87,6 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "len:",
         upstreamRes.headers["content-length"],
       );
+      console.log("⬅️ Upstream headers:", JSON.stringify(upstreamRes.headers, null, 2));
 
       // Если 1С вернула ошибку — просто пробрасываем как есть
       if (statusCode < 200 || statusCode >= 300) {
@@ -119,9 +127,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.log("📦 Total size:", fullBuffer.length, "bytes");
         
         // Проверяем, что это действительно PDF
-        if (!fullBuffer.slice(0, 4).toString().startsWith("%PDF")) {
-          console.error("❌ File is not a valid PDF!");
-          // Но всё равно отдаём, может быть это другой формат документа
+        const firstBytes = fullBuffer.slice(0, 4).toString();
+        const isPDF = firstBytes.startsWith("%PDF");
+        
+        // Если сервер вернул JSON (ошибка или другой ответ)
+        if (!isPDF) {
+          const textResponse = fullBuffer.toString("utf-8");
+          console.log("⚠️ Server returned non-PDF response:", textResponse.substring(0, 200));
+          
+          // Пытаемся распарсить как JSON
+          try {
+            const jsonResponse = JSON.parse(textResponse);
+            console.log("📋 JSON response:", JSON.stringify(jsonResponse));
+            
+            // Если это JSON с ошибкой или Success:false
+            if (jsonResponse.Error || (jsonResponse.Success === false)) {
+              console.error("❌ Server error:", jsonResponse.Error || "Unknown error");
+              return res.status(400).json({
+                error: "Server returned error",
+                message: jsonResponse.Error || "Unknown error",
+                response: jsonResponse,
+              });
+            }
+            
+            // Если Success:true но нет файла - файл не найден или неправильные параметры
+            if (jsonResponse.Success === true && !isPDF) {
+              console.error("❌ Server returned success but no PDF file. Response:", textResponse);
+              return res.status(404).json({
+                error: "File not found",
+                message: "Server returned success but no PDF file. Check document type and number.",
+                response: jsonResponse,
+              });
+            }
+          } catch (e) {
+            // Не JSON, но и не PDF - возвращаем как есть с предупреждением
+            console.error("❌ Response is neither PDF nor JSON!");
+          }
         }
 
         // Нормальный сценарий — отдаём файл
