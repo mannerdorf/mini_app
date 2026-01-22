@@ -1193,20 +1193,9 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     <div style={{ marginTop: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
                         <div style={{ padding: '0.5rem', background: 'var(--color-bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography.Label style={{ fontSize: '0.8rem' }}>{pdfViewer.name}</Typography.Label>
-                            <Flex align="center" gap="0.5rem">
-                                {pdfViewer.blob && pdfViewer.downloadFileName && (
-                                    <Button 
-                                        size="small" 
-                                        onClick={() => downloadFile(pdfViewer!.blob!, pdfViewer!.downloadFileName!)}
-                                        style={{ marginRight: '0.5rem' }}
-                                    >
-                                        <Download size={14} />
-                                    </Button>
-                                )}
-                                <Button size="small" onClick={() => { URL.revokeObjectURL(pdfViewer.url); setPdfViewer(null); }}>
-                                    <X size={16} />
-                                </Button>
-                            </Flex>
+                            <Button size="small" onClick={() => { URL.revokeObjectURL(pdfViewer.url); setPdfViewer(null); }}>
+                                <X size={16} />
+                            </Button>
                         </div>
                         <object 
                             data={pdfViewer.url} 
@@ -1214,27 +1203,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                             style={{ width: '100%', height: '500px' }}
                         >
                             <Typography.Body style={{ padding: '1rem', textAlign: 'center' }}>
-                                Ваш браузер не поддерживает просмотр PDF.{" "}
-                                {pdfViewer.blob && pdfViewer.downloadFileName ? (
-                                    <a 
-                                        href="#" 
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            downloadFile(pdfViewer!.blob!, pdfViewer!.downloadFileName!);
-                                        }}
-                                        style={{ color: 'var(--color-primary-blue)', textDecoration: 'underline', cursor: 'pointer' }}
-                                    >
-                                        Скачать файл
-                                    </a>
-                                ) : (
-                                    <a 
-                                        href={pdfViewer.url} 
-                                        download={pdfViewer.name}
-                                        style={{ color: 'var(--color-primary-blue)', textDecoration: 'underline', cursor: 'pointer' }}
-                                    >
-                                        Скачать файл
-                                    </a>
-                                )}
+                                Ваш браузер не поддерживает просмотр PDF.
                             </Typography.Body>
                         </object>
                     </div>
@@ -1293,10 +1262,9 @@ export default function App() {
                 
                 // Настройка цветов для MAX Bridge
                 if (isMaxWebApp()) {
-                    // Устанавливаем цвет фона (убираем "ощущение веба")
+                    // Устанавливаем цвет фона - всегда белый для MAX
                     if (typeof webApp.setBackgroundColor === "function") {
-                        const bgColor = theme === 'dark' ? '#1a1a1a' : '#f5f5f5';
-                        webApp.setBackgroundColor(bgColor);
+                        webApp.setBackgroundColor('#ffffff');
                     }
                     
                     // Устанавливаем цвет хедера (визуально привязываем к бренду)
@@ -1308,7 +1276,8 @@ export default function App() {
                 if (typeof webApp.expand === "function") {
                     webApp.expand();
                 }
-                if (typeof webApp.colorScheme === "string") {
+                // Для MAX не используем автоматическую тему из colorScheme
+                if (!isMaxWebApp() && typeof webApp.colorScheme === "string") {
                     setTheme(webApp.colorScheme);
                 }
             } catch {
@@ -1316,14 +1285,14 @@ export default function App() {
             }
 
             const themeHandler = () => {
-                if (typeof webApp.colorScheme === "string") {
+                // Для MAX не используем автоматическую тему
+                if (!isMaxWebApp() && typeof webApp.colorScheme === "string") {
                     setTheme(webApp.colorScheme);
                 }
-                // Обновляем цвета при смене темы
+                // Для MAX всегда белый фон
                 if (isMaxWebApp()) {
                     if (typeof webApp.setBackgroundColor === "function") {
-                        const bgColor = webApp.colorScheme === 'dark' ? '#1a1a1a' : '#f5f5f5';
-                        webApp.setBackgroundColor(bgColor);
+                        webApp.setBackgroundColor('#ffffff');
                     }
                 }
             };
@@ -1380,7 +1349,16 @@ export default function App() {
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
 
-    useEffect(() => { document.body.className = `${theme}-mode`; }, [theme]);
+    useEffect(() => { 
+        document.body.className = `${theme}-mode`; 
+        // Для MAX всегда белый фон при изменении темы
+        if (isMaxWebApp()) {
+            const webApp = getWebApp();
+            if (webApp && typeof webApp.setBackgroundColor === "function") {
+                webApp.setBackgroundColor('#ffffff');
+            }
+        }
+    }, [theme]);
 
     // Обработка start_param для контекстного запуска
     useEffect(() => {
@@ -1639,6 +1617,9 @@ export default function App() {
                         <Typography.Body>{auth.login}</Typography.Body>
                     </Flex>
                     <Flex align="center" className="space-x-3">
+                        <Button className="search-toggle-button" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'} aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}>
+                            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                        </Button>
                         <Button className="search-toggle-button" onClick={() => { setIsSearchExpanded(!isSearchExpanded); if(isSearchExpanded) { handleSearch(''); setSearchText(''); } }}>
                             {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
                         </Button>
