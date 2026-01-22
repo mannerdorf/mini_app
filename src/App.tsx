@@ -41,7 +41,8 @@ import { DOCUMENT_METHODS } from "./documentMethods";
 
 // --- CONFIGURATION ---
 const PROXY_API_BASE_URL = '/api/perevozki'; 
-const PROXY_API_DOWNLOAD_URL = '/api/download'; 
+const PROXY_API_DOWNLOAD_URL = '/api/download';
+const PROXY_API_SEND_DOC_URL = '/api/send-document'; 
 
 // --- TYPES ---
 type ApiError = { error?: string; [key: string]: unknown; };
@@ -979,6 +980,54 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         }
     };
 
+    const [sending, setSending] = useState<string | null>(null);
+    
+    const handleSendToChat = async (docType: string) => {
+        if (!item.Number) return alert("Нет номера перевозки");
+        
+        // Получаем chatId из Telegram WebApp
+        const webApp = getWebApp();
+        const chatId = webApp?.initDataUnsafe?.user?.id;
+        
+        if (!chatId) {
+            setDownloadError("Не удалось получить ID пользователя. Откройте приложение через Telegram.");
+            return;
+        }
+        
+        setSending(docType);
+        setDownloadError(null);
+        
+        try {
+            const metod = DOCUMENT_METHODS[docType];
+            const response = await fetch(PROXY_API_SEND_DOC_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    metod,
+                    number: item.Number,
+                    chatId,
+                }),
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.message || data.error || `Ошибка: ${response.status}`);
+            }
+            
+            // Успешно отправлено
+            alert(`✅ Документ ${docType} отправлен в чат!`);
+            
+        } catch (e: any) {
+            setDownloadError(e.message || "Ошибка отправки");
+            console.error("Send to chat error:", e);
+        } finally {
+            setSending(null);
+        }
+    };
+
     // Список явно отображаемых полей (из API примера)
     const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender'];
 
@@ -1038,13 +1087,25 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                         </Typography.Headline>
                         <div className="document-buttons">
                             {['ЭР', 'АПП', 'СЧЕТ', 'УПД'].map(doc => (
-                                <Button key={`max-${doc}`} className="doc-button" onClick={() => handleDownloadMax(doc)}>
-                                    <Download className="w-4 h-4 mr-2" /> {doc}
+                                <Button key={`max-${doc}`} className="doc-button" onClick={() => handleDownloadMax(doc)} disabled={downloading === doc}>
+                                    {downloading === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} {doc}
                                 </Button>
                             ))}
                         </div>
                     </>
                 )}
+                
+                {/* Отправить в чат — работает через Telegram Bot */}
+                <Typography.Headline style={{marginTop: '0.75rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
+                    📤 Отправить в чат
+                </Typography.Headline>
+                <div className="document-buttons">
+                    {['ЭР', 'АПП', 'СЧЕТ', 'УПД'].map(doc => (
+                        <Button key={`chat-${doc}`} className="doc-button" onClick={() => handleSendToChat(doc)} disabled={sending === doc}>
+                            {sending === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />} {doc}
+                        </Button>
+                    ))}
+                </div>
             </div>
         </div>
     );
