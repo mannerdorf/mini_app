@@ -914,17 +914,68 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
-    const handleDownloadMax = (docType: string) => {
+    const handleDownloadMax = async (docType: string) => {
         if (!item.Number) return alert("Нет номера перевозки");
-        const webApp = getWebApp();
-        const metod = DOCUMENT_METHODS[docType];
-        const origin = typeof window !== "undefined" ? window.location.origin : "";
-        const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}`;
+        setDownloading(docType); 
+        setDownloadError(null);
+        
+        try {
+            const metod = DOCUMENT_METHODS[docType];
+            const origin = typeof window !== "undefined" ? window.location.origin : "";
+            const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}`;
 
-        if (webApp && typeof webApp.openLink === "function") {
-            webApp.openLink(directUrl, { try_instant_view: false } as any);
-        } else {
-            window.open(directUrl, "_blank", "noopener,noreferrer");
+            // Для MAX используем fetch + blob для надежного скачивания
+            const response = await fetch(directUrl);
+            
+            if (!response.ok) {
+                // Если сервер вернул JSON с ошибкой
+                const contentType = response.headers.get("content-type");
+                if (contentType?.includes("application/json")) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || errorData.error || `Ошибка: ${response.status}`);
+                }
+                throw new Error(`Ошибка загрузки: ${response.status}`);
+            }
+
+            // Проверяем, что это PDF
+            const contentType = response.headers.get("content-type");
+            if (!contentType?.includes("application/pdf") && !contentType?.includes("application/octet-stream")) {
+                // Может быть JSON ответ
+                const text = await response.text();
+                try {
+                    const json = JSON.parse(text);
+                    throw new Error(json.message || json.error || "Сервер вернул некорректный ответ");
+                } catch {
+                    throw new Error("Сервер вернул не PDF файл");
+                }
+            }
+
+            // Скачиваем как blob
+            const blob = await response.blob();
+            
+            // Проверяем первые байты на PDF
+            const arrayBuffer = await blob.slice(0, 4).arrayBuffer();
+            const header = new TextDecoder().decode(arrayBuffer);
+            if (!header.startsWith("%PDF")) {
+                throw new Error("Файл не является PDF");
+            }
+
+            // Создаем ссылку для скачивания
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${docType}_${item.Number}.pdf`;
+            a.style.display = "none";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+        } catch (e: any) {
+            setDownloadError(e.message || "Ошибка скачивания");
+            console.error("Download error:", e);
+        } finally {
+            setDownloading(null);
         }
     };
 
