@@ -916,6 +916,155 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
+    // Тестовые методы открытия PDF
+    const [testingMethod, setTestingMethod] = useState<string | null>(null);
+    const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+    const [showIframe, setShowIframe] = useState(false);
+
+    const testMethod1_WindowOpen = async (docType: string) => {
+        setTestingMethod(`window.open-${docType}`);
+        setDownloadError(null);
+        try {
+            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    metod: DOCUMENT_METHODS[docType],
+                    number: item.Number,
+                }),
+            });
+            if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+            const data = await res.json();
+            if (!data?.data || !data.name) throw new Error("Ответ от сервера не содержит файл.");
+
+            const byteCharacters = atob(data.data);
+            const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: "application/pdf" });
+            const url = URL.createObjectURL(blob);
+            
+            window.open(url, '_blank', 'noopener,noreferrer');
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (e: any) { setDownloadError(e.message); } finally { setTestingMethod(null); }
+    };
+
+    const testMethod2_WebAppOpenLink = async (docType: string) => {
+        setTestingMethod(`openLink-${docType}`);
+        setDownloadError(null);
+        try {
+            const webApp = getWebApp();
+            if (!webApp || !webApp.openLink) {
+                throw new Error("WebApp.openLink недоступен");
+            }
+
+            const origin = typeof window !== "undefined" ? window.location.origin : "";
+            const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(DOCUMENT_METHODS[docType])}&number=${encodeURIComponent(item.Number || '')}`;
+            
+            webApp.openLink(directUrl, { try_instant_view: false } as any);
+        } catch (e: any) { setDownloadError(e.message); } finally { setTestingMethod(null); }
+    };
+
+    const testMethod3_EmbeddedIframe = async (docType: string) => {
+        setTestingMethod(`iframe-${docType}`);
+        setDownloadError(null);
+        try {
+            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    metod: DOCUMENT_METHODS[docType],
+                    number: item.Number,
+                }),
+            });
+            if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+            const data = await res.json();
+            if (!data?.data || !data.name) throw new Error("Ответ от сервера не содержит файл.");
+
+            const byteCharacters = atob(data.data);
+            const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: "application/pdf" });
+            const url = URL.createObjectURL(blob);
+            
+            setPdfBlobUrl(url);
+            setShowIframe(true);
+        } catch (e: any) { setDownloadError(e.message); } finally { setTestingMethod(null); }
+    };
+
+    const testMethod4_ObjectTag = async (docType: string) => {
+        setTestingMethod(`object-${docType}`);
+        setDownloadError(null);
+        try {
+            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    metod: DOCUMENT_METHODS[docType],
+                    number: item.Number,
+                }),
+            });
+            if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+            const data = await res.json();
+            if (!data?.data || !data.name) throw new Error("Ответ от сервера не содержит файл.");
+
+            const byteCharacters = atob(data.data);
+            const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: "application/pdf" });
+            const url = URL.createObjectURL(blob);
+            
+            setPdfBlobUrl(url);
+            setShowIframe(false);
+        } catch (e: any) { setDownloadError(e.message); } finally { setTestingMethod(null); }
+    };
+
+    const testMethod5_DirectDownload = async (docType: string) => {
+        setTestingMethod(`download-${docType}`);
+        setDownloadError(null);
+        try {
+            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    metod: DOCUMENT_METHODS[docType],
+                    number: item.Number,
+                }),
+            });
+            if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+            const data = await res.json();
+            if (!data?.data || !data.name) throw new Error("Ответ от сервера не содержит файл.");
+
+            const byteCharacters = atob(data.data);
+            const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: "application/pdf" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = data.name || `${docType}_${item.Number}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e: any) { setDownloadError(e.message); } finally { setTestingMethod(null); }
+    };
+
+    // Очистка blob URL при закрытии
+    useEffect(() => {
+        return () => {
+            if (pdfBlobUrl) {
+                URL.revokeObjectURL(pdfBlobUrl);
+            }
+        };
+    }, [pdfBlobUrl]);
 
     // Список явно отображаемых полей (из API примера)
     const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender'];
@@ -969,6 +1118,91 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                         </Button>
                     ))}
                 </div>
+
+                {/* Тестовые методы открытия PDF */}
+                <Typography.Headline style={{marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600, color: '#888'}}>
+                    🧪 Тестовые методы (СЧЕТ)
+                </Typography.Headline>
+                <div className="document-buttons" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <Button 
+                        className="doc-button" 
+                        onClick={() => testMethod1_WindowOpen('СЧЕТ')} 
+                        disabled={testingMethod === 'window.open-СЧЕТ'}
+                        style={{ fontSize: '0.75rem', padding: '0.5rem' }}
+                    >
+                        {testingMethod === 'window.open-СЧЕТ' ? <Loader2 className="w-3 h-3 animate-spin" /> : '1️⃣ window.open()'}
+                    </Button>
+                    <Button 
+                        className="doc-button" 
+                        onClick={() => testMethod2_WebAppOpenLink('СЧЕТ')} 
+                        disabled={testingMethod === 'openLink-СЧЕТ'}
+                        style={{ fontSize: '0.75rem', padding: '0.5rem' }}
+                    >
+                        {testingMethod === 'openLink-СЧЕТ' ? <Loader2 className="w-3 h-3 animate-spin" /> : '2️⃣ WebApp.openLink()'}
+                    </Button>
+                    <Button 
+                        className="doc-button" 
+                        onClick={() => testMethod3_EmbeddedIframe('СЧЕТ')} 
+                        disabled={testingMethod === 'iframe-СЧЕТ'}
+                        style={{ fontSize: '0.75rem', padding: '0.5rem' }}
+                    >
+                        {testingMethod === 'iframe-СЧЕТ' ? <Loader2 className="w-3 h-3 animate-spin" /> : '3️⃣ iframe (встроенный)'}
+                    </Button>
+                    <Button 
+                        className="doc-button" 
+                        onClick={() => testMethod4_ObjectTag('СЧЕТ')} 
+                        disabled={testingMethod === 'object-СЧЕТ'}
+                        style={{ fontSize: '0.75rem', padding: '0.5rem' }}
+                    >
+                        {testingMethod === 'object-СЧЕТ' ? <Loader2 className="w-3 h-3 animate-spin" /> : '4️⃣ object/embed'}
+                    </Button>
+                    <Button 
+                        className="doc-button" 
+                        onClick={() => testMethod5_DirectDownload('СЧЕТ')} 
+                        disabled={testingMethod === 'download-СЧЕТ'}
+                        style={{ fontSize: '0.75rem', padding: '0.5rem' }}
+                    >
+                        {testingMethod === 'download-СЧЕТ' ? <Loader2 className="w-3 h-3 animate-spin" /> : '5️⃣ Прямое скачивание'}
+                    </Button>
+                </div>
+
+                {/* Встроенный просмотрщик PDF */}
+                {(pdfBlobUrl && showIframe) && (
+                    <div style={{ marginTop: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+                        <div style={{ padding: '0.5rem', background: 'var(--color-bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography.Label style={{ fontSize: '0.8rem' }}>Просмотр через iframe</Typography.Label>
+                            <Button size="small" onClick={() => { setShowIframe(false); URL.revokeObjectURL(pdfBlobUrl); setPdfBlobUrl(null); }}>
+                                <X size={16} />
+                            </Button>
+                        </div>
+                        <iframe 
+                            src={pdfBlobUrl} 
+                            style={{ width: '100%', height: '500px', border: 'none' }}
+                            title="PDF Viewer"
+                        />
+                    </div>
+                )}
+
+                {(pdfBlobUrl && !showIframe) && (
+                    <div style={{ marginTop: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+                        <div style={{ padding: '0.5rem', background: 'var(--color-bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Typography.Label style={{ fontSize: '0.8rem' }}>Просмотр через object</Typography.Label>
+                            <Button size="small" onClick={() => { URL.revokeObjectURL(pdfBlobUrl); setPdfBlobUrl(null); }}>
+                                <X size={16} />
+                            </Button>
+                        </div>
+                        <object 
+                            data={pdfBlobUrl} 
+                            type="application/pdf" 
+                            style={{ width: '100%', height: '500px' }}
+                        >
+                            <Typography.Body style={{ padding: '1rem', textAlign: 'center' }}>
+                                Ваш браузер не поддерживает просмотр PDF. 
+                                <a href={pdfBlobUrl} download>Скачать файл</a>
+                            </Typography.Body>
+                        </object>
+                    </div>
+                )}
             </div>
         </div>
     );
