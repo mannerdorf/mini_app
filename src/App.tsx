@@ -792,16 +792,16 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
             </Typography.Body>
 
             {/* Суммирующая строка */}
-            <div className="cargo-card mb-4" style={{ padding: '0.75rem' }}>
+            <div 
+                className="cargo-card mb-4" 
+                style={{ padding: '0.75rem', cursor: 'pointer' }}
+                onClick={() => setShowSummary(!showSummary)}
+            >
                 <Flex justify="space-between" align="center">
-                    <Button 
-                        size="small" 
-                        onClick={() => setShowSummary(!showSummary)}
-                        style={{ padding: '0.25rem 0.5rem' }}
-                    >
-                        {showSummary ? <ChevronDown className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" style={{ transform: 'rotate(-90deg)' }} />}
-                        <Typography.Label style={{ marginLeft: '0.5rem' }}>Итого</Typography.Label>
-                    </Button>
+                    <Flex align="center" gap="0.5rem">
+                        {showSummary ? <ChevronDown className="w-4 h-4 text-theme-secondary" /> : <ChevronDown className="w-4 h-4 text-theme-secondary" style={{ transform: 'rotate(-90deg)' }} />}
+                        <Typography.Label>Итого</Typography.Label>
+                    </Flex>
                     {showSummary && (
                         <Flex gap="1.5rem" align="center" style={{ flexWrap: 'wrap' }}>
                             <Flex direction="column" align="center">
