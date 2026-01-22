@@ -19,14 +19,43 @@ const setupDebugOverlay = () => {
     zIndex: "99999",
     inset: "0",
     overflow: "auto",
-    background: "rgba(0, 0, 0, 0.92)",
+    background: "transparent",
     color: "#fff",
     padding: "16px",
     fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
     fontSize: "12px",
     whiteSpace: "pre-wrap",
+    opacity: "0",
+    pointerEvents: "none",
+    transition: "opacity 120ms ease",
   });
   document.body.appendChild(container);
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.textContent = "Debug";
+  Object.assign(toggle.style, {
+    position: "fixed",
+    zIndex: "100000",
+    right: "12px",
+    top: "12px",
+    padding: "6px 8px",
+    fontSize: "12px",
+    borderRadius: "8px",
+    border: "1px solid #444",
+    background: "#111",
+    color: "#fff",
+  });
+  document.body.appendChild(toggle);
+
+  let isExpanded = false;
+  const setExpanded = (value: boolean) => {
+    isExpanded = value;
+    container.style.opacity = isExpanded ? "1" : "0";
+    container.style.pointerEvents = isExpanded ? "auto" : "none";
+    container.style.background = isExpanded ? "rgba(0, 0, 0, 0.92)" : "transparent";
+  };
+  toggle.addEventListener("click", () => setExpanded(!isExpanded));
 
   const write = (label: string, error: unknown) => {
     const message =
@@ -35,6 +64,7 @@ const setupDebugOverlay = () => {
         : String(error);
     const time = new Date().toISOString();
     container.textContent += `\n[${time}] ${label}\n${message}\n`;
+    setExpanded(true);
   };
 
   window.addEventListener("error", (event) => {
