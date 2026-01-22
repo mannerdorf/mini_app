@@ -792,7 +792,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
             </Typography.Body>
 
             {/* Суммирующая строка */}
-            <Panel className="mb-4" style={{ padding: '0.75rem' }}>
+            <div className="cargo-card mb-4" style={{ padding: '0.75rem' }}>
                 <Flex justify="space-between" align="center">
                     <Button 
                         size="small" 
@@ -825,7 +825,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                         </Flex>
                     )}
                 </Flex>
-            </Panel>
+            </div>
 
             {/* List */}
             {loading && (
