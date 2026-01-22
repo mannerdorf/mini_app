@@ -171,20 +171,22 @@ const StatusBadge = ({ status }: { status: string | undefined }) => {
 
 // Компонент бейджа статуса счета с использованием MAX UI
 const StatusBillBadge = ({ status }: { status: string | undefined }) => {
-    const lower = (status || '').toLowerCase();
+    const lower = (status || '').toLowerCase().trim();
     let badgeClass = 'max-badge';
     
-    // Логика для статусов счета
-    if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
-        badgeClass += ' max-badge-success'; // Зеленый для оплачен
-    } else if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) {
-        badgeClass += ' max-badge-warning'; // Желтый для частично оплачен
-    } else if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
-               lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending')) {
+    // Логика для статусов счета - сначала проверяем "не оплачен", чтобы не перехватить его другими условиями
+    if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
+        lower.includes('не оплачён') || lower.includes('неоплачён') ||
+        lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending') ||
+        lower === 'не оплачен' || lower === 'неоплачен') {
         badgeClass += ' max-badge-danger'; // Красный для не оплачен
     } else if (lower.includes('отменен') || lower.includes('аннулирован') || lower.includes('отменён') ||
                lower.includes('cancelled') || lower.includes('canceled')) {
         badgeClass += ' max-badge-danger'; // Красный для отменен
+    } else if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
+        badgeClass += ' max-badge-success'; // Зеленый для оплачен
+    } else if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) {
+        badgeClass += ' max-badge-warning'; // Желтый для частично оплачен
     } else {
         badgeClass += ' max-badge-default'; // Серый для остальных
     }
@@ -199,15 +201,18 @@ const StatusBillBadge = ({ status }: { status: string | undefined }) => {
 // Функция для определения цвета суммы в зависимости от статуса оплаты
 const getSumColorByPaymentStatus = (stateBill: string | undefined): string => {
     if (!stateBill) return 'var(--color-text-primary)';
-    const lower = stateBill.toLowerCase();
+    const lower = stateBill.toLowerCase().trim();
     
-    if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
+    // Сначала проверяем "не оплачен", чтобы не перехватить его другими условиями
+    if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
+        lower.includes('не оплачён') || lower.includes('неоплачён') ||
+        lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending') ||
+        lower === 'не оплачен' || lower === 'неоплачен') {
+        return '#ef4444'; // Красный для не оплачен
+    } else if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
         return 'var(--color-success-status)'; // Зеленый для оплачен
     } else if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) {
         return 'var(--color-pending-status)'; // Желтый для частично оплачен
-    } else if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
-               lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending')) {
-        return '#ef4444'; // Красный для не оплачен
     }
     
     return 'var(--color-text-primary)'; // По умолчанию
