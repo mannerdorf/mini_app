@@ -21,7 +21,19 @@ const getWebApp = () => {
 
 const isMaxWebApp = () => {
     if (typeof window === "undefined") return false;
-    return Boolean((window as any).MAX?.WebApp || (window as any).max?.WebApp || (window as any).Max?.WebApp);
+    const ua = window.navigator?.userAgent || "";
+    return Boolean(
+        (window as any).MAX?.WebApp ||
+        (window as any).max?.WebApp ||
+        (window as any).Max?.WebApp ||
+        /max[^a-z0-9]?app/i.test(ua) ||
+        /\bmax\b/i.test(ua),
+    );
+};
+
+const isMaxDocsEnabled = () => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).has("maxdocs");
 };
 
 import { DOCUMENT_METHODS } from "./documentMethods";
@@ -968,7 +980,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                         </Button>
                     ))}
                 </div>
-                {isMaxWebApp() && (
+                {(isMaxWebApp() || isMaxDocsEnabled()) && (
                     <>
                         <Typography.Headline style={{marginTop: '0.75rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
                             Документы (MAX)
