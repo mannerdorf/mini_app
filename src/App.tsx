@@ -915,75 +915,13 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
             const byteArray = new Uint8Array(byteNumbers);
             const blob = new Blob([byteArray], { type: "application/pdf" });
 
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = data.name || `${docType}_${item.Number}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
-    };
-
-    const handleDownloadMax = async (docType: string) => {
-        if (!item.Number) return alert("Нет номера перевозки");
-        setDownloading(docType); 
-        setDownloadError(null);
-        
-        try {
-            const metod = DOCUMENT_METHODS[docType];
-            const origin = typeof window !== "undefined" ? window.location.origin : "";
-            const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}`;
-
-            // Для MAX используем fetch + blob для надежного скачивания
-            const response = await fetch(directUrl);
-            
-            if (!response.ok) {
-                // Если сервер вернул JSON с ошибкой
-                const contentType = response.headers.get("content-type");
-                if (contentType?.includes("application/json")) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || errorData.error || `Ошибка: ${response.status}`);
-                }
-                throw new Error(`Ошибка загрузки: ${response.status}`);
-            }
-
-            // Проверяем, что это PDF
-            const contentType = response.headers.get("content-type");
-            if (!contentType?.includes("application/pdf") && !contentType?.includes("application/octet-stream")) {
-                // Может быть JSON ответ
-                const text = await response.text();
-                try {
-                    const json = JSON.parse(text);
-                    throw new Error(json.message || json.error || "Сервер вернул некорректный ответ");
-                } catch {
-                    throw new Error("Сервер вернул не PDF файл");
-                }
-            }
-
-            // Скачиваем как blob
-            const blob = await response.blob();
-            
-            // Проверяем первые байты на PDF
-            const arrayBuffer = await blob.slice(0, 4).arrayBuffer();
-            const header = new TextDecoder().decode(arrayBuffer);
-            if (!header.startsWith("%PDF")) {
-                throw new Error("Файл не является PDF");
-            }
-
             // Создаем blob URL для просмотра в модальном окне
             const url = URL.createObjectURL(blob);
             setPdfViewer({
                 url,
-                name: `${docType}_${item.Number}.pdf`
+                name: data.name || `${docType}_${item.Number}.pdf`
             });
-            
-        } catch (e: any) {
-            setDownloadError(e.message || "Ошибка скачивания");
-            console.error("Download error:", e);
-        } finally {
-            setDownloading(null);
-        }
+        } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
     const [sending, setSending] = useState<string | null>(null);
@@ -1086,20 +1024,6 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                         </Button>
                     ))}
                 </div>
-                {(isMaxWebApp() || isMaxDocsEnabled()) && (
-                    <>
-                        <Typography.Headline style={{marginTop: '0.75rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
-                            Документы (MAX)
-                        </Typography.Headline>
-                        <div className="document-buttons">
-                            {['ЭР', 'АПП', 'СЧЕТ', 'УПД'].map(doc => (
-                                <Button key={`max-${doc}`} className="doc-button" onClick={() => handleDownloadMax(doc)} disabled={downloading === doc}>
-                                    {downloading === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} {doc}
-                                </Button>
-                            ))}
-                        </div>
-                    </>
-                )}
                 
                 {/* Отправить в чат — работает через Telegram Bot */}
                 <Typography.Headline style={{marginTop: '0.75rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
