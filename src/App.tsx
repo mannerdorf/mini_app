@@ -11,23 +11,23 @@ import "./styles.css";
 // --- TELEGRAM MINI APP SUPPORT ---
 const getWebApp = () => {
     if (typeof window === "undefined") return undefined;
+    // MAX Bridge использует window.WebApp (после подключения max-web-app.js)
+    // Telegram использует window.Telegram.WebApp
     return (
         window.Telegram?.WebApp ||
-        (window as any).MAX?.WebApp ||
-        (window as any).max?.WebApp ||
-        (window as any).Max?.WebApp
+        (window as any).WebApp // MAX Bridge
     );
 };
 
 const isMaxWebApp = () => {
     if (typeof window === "undefined") return false;
+    // MAX Bridge создаёт window.WebApp после подключения библиотеки
+    // Также проверяем userAgent для дополнительной надёжности
     const ua = window.navigator?.userAgent || "";
     return Boolean(
-        (window as any).MAX?.WebApp ||
-        (window as any).max?.WebApp ||
-        (window as any).Max?.WebApp ||
+        (window as any).WebApp && !window.Telegram?.WebApp || // MAX Bridge (но не Telegram)
         /max[^a-z0-9]?app/i.test(ua) ||
-        /\bmax\b/i.test(ua),
+        /\bmax\b/i.test(ua)
     );
 };
 
