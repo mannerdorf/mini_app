@@ -41,7 +41,7 @@ import { DOCUMENT_METHODS } from "./documentMethods";
 
 // --- CONFIGURATION ---
 const PROXY_API_BASE_URL = '/api/perevozki'; 
-const PROXY_API_DOWNLOAD_URL = '/api/download';
+const PROXY_API_DOWNLOAD_URL = '/api/download'; 
 const PROXY_API_SEND_DOC_URL = '/api/send-document'; 
 
 // --- TYPES ---
@@ -150,6 +150,72 @@ const getStatusClass = (status: string | undefined) => {
 // Компонент бейджа статуса с использованием MAX UI
 const StatusBadge = ({ status }: { status: string | undefined }) => {
     const lower = (status || '').toLowerCase();
+    let badgeClass = 'max-badge';
+    
+    if (lower.includes('доставлен') || lower.includes('заверш')) {
+        badgeClass += ' max-badge-success';
+    } else if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('готов')) {
+        badgeClass += ' max-badge-warning';
+    } else if (lower.includes('отменен') || lower.includes('аннулирован')) {
+        badgeClass += ' max-badge-danger';
+    } else {
+        badgeClass += ' max-badge-default';
+    }
+    
+    return (
+        <span className={badgeClass}>
+            {status || '-'}
+        </span>
+    );
+};
+
+// Компонент бейджа статуса счета с использованием MAX UI
+const StatusBillBadge = ({ status }: { status: string | undefined }) => {
+    const lower = (status || '').toLowerCase();
+    let badgeClass = 'max-badge';
+    
+    // Логика для статусов счета
+    if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
+        badgeClass += ' max-badge-success'; // Зеленый для оплачен
+    } else if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) {
+        badgeClass += ' max-badge-warning'; // Желтый для частично оплачен
+    } else if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
+               lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending')) {
+        badgeClass += ' max-badge-danger'; // Красный для не оплачен
+    } else if (lower.includes('отменен') || lower.includes('аннулирован') || lower.includes('отменён') ||
+               lower.includes('cancelled') || lower.includes('canceled')) {
+        badgeClass += ' max-badge-danger'; // Красный для отменен
+    } else {
+        badgeClass += ' max-badge-default'; // Серый для остальных
+    }
+    
+    return (
+        <span className={badgeClass}>
+            {status || '-'}
+        </span>
+    );
+};
+
+// Функция для определения цвета суммы в зависимости от статуса оплаты
+const getSumColorByPaymentStatus = (stateBill: string | undefined): string => {
+    if (!stateBill) return 'var(--color-text-primary)';
+    const lower = stateBill.toLowerCase();
+    
+    if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
+        return 'var(--color-success-status)'; // Зеленый для оплачен
+    } else if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) {
+        return 'var(--color-pending-status)'; // Желтый для частично оплачен
+    } else if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
+               lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending')) {
+        return '#ef4444'; // Красный для не оплачен
+    }
+    
+    return 'var(--color-text-primary)'; // По умолчанию
+};
+
+// Компонент бейджа статуса с использованием MAX UI
+const StatusBadge = ({ status }: { status: string | undefined }) => {
+    const lower = (status || '').toLowerCase();
     let variant: 'success' | 'warning' | 'danger' | 'default' = 'default';
     let badgeClass = 'max-badge';
     
@@ -182,9 +248,11 @@ const StatusBillBadge = ({ status }: { status: string | undefined }) => {
     // Логика для статусов счета
     if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
         badgeClass += ' max-badge-success'; // Зеленый для оплачен
-    } else if (lower.includes('не оплачен') || lower.includes('ожидает') || lower.includes('неоплачен') || 
-               lower.includes('unpaid') || lower.includes('pending')) {
-        badgeClass += ' max-badge-warning'; // Желтый для не оплачен / ожидает оплаты
+    } else if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) {
+        badgeClass += ' max-badge-warning'; // Желтый для частично оплачен
+    } else if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
+               lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending')) {
+        badgeClass += ' max-badge-danger'; // Красный для не оплачен
     } else if (lower.includes('отменен') || lower.includes('аннулирован') || lower.includes('отменён') ||
                lower.includes('cancelled') || lower.includes('canceled')) {
         badgeClass += ' max-badge-danger'; // Красный для отменен
@@ -198,6 +266,23 @@ const StatusBillBadge = ({ status }: { status: string | undefined }) => {
             {status || '-'}
         </span>
     );
+};
+
+// Функция для определения цвета суммы в зависимости от статуса оплаты
+const getSumColorByPaymentStatus = (stateBill: string | undefined): string => {
+    if (!stateBill) return 'var(--color-text-primary)';
+    const lower = stateBill.toLowerCase();
+    
+    if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
+        return 'var(--color-success-status)'; // Зеленый для оплачен
+    } else if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) {
+        return 'var(--color-pending-status)'; // Желтый для частично оплачен
+    } else if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
+               lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending')) {
+        return '#ef4444'; // Красный для не оплачен
+    }
+    
+    return 'var(--color-text-primary)'; // По умолчанию
 };
 
 const getFilterKeyByStatus = (s: string | undefined): StatusFilter => { 
@@ -233,10 +318,7 @@ const getFileNameFromDisposition = (header: string | null, fallback: string) => 
     return fallback;
 };
 
-const PUBLIC_OFFER_TEXT = `ПУБЛИЧНАЯ ОФЕРТА
-на оказание логистических услуг (B2B)
-
-Общество с ограниченной ответственностью «Холз», ОГРН 1237700687180, ИНН 9706037094, в лице Генерального директора, действующего на основании Устава, именуемое в дальнейшем «Исполнитель», настоящим предлагает любому юридическому лицу или индивидуальному предпринимателю, именуемому в дальнейшем «Заказчик», заключить договор на оказание логистических услуг на условиях настоящей публичной оферты.
+const PUBLIC_OFFER_TEXT = `Общество с ограниченной ответственностью «Холз», ОГРН 1237700687180, ИНН 9706037094, в лице Генерального директора, действующего на основании Устава, именуемое в дальнейшем «Исполнитель», настоящим предлагает любому юридическому лицу или индивидуальному предпринимателю, именуемому в дальнейшем «Заказчик», заключить договор на оказание логистических услуг на условиях настоящей публичной оферты.
 
 1. Общие положения
 
@@ -300,10 +382,7 @@ const PUBLIC_OFFER_TEXT = `ПУБЛИЧНАЯ ОФЕРТА
 ИНН: 9706037094
 Юридический адрес: г. Москва, ул. Мытная, д. 28, стр. 3, пом. 1/1`;
 
-const PERSONAL_DATA_CONSENT_TEXT = `СОГЛАСИЕ
-на обработку персональных данных
-
-Настоящим я, действуя свободно, своей волей и в своем интересе, подтверждаю согласие Обществу с ограниченной ответственностью «Холз» (ОГРН 1237700687180, ИНН 9706037094, юридический адрес: г. Москва, ул. Мытная, д. 28, стр. 3, пом. 1/1) (далее — Оператор) на обработку моих персональных данных в соответствии с требованиями Федерального закона от 27.07.2006 № 152-ФЗ «О персональных данных».
+const PERSONAL_DATA_CONSENT_TEXT = `Настоящим я, действуя свободно, своей волей и в своем интересе, подтверждаю согласие Обществу с ограниченной ответственностью «Холз» (ОГРН 1237700687180, ИНН 9706037094, юридический адрес: г. Москва, ул. Мытная, д. 28, стр. 3, пом. 1/1) (далее — Оператор) на обработку моих персональных данных в соответствии с требованиями Федерального закона от 27.07.2006 № 152-ФЗ «О персональных данных».
 
 1. Персональные данные, на обработку которых дается согласие
 К персональным данным относятся, включая, но не ограничиваясь:
@@ -885,40 +964,82 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                 </Panel>
             )}
             
-            <div className="cargo-list">
+            {/* MAX UI Table для списка грузов */}
+            {filteredItems.length > 0 && (
+                <Panel style={{ overflowX: 'auto', marginBottom: '1rem' }}>
+                    <table className="max-ui-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
+                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                                    Номер
+                                </th>
+                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                                    Дата
+                                </th>
+                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                                    Статус
+                                </th>
+                                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                                    Мест
+                                </th>
+                                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                                    Вес
+                                </th>
+                                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                                    Сумма
+                                </th>
+                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                                    Статус счета
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
                 {filteredItems.map((item: CargoItem, idx: number) => (
-                    <Panel key={item.Number || idx} className="cargo-card mb-4" onClick={() => setSelectedCargo(item)}>
-                        <Flex justify="space-between" align="center" className="cargo-header-row">
-                            <Typography.Title className="order-number">{item.Number}</Typography.Title>
-                        <Flex align="center" className="date">
-                                <Calendar className="w-3 h-3 mr-1" />
-                            <Typography.Label>{formatDate(item.DatePrih)}</Typography.Label>
+                                <tr 
+                                    key={item.Number || idx} 
+                                    onClick={() => setSelectedCargo(item)}
+                                    style={{ 
+                                        cursor: 'pointer',
+                                        borderBottom: '1px solid var(--color-border)',
+                                        transition: 'background-color 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                    }}
+                                >
+                                    <td style={{ padding: '0.75rem', fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                                        {item.Number}
+                                    </td>
+                                    <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                        <Flex align="center" gap="0.25rem">
+                                            <Calendar className="w-3 h-3" />
+                                            {formatDate(item.DatePrih)}
                             </Flex>
-                        </Flex>
-                        <div className="cargo-details-grid">
-                            <div className="detail-item">
-                                <Tag className="w-4 h-4 text-theme-primary"/>
-                                <Typography.Label className="detail-item-label">Статус</Typography.Label>
-                                <Typography.Body className={getStatusClass(item.State)}>{item.State}</Typography.Body>
-                            </div>
-                            <div className="detail-item">
-                                <Layers className="w-4 h-4 text-theme-primary"/>
-                                <Typography.Label className="detail-item-label">Мест</Typography.Label>
-                                <Typography.Body className="detail-item-value">{item.Mest || '-'}</Typography.Body>
-                            </div>
-                            <div className="detail-item">
-                                <Scale className="w-4 h-4 text-theme-primary"/>
-                                <Typography.Label className="detail-item-label">Плат. вес</Typography.Label>
-                                <Typography.Body className="detail-item-value">{item.PW || '-'}</Typography.Body>
-                            </div>
-                        </div>
-                        <Flex justify="space-between" align="center" className="cargo-footer">
-                            <Typography.Label className="sum-label">Сумма</Typography.Label>
-                            <Typography.Title className="sum-value">{formatCurrency(item.Sum)}</Typography.Title>
-                        </Flex>
-                    </Panel>
-                ))}
-            </div>
+                                    </td>
+                                    <td style={{ padding: '0.75rem' }}>
+                                        <StatusBadge status={item.State} />
+                                    </td>
+                                    <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
+                                        {item.Mest || '-'}
+                                    </td>
+                                    <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
+                                        {item.PW ? `${item.PW} кг` : '-'}
+                                    </td>
+                                    <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.9rem', fontWeight: 600, color: getSumColorByPaymentStatus(item.StateBill) }}>
+                                        {formatCurrency(item.Sum)}
+                                    </td>
+                                    <td style={{ padding: '0.75rem' }}>
+                                        <StatusBillBadge status={item.StateBill} />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </Panel>
+            )}
 
             {selectedCargo && <CargoDetailsModal item={selectedCargo} isOpen={!!selectedCargo} onClose={() => setSelectedCargo(null)} auth={auth} />}
             <FilterDialog isOpen={isCustomModalOpen} onClose={() => setIsCustomModalOpen(false)} dateFrom={customDateFrom} dateTo={customDateTo} onApply={(f, t) => { setCustomDateFrom(f); setCustomDateTo(t); }} />
@@ -1012,7 +1133,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
     };
-
+    
     const handleDownload = async (docType: string) => {
         if (!item.Number) return alert("Нет номера перевозки");
         setDownloading(docType); setDownloadError(null);
@@ -1126,7 +1247,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     
                     return (
                         <>
-                            <div className="document-buttons">
+                <div className="document-buttons">
                                 {availableDocs.map(doc => {
                                     const isUPD = doc === 'УПД';
                                     const isHighlighted = isUPD && isPaid; // Подсветка для УПД если оплачен
@@ -1141,11 +1262,11 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                                                 boxShadow: '0 0 8px rgba(37, 99, 235, 0.3)'
                                             } : {}}
                                         >
-                                            {downloading === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} {doc}
-                                        </Button>
+                            {downloading === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} {doc}
+                        </Button>
                                     );
                                 })}
-                            </div>
+                </div>
                             
                             {/* Кнопка "Оплатить" если счет не оплачен */}
                             {!isPaid && (
@@ -1165,8 +1286,8 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                                     >
                                         <CreditCard className="w-4 h-4 mr-2" />
                                         Оплатить
-                                    </Button>
-                                </div>
+                                </Button>
+                        </div>
                             )}
                         </>
                     );
@@ -1345,7 +1466,7 @@ export default function App() {
 
     const [auth, setAuth] = useState<AuthData | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("cargo"); // ИЗМЕНЕНО: По умолчанию только "cargo"
-    const [theme, setTheme] = useState('dark');
+    const [theme, setTheme] = useState('dark'); 
     const [startParam, setStartParam] = useState<string | null>(null);
     const [contextCargoNumber, setContextCargoNumber] = useState<string | null>(null); 
     
