@@ -130,49 +130,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const firstBytes = fullBuffer.slice(0, 4).toString();
         const isPDF = firstBytes.startsWith("%PDF");
         
-        // Если сервер вернул JSON (ошибка или другой ответ)
-        if (!isPDF) {
-          const textResponse = fullBuffer.toString("utf-8");
-          console.log("⚠️ Server returned non-PDF response:", textResponse.substring(0, 200));
-          
-          // Пытаемся распарсить как JSON
-          try {
-            const jsonResponse = JSON.parse(textResponse);
-            console.log("📋 JSON response:", JSON.stringify(jsonResponse));
-            
-            // Если это JSON с ошибкой или Success:false
-            if (jsonResponse.Error || (jsonResponse.Success === false)) {
-              console.error("❌ Server error:", jsonResponse.Error || "Unknown error");
-              return res.status(400).json({
-                error: "Server returned error",
-                message: jsonResponse.Error || "Unknown error",
-                response: jsonResponse,
-              });
-            }
-            
-            // Если Success:true но нет файла - файл не найден или неправильные параметры
-            if (jsonResponse.Success === true && !isPDF) {
-              console.error("❌ Server returned success but no PDF file. Response:", textResponse);
-              return res.status(404).json({
-                error: "File not found",
-                message: "Server returned success but no PDF file. Check document type and number.",
-                response: jsonResponse,
-              });
-            }
-          } catch (e) {
-            // Не JSON, но и не PDF - возвращаем как есть с предупреждением
-            console.error("❌ Response is neither PDF nor JSON!");
-          }
+        // Если это бинарный PDF — отдаём напрямую
+        if (isPDF) {
+          console.log("✅ Got binary PDF, returning directly");
+          res.status(200);
+          res.setHeader("Content-Type", "application/pdf");
+          res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(
+            `${metod}_${number}.pdf`,
+          )}"`);
+          res.setHeader("Content-Length", fullBuffer.length.toString());
+          return res.end(fullBuffer);
         }
-
-        // Нормальный сценарий — отдаём файл
-        res.status(200);
-        res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(
-          `${metod}_${number}.pdf`,
-        )}"`);
-        res.setHeader("Content-Length", fullBuffer.length.toString());
-        res.end(fullBuffer);
+        
+        // Если не PDF — пробуем распарсить как JSON
+        const textResponse = fullBuffer.toString("utf-8");
+        console.log("⚠️ Server returned non-PDF response:", textResponse.substring(0, 500));
+        
+        try {
+          const jsonResponse = JSON.parse(textResponse);
+          console.log("📋 JSON response:", JSON.stringify(jsonResponse));
+          
+          // Если есть ошибка
+          if (jsonResponse.Error && jsonResponse.Error !== "") {
+            console.error("❌ Server error:", jsonResponse.Error);
+            return res.status(400).json({
+              error: "Server returned error",
+              message: jsonResponse.Error,
+            });
+          }
+          
+          // Если есть data (base64) — декодируем и отдаём как PDF
+          if (jsonResponse.data) {
+            console.log("✅ Got base64 data, decoding to PDF. Size:", jsonResponse.data.length);
+            const pdfBuffer = Buffer.from(jsonResponse.data, "base64");
+            const fileName = jsonResponse.name || `${metod}_${number}.pdf`;
+            
+            // Для GET запросов (MAX) — отдаём бинарный PDF для просмотра
+            if (req.method === "GET") {
+              res.status(200);
+              res.setHeader("Content-Type", "application/pdf");
+              res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fileName)}"`);
+              res.setHeader("Content-Length", pdfBuffer.length.toString());
+              return res.end(pdfBuffer);
+            }
+            
+            // Для POST запросов (Telegram) — возвращаем JSON с base64 как ожидает клиент
+            return res.status(200).json({
+              data: jsonResponse.data,
+              name: fileName,
+            });
+          }
+          
+          // Success:true но нет data — файл не найден
+          console.error("❌ No file data in response. Keys:", Object.keys(jsonResponse));
+          return res.status(404).json({
+            error: "File not found",
+            message: `Документ ${metod} для перевозки ${number} не найден`,
+          });
+          
+        } catch (e) {
+          // Не JSON и не PDF — возвращаем ошибку
+          console.error("❌ Response is neither PDF nor valid JSON!", e);
+          return res.status(500).json({
+            error: "Invalid response format",
+            message: "Server returned neither PDF nor valid JSON",
+            raw: textResponse.substring(0, 200),
+          });
+        }
       });
 
       upstreamRes.on("error", (err) => {
