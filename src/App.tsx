@@ -1706,7 +1706,6 @@ export default function App() {
                         <div className="modal-overlay" onClick={() => setIsOfferOpen(false)}>
                             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                                 <div className="modal-header">
-                                    <Typography.Headline>Публичная оферта</Typography.Headline>
                                     <Button className="modal-close-button" onClick={() => setIsOfferOpen(false)} aria-label="Закрыть">
                                         <X size={20} />
                                     </Button>
@@ -1721,7 +1720,6 @@ export default function App() {
                         <div className="modal-overlay" onClick={() => setIsPersonalConsentOpen(false)}>
                             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                                 <div className="modal-header">
-                                    <Typography.Headline>Согласие на обработку данных</Typography.Headline>
                                     <Button className="modal-close-button" onClick={() => setIsPersonalConsentOpen(false)} aria-label="Закрыть">
                                         <X size={20} />
                                     </Button>
