@@ -755,53 +755,38 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
     const handleDownload = async (docType: string) => {
         if (!item.Number) return alert("Нет номера перевозки");
         setDownloading(docType); setDownloadError(null);
-        const debug = typeof window !== "undefined" ? (window as any).__debugLog : undefined;
-        debug?.("download.start", { docType, number: item.Number });
         try {
-            const webApp = getWebApp();
-            const metod = DOCUMENT_METHODS[docType];
-            const origin = typeof window !== "undefined" ? window.location.origin : "";
-            const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}`;
-
-            if (webApp) {
-                debug?.("download.openLink", { url: directUrl });
-                if (typeof webApp.openLink === "function") {
-                    webApp.openLink(directUrl, { try_instant_view: false } as any);
-                } else {
-                    window.location.href = directUrl;
-                }
-                return;
-            }
-
-            const res = await fetch(PROXY_API_DOWNLOAD_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, metod, number: item.Number }) });
-            debug?.("download.response", { status: res.status, ok: res.ok, contentType: res.headers.get("content-type") });
+            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    metod: DOCUMENT_METHODS[docType],
+                    number: item.Number,
+                }),
+            });
             if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
-            const contentType = res.headers.get("content-type") || "";
-            const contentDisposition = res.headers.get("content-disposition");
-            const fallbackName = `${docType}_${item.Number}.pdf`;
+            const data = await res.json();
 
-            if (contentType.includes("application/json")) {
-                const data = await res.json();
-                debug?.("download.json", { hasData: Boolean(data?.data), name: data?.name });
-                if (!data?.data) {
-                    throw new Error("Ответ от сервера не содержит файл.");
-                }
-                const dataUrl = `data:application/pdf;base64,${data.data}`;
-                window.open(dataUrl, "_blank", "noopener,noreferrer");
-                return;
+            if (!data?.data || !data.name) {
+                throw new Error("Ответ от сервера не содержит файл.");
             }
 
-            const blob = await res.blob();
-            debug?.("download.blob", { size: blob.size, type: blob.type });
+            // Декодируем base64 в бинарный файл
+            const byteCharacters = atob(data.data);
+            const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: "application/pdf" });
+
             const url = URL.createObjectURL(blob);
-            window.open(url, "_blank", "noopener,noreferrer");
-            URL.revokeObjectURL(url);
-        } catch (e: any) {
-            debug?.("download.error", e?.message || e);
-            setDownloadError(e.message);
-        } finally {
-            setDownloading(null);
-        }
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = data.name || `${docType}_${item.Number}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
     // Список явно отображаемых полей (из API примера)
