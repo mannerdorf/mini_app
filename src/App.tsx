@@ -761,20 +761,39 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
             const contentType = res.headers.get("content-type") || "";
             const contentDisposition = res.headers.get("content-disposition");
             const fallbackName = `${docType}_${item.Number}.pdf`;
+            const webApp = getWebApp();
 
             if (contentType.includes("application/json")) {
                 const data = await res.json();
                 if (!data?.data) {
                     throw new Error("Ответ от сервера не содержит файл.");
                 }
-                const byteCharacters = atob(data.data);
-                const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: "application/pdf" });
-                const url = URL.createObjectURL(blob);
+                const dataUrl = `data:application/pdf;base64,${data.data}`;
+                if (webApp) {
+                    window.location.href = dataUrl;
+                } else {
+                    const a = document.createElement("a");
+                    a.href = dataUrl;
+                    a.download = data.name || fallbackName;
+                    a.rel = "noopener";
+                    a.target = "_blank";
+                    a.style.display = "none";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
+                return;
+            }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            if (webApp) {
+                window.location.href = url;
+                setTimeout(() => URL.revokeObjectURL(url), 30000);
+            } else {
                 const a = document.createElement("a");
                 a.href = url;
-                a.download = data.name || fallbackName;
+                a.download = getFileNameFromDisposition(contentDisposition, fallbackName);
                 a.rel = "noopener";
                 a.target = "_blank";
                 a.style.display = "none";
@@ -782,21 +801,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                return;
             }
-
-            const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = getFileNameFromDisposition(contentDisposition, fallbackName);
-            a.rel = "noopener";
-            a.target = "_blank";
-            a.style.display = "none";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
