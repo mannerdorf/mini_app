@@ -850,7 +850,6 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
     const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string; docType: string } | null>(null);
-    const [sendingToChat, setSendingToChat] = useState(false);
     
     // Очистка blob URL при закрытии
     useEffect(() => {
@@ -926,61 +925,6 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
-    // Функции для работы с PDF просмотрщиком
-    const handleDownloadPdf = () => {
-        if (!pdfViewer) return;
-        const a = document.createElement("a");
-        a.href = pdfViewer.url;
-        a.download = pdfViewer.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    };
-
-    const handleSendPdfToChat = async () => {
-        if (!pdfViewer || !item.Number) return;
-        
-        const webApp = getWebApp();
-        const chatId = webApp?.initDataUnsafe?.user?.id;
-        
-        if (!chatId) {
-            setDownloadError("Не удалось получить ID пользователя. Откройте приложение через Telegram.");
-            return;
-        }
-        
-        setSendingToChat(true);
-        setDownloadError(null);
-        
-        try {
-            const metod = DOCUMENT_METHODS[pdfViewer.docType];
-            const response = await fetch(PROXY_API_SEND_DOC_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    login: auth.login,
-                    password: auth.password,
-                    metod,
-                    number: item.Number,
-                    chatId,
-                }),
-            });
-            
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.message || data.error || `Ошибка: ${response.status}`);
-            }
-            
-            alert(`✅ Документ ${pdfViewer.docType} отправлен в чат!`);
-            
-        } catch (e: any) {
-            setDownloadError(e.message || "Ошибка отправки");
-            console.error("Send to chat error:", e);
-        } finally {
-            setSendingToChat(false);
-        }
-    };
-
     // Список явно отображаемых полей (из API примера)
     const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender'];
 
@@ -1037,28 +981,11 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                 {/* Встроенный просмотрщик PDF (метод 4: object/embed) */}
                 {pdfViewer && (
                     <div style={{ marginTop: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-                        <div style={{ padding: '0.5rem', background: 'var(--color-bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ padding: '0.5rem', background: 'var(--color-bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography.Label style={{ fontSize: '0.8rem' }}>{pdfViewer.name}</Typography.Label>
-                            <Flex gap="0.5rem">
-                                <Button 
-                                    size="small" 
-                                    onClick={handleDownloadPdf}
-                                    className="doc-button"
-                                >
-                                    <Download className="w-4 h-4 mr-2" /> Скачать
-                                </Button>
-                                <Button 
-                                    size="small" 
-                                    onClick={handleSendPdfToChat}
-                                    disabled={sendingToChat}
-                                    className="doc-button"
-                                >
-                                    {sendingToChat ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />} Отправить в чат
-                                </Button>
-                                <Button size="small" onClick={() => { URL.revokeObjectURL(pdfViewer.url); setPdfViewer(null); }}>
-                                    <X size={16} />
-                                </Button>
-                            </Flex>
+                            <Button size="small" onClick={() => { URL.revokeObjectURL(pdfViewer.url); setPdfViewer(null); }}>
+                                <X size={16} />
+                            </Button>
                         </div>
                         <object 
                             data={pdfViewer.url} 
