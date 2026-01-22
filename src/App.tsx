@@ -1247,7 +1247,7 @@ export default function App() {
             });
 
             if (!res.ok) {
-                let message = `Ошибка авторизации: ${res.status}`;
+                let message = `Ошибка авторизации`;
                 try {
                     const errorData = await res.json() as ApiError;
                     if (errorData.error) message = errorData.error;
