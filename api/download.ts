@@ -126,6 +126,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const fullBuffer = Buffer.concat(chunks);
         console.log("📦 Total size:", fullBuffer.length, "bytes");
         
+        // Извлекаем имя файла из заголовков ответа сервера
+        const extractFileName = (dispositionHeader: string | string[] | undefined, fallback: string): string => {
+          if (!dispositionHeader) return fallback;
+          const header = Array.isArray(dispositionHeader) ? dispositionHeader[0] : dispositionHeader;
+          
+          // Пробуем извлечь filename*=UTF-8''...
+          const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+          if (utf8Match?.[1]) {
+            try {
+              return decodeURIComponent(utf8Match[1]);
+            } catch {
+              // Если декодирование не удалось, пробуем другие варианты
+            }
+          }
+          
+          // Пробуем извлечь filename="..."
+          const quotedMatch = header.match(/filename="([^"]+)"/i);
+          if (quotedMatch?.[1]) {
+            try {
+              return decodeURIComponent(quotedMatch[1]);
+            } catch {
+              return quotedMatch[1];
+            }
+          }
+          
+          // Пробуем извлечь filename=...
+          const plainMatch = header.match(/filename=([^;]+)/i);
+          if (plainMatch?.[1]) {
+            const filename = plainMatch[1].trim();
+            try {
+              return decodeURIComponent(filename);
+            } catch {
+              return filename;
+            }
+          }
+          
+          return fallback;
+        };
+        
+        const upstreamDisposition = upstreamRes.headers["content-disposition"];
+        const defaultFileName = `${metod}_${number}.pdf`;
+        const fileName = extractFileName(upstreamDisposition, defaultFileName);
+        
+        console.log("📝 Extracted filename:", fileName, "from header:", upstreamDisposition);
+        
         // Проверяем, что это действительно PDF
         const firstBytes = fullBuffer.slice(0, 4).toString();
         const isPDF = firstBytes.startsWith("%PDF");
@@ -135,9 +180,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.log("✅ Got binary PDF, returning directly");
           res.status(200);
           res.setHeader("Content-Type", "application/pdf");
-          res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(
-            `${metod}_${number}.pdf`,
-          )}"`);
+          res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fileName)}"`);
           res.setHeader("Content-Length", fullBuffer.length.toString());
           return res.end(fullBuffer);
         }

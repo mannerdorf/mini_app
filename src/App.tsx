@@ -900,7 +900,7 @@ function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: { isOpen: 
 function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, isOpen: boolean, onClose: () => void, auth: AuthData }) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
-    const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string; docType: string } | null>(null);
+    const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string; docType: string; blob?: Blob; downloadFileName?: string } | null>(null);
     
     // Очистка blob URL при закрытии
     useEffect(() => {
@@ -939,6 +939,17 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         return `${val}${unit ? ' ' + unit : ''}`;
     };
     
+    const downloadFile = (blob: Blob, fileName: string) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
     const handleDownload = async (docType: string) => {
         if (!item.Number) return alert("Нет номера перевозки");
         setDownloading(docType); setDownloadError(null);
@@ -965,13 +976,16 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
             const byteNumbers = new Array(byteCharacters.length).fill(0).map((_, i) => byteCharacters.charCodeAt(i));
             const byteArray = new Uint8Array(byteNumbers);
             const blob = new Blob([byteArray], { type: "application/pdf" });
+            const fileName = data.name || `${docType}_${item.Number}.pdf`;
 
             // Метод 4: object/embed - показываем встроенным просмотрщиком
             const url = URL.createObjectURL(blob);
             setPdfViewer({
                 url,
-                name: data.name || `${docType}_${item.Number}.pdf`,
-                docType
+                name: fileName,
+                docType,
+                blob, // Сохраняем blob для скачивания
+                downloadFileName: fileName
             });
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
@@ -1034,9 +1048,20 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     <div style={{ marginTop: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
                         <div style={{ padding: '0.5rem', background: 'var(--color-bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Typography.Label style={{ fontSize: '0.8rem' }}>{pdfViewer.name}</Typography.Label>
-                            <Button size="small" onClick={() => { URL.revokeObjectURL(pdfViewer.url); setPdfViewer(null); }}>
-                                <X size={16} />
-                            </Button>
+                            <Flex align="center" gap="0.5rem">
+                                {pdfViewer.blob && pdfViewer.downloadFileName && (
+                                    <Button 
+                                        size="small" 
+                                        onClick={() => downloadFile(pdfViewer!.blob!, pdfViewer!.downloadFileName!)}
+                                        style={{ marginRight: '0.5rem' }}
+                                    >
+                                        <Download size={14} />
+                                    </Button>
+                                )}
+                                <Button size="small" onClick={() => { URL.revokeObjectURL(pdfViewer.url); setPdfViewer(null); }}>
+                                    <X size={16} />
+                                </Button>
+                            </Flex>
                         </div>
                         <object 
                             data={pdfViewer.url} 
@@ -1044,8 +1069,27 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                             style={{ width: '100%', height: '500px' }}
                         >
                             <Typography.Body style={{ padding: '1rem', textAlign: 'center' }}>
-                                Ваш браузер не поддерживает просмотр PDF. 
-                                <a href={pdfViewer.url} download>Скачать файл</a>
+                                Ваш браузер не поддерживает просмотр PDF.{" "}
+                                {pdfViewer.blob && pdfViewer.downloadFileName ? (
+                                    <a 
+                                        href="#" 
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            downloadFile(pdfViewer!.blob!, pdfViewer!.downloadFileName!);
+                                        }}
+                                        style={{ color: 'var(--color-primary-blue)', textDecoration: 'underline', cursor: 'pointer' }}
+                                    >
+                                        Скачать файл
+                                    </a>
+                                ) : (
+                                    <a 
+                                        href={pdfViewer.url} 
+                                        download={pdfViewer.name}
+                                        style={{ color: 'var(--color-primary-blue)', textDecoration: 'underline', cursor: 'pointer' }}
+                                    >
+                                        Скачать файл
+                                    </a>
+                                )}
                             </Typography.Body>
                         </object>
                     </div>
