@@ -19,6 +19,11 @@ const getWebApp = () => {
     );
 };
 
+const isMaxWebApp = () => {
+    if (typeof window === "undefined") return false;
+    return Boolean((window as any).MAX?.WebApp || (window as any).max?.WebApp || (window as any).Max?.WebApp);
+};
+
 import { DOCUMENT_METHODS } from "./documentMethods";
 
 
@@ -897,6 +902,20 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
+    const handleDownloadMax = (docType: string) => {
+        if (!item.Number) return alert("Нет номера перевозки");
+        const webApp = getWebApp();
+        const metod = DOCUMENT_METHODS[docType];
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}`;
+
+        if (webApp && typeof webApp.openLink === "function") {
+            webApp.openLink(directUrl, { try_instant_view: false } as any);
+        } else {
+            window.open(directUrl, "_blank", "noopener,noreferrer");
+        }
+    };
+
     // Список явно отображаемых полей (из API примера)
     const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender'];
 
@@ -949,6 +968,20 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                         </Button>
                     ))}
                 </div>
+                {isMaxWebApp() && (
+                    <>
+                        <Typography.Headline style={{marginTop: '0.75rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
+                            Документы (MAX)
+                        </Typography.Headline>
+                        <div className="document-buttons">
+                            {['ЭР', 'АПП', 'СЧЕТ', 'УПД'].map(doc => (
+                                <Button key={`max-${doc}`} className="doc-button" onClick={() => handleDownloadMax(doc)}>
+                                    <Download className="w-4 h-4 mr-2" /> {doc}
+                                </Button>
+                            ))}
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
