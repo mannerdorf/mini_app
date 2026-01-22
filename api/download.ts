@@ -9,23 +9,37 @@ const EXTERNAL_API_BASE_URL =
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
+  if (req.method !== "POST" && req.method !== "GET") {
+    res.setHeader("Allow", "POST, GET");
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    // Vercel иногда даёт body строкой
-    let body: any = req.body;
-    if (typeof body === "string") {
-      try {
-        body = JSON.parse(body);
-      } catch {
-        return res.status(400).json({ error: "Invalid JSON body" });
-      }
-    }
+    let login: string | undefined;
+    let password: string | undefined;
+    let metod: string | undefined;
+    let number: string | undefined;
 
-    const { login, password, metod, number } = body ?? {};
+    if (req.method === "GET") {
+      login = typeof req.query.login === "string" ? req.query.login : undefined;
+      password =
+        typeof req.query.password === "string" ? req.query.password : undefined;
+      metod = typeof req.query.metod === "string" ? req.query.metod : undefined;
+      number =
+        typeof req.query.number === "string" ? req.query.number : undefined;
+    } else {
+      // Vercel иногда даёт body строкой
+      let body: any = req.body;
+      if (typeof body === "string") {
+        try {
+          body = JSON.parse(body);
+        } catch {
+          return res.status(400).json({ error: "Invalid JSON body" });
+        }
+      }
+
+      ({ login, password, metod, number } = body ?? {});
+    }
 
     if (!login || !password || !metod || !number) {
       return res.status(400).json({

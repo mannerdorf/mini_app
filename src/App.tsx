@@ -758,13 +758,26 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         const debug = typeof window !== "undefined" ? (window as any).__debugLog : undefined;
         debug?.("download.start", { docType, number: item.Number });
         try {
-            const res = await fetch(PROXY_API_DOWNLOAD_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, metod: DOCUMENT_METHODS[docType], number: item.Number }) });
+            const webApp = getWebApp();
+            const metod = DOCUMENT_METHODS[docType];
+            const directUrl = `${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}`;
+
+            if (webApp) {
+                debug?.("download.openLink", { url: directUrl });
+                if (typeof webApp.openLink === "function") {
+                    webApp.openLink(directUrl);
+                } else {
+                    window.location.href = directUrl;
+                }
+                return;
+            }
+
+            const res = await fetch(PROXY_API_DOWNLOAD_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, metod, number: item.Number }) });
             debug?.("download.response", { status: res.status, ok: res.ok, contentType: res.headers.get("content-type") });
             if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
             const contentType = res.headers.get("content-type") || "";
             const contentDisposition = res.headers.get("content-disposition");
             const fallbackName = `${docType}_${item.Number}.pdf`;
-            const webApp = getWebApp();
 
             if (contentType.includes("application/json")) {
                 const data = await res.json();
@@ -773,40 +786,31 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     throw new Error("Ответ от сервера не содержит файл.");
                 }
                 const dataUrl = `data:application/pdf;base64,${data.data}`;
-                if (webApp) {
-                    window.location.href = dataUrl;
-                } else {
-                    const a = document.createElement("a");
-                    a.href = dataUrl;
-                    a.download = data.name || fallbackName;
-                    a.rel = "noopener";
-                    a.target = "_blank";
-                    a.style.display = "none";
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                }
-                return;
-            }
-
-            const blob = await res.blob();
-            debug?.("download.blob", { size: blob.size, type: blob.type });
-            const url = URL.createObjectURL(blob);
-            if (webApp) {
-                window.location.href = url;
-                setTimeout(() => URL.revokeObjectURL(url), 30000);
-            } else {
                 const a = document.createElement("a");
-                a.href = url;
-                a.download = getFileNameFromDisposition(contentDisposition, fallbackName);
+                a.href = dataUrl;
+                a.download = data.name || fallbackName;
                 a.rel = "noopener";
                 a.target = "_blank";
                 a.style.display = "none";
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                return;
             }
+
+            const blob = await res.blob();
+            debug?.("download.blob", { size: blob.size, type: blob.type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = getFileNameFromDisposition(contentDisposition, fallbackName);
+            a.rel = "noopener";
+            a.target = "_blank";
+            a.style.display = "none";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         } catch (e: any) {
             debug?.("download.error", e?.message || e);
             setDownloadError(e.message);
