@@ -792,35 +792,28 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
             </Typography.Body>
 
             {/* Суммирующая строка */}
-            <div 
-                className="cargo-card mb-4" 
-                style={{ padding: '0.75rem', cursor: 'pointer' }}
-                onClick={() => setShowSummary(!showSummary)}
-            >
-                <Flex justify="space-between" align="center">
-                    {showSummary ? <ChevronDown className="w-4 h-4 text-theme-secondary" /> : <ChevronDown className="w-4 h-4 text-theme-secondary" style={{ transform: 'rotate(-90deg)' }} />}
-                    {showSummary && (
-                        <Flex gap="1.5rem" align="center" style={{ flexWrap: 'wrap' }}>
-                            <Flex direction="column" align="center">
-                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
-                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                    {formatCurrency(summary.sum)}
-                                </Typography.Body>
-                            </Flex>
-                            <Flex direction="column" align="center">
-                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Мест</Typography.Label>
-                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                    {summary.mest.toFixed(0)}
-                                </Typography.Body>
-                            </Flex>
-                            <Flex direction="column" align="center">
-                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Плат. вес</Typography.Label>
-                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                    {summary.pw.toFixed(2)} кг
-                                </Typography.Body>
-                            </Flex>
+            <div className="cargo-card mb-4" style={{ padding: '0.75rem' }}>
+                <Flex justify="center" align="center">
+                    <Flex gap="1.5rem" align="center" style={{ flexWrap: 'wrap' }}>
+                        <Flex direction="column" align="center">
+                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                {formatCurrency(summary.sum)}
+                            </Typography.Body>
                         </Flex>
-                    )}
+                        <Flex direction="column" align="center">
+                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Мест</Typography.Label>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                {summary.mest.toFixed(0)}
+                            </Typography.Body>
+                        </Flex>
+                        <Flex direction="column" align="center">
+                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Плат. вес</Typography.Label>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                {summary.pw.toFixed(2)} кг
+                            </Typography.Body>
+                        </Flex>
+                    </Flex>
                 </Flex>
             </div>
 
