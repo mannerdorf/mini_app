@@ -147,6 +147,59 @@ const getStatusClass = (status: string | undefined) => {
     return 'status-value';
 };
 
+// Компонент бейджа статуса с использованием MAX UI
+const StatusBadge = ({ status }: { status: string | undefined }) => {
+    const lower = (status || '').toLowerCase();
+    let variant: 'success' | 'warning' | 'danger' | 'default' = 'default';
+    let badgeClass = 'max-badge';
+    
+    if (lower.includes('доставлен') || lower.includes('заверш')) {
+        variant = 'success';
+        badgeClass += ' max-badge-success';
+    } else if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('готов')) {
+        variant = 'warning';
+        badgeClass += ' max-badge-warning';
+    } else if (lower.includes('отменен') || lower.includes('аннулирован')) {
+        variant = 'danger';
+        badgeClass += ' max-badge-danger';
+    } else {
+        badgeClass += ' max-badge-default';
+    }
+    
+    // Кастомный бейдж в стиле MAX UI
+    return (
+        <span className={badgeClass}>
+            {status || '-'}
+        </span>
+    );
+};
+
+// Компонент бейджа статуса счета с использованием MAX UI
+const StatusBillBadge = ({ status }: { status: string | undefined }) => {
+    const lower = (status || '').toLowerCase();
+    let badgeClass = 'max-badge';
+    
+    // Логика для статусов счета
+    if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
+        badgeClass += ' max-badge-success'; // Зеленый для оплачен
+    } else if (lower.includes('не оплачен') || lower.includes('ожидает') || lower.includes('неоплачен') || 
+               lower.includes('unpaid') || lower.includes('pending')) {
+        badgeClass += ' max-badge-warning'; // Желтый для не оплачен / ожидает оплаты
+    } else if (lower.includes('отменен') || lower.includes('аннулирован') || lower.includes('отменён') ||
+               lower.includes('cancelled') || lower.includes('canceled')) {
+        badgeClass += ' max-badge-danger'; // Красный для отменен
+    } else {
+        badgeClass += ' max-badge-default'; // Серый для остальных
+    }
+    
+    // Кастомный бейдж в стиле MAX UI
+    return (
+        <span className={badgeClass}>
+            {status || '-'}
+        </span>
+    );
+};
+
 const getFilterKeyByStatus = (s: string | undefined): StatusFilter => { 
     if (!s) return 'all'; 
     const l = s.toLowerCase(); 
@@ -1035,7 +1088,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем W */}
                     <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем Value */}
                     <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} icon={<RussianRuble className="w-4 h-4 mr-1 text-theme-primary"/>} />
-                    <DetailItem label="Статус Счета" value={item.StateBill || '-'} highlighted /> {/* Используем StateBill */}
+                    <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted /> {/* Используем StateBill */}
                 </div>
                 
                 {/* ДОПОЛНИТЕЛЬНЫЕ поля из API - УДАЛЕН ЗАГОЛОВОК "Прочие данные из API" */}
