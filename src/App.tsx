@@ -147,33 +147,6 @@ const getStatusClass = (status: string | undefined) => {
     return 'status-value';
 };
 
-// Компонент бейджа статуса с использованием MAX UI
-const StatusBadge = ({ status }: { status: string | undefined }) => {
-    const lower = (status || '').toLowerCase();
-    let variant: 'success' | 'warning' | 'danger' | 'default' = 'default';
-    let badgeClass = 'max-badge';
-    
-    if (lower.includes('доставлен') || lower.includes('заверш') || lower.includes('оплачен')) {
-        variant = 'success';
-        badgeClass += ' max-badge-success';
-    } else if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('готов')) {
-        variant = 'warning';
-        badgeClass += ' max-badge-warning';
-    } else if (lower.includes('отменен') || lower.includes('аннулирован')) {
-        variant = 'danger';
-        badgeClass += ' max-badge-danger';
-    } else {
-        badgeClass += ' max-badge-default';
-    }
-    
-    // Кастомный бейдж в стиле MAX UI
-    return (
-        <span className={badgeClass}>
-            {status || '-'}
-        </span>
-    );
-};
-
 const getFilterKeyByStatus = (s: string | undefined): StatusFilter => { 
     if (!s) return 'all'; 
     const l = s.toLowerCase(); 
@@ -859,76 +832,40 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                 </Panel>
             )}
             
-            {/* MAX UI Table для списка грузов */}
-            {filteredItems.length > 0 && (
-                <Panel style={{ overflowX: 'auto', marginBottom: '1rem' }}>
-                    <table className="max-ui-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Номер
-                                </th>
-                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Дата
-                                </th>
-                                <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Статус
-                                </th>
-                                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Мест
-                                </th>
-                                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Вес
-                                </th>
-                                <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                                    Сумма
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredItems.map((item: CargoItem, idx: number) => (
-                                <tr 
-                                    key={item.Number || idx} 
-                                    onClick={() => setSelectedCargo(item)}
-                                    style={{ 
-                                        cursor: 'pointer',
-                                        borderBottom: '1px solid var(--color-border)',
-                                        transition: 'background-color 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'transparent';
-                                    }}
-                                >
-                                    <td style={{ padding: '0.75rem', fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                                        {item.Number}
-                                    </td>
-                                    <td style={{ padding: '0.75rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                        <Flex align="center" gap="0.25rem">
-                                            <Calendar className="w-3 h-3" />
-                                            {formatDate(item.DatePrih)}
-                                        </Flex>
-                                    </td>
-                                    <td style={{ padding: '0.75rem' }}>
-                                        <StatusBadge status={item.State} />
-                                    </td>
-                                    <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
-                                        {item.Mest || '-'}
-                                    </td>
-                                    <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.85rem', color: 'var(--color-text-primary)' }}>
-                                        {item.PW ? `${item.PW} кг` : '-'}
-                                    </td>
-                                    <td style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-success-status)' }}>
-                                        {formatCurrency(item.Sum)}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </Panel>
-            )}
+            <div className="cargo-list">
+                {filteredItems.map((item: CargoItem, idx: number) => (
+                    <Panel key={item.Number || idx} className="cargo-card mb-4" onClick={() => setSelectedCargo(item)}>
+                        <Flex justify="space-between" align="center" className="cargo-header-row">
+                            <Typography.Title className="order-number">{item.Number}</Typography.Title>
+                        <Flex align="center" className="date">
+                                <Calendar className="w-3 h-3 mr-1" />
+                            <Typography.Label>{formatDate(item.DatePrih)}</Typography.Label>
+                            </Flex>
+                        </Flex>
+                        <div className="cargo-details-grid">
+                            <div className="detail-item">
+                                <Tag className="w-4 h-4 text-theme-primary"/>
+                                <Typography.Label className="detail-item-label">Статус</Typography.Label>
+                                <Typography.Body className={getStatusClass(item.State)}>{item.State}</Typography.Body>
+                            </div>
+                            <div className="detail-item">
+                                <Layers className="w-4 h-4 text-theme-primary"/>
+                                <Typography.Label className="detail-item-label">Мест</Typography.Label>
+                                <Typography.Body className="detail-item-value">{item.Mest || '-'}</Typography.Body>
+                            </div>
+                            <div className="detail-item">
+                                <Scale className="w-4 h-4 text-theme-primary"/>
+                                <Typography.Label className="detail-item-label">Плат. вес</Typography.Label>
+                                <Typography.Body className="detail-item-value">{item.PW || '-'}</Typography.Body>
+                            </div>
+                        </div>
+                        <Flex justify="space-between" align="center" className="cargo-footer">
+                            <Typography.Label className="sum-label">Сумма</Typography.Label>
+                            <Typography.Title className="sum-value">{formatCurrency(item.Sum)}</Typography.Title>
+                        </Flex>
+                    </Panel>
+                ))}
+            </div>
 
             {selectedCargo && <CargoDetailsModal item={selectedCargo} isOpen={!!selectedCargo} onClose={() => setSelectedCargo(null)} auth={auth} />}
             <FilterDialog isOpen={isCustomModalOpen} onClose={() => setIsCustomModalOpen(false)} dateFrom={customDateFrom} dateTo={customDateTo} onApply={(f, t) => { setCustomDateFrom(f); setCustomDateTo(t); }} />
@@ -1089,7 +1026,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                 {/* Явно отображаемые поля (из API примера) */}
                 <div className="details-grid-modal">
                     <DetailItem label="Номер" value={item.Number} />
-                    <DetailItem label="Статус" value={<StatusBadge status={item.State} />} />
+                    <DetailItem label="Статус" value={item.State} statusClass={getStatusClass(item.State)} />
                     <DetailItem label="Приход" value={formatDate(item.DatePrih)} />
                     <DetailItem label="Доставка" value={formatDate(item.DateVr)} /> {/* Используем DateVr */}
                     <DetailItem label="Отправитель" value={item.Sender || '-'} /> {/* Добавляем Sender */}
@@ -1098,7 +1035,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем W */}
                     <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем Value */}
                     <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} icon={<RussianRuble className="w-4 h-4 mr-1 text-theme-primary"/>} />
-                    <DetailItem label="Статус Счета" value={<StatusBadge status={item.StateBill} />} highlighted /> {/* Используем StateBill */}
+                    <DetailItem label="Статус Счета" value={item.StateBill || '-'} highlighted /> {/* Используем StateBill */}
                 </div>
                 
                 {/* ДОПОЛНИТЕЛЬНЫЕ поля из API - УДАЛЕН ЗАГОЛОВОК "Прочие данные из API" */}
@@ -1243,7 +1180,7 @@ const DetailItem = ({ label, value, icon, statusClass, highlighted }: any) => (
         <Typography.Label className="detail-item-label">{label}</Typography.Label>
         <Flex align="center" className={`detail-item-value ${statusClass || ''}`}>
             {icon}
-            {React.isValidElement(value) ? value : <Typography.Body>{value}</Typography.Body>}
+            <Typography.Body>{value}</Typography.Body>
         </Flex>
     </div>
 );
