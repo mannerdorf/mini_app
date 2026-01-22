@@ -910,6 +910,16 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         }
     }, [isOpen, pdfViewer]);
     
+    // Раскрываем на весь экран при открытии документов (MAX Bridge)
+    useEffect(() => {
+        if (isOpen) {
+            const webApp = getWebApp();
+            if (webApp && typeof webApp.expand === "function" && isMaxWebApp()) {
+                webApp.expand();
+            }
+        }
+    }, [isOpen]);
+    
     if (!isOpen) return null;
 
     const renderValue = (val: any, unit = '') => {
@@ -987,6 +997,17 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                 blob, // Сохраняем blob для скачивания
                 downloadFileName: fileName
             });
+            
+            // Если скачали УПД в MAX - закрываем мини-апп после скачивания
+            if (docType === 'УПД' && isMaxWebApp()) {
+                const webApp = getWebApp();
+                if (webApp && typeof webApp.close === "function") {
+                    // Даём время на скачивание, затем закрываем
+                    setTimeout(() => {
+                        webApp.close();
+                    }, 1000);
+                }
+            }
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
@@ -1035,13 +1056,68 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                 <Typography.Headline style={{marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
                     Документы
                 </Typography.Headline>
-                <div className="document-buttons">
-                    {['ЭР', 'АПП', 'СЧЕТ', 'УПД'].map(doc => (
-                        <Button key={doc} className="doc-button" onClick={() => handleDownload(doc)} disabled={downloading === doc}>
-                            {downloading === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} {doc}
-                        </Button>
-                    ))}
-                </div>
+                
+                {/* Умные сценарии документов */}
+                {(() => {
+                    const isPaid = item.StateBill?.toLowerCase().includes('оплачен') || 
+                                  item.StateBill?.toLowerCase().includes('paid') ||
+                                  item.StateBill === 'Оплачен';
+                    
+                    // Базовые документы (всегда доступны)
+                    const baseDocs = ['ЭР', 'АПП'];
+                    
+                    // Документы в зависимости от статуса оплаты
+                    const availableDocs = isPaid 
+                        ? [...baseDocs, 'СЧЕТ', 'УПД'] // Если оплачен - показываем все
+                        : [...baseDocs, 'СЧЕТ']; // Если не оплачен - скрываем УПД
+                    
+                    return (
+                        <>
+                            <div className="document-buttons">
+                                {availableDocs.map(doc => {
+                                    const isUPD = doc === 'УПД';
+                                    const isHighlighted = isUPD && isPaid; // Подсветка для УПД если оплачен
+                                    return (
+                                        <Button 
+                                            key={doc} 
+                                            className={`doc-button ${isHighlighted ? 'doc-button-highlighted' : ''}`}
+                                            onClick={() => handleDownload(doc)} 
+                                            disabled={downloading === doc}
+                                            style={isHighlighted ? {
+                                                border: '2px solid var(--color-primary-blue)',
+                                                boxShadow: '0 0 8px rgba(37, 99, 235, 0.3)'
+                                            } : {}}
+                                        >
+                                            {downloading === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} {doc}
+                                        </Button>
+                                    );
+                                })}
+                            </div>
+                            
+                            {/* Кнопка "Оплатить" если счет не оплачен */}
+                            {!isPaid && (
+                                <div style={{ marginTop: '0.75rem' }}>
+                                    <Button 
+                                        className="button-primary" 
+                                        style={{ width: '100%' }}
+                                        onClick={() => {
+                                            const webApp = getWebApp();
+                                            if (webApp && typeof webApp.openLink === 'function') {
+                                                // Открываем страницу оплаты (нужно будет добавить URL)
+                                                webApp.openLink(`https://lk.haulz.pro/payment?number=${item.Number}`);
+                                            } else {
+                                                window.open(`https://lk.haulz.pro/payment?number=${item.Number}`, '_blank');
+                                            }
+                                        }}
+                                    >
+                                        <CreditCard className="w-4 h-4 mr-2" />
+                                        Оплатить
+                                    </Button>
+                                </div>
+                            )}
+                        </>
+                    );
+                })()}
 
                 {/* Встроенный просмотрщик PDF (метод 4: object/embed) */}
                 {pdfViewer && (
@@ -1145,6 +1221,21 @@ export default function App() {
                 if (typeof webApp.ready === "function") {
                     webApp.ready();
                 }
+                
+                // Настройка цветов для MAX Bridge
+                if (isMaxWebApp()) {
+                    // Устанавливаем цвет фона (убираем "ощущение веба")
+                    if (typeof webApp.setBackgroundColor === "function") {
+                        const bgColor = theme === 'dark' ? '#1a1a1a' : '#f5f5f5';
+                        webApp.setBackgroundColor(bgColor);
+                    }
+                    
+                    // Устанавливаем цвет хедера (визуально привязываем к бренду)
+                    if (typeof webApp.setHeaderColor === "function") {
+                        webApp.setHeaderColor('#2563eb'); // Синий цвет бренда HAULZ
+                    }
+                }
+                
                 if (typeof webApp.expand === "function") {
                     webApp.expand();
                 }
@@ -1158,6 +1249,13 @@ export default function App() {
             const themeHandler = () => {
                 if (typeof webApp.colorScheme === "string") {
                     setTheme(webApp.colorScheme);
+                }
+                // Обновляем цвета при смене темы
+                if (isMaxWebApp()) {
+                    if (typeof webApp.setBackgroundColor === "function") {
+                        const bgColor = webApp.colorScheme === 'dark' ? '#1a1a1a' : '#f5f5f5';
+                        webApp.setBackgroundColor(bgColor);
+                    }
                 }
             };
 
@@ -1194,7 +1292,9 @@ export default function App() {
 
     const [auth, setAuth] = useState<AuthData | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("cargo"); // ИЗМЕНЕНО: По умолчанию только "cargo"
-    const [theme, setTheme] = useState('dark'); 
+    const [theme, setTheme] = useState('dark');
+    const [startParam, setStartParam] = useState<string | null>(null);
+    const [contextCargoNumber, setContextCargoNumber] = useState<string | null>(null); 
     
     // ИНИЦИАЛИЗАЦИЯ ПУСТЫМИ СТРОКАМИ (данные берутся с фронта)
     const [login, setLogin] = useState(""); 
@@ -1212,6 +1312,40 @@ export default function App() {
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
 
     useEffect(() => { document.body.className = `${theme}-mode`; }, [theme]);
+
+    // Обработка start_param для контекстного запуска
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        
+        const webApp = getWebApp();
+        if (!webApp) return;
+        
+        // Получаем start_param из WebApp (MAX/Telegram)
+        const param = (webApp as any).startParam || 
+                     (webApp as any).initDataUnsafe?.start_param ||
+                     new URLSearchParams(window.location.search).get('start_param') ||
+                     new URLSearchParams(window.location.search).get('startapp');
+        
+        if (param) {
+            setStartParam(param);
+            console.log('📱 Start param:', param);
+            
+            // Парсим параметры: invoice_123, upd_456, delivery_789
+            if (param.startsWith('invoice_')) {
+                const number = param.replace('invoice_', '');
+                setContextCargoNumber(number);
+                setActiveTab('cargo');
+            } else if (param.startsWith('upd_')) {
+                const number = param.replace('upd_', '');
+                setContextCargoNumber(number);
+                setActiveTab('cargo');
+            } else if (param.startsWith('delivery_')) {
+                const number = param.replace('delivery_', '');
+                setContextCargoNumber(number);
+                setActiveTab('cargo');
+            }
+        }
+    }, []);
 
     useEffect(() => {
         if (typeof window === "undefined") return;

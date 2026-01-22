@@ -245,8 +245,13 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .modal-header { display: flex; justify-content: space-between; margin-bottom: 1rem; align-items: center; }
 .modal-close-button { background: none; border: none; color: var(--color-text-secondary); cursor: pointer; }
 .document-buttons { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-.doc-button { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0.5rem; background-color: var(--color-primary-blue); color: white; border-radius: 0.5rem; border: none; cursor: pointer; font-size: 0.8rem; min-width: 80px; transition: background-color 0.3s; }
+.doc-button { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0.5rem; background-color: var(--color-primary-blue); color: white; border-radius: 0.5rem; border: none; cursor: pointer; font-size: 0.8rem; min-width: 80px; transition: all 0.3s; }
 .doc-button:hover:not(:disabled) { background-color: #2563eb; }
+.doc-button-highlighted { border: 2px solid var(--color-primary-blue) !important; box-shadow: 0 0 8px rgba(37, 99, 235, 0.3) !important; animation: pulse-highlight 2s ease-in-out infinite; }
+@keyframes pulse-highlight {
+    0%, 100% { box-shadow: 0 0 8px rgba(37, 99, 235, 0.3); }
+    50% { box-shadow: 0 0 12px rgba(37, 99, 235, 0.5); }
+}
 
 .details-grid-modal { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
 @media (max-width: 400px) { /* Делаем одноколоночную сетку на очень маленьких экранах */
