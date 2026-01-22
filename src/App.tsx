@@ -6,7 +6,7 @@ import {
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
-import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography, Table, Badge } from "@maxhub/max-ui";
+import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import "./styles.css";
 // --- TELEGRAM MINI APP SUPPORT ---
 const getWebApp = () => {
@@ -166,16 +166,7 @@ const StatusBadge = ({ status }: { status: string | undefined }) => {
         badgeClass += ' max-badge-default';
     }
     
-    // Пробуем использовать Badge из MAX UI, если доступен
-    if (Badge && typeof Badge === 'function') {
-        try {
-            return <Badge variant={variant}>{status || '-'}</Badge>;
-        } catch {
-            // Fallback на кастомный бейдж
-        }
-    }
-    
-    // Fallback: кастомный бейдж в стиле MAX UI
+    // Кастомный бейдж в стиле MAX UI
     return (
         <span className={badgeClass}>
             {status || '-'}
