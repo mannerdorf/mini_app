@@ -755,8 +755,11 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
     const handleDownload = async (docType: string) => {
         if (!item.Number) return alert("Нет номера перевозки");
         setDownloading(docType); setDownloadError(null);
+        const debug = typeof window !== "undefined" ? (window as any).__debugLog : undefined;
+        debug?.("download.start", { docType, number: item.Number });
         try {
             const res = await fetch(PROXY_API_DOWNLOAD_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, metod: DOCUMENT_METHODS[docType], number: item.Number }) });
+            debug?.("download.response", { status: res.status, ok: res.ok, contentType: res.headers.get("content-type") });
             if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
             const contentType = res.headers.get("content-type") || "";
             const contentDisposition = res.headers.get("content-disposition");
@@ -765,6 +768,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
 
             if (contentType.includes("application/json")) {
                 const data = await res.json();
+                debug?.("download.json", { hasData: Boolean(data?.data), name: data?.name });
                 if (!data?.data) {
                     throw new Error("Ответ от сервера не содержит файл.");
                 }
@@ -786,6 +790,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
             }
 
             const blob = await res.blob();
+            debug?.("download.blob", { size: blob.size, type: blob.type });
             const url = URL.createObjectURL(blob);
             if (webApp) {
                 window.location.href = url;
@@ -802,7 +807,12 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             }
-        } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
+        } catch (e: any) {
+            debug?.("download.error", e?.message || e);
+            setDownloadError(e.message);
+        } finally {
+            setDownloading(null);
+        }
     };
 
     // Список явно отображаемых полей (из API примера)

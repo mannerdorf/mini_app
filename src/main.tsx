@@ -10,6 +10,12 @@ const shouldShowDebug = () => {
   return new URLSearchParams(window.location.search).has("debug");
 };
 
+declare global {
+  interface Window {
+    __debugLog?: (label: string, data?: unknown) => void;
+  }
+}
+
 const setupDebugOverlay = () => {
   if (!shouldShowDebug()) return;
   const container = document.createElement("div");
@@ -57,15 +63,22 @@ const setupDebugOverlay = () => {
   };
   toggle.addEventListener("click", () => setExpanded(!isExpanded));
 
-  const write = (label: string, error: unknown) => {
+  const write = (label: string, data?: unknown) => {
     const message =
-      error instanceof Error
-        ? `${error.message}\n${error.stack ?? ""}`
-        : String(error);
+      data instanceof Error
+        ? `${data.message}\n${data.stack ?? ""}`
+        : data === undefined
+          ? ""
+          : typeof data === "string"
+            ? data
+            : JSON.stringify(data, null, 2);
     const time = new Date().toISOString();
     container.textContent += `\n[${time}] ${label}\n${message}\n`;
     setExpanded(true);
   };
+
+  window.__debugLog = write;
+  write("debug enabled");
 
   window.addEventListener("error", (event) => {
     write("window.error", (event as ErrorEvent).error || event.message);
