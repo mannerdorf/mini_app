@@ -849,6 +849,16 @@ function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: { isOpen: 
 function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, isOpen: boolean, onClose: () => void, auth: AuthData }) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
+    const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string } | null>(null);
+    
+    // Очистка blob URL при закрытии модального окна
+    useEffect(() => {
+        if (!isOpen && pdfViewer) {
+            URL.revokeObjectURL(pdfViewer.url);
+            setPdfViewer(null);
+        }
+    }, [isOpen, pdfViewer]);
+    
     if (!isOpen) return null;
 
     const renderValue = (val: any, unit = '') => {
@@ -961,16 +971,12 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                 throw new Error("Файл не является PDF");
             }
 
-            // Создаем ссылку для скачивания
+            // Создаем blob URL для просмотра в модальном окне
             const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `${docType}_${item.Number}.pdf`;
-            a.style.display = "none";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            setPdfViewer({
+                url,
+                name: `${docType}_${item.Number}.pdf`
+            });
             
         } catch (e: any) {
             setDownloadError(e.message || "Ошибка скачивания");
@@ -1107,6 +1113,28 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     ))}
                 </div>
             </div>
+            
+            {/* Модальное окно для просмотра PDF */}
+            {pdfViewer && (
+                <div className="modal-overlay" style={{ zIndex: 10001 }} onClick={() => {
+                    URL.revokeObjectURL(pdfViewer.url);
+                    setPdfViewer(null);
+                }}>
+                    <div className="modal-content" style={{ maxWidth: '95vw', maxHeight: '95vh', width: '100%', height: '100%', padding: 0 }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header" style={{ position: 'absolute', top: 0, right: 0, zIndex: 10002, background: 'transparent' }}>
+                            <Button className="modal-close-button" onClick={() => {
+                                URL.revokeObjectURL(pdfViewer.url);
+                                setPdfViewer(null);
+                            }} aria-label="Закрыть"><X size={20} /></Button>
+                        </div>
+                        <iframe 
+                            src={pdfViewer.url} 
+                            style={{ width: '100%', height: '100%', border: 'none' }}
+                            title={pdfViewer.name}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
