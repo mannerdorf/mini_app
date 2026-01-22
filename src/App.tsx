@@ -686,6 +686,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    const [showSummary, setShowSummary] = useState(true);
 
     const apiDateRange = useMemo(() => dateFilter === "период" ? { dateFrom: customDateFrom, dateTo: customDateTo } : getDateRange(dateFilter), [dateFilter, customDateFrom, customDateTo]); // ИСПРАВЛЕНО: 'custom' на 'период'
 
@@ -731,6 +732,30 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
         return res;
     }, [items, statusFilter, searchText]);
 
+    // Подсчет сумм из отфильтрованных элементов
+    const summary = useMemo(() => {
+        const totalSum = filteredItems.reduce((acc, item) => {
+            const sum = typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+            return acc + sum;
+        }, 0);
+        
+        const totalMest = filteredItems.reduce((acc, item) => {
+            const mest = typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
+            return acc + mest;
+        }, 0);
+        
+        const totalPW = filteredItems.reduce((acc, item) => {
+            const pw = typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            return acc + pw;
+        }, 0);
+        
+        return {
+            sum: totalSum,
+            mest: totalMest,
+            pw: totalPW
+        };
+    }, [filteredItems]);
+
 
     return (
         <div className="w-full">
@@ -765,6 +790,42 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
             <Typography.Body className="text-sm text-theme-secondary mb-4 text-center">
                 Период: {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
             </Typography.Body>
+
+            {/* Суммирующая строка */}
+            <Panel className="mb-4" style={{ padding: '0.75rem' }}>
+                <Flex justify="space-between" align="center">
+                    <Button 
+                        size="small" 
+                        onClick={() => setShowSummary(!showSummary)}
+                        style={{ padding: '0.25rem 0.5rem' }}
+                    >
+                        {showSummary ? <ChevronDown className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" style={{ transform: 'rotate(-90deg)' }} />}
+                        <Typography.Label style={{ marginLeft: '0.5rem' }}>Итого</Typography.Label>
+                    </Button>
+                    {showSummary && (
+                        <Flex gap="1.5rem" align="center" style={{ flexWrap: 'wrap' }}>
+                            <Flex direction="column" align="center">
+                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
+                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                    {formatCurrency(summary.sum)}
+                                </Typography.Body>
+                            </Flex>
+                            <Flex direction="column" align="center">
+                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Мест</Typography.Label>
+                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                    {summary.mest.toFixed(0)}
+                                </Typography.Body>
+                            </Flex>
+                            <Flex direction="column" align="center">
+                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Плат. вес</Typography.Label>
+                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                    {summary.pw.toFixed(2)} кг
+                                </Typography.Body>
+                            </Flex>
+                        </Flex>
+                    )}
+                </Flex>
+            </Panel>
 
             {/* List */}
             {loading && (
