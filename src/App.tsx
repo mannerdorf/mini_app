@@ -1453,10 +1453,8 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
     const [inn, setInn] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [code, setCode] = useState<string[]>(['', '', '', '', '', '']);
-    const [codeInputIndex, setCodeInputIndex] = useState(0);
+    const [otpCode, setOtpCode] = useState("");
     const [showCodeInput, setShowCodeInput] = useState(false);
-    const codeInputRefs = React.useRef<Array<any>>([]);
     
     const handleSubmitINN = async (e: FormEvent) => {
         e.preventDefault();
@@ -1472,6 +1470,7 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
             // Здесь будет запрос к API для проверки ИНН
             // Пока симулируем успешный ответ
             await new Promise(resolve => setTimeout(resolve, 1000));
+            setOtpCode("");
             setShowCodeInput(true);
         } catch (err: any) {
             setError(err.message || "Ошибка при проверке ИНН");
@@ -1480,76 +1479,15 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
         }
     };
     
-    const handleCodeChange = (index: number, value: string) => {
-        const digits = (value || "").replace(/\D/g, "");
-        if (!digits) {
-            const newCode = [...code];
-            newCode[index] = "";
-            setCode(newCode);
-            setCodeInputIndex(index);
-            return;
-        }
-
-        // Вставка/ввод нескольких цифр за раз (paste)
-        const newCode = [...code];
-        let writeIndex = index;
-        for (let i = 0; i < digits.length && writeIndex < 6; i += 1) {
-            newCode[writeIndex] = digits[i];
-            writeIndex += 1;
-        }
-        setCode(newCode);
-
-        const nextIndex = Math.min(writeIndex, 5);
-        setCodeInputIndex(nextIndex);
-        // Фокус на следующий
-        const el = codeInputRefs.current[nextIndex];
-        if (el?.focus) el.focus();
+    const handleOtpChange = (value: string) => {
+        const digits = (value || "").replace(/\D/g, "").slice(0, 6);
+        setOtpCode(digits);
+        if (error) setError(null);
     };
-
-    const handleCodeKeyDown = (index: number, e: React.KeyboardEvent) => {
-        if (e.key === "Backspace") {
-            if (code[index]) {
-                const newCode = [...code];
-                newCode[index] = "";
-                setCode(newCode);
-                setCodeInputIndex(index);
-                return;
-            }
-            if (index > 0) {
-                const prev = index - 1;
-                const newCode = [...code];
-                newCode[prev] = "";
-                setCode(newCode);
-                setCodeInputIndex(prev);
-                const el = codeInputRefs.current[prev];
-                if (el?.focus) el.focus();
-            }
-            return;
-        }
-        if (e.key === "ArrowLeft" && index > 0) {
-            const prev = index - 1;
-            setCodeInputIndex(prev);
-            const el = codeInputRefs.current[prev];
-            if (el?.focus) el.focus();
-        }
-        if (e.key === "ArrowRight" && index < 5) {
-            const next = index + 1;
-            setCodeInputIndex(next);
-            const el = codeInputRefs.current[next];
-            if (el?.focus) el.focus();
-        }
-    };
-
-    useEffect(() => {
-        if (!showCodeInput) return;
-        const el = codeInputRefs.current[codeInputIndex];
-        if (el?.focus) el.focus();
-    }, [showCodeInput, codeInputIndex]);
     
     const handleCodeSubmit = async (e: FormEvent) => {
         e.preventDefault();
-        const fullCode = code.join('');
-        if (fullCode.length !== 6) {
+        if (otpCode.length !== 6) {
             setError("Введите полный код");
             return;
         }
@@ -1598,43 +1536,27 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
                 
                 <Panel className="cargo-card" style={{ padding: '1rem' }}>
                     <form onSubmit={handleCodeSubmit}>
-                        <div
+                        <input
+                            className="login-input"
+                            type="tel"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            autoComplete="one-time-code"
+                            placeholder="------"
+                            value={otpCode}
+                            onChange={(e) => handleOtpChange(e.target.value)}
                             style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(6, 1fr)',
-                                gap: '0.5rem',
                                 width: '100%',
                                 maxWidth: '320px',
                                 margin: '0 auto 1.25rem',
+                                display: 'block',
+                                textAlign: 'center',
+                                letterSpacing: '0.5rem',
+                                fontSize: '1.25rem',
+                                padding: '0.9rem 0.75rem',
                             }}
-                        >
-                            {code.map((digit, index) => (
-                                <Input
-                                    key={index}
-                                    type="text"
-                                    inputMode="numeric"
-                                    maxLength={1}
-                                    value={digit}
-                                    onChange={(e) => handleCodeChange(index, (e.target as HTMLInputElement).value)}
-                                    onKeyDown={(e) => handleCodeKeyDown(index, e)}
-                                    onFocus={() => setCodeInputIndex(index)}
-                                    onPaste={(e) => {
-                                        e.preventDefault();
-                                        const text = (e.clipboardData?.getData('text') || '');
-                                        handleCodeChange(index, text);
-                                    }}
-                                    // ref может быть не строго HTMLInputElement в max-ui, поэтому any + focus()
-                                    ref={(el: any) => { codeInputRefs.current[index] = el; }}
-                                    style={{
-                                        width: '100%',
-                                        height: '44px',
-                                        textAlign: 'center',
-                                        fontSize: '1.1rem',
-                                        border: codeInputIndex === index ? '2px solid var(--color-primary)' : '1px solid var(--color-border)'
-                                    }}
-                                />
-                            ))}
-                        </div>
+                            autoFocus
+                        />
                         
                         {error && (
                             <Typography.Body className="login-error" style={{ marginBottom: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>
