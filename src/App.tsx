@@ -1365,7 +1365,8 @@ function ProfilePage({
     onAddAccount, 
     onRemoveAccount,
     onOpenOffer,
-    onOpenPersonalConsent
+    onOpenPersonalConsent,
+    onOpenNotifications
 }: { 
     accounts: Account[]; 
     activeAccountId: string | null; 
@@ -1374,6 +1375,7 @@ function ProfilePage({
     onRemoveAccount: (accountId: string) => void;
     onOpenOffer: () => void;
     onOpenPersonalConsent: () => void;
+    onOpenNotifications: () => void;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     
@@ -1389,7 +1391,7 @@ function ProfilePage({
             id: 'notifications', 
             label: 'Уведомления', 
             icon: <Bell className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => {}
+            onClick: () => onOpenNotifications()
         },
         { 
             id: 'dashboards', 
@@ -2773,8 +2775,8 @@ const DetailItem = ({ label, value, icon, statusClass, highlighted, textColor }:
 
 function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllTabs }: { active: Tab, onChange: (t: Tab) => void, onCargoPressStart?: () => void, onCargoPressEnd?: () => void, showAllTabs?: boolean }) {
     if (showAllTabs) {
-        return (
-            <div className="tabbar-container">
+    return (
+        <div className="tabbar-container">
                 <TabBtn label="" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
                 <TabBtn 
                     label="" 
@@ -2788,9 +2790,9 @@ function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllT
                 <TabBtn label="" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />
                 <TabBtn label="" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />
                 <TabBtn label="" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
-            </div>
-        );
-    }
+        </div>
+    );
+}
     
     return (
         <div className="tabbar-container">
@@ -2926,52 +2928,18 @@ export default function App() {
         const account = accounts.find(acc => acc.id === activeAccountId);
         return account ? { login: account.login, password: account.password } : null;
     }, [accounts, activeAccountId]);
-    const [activeTab, setActiveTab] = useState<Tab>("dashboard"); // По умолчанию открываем главную (дашборд)
+    const [activeTab, setActiveTab] = useState<Tab>("cargo"); // Первый запуск: "Грузы"
     const [theme, setTheme] = useState('dark'); 
     const [showDashboard, setShowDashboard] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
     const [pinCode, setPinCode] = useState('');
     const [pinError, setPinError] = useState(false);
-    const holdTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-    const isHoldingRef = React.useRef(false);
+    const hasRestoredTabRef = React.useRef(false);
     
-    // Очистка таймаута при размонтировании
-    useEffect(() => {
-        return () => {
-            if (holdTimeoutRef.current) {
-                clearTimeout(holdTimeoutRef.current);
-            }
-        };
-    }, []);
-    
-    // Обработка нажатия и удержания (работает для входа и выхода)
-    const handleCargoPressStart = (e?: React.MouseEvent | React.TouchEvent) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        
-        isHoldingRef.current = true;
-        holdTimeoutRef.current = setTimeout(() => {
-            if (isHoldingRef.current) {
-                setShowPinModal(true);
-                setPinCode('');
-                setPinError(false);
-            }
-        }, 2000); // 2 секунды
-    };
-    
-    // Обработка отпускания
-    const handleCargoPressEnd = (e?: React.MouseEvent | React.TouchEvent) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        isHoldingRef.current = false;
-        if (holdTimeoutRef.current) {
-            clearTimeout(holdTimeoutRef.current);
-            holdTimeoutRef.current = null;
-        }
+    const openSecretPinModal = () => {
+        setShowPinModal(true);
+        setPinCode('');
+        setPinError(false);
     };
     
     // Проверка пин-кода (для входа и выхода)
@@ -3082,6 +3050,7 @@ export default function App() {
             // Загружаем массив аккаунтов (новый формат)
             const savedAccounts = window.localStorage.getItem("haulz.accounts");
             const savedActiveId = window.localStorage.getItem("haulz.activeAccountId");
+            const savedTab = window.localStorage.getItem("haulz.lastTab");
             if (savedAccounts) {
                 try {
                     const parsedAccounts = JSON.parse(savedAccounts) as Account[];
@@ -3092,6 +3061,22 @@ export default function App() {
                         } else {
                             setActiveAccountId(parsedAccounts[0].id);
                         }
+                        // Восстанавливаем последнюю вкладку (без сохранения секретного режима)
+                        if (savedTab) {
+                            const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs", "support"];
+                            const t = savedTab as Tab;
+                            if (allowed.includes(t)) {
+                                // docs/support доступны только в секретном режиме — фоллбек на cargo
+                                if ((t === "docs" || t === "support") && !showDashboard) {
+                                    setActiveTab("cargo");
+                                } else if (t === "home") {
+                                    setActiveTab("dashboard");
+                                } else {
+                                    setActiveTab(t);
+                                }
+                            }
+                        }
+                        hasRestoredTabRef.current = true;
                     }
                 } catch {
                     // Игнорируем ошибки парсинга
@@ -3101,6 +3086,16 @@ export default function App() {
             // игнорируем ошибки чтения
         }
     }, []);
+
+    // Сохраняем последнюю вкладку, чтобы при следующем запуске открыть на ней
+    useEffect(() => {
+        if (!hasRestoredTabRef.current) return;
+        try {
+            window.localStorage.setItem("haulz.lastTab", activeTab);
+        } catch {
+            // игнорируем ошибки записи
+        }
+    }, [activeTab]);
     
     // Сохранение аккаунтов в localStorage
     useEffect(() => {
@@ -3158,7 +3153,8 @@ export default function App() {
                 setActiveAccountId(accountId);
             }
             
-            setActiveTab("dashboard"); 
+            // при первом входе остаемся на "Грузы" или восстановленной вкладке
+            setActiveTab((prev) => prev || "cargo");
         } catch (err: any) {
             setError("Ошибка сети.");
         } finally {
@@ -3437,6 +3433,7 @@ export default function App() {
                             onRemoveAccount={handleRemoveAccount}
                             onOpenOffer={() => setIsOfferOpen(true)}
                             onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
+                            onOpenNotifications={openSecretPinModal}
                         />
                     )}
                     {!showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} />}
@@ -3450,6 +3447,7 @@ export default function App() {
                             onRemoveAccount={handleRemoveAccount}
                             onOpenOffer={() => setIsOfferOpen(true)}
                             onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
+                            onOpenNotifications={openSecretPinModal}
                         />
                     )}
                 </div>
@@ -3474,8 +3472,7 @@ export default function App() {
                         else setActiveTab(tab);
                     }
                 }}
-                onCargoPressStart={handleCargoPressStart}
-                onCargoPressEnd={handleCargoPressEnd}
+                // вход в секретный режим теперь через "Уведомления" в профиле
                 showAllTabs={showDashboard}
             />
 
