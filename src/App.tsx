@@ -48,7 +48,7 @@ const PROXY_API_SEND_DOC_URL = '/api/send-document';
 type ApiError = { error?: string; [key: string]: unknown; };
 type AuthData = { login: string; password: string; };
 // УДАЛЕНО: type Tab = "home" | "cargo" | "docs" | "support" | "profile";
-type Tab = "cargo"; // Оставлена только "cargo"
+type Tab = "cargo" | "dashboard"; // cargo и секретный dashboard
 type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
 type StatusFilter = "all" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
 type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom"; // Оставлено, так как это может использоваться в Home, который пока остается в коде ниже
@@ -748,6 +748,297 @@ function CustomPeriodModal({
                     </Button>
                 </div>
             </div>
+        </div>
+    );
+}
+
+// --- DASHBOARD PAGE (SECRET) ---
+function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void }) {
+    const [items, setItems] = useState<CargoItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    
+    // Filters State (такие же как на странице грузов)
+    const [dateFilter, setDateFilter] = useState<DateFilter>("все");
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+    const [customDateFrom, setCustomDateFrom] = useState(DEFAULT_DATE_FROM);
+    const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
+    const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
+    const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
+    const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    
+    const apiDateRange = useMemo(() => 
+        dateFilter === "период" 
+            ? { dateFrom: customDateFrom, dateTo: customDateTo } 
+            : getDateRange(dateFilter), 
+        [dateFilter, customDateFrom, customDateTo]
+    );
+    
+    const loadCargo = useCallback(async (dateFrom: string, dateTo: string) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch(PROXY_API_BASE_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    dateFrom,
+                    dateTo
+                })
+            });
+            if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : data.items || [];
+            setItems(list.map((item: any) => ({
+                ...item,
+                Number: item.Number,
+                DatePrih: item.DatePrih,
+                DateVr: item.DateVr,
+                State: item.State,
+                Mest: item.Mest,
+                PW: item.PW,
+                W: item.W,
+                Value: item.Value,
+                Sum: item.Sum,
+                StateBill: item.StateBill,
+                Sender: item.Sender,
+            })));
+        } catch (e: any) {
+            setError(e.message);
+        } finally {
+            setLoading(false);
+        }
+    }, [auth]);
+    
+    useEffect(() => {
+        loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo);
+    }, [apiDateRange, loadCargo]);
+    
+    // Фильтрация
+    const filteredItems = useMemo(() => {
+        let res = items;
+        if (statusFilter === 'favorites') {
+            // Фильтр избранных (если нужно)
+            const favorites = JSON.parse(localStorage.getItem('haulz.favorites') || '[]') as string[];
+            res = res.filter(i => i.Number && favorites.includes(i.Number));
+        } else if (statusFilter !== 'all') {
+            res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
+        }
+        return res;
+    }, [items, statusFilter]);
+    
+    // Подготовка данных для графиков (группировка по датам)
+    const chartData = useMemo(() => {
+        const dataMap = new Map<string, { date: string; sum: number; pw: number; mest: number }>();
+        
+        filteredItems.forEach(item => {
+            if (!item.DatePrih) return;
+            
+            // Используем исходную дату для группировки, но форматируем для отображения
+            const dateKey = item.DatePrih.split('T')[0]; // YYYY-MM-DD
+            const displayDate = formatDate(item.DatePrih);
+            if (!dateKey || displayDate === '-') return;
+            
+            const existing = dataMap.get(dateKey) || { date: displayDate, sum: 0, pw: 0, mest: 0 };
+            existing.sum += typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+            existing.pw += typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            existing.mest += typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
+            dataMap.set(dateKey, existing);
+        });
+        
+        return Array.from(dataMap.values()).sort((a, b) => {
+            // Сортируем по дате (формат DD.MM.YYYY)
+            const partsA = a.date.split('.');
+            const partsB = b.date.split('.');
+            if (partsA.length !== 3 || partsB.length !== 3) return 0;
+            const dateA = new Date(parseInt(partsA[2]), parseInt(partsA[1]) - 1, parseInt(partsA[0]));
+            const dateB = new Date(parseInt(partsB[2]), parseInt(partsB[1]) - 1, parseInt(partsB[0]));
+            return dateA.getTime() - dateB.getTime();
+        });
+    }, [filteredItems]);
+    
+    // Функция для создания SVG графика
+    const renderChart = (
+        data: { date: string; value: number }[],
+        title: string,
+        color: string,
+        formatValue: (val: number) => string
+    ) => {
+        if (data.length === 0) {
+            return (
+                <Panel className="cargo-card">
+                    <Typography.Headline style={{ marginBottom: '1rem' }}>{title}</Typography.Headline>
+                    <Typography.Body className="text-theme-secondary">Нет данных для отображения</Typography.Body>
+                </Panel>
+            );
+        }
+        
+        const maxValue = Math.max(...data.map(d => d.value), 1);
+        const chartWidth = 100;
+        const chartHeight = 200;
+        const padding = 40;
+        const barWidth = (chartWidth - padding * 2) / data.length;
+        
+        return (
+            <Panel className="cargo-card" style={{ marginBottom: '1rem' }}>
+                <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1rem' }}>{title}</Typography.Headline>
+                <div style={{ overflowX: 'auto' }}>
+                    <svg width="100%" height={chartHeight + 60} viewBox={`0 0 ${chartWidth} ${chartHeight + 60}`} style={{ minWidth: '300px' }}>
+                        {/* Оси */}
+                        <line x1={padding} y1={chartHeight} x2={chartWidth - padding} y2={chartHeight} stroke="var(--color-border)" strokeWidth="1" />
+                        <line x1={padding} y1={0} x2={padding} y2={chartHeight} stroke="var(--color-border)" strokeWidth="1" />
+                        
+                        {/* Столбцы */}
+                        {data.map((d, idx) => {
+                            const barHeight = (d.value / maxValue) * (chartHeight - padding);
+                            const x = padding + idx * barWidth + barWidth / 4;
+                            const y = chartHeight - barHeight;
+                            
+                            return (
+                                <g key={idx}>
+                                    <rect
+                                        x={x}
+                                        y={y}
+                                        width={barWidth / 2}
+                                        height={barHeight}
+                                        fill={color}
+                                        opacity={0.7}
+                                    />
+                                    <text
+                                        x={x + barWidth / 4}
+                                        y={chartHeight + 15}
+                                        fontSize="8"
+                                        fill="var(--color-text-secondary)"
+                                        textAnchor="middle"
+                                        transform={`rotate(-45 ${x + barWidth / 4} ${chartHeight + 15})`}
+                                    >
+                                        {d.date.split('.').slice(0, 2).join('.')}
+                                    </text>
+                                    {barHeight > 20 && (
+                                        <text
+                                            x={x + barWidth / 4}
+                                            y={y - 5}
+                                            fontSize="9"
+                                            fill="var(--color-text-primary)"
+                                            textAnchor="middle"
+                                        >
+                                            {formatValue(d.value)}
+                                        </text>
+                                    )}
+                                </g>
+                            );
+                        })}
+                    </svg>
+                </div>
+            </Panel>
+        );
+    };
+    
+    return (
+        <div className="w-full">
+            <Flex justify="space-between" align="center" style={{ marginBottom: '1rem' }}>
+                <Typography.Headline>Главная (Дашборд)</Typography.Headline>
+                <Button 
+                    className="filter-button"
+                    onClick={onClose}
+                    title="Закрыть дашборд"
+                >
+                    <X className="w-4 h-4" />
+                </Button>
+            </Flex>
+            {/* Filters (такие же как на странице грузов) */}
+            <div className="filters-container">
+                <div className="filter-group">
+                    <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); }}>
+                        Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                    </Button>
+                    {isDateDropdownOpen && (
+                        <div className="filter-dropdown">
+                            {['все', 'сегодня', 'неделя', 'месяц', 'период'].map(key => (
+                                <div key={key} className="dropdown-item" onClick={() => { 
+                                    setDateFilter(key as any); 
+                                    setIsDateDropdownOpen(false); 
+                                    if(key === 'период') setIsCustomModalOpen(true); 
+                                }}>
+                                    <Typography.Body>{key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <div className="filter-group">
+                    <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); }}>
+                        Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
+                    </Button>
+                    {isStatusDropdownOpen && (
+                        <div className="filter-dropdown">
+                            {Object.keys(STATUS_MAP).map(key => (
+                                <div key={key} className="dropdown-item" onClick={() => { 
+                                    setStatusFilter(key as any); 
+                                    setIsStatusDropdownOpen(false); 
+                                }}>
+                                    <Typography.Body>{STATUS_MAP[key as StatusFilter]}</Typography.Body>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+            
+            <Typography.Body className="text-sm text-theme-secondary mb-4 text-center">
+                Период: {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
+            </Typography.Body>
+            
+            {loading && (
+                <Flex justify="center" className="text-center py-8">
+                    <Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" />
+                </Flex>
+            )}
+            
+            {error && (
+                <Flex align="center" className="login-error mt-4">
+                    <AlertTriangle className="w-5 h-5 mr-2" />
+                    <Typography.Body>{error}</Typography.Body>
+                </Flex>
+            )}
+            
+            {!loading && !error && (
+                <>
+                    {renderChart(
+                        chartData.map(d => ({ date: d.date, value: d.sum })),
+                        "Динамика за период в деньгах",
+                        "#3b82f6",
+                        (val) => formatCurrency(val)
+                    )}
+                    
+                    {renderChart(
+                        chartData.map(d => ({ date: d.date, value: d.pw })),
+                        "Динамика в платном весе за период",
+                        "#34d399",
+                        (val) => `${val.toFixed(2)} кг`
+                    )}
+                    
+                    {renderChart(
+                        chartData.map(d => ({ date: d.date, value: d.mest })),
+                        "Динамика в местах",
+                        "#facc15",
+                        (val) => `${val.toFixed(0)}`
+                    )}
+                </>
+            )}
+            
+            <FilterDialog 
+                isOpen={isCustomModalOpen} 
+                onClose={() => setIsCustomModalOpen(false)} 
+                dateFrom={customDateFrom} 
+                dateTo={customDateTo} 
+                onApply={(f, t) => { 
+                    setCustomDateFrom(f); 
+                    setCustomDateTo(t); 
+                }} 
+            />
         </div>
     );
 }
@@ -1471,11 +1762,21 @@ const DetailItem = ({ label, value, icon, statusClass, highlighted, textColor }:
 
 // УДАЛЕНО: function StubPage({ title }: { title: string }) { return <div className="w-full p-8 text-center"><h2 className="title">{title}</h2><p className="subtitle">Раздел в разработке</p></div>; }
 
-function TabBar({ active, onChange }: { active: Tab, onChange: (t: Tab) => void }) {
+function TabBar({ active, onChange, onCargoClick }: { active: Tab, onChange: (t: Tab) => void, onCargoClick?: () => void }) {
     return (
         <div className="tabbar-container">
             {/* ОСТАВЛЕНА ТОЛЬКО КНОПКА "Грузы" */}
-            <TabBtn label="Грузы" icon={<Truck />} active={active === "cargo"} onClick={() => onChange("cargo")} />
+            <TabBtn 
+                label="Грузы" 
+                icon={<Truck />} 
+                active={active === "cargo" || active === "dashboard"} 
+                onClick={() => {
+                    if (onCargoClick) {
+                        onCargoClick();
+                    }
+                    onChange("cargo");
+                }} 
+            />
         </div>
     );
 }
@@ -1576,7 +1877,9 @@ export default function App() {
 
     const [auth, setAuth] = useState<AuthData | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("cargo"); // ИЗМЕНЕНО: По умолчанию только "cargo"
-    const [theme, setTheme] = useState('dark'); 
+    const [theme, setTheme] = useState('dark');
+    const [cargoClickCount, setCargoClickCount] = useState(0);
+    const [showDashboard, setShowDashboard] = useState(false); 
     const [startParam, setStartParam] = useState<string | null>(null);
     const [contextCargoNumber, setContextCargoNumber] = useState<string | null>(null); 
     
@@ -1883,10 +2186,28 @@ export default function App() {
             <div className="app-main">
                 <div className="w-full max-w-4xl">
                     {/* УДАЛЕНЫ УСЛОВНЫЕ РЕНДЕРЫ ДЛЯ home, docs, support, profile */}
-                    {activeTab === "cargo" && <CargoPage auth={auth} searchText={searchText} />}
+                    {activeTab === "cargo" && !showDashboard && <CargoPage auth={auth} searchText={searchText} />}
+                    {showDashboard && <DashboardPage auth={auth} onClose={() => { setShowDashboard(false); setActiveTab("cargo"); }} />}
                 </div>
             </div>
-            <TabBar active={activeTab} onChange={setActiveTab} />
+            <TabBar 
+                active={activeTab} 
+                onChange={setActiveTab}
+                onCargoClick={() => {
+                    const newCount = cargoClickCount + 1;
+                    setCargoClickCount(newCount);
+                    if (newCount >= 9) {
+                        setShowDashboard(true);
+                        setActiveTab("dashboard");
+                        setCargoClickCount(0); // Сбрасываем счетчик
+                    } else {
+                        // Сбрасываем счетчик через 2 секунды, если не достигли 9
+                        setTimeout(() => {
+                            setCargoClickCount(0);
+                        }, 2000);
+                    }
+                }}
+            />
         </Container>
     );
 }
