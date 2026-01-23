@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
@@ -1339,7 +1339,7 @@ function ProfilePage({
         <div className="w-full">
             {/* Настройки */}
             <div style={{ marginBottom: '1.5rem' }}>
-                <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Настройки</Typography.Body>
+                <Typography.Body style={{ marginBottom: '1.25rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Настройки</Typography.Body>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {settingsItems.map((item) => (
                         <Panel
@@ -1520,19 +1520,19 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Введите код подтверждения</Typography.Headline>
                 </Flex>
                 
-                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
                     <div style={{ 
-                        width: '60px', 
-                        height: '60px', 
+                        width: '52px', 
+                        height: '52px', 
                         borderRadius: '50%', 
                         backgroundColor: 'var(--color-bg-card)', 
                         border: '1px solid var(--color-border)',
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center',
-                        margin: '0 auto 1rem'
+                        margin: '0 auto 0.75rem'
                     }}>
-                        <FileText className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
+                        <FileText className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
                     </div>
                     <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Введите код подтверждения</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', display: 'block', marginTop: '0.5rem' }}>
@@ -1591,19 +1591,19 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>Введите ИНН компании</Typography.Headline>
             </Flex>
             
-            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
                 <div style={{ 
-                    width: '60px', 
-                    height: '60px', 
+                    width: '52px', 
+                    height: '52px', 
                     borderRadius: '50%', 
                     backgroundColor: 'var(--color-bg-card)', 
                     border: '1px solid var(--color-border)',
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center',
-                    margin: '0 auto 1rem'
+                    margin: '0 auto 0.75rem'
                 }}>
-                    <Building2 className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
+                    <Building2 className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
                 </div>
                 <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Введите ИНН компании</Typography.Headline>
                 <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', display: 'block', marginTop: '0.5rem' }}>
@@ -1881,9 +1881,9 @@ function CompaniesListPage({
                                 cursor: activeAccountId === account.id ? 'default' : 'pointer'
                             }}
                         >
-                            <Flex align="center" style={{ flex: 1, gap: '0.5rem' }}>
+                            <Flex align="center" style={{ flex: 1, gap: '0.5rem', minWidth: 0 }}>
                                 <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-                                <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeAccountId === account.id ? '600' : 'normal' }}>
+                                <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeAccountId === account.id ? '600' : 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {account.login}
                                 </Typography.Body>
                             </Flex>
@@ -1901,7 +1901,7 @@ function CompaniesListPage({
                                         style={{ padding: '0.25rem 0.5rem', minWidth: 'auto' }}
                                         title="Удалить компанию"
                                     >
-                                        <X className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                                        <Trash2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
                                     </Button>
                                 )}
                             </Flex>
