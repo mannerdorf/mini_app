@@ -138,10 +138,23 @@ const formatCurrency = (value: number | string | undefined): string => {
     return isNaN(num) ? String(value) : new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2 }).format(num);
 };
 
+// Функция для нормализации статуса
+const normalizeStatus = (status: string | undefined): string => {
+    if (!status) return '-';
+    const lower = status.toLowerCase();
+    // Заменяем "поставлена на доставку в месте прибытия" на "На доставке"
+    if (lower.includes('поставлена на доставку в месте прибытия') || 
+        lower.includes('поставлена на доставку')) {
+        return 'На доставке';
+    }
+    return status;
+};
+
 const getStatusClass = (status: string | undefined) => {
-    const lower = (status || '').toLowerCase();
+    const normalized = normalizeStatus(status);
+    const lower = (normalized || '').toLowerCase();
     if (lower.includes('доставлен') || lower.includes('заверш')) return 'status-value success';
-    if (lower.includes('пути') || lower.includes('отправлен')) return 'status-value transit';
+    if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('доставке')) return 'status-value transit';
     if (lower.includes('принят') || lower.includes('оформлен')) return 'status-value accepted';
     if (lower.includes('готов')) return 'status-value ready';
     return 'status-value';
@@ -149,12 +162,13 @@ const getStatusClass = (status: string | undefined) => {
 
 // Компонент бейджа статуса с использованием MAX UI
 const StatusBadge = ({ status }: { status: string | undefined }) => {
-    const lower = (status || '').toLowerCase();
+    const normalizedStatus = normalizeStatus(status);
+    const lower = (normalizedStatus || '').toLowerCase();
     let badgeClass = 'max-badge';
     
     if (lower.includes('доставлен') || lower.includes('заверш')) {
         badgeClass += ' max-badge-success';
-    } else if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('готов')) {
+    } else if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('готов') || lower.includes('доставке')) {
         badgeClass += ' max-badge-warning';
     } else if (lower.includes('отменен') || lower.includes('аннулирован')) {
         badgeClass += ' max-badge-danger';
@@ -164,7 +178,7 @@ const StatusBadge = ({ status }: { status: string | undefined }) => {
     
     return (
         <span className={badgeClass}>
-            {status || '-'}
+            {normalizedStatus || '-'}
         </span>
     );
 };
@@ -220,7 +234,8 @@ const getSumColorByPaymentStatus = (stateBill: string | undefined): string => {
 
 const getFilterKeyByStatus = (s: string | undefined): StatusFilter => { 
     if (!s) return 'all'; 
-    const l = s.toLowerCase(); 
+    const normalized = normalizeStatus(s);
+    const l = normalized.toLowerCase(); 
     if (l.includes('доставлен') || l.includes('заверш')) return 'delivered'; 
     if (l.includes('пути') || l.includes('отправлен')) return 'in_transit';
     if (l.includes('принят') || l.includes('оформлен')) return 'accepted';
@@ -798,7 +813,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
             res = res.filter(i => [i.Number, i.State, i.Sender, formatDate(i.DatePrih), formatCurrency(i.Sum), String(i.PW), String(i.Mest)].join(' ').toLowerCase().includes(lower));
         }
         
-        // Применяем сортировку
+        // Применяем сортировку ТОЛЬКО по датам
         if (sortBy) {
             res = [...res].sort((a, b) => {
                 // Функция для безопасного парсинга даты
@@ -860,7 +875,6 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                         }
                     } catch (e) {
                         // Игнорируем ошибки парсинга
-                        console.warn('Failed to parse date:', dateString, e);
                     }
                     
                     return null;
@@ -869,6 +883,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                 let timestampA: number | null = null;
                 let timestampB: number | null = null;
                 
+                // Сортируем ТОЛЬКО по выбранной дате
                 if (sortBy === 'datePrih') {
                     timestampA = parseDate(a.DatePrih);
                     timestampB = parseDate(b.DatePrih);
@@ -879,13 +894,18 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                 
                 // Обрабатываем случаи с null/undefined - элементы без даты идут в конец
                 if (timestampA === null && timestampB === null) {
-                    // Если оба без даты, сохраняем исходный порядок
+                    // Если оба без даты, возвращаем 0 (сохраняем исходный порядок, НЕ сортируем по другим полям)
                     return 0;
                 }
                 if (timestampA === null) return 1; // Элементы без даты идут в конец
                 if (timestampB === null) return -1; // Элементы без даты идут в конец
                 
+                // Сортируем ТОЛЬКО по разнице дат, без дополнительных критериев
                 const diff = timestampA - timestampB;
+                if (diff === 0) {
+                    // Если даты одинаковые, возвращаем 0 (не используем другие критерии)
+                    return 0;
+                }
                 return sortOrder === 'asc' ? diff : -diff;
             });
         }
@@ -1232,15 +1252,23 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                 {/* Явно отображаемые поля (из API примера) */}
                 <div className="details-grid-modal">
                     <DetailItem label="Номер" value={item.Number} />
-                    <DetailItem label="Статус" value={item.State} statusClass={getStatusClass(item.State)} />
+                    <DetailItem label="Статус" value={normalizeStatus(item.State)} statusClass={getStatusClass(item.State)} />
                     <DetailItem label="Приход" value={formatDate(item.DatePrih)} />
-                    <DetailItem label="Доставка" value={formatDate(item.DateVr)} /> {/* Используем DateVr */}
+                    <DetailItem label="Доставка" value={(() => {
+                        // Показываем дату доставки только если груз доставлен
+                        const status = normalizeStatus(item.State);
+                        const lower = status.toLowerCase();
+                        if (lower.includes('доставлен') || lower.includes('заверш')) {
+                            return formatDate(item.DateVr);
+                        }
+                        return '-';
+                    })()} /> {/* Используем DateVr */}
                     <DetailItem label="Отправитель" value={item.Sender || '-'} /> {/* Добавляем Sender */}
                     <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary"/>} />
                     <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary"/>} highlighted /> {/* Используем PW */}
                     <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем W */}
                     <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем Value */}
-                    <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} icon={<RussianRuble className="w-4 h-4 mr-1 text-theme-primary"/>} />
+                    <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
                     <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted /> {/* Используем StateBill */}
                 </div>
                 
@@ -1350,12 +1378,12 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
     );
 }
 
-const DetailItem = ({ label, value, icon, statusClass, highlighted }: any) => (
+const DetailItem = ({ label, value, icon, statusClass, highlighted, textColor }: any) => (
     <div className={`details-item-modal ${highlighted ? 'highlighted-detail' : ''}`}>
         <Typography.Label className="detail-item-label">{label}</Typography.Label>
         <Flex align="center" className={`detail-item-value ${statusClass || ''}`}>
             {icon}
-            <Typography.Body>{value}</Typography.Body>
+            <Typography.Body style={textColor ? { color: textColor } : {}}>{value}</Typography.Body>
         </Flex>
     </div>
 );

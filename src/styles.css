@@ -438,20 +438,33 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .max-badge-success {
     background-color: rgba(52, 211, 153, 0.2);
     color: var(--color-success-status);
-    border: 1px solid rgba(52, 211, 153, 0.3);
+    border: 1px solid rgba(52, 211, 153, 0.5);
 }
 .max-badge-warning {
     background-color: rgba(250, 204, 21, 0.2);
     color: var(--color-pending-status);
-    border: 1px solid rgba(250, 204, 21, 0.3);
+    border: 1px solid rgba(250, 204, 21, 0.5);
 }
 .max-badge-danger {
     background-color: rgba(239, 68, 68, 0.2);
     color: #ef4444;
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    border: 1px solid rgba(239, 68, 68, 0.5);
 }
 .max-badge-default {
     background-color: var(--color-bg-hover);
     color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+}
+/* Улучшаем видимость границ бейджей в темном режиме */
+.dark-mode .max-badge-success {
+    border: 1px solid rgba(52, 211, 153, 0.6);
+}
+.dark-mode .max-badge-warning {
+    border: 1px solid rgba(250, 204, 21, 0.6);
+}
+.dark-mode .max-badge-danger {
+    border: 1px solid rgba(239, 68, 68, 0.6);
+}
+.dark-mode .max-badge-default {
     border: 1px solid var(--color-border);
 }
