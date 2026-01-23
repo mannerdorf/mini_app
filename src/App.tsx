@@ -1233,7 +1233,7 @@ function AccountSwitcher({
 }
 
 // Типы для навигации профиля
-type ProfileView = 'main' | 'companies' | 'addCompanyByINN' | 'addCompanyByLogin' | 'companiesList';
+type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin';
 
 // --- PROFILE PAGE ---
 function ProfilePage({ 
@@ -1300,7 +1300,18 @@ function ProfilePage({
     ];
     
     if (currentView === 'companies') {
-        return <CompaniesPage onBack={() => setCurrentView('main')} onSelectMethod={(method) => {
+        return <CompaniesListPage 
+            accounts={accounts}
+            activeAccountId={activeAccountId}
+            onSwitchAccount={onSwitchAccount}
+            onRemoveAccount={onRemoveAccount}
+            onBack={() => setCurrentView('main')}
+            onAddCompany={() => setCurrentView('addCompanyMethod')}
+        />;
+    }
+    
+    if (currentView === 'addCompanyMethod') {
+        return <CompaniesPage onBack={() => setCurrentView('companies')} onSelectMethod={(method) => {
             if (method === 'inn') {
                 setCurrentView('addCompanyByINN');
             } else {
@@ -1311,62 +1322,41 @@ function ProfilePage({
     
     if (currentView === 'addCompanyByINN') {
         return <AddCompanyByINNPage 
-            onBack={() => setCurrentView('companies')} 
-            onSuccess={() => setCurrentView('companiesList')}
+            onBack={() => setCurrentView('addCompanyMethod')} 
+            onSuccess={() => setCurrentView('companies')}
         />;
     }
     
     if (currentView === 'addCompanyByLogin') {
         return <AddCompanyByLoginPage 
-            onBack={() => setCurrentView('companies')} 
+            onBack={() => setCurrentView('addCompanyMethod')} 
             onAddAccount={onAddAccount}
-            onSuccess={() => setCurrentView('companiesList')}
-        />;
-    }
-    
-    if (currentView === 'companiesList') {
-        return <CompaniesListPage 
-            accounts={accounts}
-            activeAccountId={activeAccountId}
-            onSwitchAccount={onSwitchAccount}
-            onRemoveAccount={onRemoveAccount}
-            onBack={() => setCurrentView('main')}
-            onAddCompany={() => setCurrentView('companies')}
+            onSuccess={() => setCurrentView('companies')}
         />;
     }
     
     return (
         <div className="w-full">
-            <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Профиль</Typography.Headline>
-            
             {/* Настройки */}
             <div style={{ marginBottom: '1.5rem' }}>
                 <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Настройки</Typography.Body>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {settingsItems.map((item) => (
                         <Panel
                             key={item.id}
+                            className="cargo-card"
                             onClick={item.onClick}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '0.5rem 0.75rem',
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-bg-card)';
+                                padding: '1rem',
+                                cursor: 'pointer'
                             }}
                         >
-                            <Flex align="center" style={{ flex: 1, gap: '0.5rem' }}>
-                                <div style={{ fontSize: '0.85rem' }}>{item.icon}</div>
+                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                <div style={{ color: 'var(--color-primary)' }}>{item.icon}</div>
                                 <Typography.Body style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
                             </Flex>
-                            <ChevronDown className="w-4 h-4" style={{ transform: 'rotate(-90deg)', color: 'var(--color-text-secondary)' }} />
                         </Panel>
                     ))}
                 </div>
@@ -1375,31 +1365,23 @@ function ProfilePage({
             {/* Информация */}
             <div>
                 <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Информация</Typography.Body>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {infoItems.map((item) => (
                         <Panel
                             key={item.id}
+                            className="cargo-card"
                             onClick={item.onClick}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '0.5rem 0.75rem',
-                                cursor: 'pointer',
-                                transition: 'background-color 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-bg-card)';
+                                padding: '1rem',
+                                cursor: 'pointer'
                             }}
                         >
-                            <Flex align="center" style={{ flex: 1, gap: '0.5rem' }}>
-                                <div style={{ fontSize: '0.85rem' }}>{item.icon}</div>
+                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                <div style={{ color: 'var(--color-primary)' }}>{item.icon}</div>
                                 <Typography.Body style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
                             </Flex>
-                            <ChevronDown className="w-4 h-4" style={{ transform: 'rotate(-90deg)', color: 'var(--color-text-secondary)' }} />
                         </Panel>
                     ))}
                 </div>
@@ -1434,21 +1416,16 @@ function CompaniesPage({ onBack, onSelectMethod }: { onBack: () => void; onSelec
                     <Building2 className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
                 </div>
                 <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Выберите способ добавления</Typography.Headline>
-                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', display: 'block', marginTop: '0.5rem' }}>
                     Добавьте компанию по ИНН или используя логин и пароль
                 </Typography.Body>
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <Panel 
+                    className="cargo-card"
                     onClick={() => onSelectMethod('inn')}
-                    style={{ cursor: 'pointer', padding: '0.75rem' }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--color-bg-card)';
-                    }}
+                    style={{ cursor: 'pointer', padding: '1rem' }}
                 >
                     <Typography.Body style={{ marginBottom: '0.25rem', fontSize: '0.9rem', fontWeight: '600' }}>По ИНН</Typography.Body>
                     <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
@@ -1457,14 +1434,9 @@ function CompaniesPage({ onBack, onSelectMethod }: { onBack: () => void; onSelec
                 </Panel>
                 
                 <Panel 
+                    className="cargo-card"
                     onClick={() => onSelectMethod('login')}
-                    style={{ cursor: 'pointer', padding: '0.75rem' }}
-                    onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                    }}
-                    onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--color-bg-card)';
-                    }}
+                    style={{ cursor: 'pointer', padding: '1rem' }}
                 >
                     <Typography.Body style={{ marginBottom: '0.25rem', fontSize: '0.9rem', fontWeight: '600' }}>По логину и паролю</Typography.Body>
                     <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
@@ -1563,47 +1535,49 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
                         <FileText className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
                     </div>
                     <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Введите код подтверждения</Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', display: 'block', marginTop: '0.5rem' }}>
                         Код отправлен на почту руководителя компании
                     </Typography.Body>
                 </div>
                 
-                <form onSubmit={handleCodeSubmit}>
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                        {code.map((digit, index) => (
-                            <Input
-                                key={index}
-                                type="text"
-                                inputMode="numeric"
-                                maxLength={1}
-                                value={digit}
-                                onChange={(e) => handleCodeChange(index, e.target.value)}
-                                style={{
-                                    width: '45px',
-                                    height: '45px',
-                                    textAlign: 'center',
-                                    fontSize: '1.25rem',
-                                    border: codeInputIndex === index ? '2px solid var(--color-primary)' : '1px solid var(--color-border)'
-                                }}
-                                autoFocus={codeInputIndex === index}
-                            />
-                        ))}
-                    </div>
-                    
-                    {error && (
-                        <Typography.Body className="login-error" style={{ marginBottom: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>
-                            {error}
-                        </Typography.Body>
-                    )}
-                    
-                    <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '0.75rem', fontSize: '0.9rem', padding: '0.75rem' }}>
-                        {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Подтвердить"}
-                    </Button>
-                    
-                    <Button type="button" className="filter-button" onClick={onBack} style={{ width: '100%', fontSize: '0.9rem', padding: '0.75rem' }}>
-                        Отмена
-                    </Button>
-                </form>
+                <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                    <form onSubmit={handleCodeSubmit}>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                            {code.map((digit, index) => (
+                                <Input
+                                    key={index}
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={1}
+                                    value={digit}
+                                    onChange={(e) => handleCodeChange(index, e.target.value)}
+                                    style={{
+                                        width: '45px',
+                                        height: '45px',
+                                        textAlign: 'center',
+                                        fontSize: '1.25rem',
+                                        border: codeInputIndex === index ? '2px solid var(--color-primary)' : '1px solid var(--color-border)'
+                                    }}
+                                    autoFocus={codeInputIndex === index}
+                                />
+                            ))}
+                        </div>
+                        
+                        {error && (
+                            <Typography.Body className="login-error" style={{ marginBottom: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>
+                                {error}
+                            </Typography.Body>
+                        )}
+                        
+                        <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '0.75rem', fontSize: '0.9rem', padding: '0.75rem' }}>
+                            {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Подтвердить"}
+                        </Button>
+                        
+                        <Button type="button" className="filter-button" onClick={onBack} style={{ width: '100%', fontSize: '0.9rem', padding: '0.75rem' }}>
+                            Отмена
+                        </Button>
+                    </form>
+                </Panel>
             </div>
         );
     }
@@ -1632,45 +1606,47 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
                     <Building2 className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
                 </div>
                 <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Введите ИНН компании</Typography.Headline>
-                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', display: 'block', marginTop: '0.5rem' }}>
                     Мы проверим компанию и отправим код подтверждения на почту руководителя
                 </Typography.Body>
             </div>
             
-            <form onSubmit={handleSubmitINN}>
-                <div className="field" style={{ marginBottom: '1.5rem' }}>
-                    <Input
-                        className="login-input"
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="ИНН (10 или 12 цифр)"
-                        value={inn}
-                        onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, '');
-                            if (value.length <= 12) {
-                                setInn(value);
-                                setError(null);
-                            }
-                        }}
-                        autoFocus
-                        style={{ fontSize: '0.9rem' }}
-                    />
-                </div>
-                
-                {error && (
-                    <Typography.Body className="login-error" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
-                        {error}
-                    </Typography.Body>
-                )}
-                
-                <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '0.75rem', fontSize: '0.9rem', padding: '0.75rem' }}>
-                    {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Получить код"}
-                </Button>
-                
-                <Button type="button" className="filter-button" onClick={onBack} style={{ width: '100%', fontSize: '0.9rem', padding: '0.75rem' }}>
-                    Отмена
-                </Button>
-            </form>
+            <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                <form onSubmit={handleSubmitINN}>
+                    <div className="field" style={{ marginBottom: '1.5rem' }}>
+                        <Input
+                            className="login-input"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="ИНН (10 или 12 цифр)"
+                            value={inn}
+                            onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, '');
+                                if (value.length <= 12) {
+                                    setInn(value);
+                                    setError(null);
+                                }
+                            }}
+                            autoFocus
+                            style={{ fontSize: '0.9rem' }}
+                        />
+                    </div>
+                    
+                    {error && (
+                        <Typography.Body className="login-error" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+                            {error}
+                        </Typography.Body>
+                    )}
+                    
+                    <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '0.75rem', fontSize: '0.9rem', padding: '0.75rem' }}>
+                        {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Получить код"}
+                    </Button>
+                    
+                    <Button type="button" className="filter-button" onClick={onBack} style={{ width: '100%', fontSize: '0.9rem', padding: '0.75rem' }}>
+                        Отмена
+                    </Button>
+                </form>
+            </Panel>
         </div>
     );
 }
@@ -1748,77 +1724,79 @@ function AddCompanyByLoginPage({
                     <UserIcon className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
                 </div>
                 <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Введите логин и пароль</Typography.Headline>
-                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', display: 'block', marginTop: '0.5rem' }}>
                     Используйте ваши учетные данные для доступа к перевозкам
                 </Typography.Body>
             </div>
             
-            <form onSubmit={handleSubmit}>
-                <div className="field" style={{ marginBottom: '1rem' }}>
-                    <Input
-                        className="login-input"
-                        type="text"
-                        placeholder="Логин (email)"
-                        value={login}
-                        onChange={(e) => setLogin(e.target.value)}
-                        autoComplete="username"
-                        style={{ fontSize: '0.9rem' }}
-                    />
-                </div>
-                <div className="field" style={{ marginBottom: '1rem' }}>
-                    <div className="password-input-container">
+            <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                <form onSubmit={handleSubmit}>
+                    <div className="field" style={{ marginBottom: '1rem' }}>
                         <Input
-                            className="login-input password"
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Пароль"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            autoComplete="current-password"
-                            style={{paddingRight: '3rem', fontSize: '0.9rem'}}
+                            className="login-input"
+                            type="text"
+                            placeholder="Логин (email)"
+                            value={login}
+                            onChange={(e) => setLogin(e.target.value)}
+                            autoComplete="username"
+                            style={{ fontSize: '0.9rem' }}
                         />
-                        <Button type="button" className="toggle-password-visibility" onClick={() => setShowPassword(!showPassword)}>
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </Button>
                     </div>
-                </div>
-                <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
-                    <Typography.Body style={{ fontSize: '0.85rem' }}>
-                        Согласие с{" "}
-                        <a href="#" onClick={(e) => { e.preventDefault(); }}>
-                            публичной офертой
-                        </a>
-                    </Typography.Body>
-                    <Switch
-                        checked={agreeOffer}
-                        onCheckedChange={(value) => setAgreeOffer(resolveChecked(value))}
-                        onChange={(event) => setAgreeOffer(resolveChecked(event))}
-                    />
-                </label>
-                <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
-                    <Typography.Body style={{ fontSize: '0.85rem' }}>
-                        Согласие на{" "}
-                        <a href="#" onClick={(e) => { e.preventDefault(); }}>
-                            обработку данных
-                        </a>
-                    </Typography.Body>
-                    <Switch
-                        checked={agreePersonal}
-                        onCheckedChange={(value) => setAgreePersonal(resolveChecked(value))}
-                        onChange={(event) => setAgreePersonal(resolveChecked(event))}
-                    />
-                </label>
-                {error && (
-                    <Typography.Body className="login-error" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
-                        {error}
-                    </Typography.Body>
-                )}
-                <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '0.75rem', fontSize: '0.9rem', padding: '0.75rem' }}>
-                    {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Подтвердить"}
-                </Button>
-                <Button type="button" className="filter-button" onClick={onBack} style={{ width: '100%', fontSize: '0.9rem', padding: '0.75rem' }}>
-                    Отмена
-                </Button>
-            </form>
+                    <div className="field" style={{ marginBottom: '1rem' }}>
+                        <div className="password-input-container">
+                            <Input
+                                className="login-input password"
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Пароль"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                autoComplete="current-password"
+                                style={{paddingRight: '3rem', fontSize: '0.9rem'}}
+                            />
+                            <Button type="button" className="toggle-password-visibility" onClick={() => setShowPassword(!showPassword)}>
+                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </Button>
+                        </div>
+                    </div>
+                    <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
+                        <Typography.Body style={{ fontSize: '0.85rem' }}>
+                            Согласие с{" "}
+                            <a href="#" onClick={(e) => { e.preventDefault(); }}>
+                                публичной офертой
+                            </a>
+                        </Typography.Body>
+                        <Switch
+                            checked={agreeOffer}
+                            onCheckedChange={(value) => setAgreeOffer(resolveChecked(value))}
+                            onChange={(event) => setAgreeOffer(resolveChecked(event))}
+                        />
+                    </label>
+                    <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
+                        <Typography.Body style={{ fontSize: '0.85rem' }}>
+                            Согласие на{" "}
+                            <a href="#" onClick={(e) => { e.preventDefault(); }}>
+                                обработку данных
+                            </a>
+                        </Typography.Body>
+                        <Switch
+                            checked={agreePersonal}
+                            onCheckedChange={(value) => setAgreePersonal(resolveChecked(value))}
+                            onChange={(event) => setAgreePersonal(resolveChecked(event))}
+                        />
+                    </label>
+                    {error && (
+                        <Typography.Body className="login-error" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
+                            {error}
+                        </Typography.Body>
+                    )}
+                    <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '0.75rem', fontSize: '0.9rem', padding: '0.75rem' }}>
+                        {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Подтвердить"}
+                    </Button>
+                    <Button type="button" className="filter-button" onClick={onBack} style={{ width: '100%', fontSize: '0.9rem', padding: '0.75rem' }}>
+                        Отмена
+                    </Button>
+                </form>
+            </Panel>
         </div>
     );
 }
@@ -1879,16 +1857,17 @@ function CompaniesListPage({
             </Flex>
             
             {accounts.length === 0 ? (
-                <Panel style={{ padding: '1rem', textAlign: 'center' }}>
+                <Panel className="cargo-card" style={{ padding: '1rem', textAlign: 'center' }}>
                     <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                         Нет добавленных компаний
                     </Typography.Body>
                 </Panel>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
                     {accounts.map((account) => (
                         <Panel
                             key={account.id}
+                            className="cargo-card"
                             onMouseDown={() => handlePressStart(account.id)}
                             onMouseUp={handlePressEnd}
                             onMouseLeave={handlePressEnd}
@@ -1898,18 +1877,8 @@ function CompaniesListPage({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                padding: '0.5rem 0.75rem',
-                                cursor: activeAccountId === account.id ? 'default' : 'pointer',
-                                backgroundColor: activeAccountId === account.id ? 'var(--color-bg-hover)' : 'var(--color-bg-card)',
-                                transition: 'background-color 0.2s'
-                            }}
-                            onMouseEnter={(e) => {
-                                if (activeAccountId !== account.id) {
-                                    e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = activeAccountId === account.id ? 'var(--color-bg-hover)' : 'var(--color-bg-card)';
+                                padding: '1rem',
+                                cursor: activeAccountId === account.id ? 'default' : 'pointer'
                             }}
                         >
                             <Flex align="center" style={{ flex: 1, gap: '0.5rem' }}>
