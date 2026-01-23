@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
@@ -370,6 +370,25 @@ const PERSONAL_DATA_CONSENT_TEXT = `Настоящим я, действуя св
 Я подтверждаю, что ознакомлен(а) с условиями обработки персональных данных, мои права и обязанности как субъекта персональных данных мне разъяснены и понятны.
 
 Настоящее согласие считается предоставленным в электронной форме и не требует подписания на бумажном носителе.`;
+
+const ABOUT_HAULZ_TEXT = `HAULZ — B2B-логистическая компания, работающая на направлении Москва ↔ Калининград.
+
+Мы выстраиваем логистику на базе современных цифровых технологий, глубоких интеграций и электронного документооборота, что позволяет клиентам получать актуальные статусы, документы и закрывающие отчёты в цифровом виде.
+
+Сервисы HAULZ могут интегрироваться с внутренними системами клиентов и обеспечивают быстрый доступ к счетам, УПД и данным по перевозкам через онлайн-кабинет, мини-приложение, API, бот.`;
+
+type HaulzOffice = {
+    city: string;
+    address: string;
+    phone: string;
+};
+
+const HAULZ_OFFICES: HaulzOffice[] = [
+    { city: "Калининград", address: "Железнодорожная ул., 12к4", phone: "+7 (401) 227-95-55" },
+    { city: "Москва / МО", address: "Индустриальный парк «Андреевское», вл. 14А", phone: "+7 (958) 538-42-22" },
+];
+
+const HAULZ_EMAIL = "Info@haulz.pro";
 
 // ================== COMPONENTS ==================
 
@@ -1233,7 +1252,61 @@ function AccountSwitcher({
 }
 
 // Типы для навигации профиля
-type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin';
+type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about';
+
+function AboutCompanyPage({ onBack }: { onBack: () => void }) {
+    return (
+        <div className="w-full">
+            <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-4 h-4" />
+                </Button>
+                <Typography.Headline style={{ fontSize: '1.25rem' }}>О компании</Typography.Headline>
+            </Flex>
+
+            <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+                <Typography.Body style={{ whiteSpace: "pre-wrap", lineHeight: 1.5, fontSize: '0.95rem' }}>
+                    {ABOUT_HAULZ_TEXT}
+                </Typography.Body>
+            </Panel>
+
+            <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                Контакты
+            </Typography.Body>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                {HAULZ_OFFICES.map((office) => (
+                    <Panel key={office.city} className="cargo-card" style={{ padding: '1rem' }}>
+                        <Typography.Body style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                            {office.city}
+                        </Typography.Body>
+                        <Flex align="center" style={{ gap: '0.5rem', marginBottom: '0.5rem' }}>
+                            <MapPin className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                            <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                                {office.address}
+                            </Typography.Body>
+                        </Flex>
+                        <Flex align="center" style={{ gap: '0.5rem' }}>
+                            <Phone className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                            <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                                {office.phone}
+                            </Typography.Body>
+                        </Flex>
+                    </Panel>
+                ))}
+            </div>
+
+            <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                <Flex align="center" style={{ gap: '0.5rem' }}>
+                    <Mail className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                        {HAULZ_EMAIL}
+                    </Typography.Body>
+                </Flex>
+            </Panel>
+        </div>
+    );
+}
 
 // --- PROFILE PAGE ---
 function ProfilePage({ 
@@ -1283,7 +1356,7 @@ function ProfilePage({
             id: 'about', 
             label: 'О компании', 
             icon: <Info className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => {}
+            onClick: () => setCurrentView('about')
         },
         { 
             id: 'offer', 
@@ -1333,6 +1406,10 @@ function ProfilePage({
             onAddAccount={onAddAccount}
             onSuccess={() => setCurrentView('companies')}
         />;
+    }
+
+    if (currentView === 'about') {
+        return <AboutCompanyPage onBack={() => setCurrentView('main')} />;
     }
     
     return (
@@ -2279,8 +2356,8 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
             
             {/* List */}
             {filteredItems.length > 0 && (
-                <div className="cargo-list">
-                    {filteredItems.map((item: CargoItem, idx: number) => (
+            <div className="cargo-list">
+                {filteredItems.map((item: CargoItem, idx: number) => (
                         <Panel 
                             key={item.Number || idx} 
                             className="cargo-card"
@@ -2328,8 +2405,8 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                                     <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
                                         {formatDate(item.DatePrih)}
                                     </Typography.Label>
-                                </Flex>
                             </Flex>
+                        </Flex>
                             <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
                                 <StatusBadge status={item.State} />
                                 <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: getSumColorByPaymentStatus(item.StateBill) }}>
@@ -2342,10 +2419,10 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                                     <Typography.Label>Вес: {item.PW ? `${item.PW} кг` : '-'}</Typography.Label>
                                 </Flex>
                                 <StatusBillBadge status={item.StateBill} />
-                            </Flex>
-                        </Panel>
-                    ))}
-                </div>
+                        </Flex>
+                    </Panel>
+                ))}
+            </div>
             )}
 
             {selectedCargo && <CargoDetailsModal item={selectedCargo} isOpen={!!selectedCargo} onClose={() => setSelectedCargo(null)} auth={auth} />}
@@ -2799,7 +2876,7 @@ export default function App() {
         return account ? { login: account.login, password: account.password } : null;
     }, [accounts, activeAccountId]);
     const [activeTab, setActiveTab] = useState<Tab>("cargo"); // ИЗМЕНЕНО: По умолчанию только "cargo"
-    const [theme, setTheme] = useState('dark');
+    const [theme, setTheme] = useState('dark'); 
     const [showDashboard, setShowDashboard] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
     const [pinCode, setPinCode] = useState('');
@@ -3261,7 +3338,7 @@ export default function App() {
                             />
                         ) : (
                             <Flex align="center">
-                                <UserIcon className="w-4 h-4 mr-2" />
+                        <UserIcon className="w-4 h-4 mr-2" />
                                 <Typography.Body>{auth?.login || 'Не выбран'}</Typography.Body>
                             </Flex>
                         )}
@@ -3292,13 +3369,13 @@ export default function App() {
                         <div className="w-full p-8 text-center">
                             <Typography.Headline>Документы</Typography.Headline>
                             <Typography.Body className="text-theme-secondary">Раздел в разработке</Typography.Body>
-                        </div>
+                </div>
                     )}
                     {showDashboard && activeTab === "support" && (
                         <div className="w-full p-8 text-center">
                             <Typography.Headline>Поддержка</Typography.Headline>
                             <Typography.Body className="text-theme-secondary">Раздел в разработке</Typography.Body>
-                        </div>
+            </div>
                     )}
                     {showDashboard && activeTab === "profile" && (
                         <ProfilePage 
