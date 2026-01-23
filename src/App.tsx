@@ -1781,7 +1781,7 @@ const DetailItem = ({ label, value, icon, statusClass, highlighted, textColor }:
 
 // УДАЛЕНО: function StubPage({ title }: { title: string }) { return <div className="w-full p-8 text-center"><h2 className="title">{title}</h2><p className="subtitle">Раздел в разработке</p></div>; }
 
-function TabBar({ active, onChange, onCargoClick, showAllTabs }: { active: Tab, onChange: (t: Tab) => void, onCargoClick?: () => void, showAllTabs?: boolean }) {
+function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllTabs }: { active: Tab, onChange: (t: Tab) => void, onCargoPressStart?: () => void, onCargoPressEnd?: () => void, showAllTabs?: boolean }) {
     if (showAllTabs) {
         return (
             <div className="tabbar-container">
@@ -1810,17 +1810,27 @@ function TabBar({ active, onChange, onCargoClick, showAllTabs }: { active: Tab, 
                 icon={<Truck />} 
                 active={active === "cargo" || active === "dashboard"} 
                 onClick={() => {
-                    if (onCargoClick) {
-                        onCargoClick();
-                    }
                     onChange("cargo");
-                }} 
+                }}
+                onMouseDown={onCargoPressStart}
+                onMouseUp={onCargoPressEnd}
+                onMouseLeave={onCargoPressEnd}
+                onTouchStart={onCargoPressStart}
+                onTouchEnd={onCargoPressEnd}
             />
         </div>
     );
 }
-const TabBtn = ({ label, icon, active, onClick }: any) => (
-    <Button className={`tab-button ${active ? 'active' : ''}`} onClick={onClick}>
+const TabBtn = ({ label, icon, active, onClick, onMouseDown, onMouseUp, onMouseLeave, onTouchStart, onTouchEnd }: any) => (
+    <Button 
+        className={`tab-button ${active ? 'active' : ''}`} 
+        onClick={onClick}
+        onMouseDown={onMouseDown}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseLeave}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+    >
         <Flex align="center">
             <div className="tab-icon">{icon}</div>
             {label && <Typography.Label className="tab-label">{label}</Typography.Label>}
@@ -1917,18 +1927,67 @@ export default function App() {
     const [auth, setAuth] = useState<AuthData | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("cargo"); // ИЗМЕНЕНО: По умолчанию только "cargo"
     const [theme, setTheme] = useState('dark');
-    const [cargoClickCount, setCargoClickCount] = useState(0);
     const [showDashboard, setShowDashboard] = useState(false);
-    const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+    const [showPinModal, setShowPinModal] = useState(false);
+    const [pinCode, setPinCode] = useState('');
+    const [pinError, setPinError] = useState(false);
+    const holdTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+    const isHoldingRef = React.useRef(false);
     
     // Очистка таймаута при размонтировании
     useEffect(() => {
         return () => {
-            if (clickTimeoutRef.current) {
-                clearTimeout(clickTimeoutRef.current);
+            if (holdTimeoutRef.current) {
+                clearTimeout(holdTimeoutRef.current);
             }
         };
-    }, []); 
+    }, []);
+    
+    // Обработка нажатия и удержания
+    const handleCargoPressStart = (e?: React.MouseEvent | React.TouchEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        if (showDashboard) return; // Не работаем если секретный режим уже активирован
+        
+        isHoldingRef.current = true;
+        holdTimeoutRef.current = setTimeout(() => {
+            if (isHoldingRef.current) {
+                setShowPinModal(true);
+                setPinCode('');
+                setPinError(false);
+            }
+        }, 2000); // 2 секунды
+    };
+    
+    // Обработка отпускания
+    const handleCargoPressEnd = (e?: React.MouseEvent | React.TouchEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        isHoldingRef.current = false;
+        if (holdTimeoutRef.current) {
+            clearTimeout(holdTimeoutRef.current);
+            holdTimeoutRef.current = null;
+        }
+    };
+    
+    // Проверка пин-кода
+    const handlePinSubmit = (e?: FormEvent) => {
+        if (e) e.preventDefault();
+        if (pinCode === '1984') {
+            setShowDashboard(true);
+            setActiveTab("dashboard");
+            setShowPinModal(false);
+            setPinCode('');
+            setPinError(false);
+        } else {
+            setPinError(true);
+            setPinCode('');
+        }
+    }; 
     const [startParam, setStartParam] = useState<string | null>(null);
     const [contextCargoNumber, setContextCargoNumber] = useState<string | null>(null); 
     
@@ -2267,36 +2326,49 @@ export default function App() {
                         setActiveTab(tab);
                     }
                 }}
-                onCargoClick={() => {
-                    // Работаем только если секретный режим еще не активирован
-                    if (showDashboard) return;
-                    
-                    // Очищаем предыдущий таймаут, если он есть
-                    if (clickTimeoutRef.current) {
-                        clearTimeout(clickTimeoutRef.current);
-                    }
-                    
-                    const newCount = cargoClickCount + 1;
-                    setCargoClickCount(newCount);
-                    
-                    if (newCount >= 9) {
-                        setShowDashboard(true);
-                        setActiveTab("dashboard");
-                        setCargoClickCount(0); // Сбрасываем счетчик
-                        if (clickTimeoutRef.current) {
-                            clearTimeout(clickTimeoutRef.current);
-                            clickTimeoutRef.current = null;
-                        }
-                    } else {
-                        // Сбрасываем счетчик через 3 секунды, если не достигли 9
-                        clickTimeoutRef.current = setTimeout(() => {
-                            setCargoClickCount(0);
-                            clickTimeoutRef.current = null;
-                        }, 3000);
-                    }
-                }}
+                onCargoPressStart={handleCargoPressStart}
+                onCargoPressEnd={handleCargoPressEnd}
                 showAllTabs={showDashboard}
             />
+            
+            {/* Модальное окно для ввода пин-кода */}
+            {showPinModal && (
+                <div className="modal-overlay" onClick={() => { setShowPinModal(false); setPinCode(''); setPinError(false); }}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <Typography.Headline>Введите пин-код</Typography.Headline>
+                            <Button className="modal-close-button" onClick={() => { setShowPinModal(false); setPinCode(''); setPinError(false); }} aria-label="Закрыть">
+                                <X size={20} />
+                            </Button>
+                        </div>
+                        <form onSubmit={handlePinSubmit}>
+                            <div style={{ marginBottom: '1rem' }}>
+                                <Input
+                                    type="password"
+                                    className="login-input"
+                                    placeholder="Пин-код"
+                                    value={pinCode}
+                                    onChange={(e) => {
+                                        setPinCode(e.target.value);
+                                        setPinError(false);
+                                    }}
+                                    autoFocus
+                                    maxLength={4}
+                                    style={{ textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.5rem' }}
+                                />
+                                {pinError && (
+                                    <Typography.Body className="login-error" style={{ marginTop: '0.5rem', textAlign: 'center' }}>
+                                        Неверный пин-код
+                                    </Typography.Body>
+                                )}
+                            </div>
+                            <Button className="button-primary" type="submit" style={{ width: '100%' }}>
+                                Войти
+                            </Button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </Container>
     );
 }
