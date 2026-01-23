@@ -46,7 +46,8 @@ const PROXY_API_SEND_DOC_URL = '/api/send-document';
 
 // --- TYPES ---
 type ApiError = { error?: string; [key: string]: unknown; };
-type AuthData = { login: string; password: string; };
+type AuthData = { login: string; password: string; id?: string; };
+type Account = { login: string; password: string; id: string; };
 // УДАЛЕНО: type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 type Tab = "home" | "cargo" | "docs" | "support" | "profile" | "dashboard"; // Все разделы + секретный dashboard
 type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
@@ -1153,6 +1154,273 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
     );
 }
 
+// --- ACCOUNT SWITCHER ---
+function AccountSwitcher({ 
+    accounts, 
+    activeAccountId, 
+    onSwitchAccount 
+}: { 
+    accounts: Account[]; 
+    activeAccountId: string | null; 
+    onSwitchAccount: (accountId: string) => void; 
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const activeAccount = accounts.find(acc => acc.id === activeAccountId);
+    
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest('.account-switcher')) {
+                setIsOpen(false);
+            }
+        };
+        if (isOpen) {
+            document.addEventListener('click', handleClickOutside);
+            return () => document.removeEventListener('click', handleClickOutside);
+        }
+    }, [isOpen]);
+    
+    return (
+        <div className="account-switcher" style={{ position: 'relative', display: 'inline-block' }}>
+            <Button 
+                className="button-secondary"
+                onClick={() => setIsOpen(!isOpen)}
+                style={{ 
+                    padding: '0.5rem 1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                }}
+                title={`Переключить аккаунт (${accounts.length} аккаунтов)`}
+            >
+                <UserIcon className="w-4 h-4" />
+                <Typography.Body>{activeAccount?.login || 'Не выбран'}</Typography.Body>
+                <ChevronDown className="w-4 h-4" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </Button>
+            {isOpen && (
+                <div className="filter-dropdown" style={{ 
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    marginTop: '0.5rem',
+                    zIndex: 1000,
+                    minWidth: '200px'
+                }}>
+                    {accounts.map((account) => (
+                        <div 
+                            key={account.id}
+                            className={`dropdown-item ${activeAccountId === account.id ? 'active' : ''}`}
+                            onClick={() => {
+                                onSwitchAccount(account.id);
+                                setIsOpen(false);
+                            }}
+                            style={{
+                                padding: '0.75rem 1rem',
+                                cursor: 'pointer',
+                                backgroundColor: activeAccountId === account.id ? 'var(--color-primary-light)' : 'transparent',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem'
+                            }}
+                        >
+                            <UserIcon className="w-4 h-4" />
+                            <Typography.Body style={{ flex: 1 }}>{account.login}</Typography.Body>
+                            {activeAccountId === account.id && (
+                                <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// --- PROFILE PAGE ---
+function ProfilePage({ 
+    accounts, 
+    activeAccountId, 
+    onSwitchAccount, 
+    onAddAccount, 
+    onRemoveAccount 
+}: { 
+    accounts: Account[]; 
+    activeAccountId: string | null; 
+    onSwitchAccount: (accountId: string) => void; 
+    onAddAccount: (login: string, password: string) => Promise<void>; 
+    onRemoveAccount: (accountId: string) => void; 
+}) {
+    const [newLogin, setNewLogin] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [agreeOffer, setAgreeOffer] = useState(true);
+    const [agreePersonal, setAgreePersonal] = useState(true);
+    
+    const handleAddAccountSubmit = async (e: FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        
+        if (!newLogin || !newPassword) {
+            setError("Введите логин и пароль");
+            return;
+        }
+        
+        if (!agreeOffer || !agreePersonal) {
+            setError("Подтвердите согласие с условиями");
+            return;
+        }
+        
+        try {
+            setLoading(true);
+            await onAddAccount(newLogin, newPassword);
+            setNewLogin("");
+            setNewPassword("");
+            setError(null);
+        } catch (err: any) {
+            setError(err.message || "Ошибка при добавлении аккаунта");
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    const resolveChecked = (value: boolean | "on" | "off" | undefined): boolean => {
+        if (typeof value === "boolean") return value;
+        if (value === "on") return true;
+        return false;
+    };
+    
+    return (
+        <div className="w-full p-4">
+            <Typography.Headline style={{ marginBottom: '1.5rem' }}>Профиль</Typography.Headline>
+            
+            {/* Список аккаунтов */}
+            <Panel style={{ marginBottom: '1.5rem' }}>
+                <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Аккаунты</Typography.Headline>
+                {accounts.length === 0 ? (
+                    <Typography.Body className="text-theme-secondary">Нет добавленных аккаунтов</Typography.Body>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {accounts.map((account) => (
+                            <div 
+                                key={account.id} 
+                                style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'space-between',
+                                    padding: '0.75rem',
+                                    borderRadius: '8px',
+                                    border: activeAccountId === account.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                                    backgroundColor: activeAccountId === account.id ? 'var(--color-primary-light)' : 'transparent'
+                                }}
+                            >
+                                <Flex align="center" style={{ flex: 1 }}>
+                                    <UserIcon className="w-4 h-4 mr-2" />
+                                    <Typography.Body>{account.login}</Typography.Body>
+                                    {activeAccountId === account.id && (
+                                        <Typography.Body style={{ marginLeft: '0.5rem', fontSize: '0.875rem', color: 'var(--color-primary)' }}>
+                                            (активен)
+                                        </Typography.Body>
+                                    )}
+                                </Flex>
+                                <Flex align="center" style={{ gap: '0.5rem' }}>
+                                    {activeAccountId !== account.id && (
+                                        <Button 
+                                            className="button-secondary" 
+                                            onClick={() => onSwitchAccount(account.id)}
+                                            style={{ padding: '0.5rem 1rem' }}
+                                        >
+                                            Переключиться
+                                        </Button>
+                                    )}
+                                    {accounts.length > 1 && (
+                                        <Button 
+                                            className="button-secondary" 
+                                            onClick={() => onRemoveAccount(account.id)}
+                                            style={{ padding: '0.5rem' }}
+                                            title="Удалить аккаунт"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </Button>
+                                    )}
+                                </Flex>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </Panel>
+            
+            {/* Форма добавления нового аккаунта */}
+            <Panel>
+                <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Добавить аккаунт</Typography.Headline>
+                <form onSubmit={handleAddAccountSubmit}>
+                    <div className="field" style={{ marginBottom: '1rem' }}>
+                        <Input
+                            className="login-input"
+                            type="text"
+                            placeholder="Логин (email)"
+                            value={newLogin}
+                            onChange={(e) => setNewLogin(e.target.value)}
+                            autoComplete="username"
+                        />
+                    </div>
+                    <div className="field" style={{ marginBottom: '1rem' }}>
+                        <div className="password-input-container">
+                            <Input
+                                className="login-input password"
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Пароль"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                autoComplete="new-password"
+                                style={{paddingRight: '3rem'}}
+                            />
+                            <Button type="button" className="toggle-password-visibility" onClick={() => setShowPassword(!showPassword)}>
+                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </Button>
+                        </div>
+                    </div>
+                    <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem' }}>
+                        <Typography.Body>
+                            Согласие с{" "}
+                            <a href="#" onClick={(e) => { e.preventDefault(); }}>
+                                публичной офертой
+                            </a>
+                        </Typography.Body>
+                        <Switch
+                            checked={agreeOffer}
+                            onCheckedChange={(value) => setAgreeOffer(resolveChecked(value))}
+                            onChange={(event) => setAgreeOffer(resolveChecked(event))}
+                        />
+                    </label>
+                    <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem' }}>
+                        <Typography.Body>
+                            Согласие на{" "}
+                            <a href="#" onClick={(e) => { e.preventDefault(); }}>
+                                обработку данных
+                            </a>
+                        </Typography.Body>
+                        <Switch
+                            checked={agreePersonal}
+                            onCheckedChange={(value) => setAgreePersonal(resolveChecked(value))}
+                            onChange={(event) => setAgreePersonal(resolveChecked(event))}
+                        />
+                    </label>
+                    {error && (
+                        <Typography.Body className="login-error" style={{ marginBottom: '1rem' }}>
+                            {error}
+                        </Typography.Body>
+                    )}
+                    <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%' }}>
+                        {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Добавить аккаунт"}
+                    </Button>
+                </form>
+            </Panel>
+        </div>
+    );
+}
+
 // --- CARGO PAGE (LIST ONLY) ---
 function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string }) {
     const [items, setItems] = useState<CargoItem[]>([]);
@@ -2015,7 +2283,16 @@ export default function App() {
         };
     }, []);
 
-    const [auth, setAuth] = useState<AuthData | null>(null);
+    // Множественные аккаунты
+    const [accounts, setAccounts] = useState<Account[]>([]);
+    const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+    
+    // Вычисляем текущий активный аккаунт
+    const auth = useMemo(() => {
+        if (!activeAccountId) return null;
+        const account = accounts.find(acc => acc.id === activeAccountId);
+        return account ? { login: account.login, password: account.password } : null;
+    }, [accounts, activeAccountId]);
     const [activeTab, setActiveTab] = useState<Tab>("cargo"); // ИЗМЕНЕНО: По умолчанию только "cargo"
     const [theme, setTheme] = useState('dark');
     const [showDashboard, setShowDashboard] = useState(false);
@@ -2149,6 +2426,7 @@ export default function App() {
         }
     }, []);
 
+    // Загрузка аккаунтов из localStorage
     useEffect(() => {
         if (typeof window === "undefined") return;
         try {
@@ -2156,13 +2434,53 @@ export default function App() {
             if (saved) {
                 const parsed = JSON.parse(saved) as AuthData;
                 if (parsed?.login && parsed?.password) {
-                    setAuth(parsed);
+                    // Миграция старого формата в новый
+                    const accountId = parsed.id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    const account: Account = {
+                        login: parsed.login,
+                        password: parsed.password,
+                        id: accountId
+                    };
+                    setAccounts([account]);
+                    setActiveAccountId(accountId);
+                }
+            }
+            
+            // Загружаем массив аккаунтов (новый формат)
+            const savedAccounts = window.localStorage.getItem("haulz.accounts");
+            const savedActiveId = window.localStorage.getItem("haulz.activeAccountId");
+            if (savedAccounts) {
+                try {
+                    const parsedAccounts = JSON.parse(savedAccounts) as Account[];
+                    if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
+                        setAccounts(parsedAccounts);
+                        if (savedActiveId && parsedAccounts.find(acc => acc.id === savedActiveId)) {
+                            setActiveAccountId(savedActiveId);
+                        } else {
+                            setActiveAccountId(parsedAccounts[0].id);
+                        }
+                    }
+                } catch {
+                    // Игнорируем ошибки парсинга
                 }
             }
         } catch {
             // игнорируем ошибки чтения
         }
     }, []);
+    
+    // Сохранение аккаунтов в localStorage
+    useEffect(() => {
+        if (typeof window === "undefined" || accounts.length === 0) return;
+        try {
+            window.localStorage.setItem("haulz.accounts", JSON.stringify(accounts));
+            if (activeAccountId) {
+                window.localStorage.setItem("haulz.activeAccountId", activeAccountId);
+            }
+        } catch {
+            // игнорируем ошибки записи
+        }
+    }, [accounts, activeAccountId]);
     const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
 
@@ -2191,15 +2509,22 @@ export default function App() {
                 setError(message);
                 return;
             }
-            const payload = { login, password };
-            setAuth(payload);
-            if (typeof window !== "undefined") {
-                try {
-                    window.localStorage.setItem("haulz.auth", JSON.stringify(payload));
-                } catch {
-                    // игнорируем ошибки записи
-                }
+            // Проверяем, не существует ли уже такой аккаунт
+            const existingAccount = accounts.find(acc => acc.login === login);
+            let accountId: string;
+            
+            if (existingAccount) {
+                // Аккаунт уже существует, переключаемся на него
+                accountId = existingAccount.id;
+                setActiveAccountId(accountId);
+            } else {
+                // Создаем новый аккаунт
+                accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const newAccount: Account = { login, password, id: accountId };
+                setAccounts(prev => [...prev, newAccount]);
+                setActiveAccountId(accountId);
             }
+            
             setActiveTab("cargo"); 
         } catch (err: any) {
             setError("Ошибка сети.");
@@ -2209,18 +2534,73 @@ export default function App() {
     };
 
     const handleLogout = () => {
-        setAuth(null);
+        setAccounts([]);
+        setActiveAccountId(null);
         setActiveTab("cargo");
         setPassword(""); 
         if (typeof window !== "undefined") {
             try {
                 window.localStorage.removeItem("haulz.auth");
+                window.localStorage.removeItem("haulz.accounts");
+                window.localStorage.removeItem("haulz.activeAccountId");
             } catch {
                 // игнорируем ошибки удаления
             }
         }
         setIsSearchExpanded(false); setSearchText('');
     }
+    
+    // Удаление аккаунта
+    const handleRemoveAccount = (accountId: string) => {
+        const newAccounts = accounts.filter(acc => acc.id !== accountId);
+        setAccounts(newAccounts);
+        
+        if (activeAccountId === accountId) {
+            // Если удалили активный аккаунт, переключаемся на первый доступный
+            if (newAccounts.length > 0) {
+                setActiveAccountId(newAccounts[0].id);
+            } else {
+                setActiveAccountId(null);
+                setActiveTab("cargo");
+            }
+        }
+    };
+    
+    // Переключение аккаунта
+    const handleSwitchAccount = (accountId: string) => {
+        setActiveAccountId(accountId);
+    };
+    
+    // Добавление нового аккаунта (для страницы профиля)
+    const handleAddAccount = async (login: string, password: string) => {
+        // Проверяем, не существует ли уже такой аккаунт
+        if (accounts.find(acc => acc.login === login)) {
+            throw new Error("Аккаунт с таким логином уже добавлен");
+        }
+        
+        // Проверяем авторизацию
+        const { dateFrom, dateTo } = getDateRange("все");
+        const res = await fetch(PROXY_API_BASE_URL, {
+            method: "POST", 
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ login, password, dateFrom, dateTo }),
+        });
+
+        if (!res.ok) {
+            let message = `Ошибка авторизации`;
+            try {
+                const errorData = await res.json() as ApiError;
+                if (errorData.error) message = errorData.error;
+            } catch { }
+            throw new Error(message);
+        }
+        
+        // Создаем новый аккаунт
+        const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newAccount: Account = { login, password, id: accountId };
+        setAccounts(prev => [...prev, newAccount]);
+        setActiveAccountId(accountId);
+    };
 
     if (!auth) {
         return (
@@ -2367,9 +2747,19 @@ export default function App() {
         <Container className={`app-container`}>
             <header className="app-header">
                 <Flex align="center" justify="space-between" className="header-top-row">
-                    <Flex align="center" className="header-auth-info">
-                        <UserIcon className="w-4 h-4 mr-2" />
-                        <Typography.Body>{auth.login}</Typography.Body>
+                    <Flex align="center" className="header-auth-info" style={{ position: 'relative' }}>
+                        {accounts.length > 1 ? (
+                            <AccountSwitcher 
+                                accounts={accounts}
+                                activeAccountId={activeAccountId}
+                                onSwitchAccount={handleSwitchAccount}
+                            />
+                        ) : (
+                            <Flex align="center">
+                                <UserIcon className="w-4 h-4 mr-2" />
+                                <Typography.Body>{auth?.login || 'Не выбран'}</Typography.Body>
+                            </Flex>
+                        )}
                     </Flex>
                     <Flex align="center" className="space-x-3">
                         <Button className="search-toggle-button" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'} aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}>
@@ -2391,8 +2781,8 @@ export default function App() {
             </header>
             <div className="app-main">
                 <div className="w-full max-w-4xl">
-                    {showDashboard && activeTab === "dashboard" && <DashboardPage auth={auth} onClose={() => {}} />}
-                    {showDashboard && activeTab === "cargo" && <CargoPage auth={auth} searchText={searchText} />}
+                    {showDashboard && activeTab === "dashboard" && auth && <DashboardPage auth={auth} onClose={() => {}} />}
+                    {showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} />}
                     {showDashboard && activeTab === "docs" && (
                         <div className="w-full p-8 text-center">
                             <Typography.Headline>Документы</Typography.Headline>
@@ -2406,12 +2796,15 @@ export default function App() {
                         </div>
                     )}
                     {showDashboard && activeTab === "profile" && (
-                        <div className="w-full p-8 text-center">
-                            <Typography.Headline>Профиль</Typography.Headline>
-                            <Typography.Body className="text-theme-secondary">Раздел в разработке</Typography.Body>
-                        </div>
+                        <ProfilePage 
+                            accounts={accounts}
+                            activeAccountId={activeAccountId}
+                            onSwitchAccount={handleSwitchAccount}
+                            onAddAccount={handleAddAccount}
+                            onRemoveAccount={handleRemoveAccount}
+                        />
                     )}
-                    {!showDashboard && activeTab === "cargo" && <CargoPage auth={auth} searchText={searchText} />}
+                    {!showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} />}
                 </div>
             </div>
             <TabBar 
