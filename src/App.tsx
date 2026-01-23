@@ -1255,15 +1255,6 @@ function AccountSwitcher({
 type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about';
 
 function AboutCompanyPage({ onBack }: { onBack: () => void }) {
-    const openLink = (url: string) => {
-        const webApp = getWebApp();
-        if (webApp && typeof (webApp as any).openLink === "function") {
-            (webApp as any).openLink(url);
-        } else if (typeof window !== "undefined") {
-            window.open(url, "_blank", "noopener,noreferrer");
-        }
-    };
-
     const normalizePhoneToTel = (phone: string) => {
         const digits = phone.replace(/[^\d+]/g, "");
         return digits.startsWith("+") ? digits : `+${digits}`;
@@ -1299,10 +1290,11 @@ function AboutCompanyPage({ onBack }: { onBack: () => void }) {
                         <Typography.Body style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                             {office.city}
                         </Typography.Body>
-                        <Button
+                        <a
                             className="filter-button"
-                            type="button"
-                            onClick={() => openLink(getMapsUrl(`${office.city}, ${office.address}`))}
+                            href={getMapsUrl(`${office.city}, ${office.address}`)}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             style={{
                                 width: "100%",
                                 justifyContent: "flex-start",
@@ -1310,6 +1302,7 @@ function AboutCompanyPage({ onBack }: { onBack: () => void }) {
                                 padding: "0.5rem 0.75rem",
                                 marginBottom: "0.5rem",
                                 backgroundColor: "transparent",
+                                textDecoration: "none",
                             }}
                             title="Открыть маршрут"
                         >
@@ -1317,17 +1310,17 @@ function AboutCompanyPage({ onBack }: { onBack: () => void }) {
                             <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                                 {office.address}
                             </Typography.Body>
-                        </Button>
-                        <Button
+                        </a>
+                        <a
                             className="filter-button"
-                            type="button"
-                            onClick={() => openLink(`tel:${normalizePhoneToTel(office.phone)}`)}
+                            href={`tel:${normalizePhoneToTel(office.phone)}`}
                             style={{
                                 width: "100%",
                                 justifyContent: "flex-start",
                                 gap: "0.5rem",
                                 padding: "0.5rem 0.75rem",
                                 backgroundColor: "transparent",
+                                textDecoration: "none",
                             }}
                             title="Позвонить"
                         >
@@ -1335,22 +1328,22 @@ function AboutCompanyPage({ onBack }: { onBack: () => void }) {
                             <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                                 {office.phone}
                             </Typography.Body>
-                        </Button>
+                        </a>
                     </Panel>
                 ))}
             </div>
 
             <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                <Button
+                <a
                     className="filter-button"
-                    type="button"
-                    onClick={() => openLink(`mailto:${HAULZ_EMAIL}`)}
+                    href={`mailto:${HAULZ_EMAIL}`}
                     style={{
                         width: "100%",
                         justifyContent: "flex-start",
                         gap: "0.5rem",
                         padding: "0.5rem 0.75rem",
                         backgroundColor: "transparent",
+                        textDecoration: "none",
                     }}
                     title="Написать письмо"
                 >
@@ -1358,7 +1351,7 @@ function AboutCompanyPage({ onBack }: { onBack: () => void }) {
                     <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                         {HAULZ_EMAIL}
                     </Typography.Body>
-                </Button>
+                </a>
             </Panel>
         </div>
     );
@@ -2801,7 +2794,8 @@ function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllT
     
     return (
         <div className="tabbar-container">
-            {/* Обычный режим: Грузы + Профиль (профиль общедоступен, не секретный) */}
+            {/* Обычный режим: Главная(дашборд) + Грузы + Профиль */}
+            <TabBtn label="" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
             <TabBtn 
                 label="" 
                 icon={<Truck />} 
@@ -2932,7 +2926,7 @@ export default function App() {
         const account = accounts.find(acc => acc.id === activeAccountId);
         return account ? { login: account.login, password: account.password } : null;
     }, [accounts, activeAccountId]);
-    const [activeTab, setActiveTab] = useState<Tab>("cargo"); // ИЗМЕНЕНО: По умолчанию только "cargo"
+    const [activeTab, setActiveTab] = useState<Tab>("dashboard"); // По умолчанию открываем главную (дашборд)
     const [theme, setTheme] = useState('dark'); 
     const [showDashboard, setShowDashboard] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
@@ -3164,7 +3158,7 @@ export default function App() {
                 setActiveAccountId(accountId);
             }
             
-            setActiveTab("cargo"); 
+            setActiveTab("dashboard"); 
         } catch (err: any) {
             setError("Ошибка сети.");
         } finally {
@@ -3446,6 +3440,7 @@ export default function App() {
                         />
                     )}
                     {!showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} />}
+                    {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && <DashboardPage auth={auth} onClose={() => {}} />}
                     {!showDashboard && activeTab === "profile" && (
                         <ProfilePage 
                             accounts={accounts}
@@ -3474,7 +3469,9 @@ export default function App() {
                             setActiveTab(tab);
                         }
                     } else {
-                        setActiveTab(tab);
+                        // В обычном режиме "home" ведёт на дашборд
+                        if (tab === "home") setActiveTab("dashboard");
+                        else setActiveTab(tab);
                     }
                 }}
                 onCargoPressStart={handleCargoPressStart}
