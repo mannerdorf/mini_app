@@ -50,7 +50,7 @@ type AuthData = { login: string; password: string; };
 // УДАЛЕНО: type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 type Tab = "cargo"; // Оставлена только "cargo"
 type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
-type StatusFilter = "all" | "accepted" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
+type StatusFilter = "all" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
 type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom"; // Оставлено, так как это может использоваться в Home, который пока остается в коде ниже
 
 // --- ИСПОЛЬЗУЕМ ТОЛЬКО ПЕРЕМЕННЫЕ ИЗ API ---
@@ -240,13 +240,12 @@ const getFilterKeyByStatus = (s: string | undefined): StatusFilter => {
     const l = normalized.toLowerCase(); 
     if (l.includes('доставлен') || l.includes('заверш')) return 'delivered'; 
     if (l.includes('пути') || l.includes('отправлен')) return 'in_transit';
-    if (l.includes('принят') || l.includes('оформлен')) return 'accepted';
     if (l.includes('готов')) return 'ready';
     if (l.includes('доставке')) return 'delivering';
     return 'all'; 
 }
 
-const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "accepted": "Принят", "in_transit": "В пути", "ready": "Готов", "delivering": "На доставке", "delivered": "Доставлено", "favorites": "Избранные" };
+const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "in_transit": "В пути", "ready": "Готов к выдаче", "delivering": "На доставке", "delivered": "Доставлено", "favorites": "Избранные" };
 
 const resolveChecked = (value: unknown): boolean => {
     if (typeof value === "boolean") return value;
