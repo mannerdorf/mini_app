@@ -875,27 +875,54 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
             );
         }
         
-        const maxValue = Math.max(...data.map(d => d.value), 1);
-        const chartHeight = 200;
-        const paddingLeft = 50;
-        const paddingRight = 20;
-        const paddingTop = 20;
-        const paddingBottom = 60;
-        const availableWidth = 300; // Минимальная ширина
-        const barSpacing = 4;
-        const barWidth = Math.max(8, (availableWidth - paddingLeft - paddingRight - (data.length - 1) * barSpacing) / data.length);
-        const chartWidth = paddingLeft + paddingRight + data.length * (barWidth + barSpacing) - barSpacing;
+        // Округляем значения до целых
+        const roundedData = data.map(d => ({ ...d, value: Math.round(d.value) }));
+        const maxValue = Math.max(...roundedData.map(d => d.value), 1);
+        const scaleMax = maxValue * 1.1; // Максимум шкалы = max + 10%
+        
+        const chartHeight = 250;
+        const paddingLeft = 60;
+        const paddingRight = 30;
+        const paddingTop = 30;
+        const paddingBottom = 80;
+        const availableWidth = 350;
+        const barSpacing = 6;
+        const barWidth = Math.max(12, (availableWidth - paddingLeft - paddingRight - (roundedData.length - 1) * barSpacing) / roundedData.length);
+        const chartWidth = paddingLeft + paddingRight + roundedData.length * (barWidth + barSpacing) - barSpacing;
         const availableHeight = chartHeight - paddingTop - paddingBottom;
         
+        // Градиенты для столбцов (полутона, сложные)
+        const gradientId = `gradient-${color.replace('#', '')}`;
+        // Создаем более светлый и темный оттенки для градиента
+        const hexToRgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        };
+        const rgb = hexToRgb(color);
+        const lightColor = rgb ? `rgb(${Math.min(255, rgb.r + 40)}, ${Math.min(255, rgb.g + 40)}, ${Math.min(255, rgb.b + 40)})` : color;
+        const darkColor = rgb ? `rgb(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${Math.max(0, rgb.b - 30)})` : color;
+        
         return (
-            <Panel className="cargo-card" style={{ marginBottom: '1rem' }}>
-                <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1rem' }}>{title}</Typography.Headline>
+            <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
+                <Typography.Headline style={{ marginBottom: '1.5rem', fontSize: '1.1rem', fontWeight: 600 }}>{title}</Typography.Headline>
                 <div style={{ overflowX: 'auto', width: '100%' }}>
                     <svg 
                         width={Math.max(chartWidth, '100%')} 
                         height={chartHeight}
                         style={{ minWidth: `${chartWidth}px`, display: 'block' }}
                     >
+                        {/* Определение градиента */}
+                        <defs>
+                            <linearGradient id={gradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor={lightColor} stopOpacity="0.9" />
+                                <stop offset="100%" stopColor={darkColor} stopOpacity="0.6" />
+                            </linearGradient>
+                        </defs>
+                        
                         {/* Горизонтальная ось */}
                         <line 
                             x1={paddingLeft} 
@@ -903,7 +930,8 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
                             x2={chartWidth - paddingRight} 
                             y2={chartHeight - paddingBottom} 
                             stroke="var(--color-border)" 
-                            strokeWidth="2" 
+                            strokeWidth="1.5" 
+                            opacity="0.5"
                         />
                         
                         {/* Вертикальная ось */}
@@ -913,46 +941,64 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
                             x2={paddingLeft} 
                             y2={chartHeight - paddingBottom} 
                             stroke="var(--color-border)" 
-                            strokeWidth="2" 
+                            strokeWidth="1.5" 
+                            opacity="0.5"
                         />
                         
                         {/* Столбцы */}
-                        {data.map((d, idx) => {
-                            const barHeight = (d.value / maxValue) * availableHeight;
+                        {roundedData.map((d, idx) => {
+                            const barHeight = (d.value / scaleMax) * availableHeight;
                             const x = paddingLeft + idx * (barWidth + barSpacing);
                             const y = chartHeight - paddingBottom - barHeight;
                             
                             return (
                                 <g key={idx}>
+                                    {/* Столбец с градиентом */}
                                     <rect
                                         x={x}
                                         y={y}
                                         width={barWidth}
                                         height={barHeight}
-                                        fill={color}
-                                        opacity={0.8}
-                                        rx="2"
+                                        fill={`url(#${gradientId})`}
+                                        rx="4"
+                                        style={{ transition: 'all 0.3s ease' }}
                                     />
-                                    {/* Значение на столбце */}
-                                    {barHeight > 25 && (
+                                    
+                                    {/* Значение вертикально над столбцом или на нем */}
+                                    {barHeight > 20 ? (
                                         <text
                                             x={x + barWidth / 2}
-                                            y={y - 5}
+                                            y={y - 8}
+                                            fontSize="11"
+                                            fill="var(--color-text-primary)"
+                                            textAnchor="middle"
+                                            fontWeight="600"
+                                            transform={`rotate(-90 ${x + barWidth / 2} ${y - 8})`}
+                                        >
+                                            {formatValue(d.value)}
+                                        </text>
+                                    ) : (
+                                        <text
+                                            x={x + barWidth / 2}
+                                            y={y + barHeight / 2}
                                             fontSize="10"
                                             fill="var(--color-text-primary)"
                                             textAnchor="middle"
                                             fontWeight="600"
+                                            transform={`rotate(-90 ${x + barWidth / 2} ${y + barHeight / 2})`}
                                         >
                                             {formatValue(d.value)}
                                         </text>
                                     )}
-                                    {/* Дата под столбцом */}
+                                    
+                                    {/* Дата вертикально под столбцом */}
                                     <text
                                         x={x + barWidth / 2}
-                                        y={chartHeight - paddingBottom + 15}
-                                        fontSize="9"
+                                        y={chartHeight - paddingBottom + 20}
+                                        fontSize="10"
                                         fill="var(--color-text-secondary)"
                                         textAnchor="middle"
+                                        transform={`rotate(-45 ${x + barWidth / 2} ${chartHeight - paddingBottom + 20})`}
                                     >
                                         {d.date.split('.').slice(0, 2).join('.')}
                                     </text>
@@ -1026,24 +1072,24 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
             {!loading && !error && (
                 <>
                     {renderChart(
-                        chartData.map(d => ({ date: d.date, value: d.sum })),
-                        "Динамика за период в деньгах",
-                        "#3b82f6",
-                        (val) => formatCurrency(val)
+                        chartData.map(d => ({ date: d.date, value: Math.round(d.sum) })),
+                        "Динамика в деньгах",
+                        "#6366f1", // Индиго полутон
+                        (val) => `${Math.round(val).toLocaleString('ru-RU')} ₽`
                     )}
                     
                     {renderChart(
-                        chartData.map(d => ({ date: d.date, value: d.pw })),
-                        "Динамика в платном весе за период",
-                        "#34d399",
-                        (val) => `${val.toFixed(2)} кг`
+                        chartData.map(d => ({ date: d.date, value: Math.round(d.pw) })),
+                        "Динамика в платном весе",
+                        "#10b981", // Изумрудный полутон
+                        (val) => `${Math.round(val)} кг`
                     )}
                     
                     {renderChart(
-                        chartData.map(d => ({ date: d.date, value: d.mest })),
+                        chartData.map(d => ({ date: d.date, value: Math.round(d.mest) })),
                         "Динамика в местах",
-                        "#facc15",
-                        (val) => `${val.toFixed(0)}`
+                        "#f59e0b", // Янтарный полутон
+                        (val) => `${Math.round(val)}`
                     )}
                 </>
             )}
@@ -1785,9 +1831,9 @@ function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllT
     if (showAllTabs) {
         return (
             <div className="tabbar-container">
-                <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
+                <TabBtn label="" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
                 <TabBtn 
-                    label="Грузы" 
+                    label="" 
                     icon={<Truck />} 
                     active={active === "cargo"} 
                     onClick={() => {
@@ -1795,9 +1841,9 @@ function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllT
                         onChange("cargo");
                     }} 
                 />
-                <TabBtn label="Документы" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />
-                <TabBtn label="Поддержка" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />
-                <TabBtn label="Профиль" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
+                <TabBtn label="" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />
+                <TabBtn label="" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />
+                <TabBtn label="" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
             </div>
         );
     }
@@ -1806,7 +1852,7 @@ function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllT
         <div className="tabbar-container">
             {/* ОСТАВЛЕНА ТОЛЬКО КНОПКА "Грузы" */}
             <TabBtn 
-                label="Грузы" 
+                label="" 
                 icon={<Truck />} 
                 active={active === "cargo" || active === "dashboard"} 
                 onClick={() => {
@@ -1830,10 +1876,10 @@ const TabBtn = ({ label, icon, active, onClick, onMouseDown, onMouseUp, onMouseL
         onMouseLeave={onMouseLeave}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
+        title={label || undefined}
     >
-        <Flex align="center">
+        <Flex align="center" justify="center">
             <div className="tab-icon">{icon}</div>
-            {label && <Typography.Label className="tab-label">{label}</Typography.Label>}
         </Flex>
     </Button>
 );
@@ -1943,13 +1989,12 @@ export default function App() {
         };
     }, []);
     
-    // Обработка нажатия и удержания
+    // Обработка нажатия и удержания (работает для входа и выхода)
     const handleCargoPressStart = (e?: React.MouseEvent | React.TouchEvent) => {
         if (e) {
             e.preventDefault();
             e.stopPropagation();
         }
-        if (showDashboard) return; // Не работаем если секретный режим уже активирован
         
         isHoldingRef.current = true;
         holdTimeoutRef.current = setTimeout(() => {
@@ -1974,12 +2019,20 @@ export default function App() {
         }
     };
     
-    // Проверка пин-кода
+    // Проверка пин-кода (для входа и выхода)
     const handlePinSubmit = (e?: FormEvent) => {
         if (e) e.preventDefault();
         if (pinCode === '1984') {
-            setShowDashboard(true);
-            setActiveTab("dashboard");
+            // Переключаем состояние секретного режима
+            if (showDashboard) {
+                // Выход из секретного режима
+                setShowDashboard(false);
+                setActiveTab("cargo");
+            } else {
+                // Вход в секретный режим
+                setShowDashboard(true);
+                setActiveTab("dashboard");
+            }
             setShowPinModal(false);
             setPinCode('');
             setPinError(false);
@@ -2293,36 +2346,40 @@ export default function App() {
             </header>
             <div className="app-main">
                 <div className="w-full max-w-4xl">
-                    {showDashboard && activeTab === "dashboard" && <DashboardPage auth={auth} onClose={() => { setShowDashboard(false); setActiveTab("cargo"); }} />}
-                    {!showDashboard && activeTab === "cargo" && <CargoPage auth={auth} searchText={searchText} />}
-                    {!showDashboard && activeTab === "docs" && (
+                    {showDashboard && activeTab === "dashboard" && <DashboardPage auth={auth} onClose={() => {}} />}
+                    {showDashboard && activeTab === "cargo" && <CargoPage auth={auth} searchText={searchText} />}
+                    {showDashboard && activeTab === "docs" && (
                         <div className="w-full p-8 text-center">
                             <Typography.Headline>Документы</Typography.Headline>
                             <Typography.Body className="text-theme-secondary">Раздел в разработке</Typography.Body>
                         </div>
                     )}
-                    {!showDashboard && activeTab === "support" && (
+                    {showDashboard && activeTab === "support" && (
                         <div className="w-full p-8 text-center">
                             <Typography.Headline>Поддержка</Typography.Headline>
                             <Typography.Body className="text-theme-secondary">Раздел в разработке</Typography.Body>
                         </div>
                     )}
-                    {!showDashboard && activeTab === "profile" && (
+                    {showDashboard && activeTab === "profile" && (
                         <div className="w-full p-8 text-center">
                             <Typography.Headline>Профиль</Typography.Headline>
                             <Typography.Body className="text-theme-secondary">Раздел в разработке</Typography.Body>
                         </div>
                     )}
+                    {!showDashboard && activeTab === "cargo" && <CargoPage auth={auth} searchText={searchText} />}
                 </div>
             </div>
             <TabBar 
                 active={activeTab} 
                 onChange={(tab) => {
                     if (tab === "home") {
-                        setShowDashboard(true);
+                        // При клике на "Главная" переходим на дашборд, но не выходим из секретного режима
                         setActiveTab("dashboard");
+                    } else if (tab === "cargo") {
+                        // При клике на "Грузы" переходим на грузы, но остаемся в секретном режиме
+                        setActiveTab("cargo");
                     } else {
-                        setShowDashboard(false);
+                        // Для других вкладок просто переключаемся, остаемся в секретном режиме
                         setActiveTab(tab);
                     }
                 }}
@@ -2336,7 +2393,7 @@ export default function App() {
                 <div className="modal-overlay" onClick={() => { setShowPinModal(false); setPinCode(''); setPinError(false); }}>
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <Typography.Headline>Введите пин-код</Typography.Headline>
+                            <Typography.Headline>{showDashboard ? "Выход из секретного режима" : "Вход в секретный режим"}</Typography.Headline>
                             <Button className="modal-close-button" onClick={() => { setShowPinModal(false); setPinCode(''); setPinError(false); }} aria-label="Закрыть">
                                 <X size={20} />
                             </Button>
@@ -2346,7 +2403,7 @@ export default function App() {
                                 <Input
                                     type="password"
                                     className="login-input"
-                                    placeholder="Пин-код"
+                                    placeholder=""
                                     value={pinCode}
                                     onChange={(e) => {
                                         setPinCode(e.target.value);
