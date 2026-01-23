@@ -1255,6 +1255,25 @@ function AccountSwitcher({
 type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about';
 
 function AboutCompanyPage({ onBack }: { onBack: () => void }) {
+    const openLink = (url: string) => {
+        const webApp = getWebApp();
+        if (webApp && typeof (webApp as any).openLink === "function") {
+            (webApp as any).openLink(url);
+        } else if (typeof window !== "undefined") {
+            window.open(url, "_blank", "noopener,noreferrer");
+        }
+    };
+
+    const normalizePhoneToTel = (phone: string) => {
+        const digits = phone.replace(/[^\d+]/g, "");
+        return digits.startsWith("+") ? digits : `+${digits}`;
+    };
+
+    const getMapsUrl = (address: string) => {
+        const q = encodeURIComponent(address);
+        return `https://yandex.ru/maps/?text=${q}`;
+    };
+
     return (
         <div className="w-full">
             <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
@@ -1280,29 +1299,66 @@ function AboutCompanyPage({ onBack }: { onBack: () => void }) {
                         <Typography.Body style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                             {office.city}
                         </Typography.Body>
-                        <Flex align="center" style={{ gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <Button
+                            className="filter-button"
+                            type="button"
+                            onClick={() => openLink(getMapsUrl(`${office.city}, ${office.address}`))}
+                            style={{
+                                width: "100%",
+                                justifyContent: "flex-start",
+                                gap: "0.5rem",
+                                padding: "0.5rem 0.75rem",
+                                marginBottom: "0.5rem",
+                                backgroundColor: "transparent",
+                            }}
+                            title="Открыть маршрут"
+                        >
                             <MapPin className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
                             <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                                 {office.address}
                             </Typography.Body>
-                        </Flex>
-                        <Flex align="center" style={{ gap: '0.5rem' }}>
+                        </Button>
+                        <Button
+                            className="filter-button"
+                            type="button"
+                            onClick={() => openLink(`tel:${normalizePhoneToTel(office.phone)}`)}
+                            style={{
+                                width: "100%",
+                                justifyContent: "flex-start",
+                                gap: "0.5rem",
+                                padding: "0.5rem 0.75rem",
+                                backgroundColor: "transparent",
+                            }}
+                            title="Позвонить"
+                        >
                             <Phone className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
                             <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                                 {office.phone}
                             </Typography.Body>
-                        </Flex>
+                        </Button>
                     </Panel>
                 ))}
             </div>
 
             <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                <Flex align="center" style={{ gap: '0.5rem' }}>
+                <Button
+                    className="filter-button"
+                    type="button"
+                    onClick={() => openLink(`mailto:${HAULZ_EMAIL}`)}
+                    style={{
+                        width: "100%",
+                        justifyContent: "flex-start",
+                        gap: "0.5rem",
+                        padding: "0.5rem 0.75rem",
+                        backgroundColor: "transparent",
+                    }}
+                    title="Написать письмо"
+                >
                     <Mail className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
                     <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                         {HAULZ_EMAIL}
                     </Typography.Body>
-                </Flex>
+                </Button>
             </Panel>
         </div>
     );
@@ -2745,7 +2801,7 @@ function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllT
     
     return (
         <div className="tabbar-container">
-            {/* ОСТАВЛЕНА ТОЛЬКО КНОПКА "Грузы" */}
+            {/* Обычный режим: Грузы + Профиль (профиль общедоступен, не секретный) */}
             <TabBtn 
                 label="" 
                 icon={<Truck />} 
@@ -2759,6 +2815,7 @@ function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllT
                 onTouchStart={onCargoPressStart}
                 onTouchEnd={onCargoPressEnd}
             />
+            <TabBtn label="" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
         </div>
     );
 }
@@ -3389,19 +3446,34 @@ export default function App() {
                         />
                     )}
                     {!showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} />}
+                    {!showDashboard && activeTab === "profile" && (
+                        <ProfilePage 
+                            accounts={accounts}
+                            activeAccountId={activeAccountId}
+                            onSwitchAccount={handleSwitchAccount}
+                            onAddAccount={handleAddAccount}
+                            onRemoveAccount={handleRemoveAccount}
+                            onOpenOffer={() => setIsOfferOpen(true)}
+                            onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
+                        />
+                    )}
                 </div>
             </div>
             <TabBar 
                 active={activeTab} 
                 onChange={(tab) => {
-                    if (tab === "home") {
-                        // При клике на "Главная" переходим на дашборд, но не выходим из секретного режима
-                        setActiveTab("dashboard");
-                    } else if (tab === "cargo") {
-                        // При клике на "Грузы" переходим на грузы, но остаемся в секретном режиме
-                        setActiveTab("cargo");
+                    if (showDashboard) {
+                        if (tab === "home") {
+                            // При клике на "Главная" переходим на дашборд, но не выходим из секретного режима
+                            setActiveTab("dashboard");
+                        } else if (tab === "cargo") {
+                            // При клике на "Грузы" переходим на грузы, но остаемся в секретном режиме
+                            setActiveTab("cargo");
+                        } else {
+                            // Для других вкладок просто переключаемся, остаемся в секретном режиме
+                            setActiveTab(tab);
+                        }
                     } else {
-                        // Для других вкладок просто переключаемся, остаемся в секретном режиме
                         setActiveTab(tab);
                     }
                 }}
@@ -3409,6 +3481,38 @@ export default function App() {
                 onCargoPressEnd={handleCargoPressEnd}
                 showAllTabs={showDashboard}
             />
+
+            {/* Оферта/Согласие должны открываться и из раздела Профиль */}
+            {isOfferOpen && (
+                <div className="modal-overlay" onClick={() => setIsOfferOpen(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <Typography.Headline style={{ fontSize: '1.1rem' }}>Публичная оферта</Typography.Headline>
+                            <Button className="modal-close-button" onClick={() => setIsOfferOpen(false)} aria-label="Закрыть">
+                                <X size={20} />
+                            </Button>
+                        </div>
+                        <div style={{ whiteSpace: "pre-wrap", fontSize: "0.85rem", lineHeight: 1.45 }}>
+                            {PUBLIC_OFFER_TEXT}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {isPersonalConsentOpen && (
+                <div className="modal-overlay" onClick={() => setIsPersonalConsentOpen(false)}>
+                    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <Typography.Headline style={{ fontSize: '1.1rem' }}>Согласие на обработку персональных данных</Typography.Headline>
+                            <Button className="modal-close-button" onClick={() => setIsPersonalConsentOpen(false)} aria-label="Закрыть">
+                                <X size={20} />
+                            </Button>
+                        </div>
+                        <div style={{ whiteSpace: "pre-wrap", fontSize: "0.85rem", lineHeight: 1.45 }}>
+                            {PERSONAL_DATA_CONSENT_TEXT}
+                        </div>
+                    </div>
+                </div>
+            )}
             
             {/* Модальное окно для ввода пин-кода */}
             {showPinModal && (
