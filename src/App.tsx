@@ -1786,7 +1786,15 @@ function TabBar({ active, onChange, onCargoClick, showAllTabs }: { active: Tab, 
         return (
             <div className="tabbar-container">
                 <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
-                <TabBtn label="Грузы" icon={<Truck />} active={active === "cargo"} onClick={() => onChange("cargo")} />
+                <TabBtn 
+                    label="Грузы" 
+                    icon={<Truck />} 
+                    active={active === "cargo"} 
+                    onClick={() => {
+                        // Если секретный режим уже активирован, просто переключаемся на грузы
+                        onChange("cargo");
+                    }} 
+                />
                 <TabBtn label="Документы" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />
                 <TabBtn label="Поддержка" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />
                 <TabBtn label="Профиль" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
@@ -1910,7 +1918,17 @@ export default function App() {
     const [activeTab, setActiveTab] = useState<Tab>("cargo"); // ИЗМЕНЕНО: По умолчанию только "cargo"
     const [theme, setTheme] = useState('dark');
     const [cargoClickCount, setCargoClickCount] = useState(0);
-    const [showDashboard, setShowDashboard] = useState(false); 
+    const [showDashboard, setShowDashboard] = useState(false);
+    const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+    
+    // Очистка таймаута при размонтировании
+    useEffect(() => {
+        return () => {
+            if (clickTimeoutRef.current) {
+                clearTimeout(clickTimeoutRef.current);
+            }
+        };
+    }, []); 
     const [startParam, setStartParam] = useState<string | null>(null);
     const [contextCargoNumber, setContextCargoNumber] = useState<string | null>(null); 
     
@@ -2250,17 +2268,31 @@ export default function App() {
                     }
                 }}
                 onCargoClick={() => {
+                    // Работаем только если секретный режим еще не активирован
+                    if (showDashboard) return;
+                    
+                    // Очищаем предыдущий таймаут, если он есть
+                    if (clickTimeoutRef.current) {
+                        clearTimeout(clickTimeoutRef.current);
+                    }
+                    
                     const newCount = cargoClickCount + 1;
                     setCargoClickCount(newCount);
+                    
                     if (newCount >= 9) {
                         setShowDashboard(true);
                         setActiveTab("dashboard");
                         setCargoClickCount(0); // Сбрасываем счетчик
+                        if (clickTimeoutRef.current) {
+                            clearTimeout(clickTimeoutRef.current);
+                            clickTimeoutRef.current = null;
+                        }
                     } else {
-                        // Сбрасываем счетчик через 2 секунды, если не достигли 9
-                        setTimeout(() => {
+                        // Сбрасываем счетчик через 3 секунды, если не достигли 9
+                        clickTimeoutRef.current = setTimeout(() => {
                             setCargoClickCount(0);
-                        }, 2000);
+                            clickTimeoutRef.current = null;
+                        }, 3000);
                     }
                 }}
                 showAllTabs={showDashboard}
