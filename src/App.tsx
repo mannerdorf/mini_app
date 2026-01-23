@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus 
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
@@ -752,6 +752,9 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [showSummary, setShowSummary] = useState(true);
+    // Sort State
+    const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>(null);
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
     const apiDateRange = useMemo(() => dateFilter === "период" ? { dateFrom: customDateFrom, dateTo: customDateTo } : getDateRange(dateFilter), [dateFilter, customDateFrom, customDateTo]); // ИСПРАВЛЕНО: 'custom' на 'период'
 
@@ -785,7 +788,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
 
     useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo]);
 
-    // Client-side filtering
+    // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
         let res = items;
         if (statusFilter !== 'all') res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
@@ -794,8 +797,33 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
             // Обновлены поля поиска: PW вместо PV, добавлен Sender
             res = res.filter(i => [i.Number, i.State, i.Sender, formatDate(i.DatePrih), formatCurrency(i.Sum), String(i.PW), String(i.Mest)].join(' ').toLowerCase().includes(lower));
         }
+        
+        // Применяем сортировку
+        if (sortBy) {
+            res = [...res].sort((a, b) => {
+                let dateA: Date | null = null;
+                let dateB: Date | null = null;
+                
+                if (sortBy === 'datePrih') {
+                    dateA = a.DatePrih ? new Date(a.DatePrih) : null;
+                    dateB = b.DatePrih ? new Date(b.DatePrih) : null;
+                } else if (sortBy === 'dateVr') {
+                    dateA = a.DateVr ? new Date(a.DateVr) : null;
+                    dateB = b.DateVr ? new Date(b.DateVr) : null;
+                }
+                
+                // Обрабатываем случаи с null/undefined
+                if (!dateA && !dateB) return 0;
+                if (!dateA) return 1;
+                if (!dateB) return -1;
+                
+                const diff = dateA.getTime() - dateB.getTime();
+                return sortOrder === 'asc' ? diff : -diff;
+            });
+        }
+        
         return res;
-    }, [items, statusFilter, searchText]);
+    }, [items, statusFilter, searchText, sortBy, sortOrder]);
 
     // Подсчет сумм из отфильтрованных элементов
     const summary = useMemo(() => {
@@ -826,7 +854,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
         <div className="w-full">
             {/* Filters */}
             <div className="filters-container">
-                <div className="filter-group">
+                <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); }}>
                         Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                     </Button>
@@ -837,6 +865,60 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                             </div>
                         ))}
                     </div>}
+                    {/* Кнопки сортировки по датам */}
+                    <Flex gap="0.25rem" align="center">
+                        <Button 
+                            className="filter-button" 
+                            style={{ padding: '0.5rem', minWidth: 'auto' }}
+                            onClick={() => {
+                                if (sortBy === 'datePrih') {
+                                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                                } else {
+                                    setSortBy('datePrih');
+                                    setSortOrder('desc');
+                                }
+                            }}
+                            title="Сортировать по дате прихода"
+                        >
+                            {sortBy === 'datePrih' ? (
+                                sortOrder === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                            ) : (
+                                <ArrowUpDown className="w-4 h-4" style={{ opacity: 0.5 }} />
+                            )}
+                        </Button>
+                        <Button 
+                            className="filter-button" 
+                            style={{ padding: '0.5rem', minWidth: 'auto' }}
+                            onClick={() => {
+                                if (sortBy === 'dateVr') {
+                                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                                } else {
+                                    setSortBy('dateVr');
+                                    setSortOrder('desc');
+                                }
+                            }}
+                            title="Сортировать по дате доставки"
+                        >
+                            {sortBy === 'dateVr' ? (
+                                sortOrder === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                            ) : (
+                                <ArrowUpDown className="w-4 h-4" style={{ opacity: 0.5 }} />
+                            )}
+                        </Button>
+                        {sortBy && (
+                            <Button 
+                                className="filter-button" 
+                                style={{ padding: '0.5rem', minWidth: 'auto' }}
+                                onClick={() => {
+                                    setSortBy(null);
+                                    setSortOrder('desc');
+                                }}
+                                title="Сбросить сортировку"
+                            >
+                                <X className="w-4 h-4" />
+                            </Button>
+                        )}
+                    </Flex>
                 </div>
                 <div className="filter-group">
                     <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); }}>
