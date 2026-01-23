@@ -1456,6 +1456,7 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
     const [code, setCode] = useState<string[]>(['', '', '', '', '', '']);
     const [codeInputIndex, setCodeInputIndex] = useState(0);
     const [showCodeInput, setShowCodeInput] = useState(false);
+    const codeInputRefs = React.useRef<Array<any>>([]);
     
     const handleSubmitINN = async (e: FormEvent) => {
         e.preventDefault();
@@ -1480,15 +1481,70 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
     };
     
     const handleCodeChange = (index: number, value: string) => {
-        if (value.length > 1) return;
+        const digits = (value || "").replace(/\D/g, "");
+        if (!digits) {
+            const newCode = [...code];
+            newCode[index] = "";
+            setCode(newCode);
+            setCodeInputIndex(index);
+            return;
+        }
+
+        // Вставка/ввод нескольких цифр за раз (paste)
         const newCode = [...code];
-        newCode[index] = value;
+        let writeIndex = index;
+        for (let i = 0; i < digits.length && writeIndex < 6; i += 1) {
+            newCode[writeIndex] = digits[i];
+            writeIndex += 1;
+        }
         setCode(newCode);
-        
-        if (value && index < 5) {
-            setCodeInputIndex(index + 1);
+
+        const nextIndex = Math.min(writeIndex, 5);
+        setCodeInputIndex(nextIndex);
+        // Фокус на следующий
+        const el = codeInputRefs.current[nextIndex];
+        if (el?.focus) el.focus();
+    };
+
+    const handleCodeKeyDown = (index: number, e: React.KeyboardEvent) => {
+        if (e.key === "Backspace") {
+            if (code[index]) {
+                const newCode = [...code];
+                newCode[index] = "";
+                setCode(newCode);
+                setCodeInputIndex(index);
+                return;
+            }
+            if (index > 0) {
+                const prev = index - 1;
+                const newCode = [...code];
+                newCode[prev] = "";
+                setCode(newCode);
+                setCodeInputIndex(prev);
+                const el = codeInputRefs.current[prev];
+                if (el?.focus) el.focus();
+            }
+            return;
+        }
+        if (e.key === "ArrowLeft" && index > 0) {
+            const prev = index - 1;
+            setCodeInputIndex(prev);
+            const el = codeInputRefs.current[prev];
+            if (el?.focus) el.focus();
+        }
+        if (e.key === "ArrowRight" && index < 5) {
+            const next = index + 1;
+            setCodeInputIndex(next);
+            const el = codeInputRefs.current[next];
+            if (el?.focus) el.focus();
         }
     };
+
+    useEffect(() => {
+        if (!showCodeInput) return;
+        const el = codeInputRefs.current[codeInputIndex];
+        if (el?.focus) el.focus();
+    }, [showCodeInput, codeInputIndex]);
     
     const handleCodeSubmit = async (e: FormEvent) => {
         e.preventDefault();
@@ -1542,7 +1598,16 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
                 
                 <Panel className="cargo-card" style={{ padding: '1rem' }}>
                     <form onSubmit={handleCodeSubmit}>
-                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(6, 1fr)',
+                                gap: '0.5rem',
+                                width: '100%',
+                                maxWidth: '320px',
+                                margin: '0 auto 1.25rem',
+                            }}
+                        >
                             {code.map((digit, index) => (
                                 <Input
                                     key={index}
@@ -1550,15 +1615,23 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
                                     inputMode="numeric"
                                     maxLength={1}
                                     value={digit}
-                                    onChange={(e) => handleCodeChange(index, e.target.value)}
+                                    onChange={(e) => handleCodeChange(index, (e.target as HTMLInputElement).value)}
+                                    onKeyDown={(e) => handleCodeKeyDown(index, e)}
+                                    onFocus={() => setCodeInputIndex(index)}
+                                    onPaste={(e) => {
+                                        e.preventDefault();
+                                        const text = (e.clipboardData?.getData('text') || '');
+                                        handleCodeChange(index, text);
+                                    }}
+                                    // ref может быть не строго HTMLInputElement в max-ui, поэтому any + focus()
+                                    ref={(el: any) => { codeInputRefs.current[index] = el; }}
                                     style={{
-                                        width: '45px',
-                                        height: '45px',
+                                        width: '100%',
+                                        height: '44px',
                                         textAlign: 'center',
-                                        fontSize: '1.25rem',
+                                        fontSize: '1.1rem',
                                         border: codeInputIndex === index ? '2px solid var(--color-primary)' : '1px solid var(--color-border)'
                                     }}
-                                    autoFocus={codeInputIndex === index}
                                 />
                             ))}
                         </div>
@@ -1874,37 +1947,46 @@ function CompaniesListPage({
                             onTouchStart={() => handlePressStart(account.id)}
                             onTouchEnd={handlePressEnd}
                             style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
                                 padding: '1rem',
                                 cursor: activeAccountId === account.id ? 'default' : 'pointer'
                             }}
                         >
-                            <Flex align="center" style={{ flex: 1, gap: '0.5rem', minWidth: 0 }}>
-                                <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-                                <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeAccountId === account.id ? '600' : 'normal', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {account.login}
-                                </Typography.Body>
-                            </Flex>
-                            <Flex align="center" style={{ gap: '0.5rem' }}>
-                                {activeAccountId === account.id && (
-                                    <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-                                )}
-                                {accounts.length > 1 && (
-                                    <Button 
-                                        className="filter-button" 
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onRemoveAccount(account.id);
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.75rem' }}>
+                                <Flex align="center" style={{ flex: 1, gap: '0.5rem', minWidth: 0 }}>
+                                    <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                                    <Typography.Body
+                                        style={{
+                                            fontSize: '0.9rem',
+                                            fontWeight: activeAccountId === account.id ? '600' : 'normal',
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
                                         }}
-                                        style={{ padding: '0.25rem 0.5rem', minWidth: 'auto' }}
-                                        title="Удалить компанию"
                                     >
-                                        <Trash2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                                    </Button>
-                                )}
-                            </Flex>
+                                        {account.login}
+                                    </Typography.Body>
+                                </Flex>
+
+                                <Flex align="center" style={{ gap: '0.5rem', flexShrink: 0 }}>
+                                    {activeAccountId === account.id && (
+                                        <span className="status-value success">Активна</span>
+                                    )}
+                                    {accounts.length > 1 && (
+                                        <Button 
+                                            className="filter-button" 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onRemoveAccount(account.id);
+                                            }}
+                                            style={{ padding: '0.25rem 0.5rem', minWidth: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                            title="Удалить компанию"
+                                            aria-label="Удалить компанию"
+                                        >
+                                            <Trash2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                                        </Button>
+                                    )}
+                                </Flex>
+                            </div>
                         </Panel>
                     ))}
                 </div>
