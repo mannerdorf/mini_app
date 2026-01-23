@@ -1154,7 +1154,7 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
     );
 }
 
-// --- ACCOUNT SWITCHER (LONG PRESS) ---
+// --- ACCOUNT SWITCHER (CLICK DROPDOWN) ---
 function AccountSwitcher({ 
     accounts, 
     activeAccountId, 
@@ -1164,116 +1164,71 @@ function AccountSwitcher({
     activeAccountId: string | null; 
     onSwitchAccount: (accountId: string) => void; 
 }) {
-    const [showModal, setShowModal] = useState(false);
-    const holdTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-    const isHoldingRef = React.useRef(false);
+    const [isOpen, setIsOpen] = useState(false);
     const activeAccount = accounts.find(acc => acc.id === activeAccountId);
     
     useEffect(() => {
-        return () => {
-            if (holdTimeoutRef.current) {
-                clearTimeout(holdTimeoutRef.current);
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest('.account-switcher')) {
+                setIsOpen(false);
             }
         };
-    }, []);
-    
-    const handlePressStart = (e?: React.MouseEvent | React.TouchEvent) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
+        if (isOpen) {
+            document.addEventListener('click', handleClickOutside);
+            return () => document.removeEventListener('click', handleClickOutside);
         }
-        
-        isHoldingRef.current = true;
-        holdTimeoutRef.current = setTimeout(() => {
-            if (isHoldingRef.current) {
-                setShowModal(true);
-            }
-        }, 2000); // 2 секунды
-    };
-    
-    const handlePressEnd = (e?: React.MouseEvent | React.TouchEvent) => {
-        if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-        isHoldingRef.current = false;
-        if (holdTimeoutRef.current) {
-            clearTimeout(holdTimeoutRef.current);
-            holdTimeoutRef.current = null;
-        }
-    };
+    }, [isOpen]);
     
     return (
-        <>
-            <div 
-                onMouseDown={handlePressStart}
-                onMouseUp={handlePressEnd}
-                onMouseLeave={handlePressEnd}
-                onTouchStart={handlePressStart}
-                onTouchEnd={handlePressEnd}
-                style={{ display: 'inline-block' }}
+        <div className="account-switcher filter-group" style={{ position: 'relative' }}>
+            <Button 
+                className="filter-button"
+                onClick={() => setIsOpen(!isOpen)}
+                style={{ 
+                    padding: '0.5rem 0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.9rem'
+                }}
+                title={`Переключить аккаунт (${accounts.length} аккаунтов)`}
             >
-                <Button 
-                    className="button-secondary"
-                    style={{ 
-                        padding: '0.5rem 1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem'
-                    }}
-                    title={`Удерживайте для переключения аккаунта (${accounts.length} аккаунтов)`}
-                >
-                    <UserIcon className="w-4 h-4" />
-                    <Typography.Body>{activeAccount?.login || 'Не выбран'}</Typography.Body>
-                </Button>
-            </div>
-            
-            {showModal && (
-                <div className="modal-overlay" onClick={() => setShowModal(false)}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', width: '90%' }}>
-                        <div className="modal-header">
-                            <Typography.Headline>Выберите компанию</Typography.Headline>
-                            <Button className="modal-close-button" onClick={() => setShowModal(false)} aria-label="Закрыть">
-                                <X size={20} />
-                            </Button>
+                <UserIcon className="w-4 h-4" />
+                <Typography.Body style={{ fontSize: '0.9rem' }}>{activeAccount?.login || 'Не выбран'}</Typography.Body>
+                <ChevronDown className="w-4 h-4" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </Button>
+            {isOpen && (
+                <div className="filter-dropdown" style={{ minWidth: '200px' }}>
+                    {accounts.map((account) => (
+                        <div 
+                            key={account.id}
+                            className={`dropdown-item ${activeAccountId === account.id ? 'active' : ''}`}
+                            onClick={() => {
+                                onSwitchAccount(account.id);
+                                setIsOpen(false);
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                backgroundColor: activeAccountId === account.id ? 'var(--color-bg-hover)' : 'transparent'
+                            }}
+                        >
+                            <Flex align="center" style={{ flex: 1, gap: '0.5rem' }}>
+                                <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                                <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeAccountId === account.id ? 'bold' : 'normal' }}>
+                                    {account.login}
+                                </Typography.Body>
+                            </Flex>
+                            {activeAccountId === account.id && (
+                                <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                            )}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
-                            {accounts.map((account) => (
-                                <div
-                                    key={account.id}
-                                    onClick={() => {
-                                        onSwitchAccount(account.id);
-                                        setShowModal(false);
-                                    }}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '0.75rem',
-                                        borderRadius: '8px',
-                                        cursor: 'pointer',
-                                        border: activeAccountId === account.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                                        backgroundColor: activeAccountId === account.id ? 'var(--color-primary-light)' : 'transparent'
-                                    }}
-                                >
-                                    <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                        <Building2 className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
-                                        <div>
-                                            <Typography.Body style={{ fontWeight: activeAccountId === account.id ? 'bold' : 'normal' }}>
-                                                {account.login}
-                                            </Typography.Body>
-                                        </div>
-                                    </Flex>
-                                    {activeAccountId === account.id && (
-                                        <Check className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    ))}
                 </div>
             )}
-        </>
+        </div>
     );
 }
 
@@ -1381,80 +1336,74 @@ function ProfilePage({
     }
     
     return (
-        <div className="w-full p-4">
-            <Typography.Headline style={{ marginBottom: '1.5rem' }}>Профиль</Typography.Headline>
+        <div className="w-full">
+            <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Профиль</Typography.Headline>
             
             {/* Настройки */}
-            <Panel style={{ marginBottom: '1.5rem' }}>
-                <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Настройки</Typography.Headline>
+            <div style={{ marginBottom: '1.5rem' }}>
+                <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Настройки</Typography.Body>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {settingsItems.map((item) => (
-                        <div
+                        <Panel
                             key={item.id}
                             onClick={item.onClick}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                padding: '0.75rem',
-                                borderRadius: '8px',
+                                padding: '0.5rem 0.75rem',
                                 cursor: 'pointer',
-                                border: '1px solid var(--color-border)',
-                                backgroundColor: 'transparent',
                                 transition: 'background-color 0.2s'
                             }}
                             onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-primary-light)';
+                                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
                             }}
                             onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
+                                e.currentTarget.style.backgroundColor = 'var(--color-bg-card)';
                             }}
                         >
-                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                {item.icon}
-                                <Typography.Body>{item.label}</Typography.Body>
+                            <Flex align="center" style={{ flex: 1, gap: '0.5rem' }}>
+                                <div style={{ fontSize: '0.85rem' }}>{item.icon}</div>
+                                <Typography.Body style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
                             </Flex>
                             <ChevronDown className="w-4 h-4" style={{ transform: 'rotate(-90deg)', color: 'var(--color-text-secondary)' }} />
-                        </div>
+                        </Panel>
                     ))}
                 </div>
-            </Panel>
+            </div>
             
             {/* Информация */}
-            <Panel>
-                <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Информация</Typography.Headline>
+            <div>
+                <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Информация</Typography.Body>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {infoItems.map((item) => (
-                        <div
+                        <Panel
                             key={item.id}
                             onClick={item.onClick}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                padding: '0.75rem',
-                                borderRadius: '8px',
+                                padding: '0.5rem 0.75rem',
                                 cursor: 'pointer',
-                                border: '1px solid var(--color-border)',
-                                backgroundColor: 'transparent',
                                 transition: 'background-color 0.2s'
                             }}
                             onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'var(--color-primary-light)';
+                                e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
                             }}
                             onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
+                                e.currentTarget.style.backgroundColor = 'var(--color-bg-card)';
                             }}
                         >
-                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                {item.icon}
-                                <Typography.Body>{item.label}</Typography.Body>
+                            <Flex align="center" style={{ flex: 1, gap: '0.5rem' }}>
+                                <div style={{ fontSize: '0.85rem' }}>{item.icon}</div>
+                                <Typography.Body style={{ fontSize: '0.9rem' }}>{item.label}</Typography.Body>
                             </Flex>
                             <ChevronDown className="w-4 h-4" style={{ transform: 'rotate(-90deg)', color: 'var(--color-text-secondary)' }} />
-                        </div>
+                        </Panel>
                     ))}
                 </div>
-            </Panel>
+            </div>
         </div>
     );
 }
@@ -1462,62 +1411,63 @@ function ProfilePage({
 // --- COMPANIES PAGE (CHOOSE ADDITION METHOD) ---
 function CompaniesPage({ onBack, onSelectMethod }: { onBack: () => void; onSelectMethod: (method: 'inn' | 'login') => void }) {
     return (
-        <div className="w-full p-4">
-            <Flex align="center" style={{ marginBottom: '1.5rem', gap: '1rem' }}>
-                <Button className="button-secondary" onClick={onBack} style={{ padding: '0.5rem' }}>
-                    <ArrowLeft className="w-5 h-5" />
+        <div className="w-full">
+            <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline>Мои компании</Typography.Headline>
+                <Typography.Headline style={{ fontSize: '1.25rem' }}>Мои компании</Typography.Headline>
             </Flex>
             
-            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                 <div style={{ 
-                    width: '80px', 
-                    height: '80px', 
+                    width: '60px', 
+                    height: '60px', 
                     borderRadius: '50%', 
-                    backgroundColor: 'var(--color-primary-light)', 
+                    backgroundColor: 'var(--color-bg-card)', 
+                    border: '1px solid var(--color-border)',
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center',
-                    margin: '0 auto 1.5rem'
+                    margin: '0 auto 1rem'
                 }}>
-                    <Building2 className="w-10 h-10" style={{ color: 'var(--color-primary)' }} />
+                    <Building2 className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
                 </div>
-                <Typography.Headline style={{ marginBottom: '0.5rem' }}>Выберите способ добавления</Typography.Headline>
-                <Typography.Body className="text-theme-secondary">
+                <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Выберите способ добавления</Typography.Headline>
+                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                     Добавьте компанию по ИНН или используя логин и пароль
                 </Typography.Body>
             </div>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <Panel 
                     onClick={() => onSelectMethod('inn')}
-                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                    style={{ cursor: 'pointer', padding: '0.75rem' }}
                     onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'scale(1.02)';
+                        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
                     }}
                     onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.backgroundColor = 'var(--color-bg-card)';
                     }}
                 >
-                    <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>По ИНН</Typography.Headline>
-                    <Typography.Body className="text-theme-secondary">
+                    <Typography.Body style={{ marginBottom: '0.25rem', fontSize: '0.9rem', fontWeight: '600' }}>По ИНН</Typography.Body>
+                    <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                         Введите ИНН компании для добавления
                     </Typography.Body>
                 </Panel>
                 
                 <Panel 
                     onClick={() => onSelectMethod('login')}
-                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                    style={{ cursor: 'pointer', padding: '0.75rem' }}
                     onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = 'scale(1.02)';
+                        e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
                     }}
                     onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.backgroundColor = 'var(--color-bg-card)';
                     }}
                 >
-                    <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>По логину и паролю</Typography.Headline>
-                    <Typography.Body className="text-theme-secondary">
+                    <Typography.Body style={{ marginBottom: '0.25rem', fontSize: '0.9rem', fontWeight: '600' }}>По логину и паролю</Typography.Body>
+                    <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                         Используйте логин и пароль для доступа
                     </Typography.Body>
                 </Panel>
@@ -1590,29 +1540,30 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
     
     if (showCodeInput) {
         return (
-            <div className="w-full p-4">
-                <Flex align="center" style={{ marginBottom: '1.5rem', gap: '1rem' }}>
-                    <Button className="button-secondary" onClick={onBack} style={{ padding: '0.5rem' }}>
-                        <ArrowLeft className="w-5 h-5" />
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
                     </Button>
-                    <Typography.Headline>Введите код подтверждения</Typography.Headline>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Введите код подтверждения</Typography.Headline>
                 </Flex>
                 
-                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                     <div style={{ 
-                        width: '80px', 
-                        height: '80px', 
+                        width: '60px', 
+                        height: '60px', 
                         borderRadius: '50%', 
-                        backgroundColor: 'var(--color-primary-light)', 
+                        backgroundColor: 'var(--color-bg-card)', 
+                        border: '1px solid var(--color-border)',
                         display: 'flex', 
                         alignItems: 'center', 
                         justifyContent: 'center',
-                        margin: '0 auto 1.5rem'
+                        margin: '0 auto 1rem'
                     }}>
-                        <FileText className="w-10 h-10" style={{ color: 'var(--color-primary)' }} />
+                        <FileText className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
                     </div>
-                    <Typography.Headline style={{ marginBottom: '0.5rem' }}>Введите код подтверждения</Typography.Headline>
-                    <Typography.Body className="text-theme-secondary">
+                    <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Введите код подтверждения</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                         Код отправлен на почту руководителя компании
                     </Typography.Body>
                 </div>
@@ -1628,10 +1579,10 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
                                 value={digit}
                                 onChange={(e) => handleCodeChange(index, e.target.value)}
                                 style={{
-                                    width: '50px',
-                                    height: '50px',
+                                    width: '45px',
+                                    height: '45px',
                                     textAlign: 'center',
-                                    fontSize: '1.5rem',
+                                    fontSize: '1.25rem',
                                     border: codeInputIndex === index ? '2px solid var(--color-primary)' : '1px solid var(--color-border)'
                                 }}
                                 autoFocus={codeInputIndex === index}
@@ -1640,16 +1591,16 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
                     </div>
                     
                     {error && (
-                        <Typography.Body className="login-error" style={{ marginBottom: '1rem', textAlign: 'center' }}>
+                        <Typography.Body className="login-error" style={{ marginBottom: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>
                             {error}
                         </Typography.Body>
                     )}
                     
-                    <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '1rem' }}>
-                        {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
+                    <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '0.75rem', fontSize: '0.9rem', padding: '0.75rem' }}>
+                        {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Подтвердить"}
                     </Button>
                     
-                    <Button type="button" className="button-secondary" onClick={onBack} style={{ width: '100%' }}>
+                    <Button type="button" className="filter-button" onClick={onBack} style={{ width: '100%', fontSize: '0.9rem', padding: '0.75rem' }}>
                         Отмена
                     </Button>
                 </form>
@@ -1658,29 +1609,30 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
     }
     
     return (
-        <div className="w-full p-4">
-            <Flex align="center" style={{ marginBottom: '1.5rem', gap: '1rem' }}>
-                <Button className="button-secondary" onClick={onBack} style={{ padding: '0.5rem' }}>
-                    <ArrowLeft className="w-5 h-5" />
+        <div className="w-full">
+            <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline>Введите ИНН компании</Typography.Headline>
+                <Typography.Headline style={{ fontSize: '1.25rem' }}>Введите ИНН компании</Typography.Headline>
             </Flex>
             
-            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                 <div style={{ 
-                    width: '80px', 
-                    height: '80px', 
+                    width: '60px', 
+                    height: '60px', 
                     borderRadius: '50%', 
-                    backgroundColor: 'var(--color-primary-light)', 
+                    backgroundColor: 'var(--color-bg-card)', 
+                    border: '1px solid var(--color-border)',
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center',
-                    margin: '0 auto 1.5rem'
+                    margin: '0 auto 1rem'
                 }}>
-                    <Building2 className="w-10 h-10" style={{ color: 'var(--color-primary)' }} />
+                    <Building2 className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
                 </div>
-                <Typography.Headline style={{ marginBottom: '0.5rem' }}>Введите ИНН компании</Typography.Headline>
-                <Typography.Body className="text-theme-secondary">
+                <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Введите ИНН компании</Typography.Headline>
+                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                     Мы проверим компанию и отправим код подтверждения на почту руководителя
                 </Typography.Body>
             </div>
@@ -1701,20 +1653,21 @@ function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSucc
                             }
                         }}
                         autoFocus
+                        style={{ fontSize: '0.9rem' }}
                     />
                 </div>
                 
                 {error && (
-                    <Typography.Body className="login-error" style={{ marginBottom: '1rem' }}>
+                    <Typography.Body className="login-error" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
                         {error}
                     </Typography.Body>
                 )}
                 
-                <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '1rem' }}>
-                    {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Получить код"}
+                <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '0.75rem', fontSize: '0.9rem', padding: '0.75rem' }}>
+                    {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Получить код"}
                 </Button>
                 
-                <Button type="button" className="button-secondary" onClick={onBack} style={{ width: '100%' }}>
+                <Button type="button" className="filter-button" onClick={onBack} style={{ width: '100%', fontSize: '0.9rem', padding: '0.75rem' }}>
                     Отмена
                 </Button>
             </form>
@@ -1772,29 +1725,30 @@ function AddCompanyByLoginPage({
     };
     
     return (
-        <div className="w-full p-4">
-            <Flex align="center" style={{ marginBottom: '1.5rem', gap: '1rem' }}>
-                <Button className="button-secondary" onClick={onBack} style={{ padding: '0.5rem' }}>
-                    <ArrowLeft className="w-5 h-5" />
+        <div className="w-full">
+            <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline>Введите логин и пароль</Typography.Headline>
+                <Typography.Headline style={{ fontSize: '1.25rem' }}>Введите логин и пароль</Typography.Headline>
             </Flex>
             
-            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                 <div style={{ 
-                    width: '80px', 
-                    height: '80px', 
+                    width: '60px', 
+                    height: '60px', 
                     borderRadius: '50%', 
-                    backgroundColor: 'var(--color-primary-light)', 
+                    backgroundColor: 'var(--color-bg-card)', 
+                    border: '1px solid var(--color-border)',
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'center',
-                    margin: '0 auto 1.5rem'
+                    margin: '0 auto 1rem'
                 }}>
-                    <UserIcon className="w-10 h-10" style={{ color: 'var(--color-primary)' }} />
+                    <UserIcon className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
                 </div>
-                <Typography.Headline style={{ marginBottom: '0.5rem' }}>Введите логин и пароль</Typography.Headline>
-                <Typography.Body className="text-theme-secondary">
+                <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Введите логин и пароль</Typography.Headline>
+                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                     Используйте ваши учетные данные для доступа к перевозкам
                 </Typography.Body>
             </div>
@@ -1808,6 +1762,7 @@ function AddCompanyByLoginPage({
                         value={login}
                         onChange={(e) => setLogin(e.target.value)}
                         autoComplete="username"
+                        style={{ fontSize: '0.9rem' }}
                     />
                 </div>
                 <div className="field" style={{ marginBottom: '1rem' }}>
@@ -1819,15 +1774,15 @@ function AddCompanyByLoginPage({
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             autoComplete="current-password"
-                            style={{paddingRight: '3rem'}}
+                            style={{paddingRight: '3rem', fontSize: '0.9rem'}}
                         />
                         <Button type="button" className="toggle-password-visibility" onClick={() => setShowPassword(!showPassword)}>
-                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </Button>
                     </div>
                 </div>
-                <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem' }}>
-                    <Typography.Body>
+                <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
+                    <Typography.Body style={{ fontSize: '0.85rem' }}>
                         Согласие с{" "}
                         <a href="#" onClick={(e) => { e.preventDefault(); }}>
                             публичной офертой
@@ -1839,8 +1794,8 @@ function AddCompanyByLoginPage({
                         onChange={(event) => setAgreeOffer(resolveChecked(event))}
                     />
                 </label>
-                <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem' }}>
-                    <Typography.Body>
+                <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
+                    <Typography.Body style={{ fontSize: '0.85rem' }}>
                         Согласие на{" "}
                         <a href="#" onClick={(e) => { e.preventDefault(); }}>
                             обработку данных
@@ -1853,14 +1808,14 @@ function AddCompanyByLoginPage({
                     />
                 </label>
                 {error && (
-                    <Typography.Body className="login-error" style={{ marginBottom: '1rem' }}>
+                    <Typography.Body className="login-error" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>
                         {error}
                     </Typography.Body>
                 )}
-                <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '1rem' }}>
-                    {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
+                <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '0.75rem', fontSize: '0.9rem', padding: '0.75rem' }}>
+                    {loading ? <Loader2 className="animate-spin w-4 h-4" /> : "Подтвердить"}
                 </Button>
-                <Button type="button" className="button-secondary" onClick={onBack} style={{ width: '100%' }}>
+                <Button type="button" className="filter-button" onClick={onBack} style={{ width: '100%', fontSize: '0.9rem', padding: '0.75rem' }}>
                     Отмена
                 </Button>
             </form>
@@ -1915,22 +1870,22 @@ function CompaniesListPage({
     };
     
     return (
-        <div className="w-full p-4">
-            <Flex align="center" style={{ marginBottom: '1.5rem', gap: '1rem' }}>
-                <Button className="button-secondary" onClick={onBack} style={{ padding: '0.5rem' }}>
-                    <ArrowLeft className="w-5 h-5" />
+        <div className="w-full">
+            <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline>Мои компании</Typography.Headline>
+                <Typography.Headline style={{ fontSize: '1.25rem' }}>Мои компании</Typography.Headline>
             </Flex>
             
             {accounts.length === 0 ? (
-                <Panel>
-                    <Typography.Body className="text-theme-secondary" style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                <Panel style={{ padding: '1rem', textAlign: 'center' }}>
+                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                         Нет добавленных компаний
                     </Typography.Body>
                 </Panel>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
                     {accounts.map((account) => (
                         <Panel
                             key={account.id}
@@ -1943,35 +1898,41 @@ function CompaniesListPage({
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                padding: '0.75rem',
-                                border: activeAccountId === account.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                                backgroundColor: activeAccountId === account.id ? 'var(--color-primary-light)' : 'transparent',
-                                cursor: activeAccountId === account.id ? 'default' : 'pointer'
+                                padding: '0.5rem 0.75rem',
+                                cursor: activeAccountId === account.id ? 'default' : 'pointer',
+                                backgroundColor: activeAccountId === account.id ? 'var(--color-bg-hover)' : 'var(--color-bg-card)',
+                                transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                if (activeAccountId !== account.id) {
+                                    e.currentTarget.style.backgroundColor = 'var(--color-bg-hover)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = activeAccountId === account.id ? 'var(--color-bg-hover)' : 'var(--color-bg-card)';
                             }}
                         >
-                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                                <Building2 className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
-                                <div>
-                                    <Typography.Body style={{ fontWeight: activeAccountId === account.id ? 'bold' : 'normal' }}>
-                                        {account.login}
-                                    </Typography.Body>
-                                </div>
+                            <Flex align="center" style={{ flex: 1, gap: '0.5rem' }}>
+                                <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                                <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeAccountId === account.id ? '600' : 'normal' }}>
+                                    {account.login}
+                                </Typography.Body>
                             </Flex>
                             <Flex align="center" style={{ gap: '0.5rem' }}>
                                 {activeAccountId === account.id && (
-                                    <Check className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+                                    <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                                 )}
                                 {accounts.length > 1 && (
                                     <Button 
-                                        className="button-secondary" 
+                                        className="filter-button" 
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onRemoveAccount(account.id);
                                         }}
-                                        style={{ padding: '0.5rem' }}
+                                        style={{ padding: '0.25rem 0.5rem', minWidth: 'auto' }}
                                         title="Удалить компанию"
                                     >
-                                        <X className="w-4 h-4" style={{ color: 'var(--color-danger)' }} />
+                                        <X className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
                                     </Button>
                                 )}
                             </Flex>
@@ -1983,9 +1944,9 @@ function CompaniesListPage({
             <Button 
                 className="button-primary" 
                 onClick={onAddCompany}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.9rem', padding: '0.75rem' }}
             >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-4 h-4" />
                 Добавить компанию
             </Button>
         </div>
