@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
@@ -50,7 +50,7 @@ type AuthData = { login: string; password: string; };
 // УДАЛЕНО: type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 type Tab = "cargo"; // Оставлена только "cargo"
 type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
-type StatusFilter = "all" | "accepted" | "in_transit" | "ready" | "delivering" | "delivered";
+type StatusFilter = "all" | "accepted" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
 type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom"; // Оставлено, так как это может использоваться в Home, который пока остается в коде ниже
 
 // --- ИСПОЛЬЗУЕМ ТОЛЬКО ПЕРЕМЕННЫЕ ИЗ API ---
@@ -246,7 +246,7 @@ const getFilterKeyByStatus = (s: string | undefined): StatusFilter => {
     return 'all'; 
 }
 
-const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "accepted": "Принят", "in_transit": "В пути", "ready": "Готов", "delivering": "На доставке", "delivered": "Доставлено" };
+const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "accepted": "Принят", "in_transit": "В пути", "ready": "Готов", "delivering": "На доставке", "delivered": "Доставлено", "favorites": "Избранные" };
 
 const resolveChecked = (value: unknown): boolean => {
     if (typeof value === "boolean") return value;
@@ -772,6 +772,49 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
     // Sort State
     const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>(null);
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+    
+    // Favorites State
+    const [favorites, setFavorites] = useState<Set<string>>(new Set());
+    
+    // Загружаем избранные из localStorage при монтировании
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('haulz.favorites');
+            if (saved) {
+                const parsed = JSON.parse(saved) as string[];
+                setFavorites(new Set(parsed));
+            }
+        } catch {
+            // Игнорируем ошибки чтения
+        }
+    }, []);
+    
+    // Сохраняем избранные в localStorage при изменении
+    useEffect(() => {
+        try {
+            localStorage.setItem('haulz.favorites', JSON.stringify(Array.from(favorites)));
+        } catch {
+            // Игнорируем ошибки записи
+        }
+    }, [favorites]);
+    
+    // Функции для работы с избранными
+    const toggleFavorite = useCallback((cargoNumber: string | undefined) => {
+        if (!cargoNumber) return;
+        setFavorites(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(cargoNumber)) {
+                newSet.delete(cargoNumber);
+            } else {
+                newSet.add(cargoNumber);
+            }
+            return newSet;
+        });
+    }, []);
+    
+    const isFavorite = useCallback((cargoNumber: string | undefined): boolean => {
+        return cargoNumber ? favorites.has(cargoNumber) : false;
+    }, [favorites]);
 
     const apiDateRange = useMemo(() => dateFilter === "период" ? { dateFrom: customDateFrom, dateTo: customDateTo } : getDateRange(dateFilter), [dateFilter, customDateFrom, customDateTo]); // ИСПРАВЛЕНО: 'custom' на 'период'
 
@@ -808,7 +851,12 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
     // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
         let res = items;
-        if (statusFilter !== 'all') res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
+        if (statusFilter === 'favorites') {
+            // Фильтр избранных
+            res = res.filter(i => i.Number && favorites.has(i.Number));
+        } else if (statusFilter !== 'all') {
+            res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
+        }
         if (searchText) {
             const lower = searchText.toLowerCase();
             // Обновлены поля поиска: PW вместо PV, добавлен Sender
@@ -913,7 +961,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
         }
         
         return res;
-    }, [items, statusFilter, searchText, sortBy, sortOrder]);
+    }, [items, statusFilter, searchText, sortBy, sortOrder, favorites]);
 
     // Подсчет сумм из отфильтрованных элементов
     const summary = useMemo(() => {
@@ -1064,13 +1112,45 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                             key={item.Number || idx} 
                             className="cargo-card"
                             onClick={() => setSelectedCargo(item)}
-                            style={{ cursor: 'pointer', marginBottom: '0.75rem' }}
+                            style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
                         >
                             <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem' }}>
                                 <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
                                     {item.Number}
                                 </Typography.Body>
                                 <Flex align="center" gap="0.5rem">
+                                    <Button
+                                        style={{ 
+                                            padding: '0.25rem', 
+                                            minWidth: 'auto', 
+                                            background: 'transparent',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleFavorite(item.Number);
+                                        }}
+                                        title={isFavorite(item.Number) ? "Удалить из избранного" : "Добавить в избранное"}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.opacity = '0.7';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.opacity = '1';
+                                        }}
+                                    >
+                                        <Heart 
+                                            className="w-4 h-4" 
+                                            style={{ 
+                                                fill: isFavorite(item.Number) ? '#ef4444' : 'transparent',
+                                                color: isFavorite(item.Number) ? '#ef4444' : 'var(--color-text-secondary)',
+                                                transition: 'all 0.2s'
+                                            }} 
+                                        />
+                                    </Button>
                                     <Calendar className="w-4 h-4 text-theme-secondary" />
                                     <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
                                         {formatDate(item.DatePrih)}
