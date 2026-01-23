@@ -767,6 +767,9 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     
+    // Chart type selector
+    const [chartType, setChartType] = useState<'money' | 'weight' | 'places'>('money');
+    
     const apiDateRange = useMemo(() => 
         dateFilter === "период" 
             ? { dateFrom: customDateFrom, dateTo: customDateTo } 
@@ -907,7 +910,7 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
         const darkColor = rgb ? `rgb(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${Math.max(0, rgb.b - 30)})` : color;
         
         return (
-            <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
+            <div>
                 <Typography.Headline style={{ marginBottom: '1.5rem', fontSize: '1.1rem', fontWeight: 600 }}>{title}</Typography.Headline>
                 <div style={{ overflowX: 'auto', width: '100%' }}>
                     <svg 
@@ -964,28 +967,16 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
                                         style={{ transition: 'all 0.3s ease' }}
                                     />
                                     
-                                    {/* Значение вертикально над столбцом или на нем */}
-                                    {barHeight > 20 ? (
-                                        <text
-                                            x={x + barWidth / 2}
-                                            y={y - 8}
-                                            fontSize="11"
-                                            fill="var(--color-text-primary)"
-                                            textAnchor="middle"
-                                            fontWeight="600"
-                                            transform={`rotate(-90 ${x + barWidth / 2} ${y - 8})`}
-                                        >
-                                            {formatValue(d.value)}
-                                        </text>
-                                    ) : (
+                                    {/* Значение внутри столбца */}
+                                    {barHeight > 20 && (
                                         <text
                                             x={x + barWidth / 2}
                                             y={y + barHeight / 2}
-                                            fontSize="10"
+                                            fontSize="7"
                                             fill="var(--color-text-primary)"
                                             textAnchor="middle"
                                             fontWeight="600"
-                                            transform={`rotate(-90 ${x + barWidth / 2} ${y + barHeight / 2})`}
+                                            dominantBaseline="middle"
                                         >
                                             {formatValue(d.value)}
                                         </text>
@@ -1007,7 +998,7 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
                         })}
                     </svg>
                 </div>
-            </Panel>
+            </div>
         );
     };
     
@@ -1070,28 +1061,82 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
             )}
             
             {!loading && !error && (
-                <>
-                    {renderChart(
-                        chartData.map(d => ({ date: d.date, value: Math.round(d.sum) })),
-                        "Динамика в деньгах",
-                        "#6366f1", // Индиго полутон
-                        (val) => `${Math.round(val).toLocaleString('ru-RU')} ₽`
-                    )}
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem', position: 'relative' }}>
+                    {/* Переключатель типа данных в правом верхнем углу */}
+                    <Flex justify="flex-end" style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 10 }}>
+                        <Flex gap="0.5rem" align="center" style={{ background: 'var(--color-bg-hover)', padding: '0.25rem', borderRadius: '8px' }}>
+                            <Button
+                                className="filter-button"
+                                style={{ 
+                                    padding: '0.5rem', 
+                                    minWidth: 'auto',
+                                    background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent',
+                                    border: chartType === 'money' ? '1px solid var(--color-primary-blue)' : '1px solid transparent'
+                                }}
+                                onClick={() => setChartType('money')}
+                                title="Деньги"
+                            >
+                                <RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} />
+                            </Button>
+                            <Button
+                                className="filter-button"
+                                style={{ 
+                                    padding: '0.5rem', 
+                                    minWidth: 'auto',
+                                    background: chartType === 'weight' ? '#10b981' : 'transparent',
+                                    border: chartType === 'weight' ? '1px solid #10b981' : '1px solid transparent'
+                                }}
+                                onClick={() => setChartType('weight')}
+                                title="Вес"
+                            >
+                                <Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} />
+                            </Button>
+                            <Button
+                                className="filter-button"
+                                style={{ 
+                                    padding: '0.5rem', 
+                                    minWidth: 'auto',
+                                    background: chartType === 'places' ? '#f59e0b' : 'transparent',
+                                    border: chartType === 'places' ? '1px solid #f59e0b' : '1px solid transparent'
+                                }}
+                                onClick={() => setChartType('places')}
+                                title="Места"
+                            >
+                                <Package className="w-4 h-4" style={{ color: chartType === 'places' ? 'white' : 'var(--color-text-secondary)' }} />
+                            </Button>
+                        </Flex>
+                    </Flex>
                     
-                    {renderChart(
-                        chartData.map(d => ({ date: d.date, value: Math.round(d.pw) })),
-                        "Динамика в платном весе",
-                        "#10b981", // Изумрудный полутон
-                        (val) => `${Math.round(val)} кг`
-                    )}
-                    
-                    {renderChart(
-                        chartData.map(d => ({ date: d.date, value: Math.round(d.mest) })),
-                        "Динамика в местах",
-                        "#f59e0b", // Янтарный полутон
-                        (val) => `${Math.round(val)}`
-                    )}
-                </>
+                    {(() => {
+                        let chartDataForType: { date: string; value: number }[];
+                        let title: string;
+                        let color: string;
+                        let formatValue: (val: number) => string;
+                        
+                        switch (chartType) {
+                            case 'money':
+                                chartDataForType = chartData.map(d => ({ date: d.date, value: Math.round(d.sum) }));
+                                title = "Динамика в деньгах";
+                                color = "#6366f1";
+                                formatValue = (val) => `${Math.round(val).toLocaleString('ru-RU')} ₽`;
+                                break;
+                            case 'weight':
+                                chartDataForType = chartData.map(d => ({ date: d.date, value: Math.round(d.pw) }));
+                                title = "Динамика в платном весе";
+                                color = "#10b981";
+                                formatValue = (val) => `${Math.round(val)} кг`;
+                                break;
+                            case 'places':
+                                chartDataForType = chartData.map(d => ({ date: d.date, value: Math.round(d.mest) }));
+                                title = "Динамика в местах";
+                                color = "#f59e0b";
+                                formatValue = (val) => `${Math.round(val)}`;
+                                break;
+                        }
+                        
+                        return renderChart(chartDataForType, title, color, formatValue);
+                    })()}
+                </Panel>
             )}
             
             <FilterDialog 
