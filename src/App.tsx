@@ -48,7 +48,7 @@ const PROXY_API_SEND_DOC_URL = '/api/send-document';
 type ApiError = { error?: string; [key: string]: unknown; };
 type AuthData = { login: string; password: string; };
 // УДАЛЕНО: type Tab = "home" | "cargo" | "docs" | "support" | "profile";
-type Tab = "cargo" | "dashboard"; // cargo и секретный dashboard
+type Tab = "home" | "cargo" | "docs" | "support" | "profile" | "dashboard"; // Все разделы + секретный dashboard
 type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
 type StatusFilter = "all" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
 type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom"; // Оставлено, так как это может использоваться в Home, который пока остается в коде ниже
@@ -868,65 +868,94 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
     ) => {
         if (data.length === 0) {
             return (
-                <Panel className="cargo-card">
-                    <Typography.Headline style={{ marginBottom: '1rem' }}>{title}</Typography.Headline>
+                <Panel className="cargo-card" style={{ marginBottom: '1rem' }}>
+                    <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1rem' }}>{title}</Typography.Headline>
                     <Typography.Body className="text-theme-secondary">Нет данных для отображения</Typography.Body>
                 </Panel>
             );
         }
         
         const maxValue = Math.max(...data.map(d => d.value), 1);
-        const chartWidth = 100;
         const chartHeight = 200;
-        const padding = 40;
-        const barWidth = (chartWidth - padding * 2) / data.length;
+        const paddingLeft = 50;
+        const paddingRight = 20;
+        const paddingTop = 20;
+        const paddingBottom = 60;
+        const availableWidth = 300; // Минимальная ширина
+        const barSpacing = 4;
+        const barWidth = Math.max(8, (availableWidth - paddingLeft - paddingRight - (data.length - 1) * barSpacing) / data.length);
+        const chartWidth = paddingLeft + paddingRight + data.length * (barWidth + barSpacing) - barSpacing;
+        const availableHeight = chartHeight - paddingTop - paddingBottom;
         
         return (
             <Panel className="cargo-card" style={{ marginBottom: '1rem' }}>
                 <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1rem' }}>{title}</Typography.Headline>
-                <div style={{ overflowX: 'auto' }}>
-                    <svg width="100%" height={chartHeight + 60} viewBox={`0 0 ${chartWidth} ${chartHeight + 60}`} style={{ minWidth: '300px' }}>
-                        {/* Оси */}
-                        <line x1={padding} y1={chartHeight} x2={chartWidth - padding} y2={chartHeight} stroke="var(--color-border)" strokeWidth="1" />
-                        <line x1={padding} y1={0} x2={padding} y2={chartHeight} stroke="var(--color-border)" strokeWidth="1" />
+                <div style={{ overflowX: 'auto', width: '100%' }}>
+                    <svg 
+                        width={Math.max(chartWidth, '100%')} 
+                        height={chartHeight}
+                        style={{ minWidth: `${chartWidth}px`, display: 'block' }}
+                    >
+                        {/* Горизонтальная ось */}
+                        <line 
+                            x1={paddingLeft} 
+                            y1={chartHeight - paddingBottom} 
+                            x2={chartWidth - paddingRight} 
+                            y2={chartHeight - paddingBottom} 
+                            stroke="var(--color-border)" 
+                            strokeWidth="2" 
+                        />
+                        
+                        {/* Вертикальная ось */}
+                        <line 
+                            x1={paddingLeft} 
+                            y1={paddingTop} 
+                            x2={paddingLeft} 
+                            y2={chartHeight - paddingBottom} 
+                            stroke="var(--color-border)" 
+                            strokeWidth="2" 
+                        />
                         
                         {/* Столбцы */}
                         {data.map((d, idx) => {
-                            const barHeight = (d.value / maxValue) * (chartHeight - padding);
-                            const x = padding + idx * barWidth + barWidth / 4;
-                            const y = chartHeight - barHeight;
+                            const barHeight = (d.value / maxValue) * availableHeight;
+                            const x = paddingLeft + idx * (barWidth + barSpacing);
+                            const y = chartHeight - paddingBottom - barHeight;
                             
                             return (
                                 <g key={idx}>
                                     <rect
                                         x={x}
                                         y={y}
-                                        width={barWidth / 2}
+                                        width={barWidth}
                                         height={barHeight}
                                         fill={color}
-                                        opacity={0.7}
+                                        opacity={0.8}
+                                        rx="2"
                                     />
-                                    <text
-                                        x={x + barWidth / 4}
-                                        y={chartHeight + 15}
-                                        fontSize="8"
-                                        fill="var(--color-text-secondary)"
-                                        textAnchor="middle"
-                                        transform={`rotate(-45 ${x + barWidth / 4} ${chartHeight + 15})`}
-                                    >
-                                        {d.date.split('.').slice(0, 2).join('.')}
-                                    </text>
-                                    {barHeight > 20 && (
+                                    {/* Значение на столбце */}
+                                    {barHeight > 25 && (
                                         <text
-                                            x={x + barWidth / 4}
+                                            x={x + barWidth / 2}
                                             y={y - 5}
-                                            fontSize="9"
+                                            fontSize="10"
                                             fill="var(--color-text-primary)"
                                             textAnchor="middle"
+                                            fontWeight="600"
                                         >
                                             {formatValue(d.value)}
                                         </text>
                                     )}
+                                    {/* Дата под столбцом */}
+                                    <text
+                                        x={x + barWidth / 2}
+                                        y={chartHeight - paddingBottom + 15}
+                                        fontSize="9"
+                                        fill="var(--color-text-secondary)"
+                                        textAnchor="middle"
+                                    >
+                                        {d.date.split('.').slice(0, 2).join('.')}
+                                    </text>
                                 </g>
                             );
                         })}
@@ -938,16 +967,6 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
     
     return (
         <div className="w-full">
-            <Flex justify="space-between" align="center" style={{ marginBottom: '1rem' }}>
-                <Typography.Headline>Главная (Дашборд)</Typography.Headline>
-                <Button 
-                    className="filter-button"
-                    onClick={onClose}
-                    title="Закрыть дашборд"
-                >
-                    <X className="w-4 h-4" />
-                </Button>
-            </Flex>
             {/* Filters (такие же как на странице грузов) */}
             <div className="filters-container">
                 <div className="filter-group">
@@ -1762,7 +1781,19 @@ const DetailItem = ({ label, value, icon, statusClass, highlighted, textColor }:
 
 // УДАЛЕНО: function StubPage({ title }: { title: string }) { return <div className="w-full p-8 text-center"><h2 className="title">{title}</h2><p className="subtitle">Раздел в разработке</p></div>; }
 
-function TabBar({ active, onChange, onCargoClick }: { active: Tab, onChange: (t: Tab) => void, onCargoClick?: () => void }) {
+function TabBar({ active, onChange, onCargoClick, showAllTabs }: { active: Tab, onChange: (t: Tab) => void, onCargoClick?: () => void, showAllTabs?: boolean }) {
+    if (showAllTabs) {
+        return (
+            <div className="tabbar-container">
+                <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
+                <TabBtn label="Грузы" icon={<Truck />} active={active === "cargo"} onClick={() => onChange("cargo")} />
+                <TabBtn label="Документы" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />
+                <TabBtn label="Поддержка" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />
+                <TabBtn label="Профиль" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
+            </div>
+        );
+    }
+    
     return (
         <div className="tabbar-container">
             {/* ОСТАВЛЕНА ТОЛЬКО КНОПКА "Грузы" */}
@@ -2185,14 +2216,39 @@ export default function App() {
             </header>
             <div className="app-main">
                 <div className="w-full max-w-4xl">
-                    {/* УДАЛЕНЫ УСЛОВНЫЕ РЕНДЕРЫ ДЛЯ home, docs, support, profile */}
-                    {activeTab === "cargo" && !showDashboard && <CargoPage auth={auth} searchText={searchText} />}
-                    {showDashboard && <DashboardPage auth={auth} onClose={() => { setShowDashboard(false); setActiveTab("cargo"); }} />}
+                    {showDashboard && activeTab === "dashboard" && <DashboardPage auth={auth} onClose={() => { setShowDashboard(false); setActiveTab("cargo"); }} />}
+                    {!showDashboard && activeTab === "cargo" && <CargoPage auth={auth} searchText={searchText} />}
+                    {!showDashboard && activeTab === "docs" && (
+                        <div className="w-full p-8 text-center">
+                            <Typography.Headline>Документы</Typography.Headline>
+                            <Typography.Body className="text-theme-secondary">Раздел в разработке</Typography.Body>
+                        </div>
+                    )}
+                    {!showDashboard && activeTab === "support" && (
+                        <div className="w-full p-8 text-center">
+                            <Typography.Headline>Поддержка</Typography.Headline>
+                            <Typography.Body className="text-theme-secondary">Раздел в разработке</Typography.Body>
+                        </div>
+                    )}
+                    {!showDashboard && activeTab === "profile" && (
+                        <div className="w-full p-8 text-center">
+                            <Typography.Headline>Профиль</Typography.Headline>
+                            <Typography.Body className="text-theme-secondary">Раздел в разработке</Typography.Body>
+                        </div>
+                    )}
                 </div>
             </div>
             <TabBar 
                 active={activeTab} 
-                onChange={setActiveTab}
+                onChange={(tab) => {
+                    if (tab === "home") {
+                        setShowDashboard(true);
+                        setActiveTab("dashboard");
+                    } else {
+                        setShowDashboard(false);
+                        setActiveTab(tab);
+                    }
+                }}
                 onCargoClick={() => {
                     const newCount = cargoClickCount + 1;
                     setCargoClickCount(newCount);
@@ -2207,6 +2263,7 @@ export default function App() {
                         }, 2000);
                     }
                 }}
+                showAllTabs={showDashboard}
             />
         </Container>
     );
