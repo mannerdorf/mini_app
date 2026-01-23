@@ -801,23 +801,91 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
         // Применяем сортировку
         if (sortBy) {
             res = [...res].sort((a, b) => {
-                let dateA: Date | null = null;
-                let dateB: Date | null = null;
+                // Функция для безопасного парсинга даты
+                const parseDate = (dateString: string | undefined): number | null => {
+                    if (!dateString) return null;
+                    
+                    const str = String(dateString).trim();
+                    if (!str || str === '' || str === '-') return null;
+                    
+                    try {
+                        // Сначала пробуем стандартный формат ISO (YYYY-MM-DD или YYYY-MM-DDTHH:mm:ss)
+                        let cleanStr = str.split('T')[0].trim();
+                        let date = new Date(cleanStr);
+                        
+                        if (!isNaN(date.getTime())) {
+                            return date.getTime();
+                        }
+                        
+                        // Пробуем формат DD.MM.YYYY
+                        const dotParts = cleanStr.split('.');
+                        if (dotParts.length === 3) {
+                            const day = parseInt(dotParts[0], 10);
+                            const month = parseInt(dotParts[1], 10) - 1;
+                            const year = parseInt(dotParts[2], 10);
+                            if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                                date = new Date(year, month, day);
+                                if (!isNaN(date.getTime())) {
+                                    return date.getTime();
+                                }
+                            }
+                        }
+                        
+                        // Пробуем формат DD/MM/YYYY
+                        const slashParts = cleanStr.split('/');
+                        if (slashParts.length === 3) {
+                            const day = parseInt(slashParts[0], 10);
+                            const month = parseInt(slashParts[1], 10) - 1;
+                            const year = parseInt(slashParts[2], 10);
+                            if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                                date = new Date(year, month, day);
+                                if (!isNaN(date.getTime())) {
+                                    return date.getTime();
+                                }
+                            }
+                        }
+                        
+                        // Пробуем формат DD-MM-YYYY
+                        const dashParts = cleanStr.split('-');
+                        if (dashParts.length === 3 && dashParts[0].length <= 2) {
+                            const day = parseInt(dashParts[0], 10);
+                            const month = parseInt(dashParts[1], 10) - 1;
+                            const year = parseInt(dashParts[2], 10);
+                            if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                                date = new Date(year, month, day);
+                                if (!isNaN(date.getTime())) {
+                                    return date.getTime();
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        // Игнорируем ошибки парсинга
+                        console.warn('Failed to parse date:', dateString, e);
+                    }
+                    
+                    return null;
+                };
+                
+                let timestampA: number | null = null;
+                let timestampB: number | null = null;
                 
                 if (sortBy === 'datePrih') {
-                    dateA = a.DatePrih ? new Date(a.DatePrih) : null;
-                    dateB = b.DatePrih ? new Date(b.DatePrih) : null;
+                    timestampA = parseDate(a.DatePrih);
+                    timestampB = parseDate(b.DatePrih);
                 } else if (sortBy === 'dateVr') {
-                    dateA = a.DateVr ? new Date(a.DateVr) : null;
-                    dateB = b.DateVr ? new Date(b.DateVr) : null;
+                    timestampA = parseDate(a.DateVr);
+                    timestampB = parseDate(b.DateVr);
                 }
                 
-                // Обрабатываем случаи с null/undefined
-                if (!dateA && !dateB) return 0;
-                if (!dateA) return 1;
-                if (!dateB) return -1;
+                // Обрабатываем случаи с null/undefined - элементы без даты идут в конец
+                if (timestampA === null && timestampB === null) {
+                    // Если оба без даты, сохраняем исходный порядок
+                    return 0;
+                }
+                if (timestampA === null) return 1; // Элементы без даты идут в конец
+                if (timestampB === null) return -1; // Элементы без даты идут в конец
                 
-                const diff = dateA.getTime() - dateB.getTime();
+                const diff = timestampA - timestampB;
                 return sortOrder === 'asc' ? diff : -diff;
             });
         }
@@ -865,60 +933,47 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                             </div>
                         ))}
                     </div>}
-                    {/* Кнопки сортировки по датам */}
-                    <Flex gap="0.25rem" align="center">
-                        <Button 
-                            className="filter-button" 
-                            style={{ padding: '0.5rem', minWidth: 'auto' }}
-                            onClick={() => {
-                                if (sortBy === 'datePrih') {
-                                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                                } else {
-                                    setSortBy('datePrih');
-                                    setSortOrder('desc');
-                                }
-                            }}
-                            title="Сортировать по дате прихода"
-                        >
-                            {sortBy === 'datePrih' ? (
-                                sortOrder === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                            ) : (
-                                <ArrowUpDown className="w-4 h-4" style={{ opacity: 0.5 }} />
-                            )}
-                        </Button>
-                        <Button 
-                            className="filter-button" 
-                            style={{ padding: '0.5rem', minWidth: 'auto' }}
-                            onClick={() => {
-                                if (sortBy === 'dateVr') {
-                                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                                } else {
-                                    setSortBy('dateVr');
-                                    setSortOrder('desc');
-                                }
-                            }}
-                            title="Сортировать по дате доставки"
-                        >
-                            {sortBy === 'dateVr' ? (
-                                sortOrder === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-                            ) : (
-                                <ArrowUpDown className="w-4 h-4" style={{ opacity: 0.5 }} />
-                            )}
-                        </Button>
-                        {sortBy && (
-                            <Button 
-                                className="filter-button" 
-                                style={{ padding: '0.5rem', minWidth: 'auto' }}
-                                onClick={() => {
-                                    setSortBy(null);
-                                    setSortOrder('desc');
-                                }}
-                                title="Сбросить сортировку"
-                            >
-                                <X className="w-4 h-4" />
-                            </Button>
+                    {/* Кнопка сортировки по датам */}
+                    <Button 
+                        className="filter-button" 
+                        style={{ padding: '0.5rem', minWidth: 'auto' }}
+                        onClick={() => {
+                            if (!sortBy) {
+                                // Нет сортировки -> сортировка по дате прихода (по убыванию)
+                                setSortBy('datePrih');
+                                setSortOrder('desc');
+                            } else if (sortBy === 'datePrih' && sortOrder === 'desc') {
+                                // Дата прихода (убывание) -> дата прихода (возрастание)
+                                setSortOrder('asc');
+                            } else if (sortBy === 'datePrih' && sortOrder === 'asc') {
+                                // Дата прихода (возрастание) -> дата доставки (убывание)
+                                setSortBy('dateVr');
+                                setSortOrder('desc');
+                            } else if (sortBy === 'dateVr' && sortOrder === 'desc') {
+                                // Дата доставки (убывание) -> дата доставки (возрастание)
+                                setSortOrder('asc');
+                            } else if (sortBy === 'dateVr' && sortOrder === 'asc') {
+                                // Дата доставки (возрастание) -> сброс
+                                setSortBy(null);
+                                setSortOrder('desc');
+                            }
+                        }}
+                        title={
+                            !sortBy ? "Сортировать по дате прихода" :
+                            sortBy === 'datePrih' && sortOrder === 'desc' ? "Сортировать по дате прихода (возрастание)" :
+                            sortBy === 'datePrih' && sortOrder === 'asc' ? "Сортировать по дате доставки" :
+                            sortBy === 'dateVr' && sortOrder === 'desc' ? "Сортировать по дате доставки (возрастание)" :
+                            "Сбросить сортировку"
+                        }
+                    >
+                        {!sortBy ? (
+                            <ArrowUpDown className="w-4 h-4" style={{ opacity: 0.5 }} />
+                        ) : sortOrder === 'asc' ? (
+                            <ArrowUp className="w-4 h-4" />
+                        ) : (
+                            <ArrowDown className="w-4 h-4" />
                         )}
-                    </Flex>
+                    </Button>
                 </div>
                 <div className="filter-group">
                     <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); }}>
