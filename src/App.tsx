@@ -168,7 +168,9 @@ const StatusBadge = ({ status }: { status: string | undefined }) => {
     
     if (lower.includes('доставлен') || lower.includes('заверш')) {
         badgeClass += ' max-badge-success';
-    } else if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('готов') || lower.includes('доставке')) {
+    } else if (lower.includes('доставке')) {
+        badgeClass += ' max-badge-purple';
+    } else if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('готов')) {
         badgeClass += ' max-badge-warning';
     } else if (lower.includes('отменен') || lower.includes('аннулирован')) {
         badgeClass += ' max-badge-danger';

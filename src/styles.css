@@ -450,6 +450,11 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.5);
 }
+.max-badge-purple {
+    background-color: rgba(168, 85, 247, 0.2);
+    color: #a855f7;
+    border: 1px solid rgba(168, 85, 247, 0.5);
+}
 .max-badge-default {
     background-color: var(--color-bg-hover);
     color: var(--color-text-primary);
@@ -464,6 +469,9 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 }
 .dark-mode .max-badge-danger {
     border: 1px solid rgba(239, 68, 68, 0.6);
+}
+.dark-mode .max-badge-purple {
+    border: 1px solid rgba(168, 85, 247, 0.6);
 }
 .dark-mode .max-badge-default {
     border: 1px solid var(--color-border);
