@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
@@ -1154,7 +1154,7 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
     );
 }
 
-// --- ACCOUNT SWITCHER ---
+// --- ACCOUNT SWITCHER (LONG PRESS) ---
 function AccountSwitcher({ 
     accounts, 
     activeAccountId, 
@@ -1164,77 +1164,121 @@ function AccountSwitcher({
     activeAccountId: string | null; 
     onSwitchAccount: (accountId: string) => void; 
 }) {
-    const [isOpen, setIsOpen] = useState(false);
+    const [showModal, setShowModal] = useState(false);
+    const holdTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+    const isHoldingRef = React.useRef(false);
     const activeAccount = accounts.find(acc => acc.id === activeAccountId);
     
     useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (!target.closest('.account-switcher')) {
-                setIsOpen(false);
+        return () => {
+            if (holdTimeoutRef.current) {
+                clearTimeout(holdTimeoutRef.current);
             }
         };
-        if (isOpen) {
-            document.addEventListener('click', handleClickOutside);
-            return () => document.removeEventListener('click', handleClickOutside);
+    }, []);
+    
+    const handlePressStart = (e?: React.MouseEvent | React.TouchEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
         }
-    }, [isOpen]);
+        
+        isHoldingRef.current = true;
+        holdTimeoutRef.current = setTimeout(() => {
+            if (isHoldingRef.current) {
+                setShowModal(true);
+            }
+        }, 2000); // 2 секунды
+    };
+    
+    const handlePressEnd = (e?: React.MouseEvent | React.TouchEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        isHoldingRef.current = false;
+        if (holdTimeoutRef.current) {
+            clearTimeout(holdTimeoutRef.current);
+            holdTimeoutRef.current = null;
+        }
+    };
     
     return (
-        <div className="account-switcher" style={{ position: 'relative', display: 'inline-block' }}>
-            <Button 
-                className="button-secondary"
-                onClick={() => setIsOpen(!isOpen)}
-                style={{ 
-                    padding: '0.5rem 1rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem'
-                }}
-                title={`Переключить аккаунт (${accounts.length} аккаунтов)`}
+        <>
+            <div 
+                onMouseDown={handlePressStart}
+                onMouseUp={handlePressEnd}
+                onMouseLeave={handlePressEnd}
+                onTouchStart={handlePressStart}
+                onTouchEnd={handlePressEnd}
+                style={{ display: 'inline-block' }}
             >
-                <UserIcon className="w-4 h-4" />
-                <Typography.Body>{activeAccount?.login || 'Не выбран'}</Typography.Body>
-                <ChevronDown className="w-4 h-4" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-            </Button>
-            {isOpen && (
-                <div className="filter-dropdown" style={{ 
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    marginTop: '0.5rem',
-                    zIndex: 1000,
-                    minWidth: '200px'
-                }}>
-                    {accounts.map((account) => (
-                        <div 
-                            key={account.id}
-                            className={`dropdown-item ${activeAccountId === account.id ? 'active' : ''}`}
-                            onClick={() => {
-                                onSwitchAccount(account.id);
-                                setIsOpen(false);
-                            }}
-                            style={{
-                                padding: '0.75rem 1rem',
-                                cursor: 'pointer',
-                                backgroundColor: activeAccountId === account.id ? 'var(--color-primary-light)' : 'transparent',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem'
-                            }}
-                        >
-                            <UserIcon className="w-4 h-4" />
-                            <Typography.Body style={{ flex: 1 }}>{account.login}</Typography.Body>
-                            {activeAccountId === account.id && (
-                                <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
-                            )}
+                <Button 
+                    className="button-secondary"
+                    style={{ 
+                        padding: '0.5rem 1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                    }}
+                    title={`Удерживайте для переключения аккаунта (${accounts.length} аккаунтов)`}
+                >
+                    <UserIcon className="w-4 h-4" />
+                    <Typography.Body>{activeAccount?.login || 'Не выбран'}</Typography.Body>
+                </Button>
+            </div>
+            
+            {showModal && (
+                <div className="modal-overlay" onClick={() => setShowModal(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', width: '90%' }}>
+                        <div className="modal-header">
+                            <Typography.Headline>Выберите компанию</Typography.Headline>
+                            <Button className="modal-close-button" onClick={() => setShowModal(false)} aria-label="Закрыть">
+                                <X size={20} />
+                            </Button>
                         </div>
-                    ))}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+                            {accounts.map((account) => (
+                                <div
+                                    key={account.id}
+                                    onClick={() => {
+                                        onSwitchAccount(account.id);
+                                        setShowModal(false);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        padding: '0.75rem',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        border: activeAccountId === account.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                                        backgroundColor: activeAccountId === account.id ? 'var(--color-primary-light)' : 'transparent'
+                                    }}
+                                >
+                                    <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                        <Building2 className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+                                        <div>
+                                            <Typography.Body style={{ fontWeight: activeAccountId === account.id ? 'bold' : 'normal' }}>
+                                                {account.login}
+                                            </Typography.Body>
+                                        </div>
+                                    </Flex>
+                                    {activeAccountId === account.id && (
+                                        <Check className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             )}
-        </div>
+        </>
     );
 }
+
+// Типы для навигации профиля
+type ProfileView = 'main' | 'companies' | 'addCompanyByINN' | 'addCompanyByLogin' | 'companiesList';
 
 // --- PROFILE PAGE ---
 function ProfilePage({ 
@@ -1242,27 +1286,471 @@ function ProfilePage({
     activeAccountId, 
     onSwitchAccount, 
     onAddAccount, 
-    onRemoveAccount 
+    onRemoveAccount,
+    onOpenOffer,
+    onOpenPersonalConsent
 }: { 
     accounts: Account[]; 
     activeAccountId: string | null; 
     onSwitchAccount: (accountId: string) => void; 
     onAddAccount: (login: string, password: string) => Promise<void>; 
-    onRemoveAccount: (accountId: string) => void; 
+    onRemoveAccount: (accountId: string) => void;
+    onOpenOffer: () => void;
+    onOpenPersonalConsent: () => void;
 }) {
-    const [newLogin, setNewLogin] = useState("");
-    const [newPassword, setNewPassword] = useState("");
+    const [currentView, setCurrentView] = useState<ProfileView>('main');
+    
+    // Настройки
+    const settingsItems = [
+        { 
+            id: 'companies', 
+            label: 'Мои компании', 
+            icon: <Building2 className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => setCurrentView('companies')
+        },
+        { 
+            id: 'notifications', 
+            label: 'Уведомления', 
+            icon: <Bell className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => {}
+        },
+        { 
+            id: 'dashboards', 
+            label: 'Дашборды', 
+            icon: <LayoutGrid className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => {}
+        },
+    ];
+    
+    // Информация
+    const infoItems = [
+        { 
+            id: 'about', 
+            label: 'О компании', 
+            icon: <Info className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => {}
+        },
+        { 
+            id: 'offer', 
+            label: 'Публичная оферта', 
+            icon: <FileText className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => onOpenOffer()
+        },
+        { 
+            id: 'consent', 
+            label: 'Согласие на обработку персональных данных', 
+            icon: <Shield className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => onOpenPersonalConsent()
+        },
+    ];
+    
+    if (currentView === 'companies') {
+        return <CompaniesPage onBack={() => setCurrentView('main')} onSelectMethod={(method) => {
+            if (method === 'inn') {
+                setCurrentView('addCompanyByINN');
+            } else {
+                setCurrentView('addCompanyByLogin');
+            }
+        }} />;
+    }
+    
+    if (currentView === 'addCompanyByINN') {
+        return <AddCompanyByINNPage 
+            onBack={() => setCurrentView('companies')} 
+            onSuccess={() => setCurrentView('companiesList')}
+        />;
+    }
+    
+    if (currentView === 'addCompanyByLogin') {
+        return <AddCompanyByLoginPage 
+            onBack={() => setCurrentView('companies')} 
+            onAddAccount={onAddAccount}
+            onSuccess={() => setCurrentView('companiesList')}
+        />;
+    }
+    
+    if (currentView === 'companiesList') {
+        return <CompaniesListPage 
+            accounts={accounts}
+            activeAccountId={activeAccountId}
+            onSwitchAccount={onSwitchAccount}
+            onRemoveAccount={onRemoveAccount}
+            onBack={() => setCurrentView('main')}
+            onAddCompany={() => setCurrentView('companies')}
+        />;
+    }
+    
+    return (
+        <div className="w-full p-4">
+            <Typography.Headline style={{ marginBottom: '1.5rem' }}>Профиль</Typography.Headline>
+            
+            {/* Настройки */}
+            <Panel style={{ marginBottom: '1.5rem' }}>
+                <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Настройки</Typography.Headline>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {settingsItems.map((item) => (
+                        <div
+                            key={item.id}
+                            onClick={item.onClick}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.75rem',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                border: '1px solid var(--color-border)',
+                                backgroundColor: 'transparent',
+                                transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--color-primary-light)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                        >
+                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                {item.icon}
+                                <Typography.Body>{item.label}</Typography.Body>
+                            </Flex>
+                            <ChevronDown className="w-4 h-4" style={{ transform: 'rotate(-90deg)', color: 'var(--color-text-secondary)' }} />
+                        </div>
+                    ))}
+                </div>
+            </Panel>
+            
+            {/* Информация */}
+            <Panel>
+                <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Информация</Typography.Headline>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {infoItems.map((item) => (
+                        <div
+                            key={item.id}
+                            onClick={item.onClick}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.75rem',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                border: '1px solid var(--color-border)',
+                                backgroundColor: 'transparent',
+                                transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'var(--color-primary-light)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                        >
+                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                {item.icon}
+                                <Typography.Body>{item.label}</Typography.Body>
+                            </Flex>
+                            <ChevronDown className="w-4 h-4" style={{ transform: 'rotate(-90deg)', color: 'var(--color-text-secondary)' }} />
+                        </div>
+                    ))}
+                </div>
+            </Panel>
+        </div>
+    );
+}
+
+// --- COMPANIES PAGE (CHOOSE ADDITION METHOD) ---
+function CompaniesPage({ onBack, onSelectMethod }: { onBack: () => void; onSelectMethod: (method: 'inn' | 'login') => void }) {
+    return (
+        <div className="w-full p-4">
+            <Flex align="center" style={{ marginBottom: '1.5rem', gap: '1rem' }}>
+                <Button className="button-secondary" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-5 h-5" />
+                </Button>
+                <Typography.Headline>Мои компании</Typography.Headline>
+            </Flex>
+            
+            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                <div style={{ 
+                    width: '80px', 
+                    height: '80px', 
+                    borderRadius: '50%', 
+                    backgroundColor: 'var(--color-primary-light)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    margin: '0 auto 1.5rem'
+                }}>
+                    <Building2 className="w-10 h-10" style={{ color: 'var(--color-primary)' }} />
+                </div>
+                <Typography.Headline style={{ marginBottom: '0.5rem' }}>Выберите способ добавления</Typography.Headline>
+                <Typography.Body className="text-theme-secondary">
+                    Добавьте компанию по ИНН или используя логин и пароль
+                </Typography.Body>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <Panel 
+                    onClick={() => onSelectMethod('inn')}
+                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.02)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                >
+                    <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>По ИНН</Typography.Headline>
+                    <Typography.Body className="text-theme-secondary">
+                        Введите ИНН компании для добавления
+                    </Typography.Body>
+                </Panel>
+                
+                <Panel 
+                    onClick={() => onSelectMethod('login')}
+                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.02)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                >
+                    <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>По логину и паролю</Typography.Headline>
+                    <Typography.Body className="text-theme-secondary">
+                        Используйте логин и пароль для доступа
+                    </Typography.Body>
+                </Panel>
+            </div>
+        </div>
+    );
+}
+
+// --- ADD COMPANY BY INN PAGE ---
+function AddCompanyByINNPage({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => void }) {
+    const [inn, setInn] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [code, setCode] = useState<string[]>(['', '', '', '', '', '']);
+    const [codeInputIndex, setCodeInputIndex] = useState(0);
+    const [showCodeInput, setShowCodeInput] = useState(false);
+    
+    const handleSubmitINN = async (e: FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        
+        if (!inn || (inn.length !== 10 && inn.length !== 12)) {
+            setError("ИНН должен содержать 10 или 12 цифр");
+            return;
+        }
+        
+        try {
+            setLoading(true);
+            // Здесь будет запрос к API для проверки ИНН
+            // Пока симулируем успешный ответ
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            setShowCodeInput(true);
+        } catch (err: any) {
+            setError(err.message || "Ошибка при проверке ИНН");
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    const handleCodeChange = (index: number, value: string) => {
+        if (value.length > 1) return;
+        const newCode = [...code];
+        newCode[index] = value;
+        setCode(newCode);
+        
+        if (value && index < 5) {
+            setCodeInputIndex(index + 1);
+        }
+    };
+    
+    const handleCodeSubmit = async (e: FormEvent) => {
+        e.preventDefault();
+        const fullCode = code.join('');
+        if (fullCode.length !== 6) {
+            setError("Введите полный код");
+            return;
+        }
+        
+        try {
+            setLoading(true);
+            // Здесь будет запрос к API для подтверждения кода
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            onSuccess();
+        } catch (err: any) {
+            setError(err.message || "Неверный код подтверждения");
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    if (showCodeInput) {
+        return (
+            <div className="w-full p-4">
+                <Flex align="center" style={{ marginBottom: '1.5rem', gap: '1rem' }}>
+                    <Button className="button-secondary" onClick={onBack} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-5 h-5" />
+                    </Button>
+                    <Typography.Headline>Введите код подтверждения</Typography.Headline>
+                </Flex>
+                
+                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                    <div style={{ 
+                        width: '80px', 
+                        height: '80px', 
+                        borderRadius: '50%', 
+                        backgroundColor: 'var(--color-primary-light)', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        margin: '0 auto 1.5rem'
+                    }}>
+                        <FileText className="w-10 h-10" style={{ color: 'var(--color-primary)' }} />
+                    </div>
+                    <Typography.Headline style={{ marginBottom: '0.5rem' }}>Введите код подтверждения</Typography.Headline>
+                    <Typography.Body className="text-theme-secondary">
+                        Код отправлен на почту руководителя компании
+                    </Typography.Body>
+                </div>
+                
+                <form onSubmit={handleCodeSubmit}>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                        {code.map((digit, index) => (
+                            <Input
+                                key={index}
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={1}
+                                value={digit}
+                                onChange={(e) => handleCodeChange(index, e.target.value)}
+                                style={{
+                                    width: '50px',
+                                    height: '50px',
+                                    textAlign: 'center',
+                                    fontSize: '1.5rem',
+                                    border: codeInputIndex === index ? '2px solid var(--color-primary)' : '1px solid var(--color-border)'
+                                }}
+                                autoFocus={codeInputIndex === index}
+                            />
+                        ))}
+                    </div>
+                    
+                    {error && (
+                        <Typography.Body className="login-error" style={{ marginBottom: '1rem', textAlign: 'center' }}>
+                            {error}
+                        </Typography.Body>
+                    )}
+                    
+                    <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '1rem' }}>
+                        {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
+                    </Button>
+                    
+                    <Button type="button" className="button-secondary" onClick={onBack} style={{ width: '100%' }}>
+                        Отмена
+                    </Button>
+                </form>
+            </div>
+        );
+    }
+    
+    return (
+        <div className="w-full p-4">
+            <Flex align="center" style={{ marginBottom: '1.5rem', gap: '1rem' }}>
+                <Button className="button-secondary" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-5 h-5" />
+                </Button>
+                <Typography.Headline>Введите ИНН компании</Typography.Headline>
+            </Flex>
+            
+            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                <div style={{ 
+                    width: '80px', 
+                    height: '80px', 
+                    borderRadius: '50%', 
+                    backgroundColor: 'var(--color-primary-light)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    margin: '0 auto 1.5rem'
+                }}>
+                    <Building2 className="w-10 h-10" style={{ color: 'var(--color-primary)' }} />
+                </div>
+                <Typography.Headline style={{ marginBottom: '0.5rem' }}>Введите ИНН компании</Typography.Headline>
+                <Typography.Body className="text-theme-secondary">
+                    Мы проверим компанию и отправим код подтверждения на почту руководителя
+                </Typography.Body>
+            </div>
+            
+            <form onSubmit={handleSubmitINN}>
+                <div className="field" style={{ marginBottom: '1.5rem' }}>
+                    <Input
+                        className="login-input"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="ИНН (10 или 12 цифр)"
+                        value={inn}
+                        onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '');
+                            if (value.length <= 12) {
+                                setInn(value);
+                                setError(null);
+                            }
+                        }}
+                        autoFocus
+                    />
+                </div>
+                
+                {error && (
+                    <Typography.Body className="login-error" style={{ marginBottom: '1rem' }}>
+                        {error}
+                    </Typography.Body>
+                )}
+                
+                <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '1rem' }}>
+                    {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Получить код"}
+                </Button>
+                
+                <Button type="button" className="button-secondary" onClick={onBack} style={{ width: '100%' }}>
+                    Отмена
+                </Button>
+            </form>
+        </div>
+    );
+}
+
+// --- ADD COMPANY BY LOGIN PAGE ---
+function AddCompanyByLoginPage({ 
+    onBack, 
+    onAddAccount, 
+    onSuccess 
+}: { 
+    onBack: () => void; 
+    onAddAccount: (login: string, password: string) => Promise<void>;
+    onSuccess: () => void;
+}) {
+    const [login, setLogin] = useState("");
+    const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [agreeOffer, setAgreeOffer] = useState(true);
     const [agreePersonal, setAgreePersonal] = useState(true);
     
-    const handleAddAccountSubmit = async (e: FormEvent) => {
+    const resolveChecked = (value: boolean | "on" | "off" | undefined): boolean => {
+        if (typeof value === "boolean") return value;
+        if (value === "on") return true;
+        return false;
+    };
+    
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError(null);
         
-        if (!newLogin || !newPassword) {
+        if (!login || !password) {
             setError("Введите логин и пароль");
             return;
         }
@@ -1274,10 +1762,8 @@ function ProfilePage({
         
         try {
             setLoading(true);
-            await onAddAccount(newLogin, newPassword);
-            setNewLogin("");
-            setNewPassword("");
-            setError(null);
+            await onAddAccount(login, password);
+            onSuccess();
         } catch (err: any) {
             setError(err.message || "Ошибка при добавлении аккаунта");
         } finally {
@@ -1285,138 +1771,223 @@ function ProfilePage({
         }
     };
     
-    const resolveChecked = (value: boolean | "on" | "off" | undefined): boolean => {
-        if (typeof value === "boolean") return value;
-        if (value === "on") return true;
-        return false;
+    return (
+        <div className="w-full p-4">
+            <Flex align="center" style={{ marginBottom: '1.5rem', gap: '1rem' }}>
+                <Button className="button-secondary" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-5 h-5" />
+                </Button>
+                <Typography.Headline>Введите логин и пароль</Typography.Headline>
+            </Flex>
+            
+            <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                <div style={{ 
+                    width: '80px', 
+                    height: '80px', 
+                    borderRadius: '50%', 
+                    backgroundColor: 'var(--color-primary-light)', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    margin: '0 auto 1.5rem'
+                }}>
+                    <UserIcon className="w-10 h-10" style={{ color: 'var(--color-primary)' }} />
+                </div>
+                <Typography.Headline style={{ marginBottom: '0.5rem' }}>Введите логин и пароль</Typography.Headline>
+                <Typography.Body className="text-theme-secondary">
+                    Используйте ваши учетные данные для доступа к перевозкам
+                </Typography.Body>
+            </div>
+            
+            <form onSubmit={handleSubmit}>
+                <div className="field" style={{ marginBottom: '1rem' }}>
+                    <Input
+                        className="login-input"
+                        type="text"
+                        placeholder="Логин (email)"
+                        value={login}
+                        onChange={(e) => setLogin(e.target.value)}
+                        autoComplete="username"
+                    />
+                </div>
+                <div className="field" style={{ marginBottom: '1rem' }}>
+                    <div className="password-input-container">
+                        <Input
+                            className="login-input password"
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Пароль"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            autoComplete="current-password"
+                            style={{paddingRight: '3rem'}}
+                        />
+                        <Button type="button" className="toggle-password-visibility" onClick={() => setShowPassword(!showPassword)}>
+                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </Button>
+                    </div>
+                </div>
+                <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem' }}>
+                    <Typography.Body>
+                        Согласие с{" "}
+                        <a href="#" onClick={(e) => { e.preventDefault(); }}>
+                            публичной офертой
+                        </a>
+                    </Typography.Body>
+                    <Switch
+                        checked={agreeOffer}
+                        onCheckedChange={(value) => setAgreeOffer(resolveChecked(value))}
+                        onChange={(event) => setAgreeOffer(resolveChecked(event))}
+                    />
+                </label>
+                <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem' }}>
+                    <Typography.Body>
+                        Согласие на{" "}
+                        <a href="#" onClick={(e) => { e.preventDefault(); }}>
+                            обработку данных
+                        </a>
+                    </Typography.Body>
+                    <Switch
+                        checked={agreePersonal}
+                        onCheckedChange={(value) => setAgreePersonal(resolveChecked(value))}
+                        onChange={(event) => setAgreePersonal(resolveChecked(event))}
+                    />
+                </label>
+                {error && (
+                    <Typography.Body className="login-error" style={{ marginBottom: '1rem' }}>
+                        {error}
+                    </Typography.Body>
+                )}
+                <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%', marginBottom: '1rem' }}>
+                    {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
+                </Button>
+                <Button type="button" className="button-secondary" onClick={onBack} style={{ width: '100%' }}>
+                    Отмена
+                </Button>
+            </form>
+        </div>
+    );
+}
+
+// --- COMPANIES LIST PAGE ---
+function CompaniesListPage({
+    accounts,
+    activeAccountId,
+    onSwitchAccount,
+    onRemoveAccount,
+    onBack,
+    onAddCompany
+}: {
+    accounts: Account[];
+    activeAccountId: string | null;
+    onSwitchAccount: (accountId: string) => void;
+    onRemoveAccount: (accountId: string) => void;
+    onBack: () => void;
+    onAddCompany: () => void;
+}) {
+    const holdTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+    const isHoldingRef = React.useRef(false);
+    
+    useEffect(() => {
+        return () => {
+            if (holdTimeoutRef.current) {
+                clearTimeout(holdTimeoutRef.current);
+            }
+        };
+    }, []);
+    
+    const handlePressStart = (accountId: string) => {
+        if (activeAccountId === accountId) return; // Не переключаем, если уже активен
+        
+        isHoldingRef.current = true;
+        holdTimeoutRef.current = setTimeout(() => {
+            if (isHoldingRef.current) {
+                onSwitchAccount(accountId);
+            }
+        }, 2000); // 2 секунды
+    };
+    
+    const handlePressEnd = () => {
+        isHoldingRef.current = false;
+        if (holdTimeoutRef.current) {
+            clearTimeout(holdTimeoutRef.current);
+            holdTimeoutRef.current = null;
+        }
     };
     
     return (
         <div className="w-full p-4">
-            <Typography.Headline style={{ marginBottom: '1.5rem' }}>Профиль</Typography.Headline>
+            <Flex align="center" style={{ marginBottom: '1.5rem', gap: '1rem' }}>
+                <Button className="button-secondary" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-5 h-5" />
+                </Button>
+                <Typography.Headline>Мои компании</Typography.Headline>
+            </Flex>
             
-            {/* Список аккаунтов */}
-            <Panel style={{ marginBottom: '1.5rem' }}>
-                <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Аккаунты</Typography.Headline>
-                {accounts.length === 0 ? (
-                    <Typography.Body className="text-theme-secondary">Нет добавленных аккаунтов</Typography.Body>
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        {accounts.map((account) => (
-                            <div 
-                                key={account.id} 
-                                style={{ 
-                                    display: 'flex', 
-                                    alignItems: 'center', 
-                                    justifyContent: 'space-between',
-                                    padding: '0.75rem',
-                                    borderRadius: '8px',
-                                    border: activeAccountId === account.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                                    backgroundColor: activeAccountId === account.id ? 'var(--color-primary-light)' : 'transparent'
-                                }}
-                            >
-                                <Flex align="center" style={{ flex: 1 }}>
-                                    <UserIcon className="w-4 h-4 mr-2" />
-                                    <Typography.Body>{account.login}</Typography.Body>
-                                    {activeAccountId === account.id && (
-                                        <Typography.Body style={{ marginLeft: '0.5rem', fontSize: '0.875rem', color: 'var(--color-primary)' }}>
-                                            (активен)
-                                        </Typography.Body>
-                                    )}
-                                </Flex>
-                                <Flex align="center" style={{ gap: '0.5rem' }}>
-                                    {activeAccountId !== account.id && (
-                                        <Button 
-                                            className="button-secondary" 
-                                            onClick={() => onSwitchAccount(account.id)}
-                                            style={{ padding: '0.5rem 1rem' }}
-                                        >
-                                            Переключиться
-                                        </Button>
-                                    )}
-                                    {accounts.length > 1 && (
-                                        <Button 
-                                            className="button-secondary" 
-                                            onClick={() => onRemoveAccount(account.id)}
-                                            style={{ padding: '0.5rem' }}
-                                            title="Удалить аккаунт"
-                                        >
-                                            <X className="w-4 h-4" />
-                                        </Button>
-                                    )}
-                                </Flex>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </Panel>
+            {accounts.length === 0 ? (
+                <Panel>
+                    <Typography.Body className="text-theme-secondary" style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                        Нет добавленных компаний
+                    </Typography.Body>
+                </Panel>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
+                    {accounts.map((account) => (
+                        <Panel
+                            key={account.id}
+                            onMouseDown={() => handlePressStart(account.id)}
+                            onMouseUp={handlePressEnd}
+                            onMouseLeave={handlePressEnd}
+                            onTouchStart={() => handlePressStart(account.id)}
+                            onTouchEnd={handlePressEnd}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '0.75rem',
+                                border: activeAccountId === account.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                                backgroundColor: activeAccountId === account.id ? 'var(--color-primary-light)' : 'transparent',
+                                cursor: activeAccountId === account.id ? 'default' : 'pointer'
+                            }}
+                        >
+                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                <Building2 className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+                                <div>
+                                    <Typography.Body style={{ fontWeight: activeAccountId === account.id ? 'bold' : 'normal' }}>
+                                        {account.login}
+                                    </Typography.Body>
+                                </div>
+                            </Flex>
+                            <Flex align="center" style={{ gap: '0.5rem' }}>
+                                {activeAccountId === account.id && (
+                                    <Check className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+                                )}
+                                {accounts.length > 1 && (
+                                    <Button 
+                                        className="button-secondary" 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onRemoveAccount(account.id);
+                                        }}
+                                        style={{ padding: '0.5rem' }}
+                                        title="Удалить компанию"
+                                    >
+                                        <X className="w-4 h-4" style={{ color: 'var(--color-danger)' }} />
+                                    </Button>
+                                )}
+                            </Flex>
+                        </Panel>
+                    ))}
+                </div>
+            )}
             
-            {/* Форма добавления нового аккаунта */}
-            <Panel>
-                <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1.1rem' }}>Добавить аккаунт</Typography.Headline>
-                <form onSubmit={handleAddAccountSubmit}>
-                    <div className="field" style={{ marginBottom: '1rem' }}>
-                        <Input
-                            className="login-input"
-                            type="text"
-                            placeholder="Логин (email)"
-                            value={newLogin}
-                            onChange={(e) => setNewLogin(e.target.value)}
-                            autoComplete="username"
-                        />
-                    </div>
-                    <div className="field" style={{ marginBottom: '1rem' }}>
-                        <div className="password-input-container">
-                            <Input
-                                className="login-input password"
-                                type={showPassword ? "text" : "password"}
-                                placeholder="Пароль"
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                autoComplete="new-password"
-                                style={{paddingRight: '3rem'}}
-                            />
-                            <Button type="button" className="toggle-password-visibility" onClick={() => setShowPassword(!showPassword)}>
-                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                            </Button>
-                        </div>
-                    </div>
-                    <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem' }}>
-                        <Typography.Body>
-                            Согласие с{" "}
-                            <a href="#" onClick={(e) => { e.preventDefault(); }}>
-                                публичной офертой
-                            </a>
-                        </Typography.Body>
-                        <Switch
-                            checked={agreeOffer}
-                            onCheckedChange={(value) => setAgreeOffer(resolveChecked(value))}
-                            onChange={(event) => setAgreeOffer(resolveChecked(event))}
-                        />
-                    </label>
-                    <label className="checkbox-row switch-wrapper" style={{ marginBottom: '1rem' }}>
-                        <Typography.Body>
-                            Согласие на{" "}
-                            <a href="#" onClick={(e) => { e.preventDefault(); }}>
-                                обработку данных
-                            </a>
-                        </Typography.Body>
-                        <Switch
-                            checked={agreePersonal}
-                            onCheckedChange={(value) => setAgreePersonal(resolveChecked(value))}
-                            onChange={(event) => setAgreePersonal(resolveChecked(event))}
-                        />
-                    </label>
-                    {error && (
-                        <Typography.Body className="login-error" style={{ marginBottom: '1rem' }}>
-                            {error}
-                        </Typography.Body>
-                    )}
-                    <Button className="button-primary" type="submit" disabled={loading} style={{ width: '100%' }}>
-                        {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Добавить аккаунт"}
-                    </Button>
-                </form>
-            </Panel>
+            <Button 
+                className="button-primary" 
+                onClick={onAddCompany}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+            >
+                <Plus className="w-5 h-5" />
+                Добавить компанию
+            </Button>
         </div>
     );
 }
@@ -2802,6 +3373,8 @@ export default function App() {
                             onSwitchAccount={handleSwitchAccount}
                             onAddAccount={handleAddAccount}
                             onRemoveAccount={handleRemoveAccount}
+                            onOpenOffer={() => setIsOfferOpen(true)}
+                            onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
                         />
                     )}
                     {!showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} />}
