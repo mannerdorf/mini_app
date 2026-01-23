@@ -759,7 +759,7 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
     const [error, setError] = useState<string | null>(null);
     
     // Filters State (такие же как на странице грузов)
-    const [dateFilter, setDateFilter] = useState<DateFilter>("все");
+    const [dateFilter, setDateFilter] = useState<DateFilter>("неделя");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [customDateFrom, setCustomDateFrom] = useState(DEFAULT_DATE_FROM);
     const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
@@ -911,7 +911,6 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
         
         return (
             <div>
-                <Typography.Headline style={{ marginBottom: '1.5rem', fontSize: '1.1rem', fontWeight: 600 }}>{title}</Typography.Headline>
                 <div style={{ overflowX: 'auto', width: '100%' }}>
                     <svg 
                         width={Math.max(chartWidth, '100%')} 
@@ -967,7 +966,7 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
                                         style={{ transition: 'all 0.3s ease' }}
                                     />
                                     
-                                    {/* Значение внутри столбца */}
+                                    {/* Значение вертикально внутри столбца */}
                                     {barHeight > 20 && (
                                         <text
                                             x={x + barWidth / 2}
@@ -977,6 +976,7 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
                                             textAnchor="middle"
                                             fontWeight="600"
                                             dominantBaseline="middle"
+                                            transform={`rotate(-90 ${x + barWidth / 2} ${y + barHeight / 2})`}
                                         >
                                             {formatValue(d.value)}
                                         </text>
@@ -1012,7 +1012,7 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
                     </Button>
                     {isDateDropdownOpen && (
                         <div className="filter-dropdown">
-                            {['все', 'сегодня', 'неделя', 'месяц', 'период'].map(key => (
+                            {['сегодня', 'неделя', 'месяц', 'период'].map(key => (
                                 <div key={key} className="dropdown-item" onClick={() => { 
                                     setDateFilter(key as any); 
                                     setIsDateDropdownOpen(false); 
@@ -1161,7 +1161,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
     
     // Filters State
-    const [dateFilter, setDateFilter] = useState<DateFilter>("все"); // ИСПРАВЛЕНО: 'all' на 'все'
+    const [dateFilter, setDateFilter] = useState<DateFilter>("неделя");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [customDateFrom, setCustomDateFrom] = useState(DEFAULT_DATE_FROM);
     const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
@@ -1397,7 +1397,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                         Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                     </Button>
                     {isDateDropdownOpen && <div className="filter-dropdown">
-                        {['все', 'сегодня', 'неделя', 'месяц', 'период'].map(key => (
+                        {['сегодня', 'неделя', 'месяц', 'период'].map(key => (
                             <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key==='период') setIsCustomModalOpen(true); }}>
                                 <Typography.Body>{key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
                             </div>
@@ -2438,7 +2438,6 @@ export default function App() {
                 <div className="modal-overlay" onClick={() => { setShowPinModal(false); setPinCode(''); setPinError(false); }}>
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <Typography.Headline>{showDashboard ? "Выход из секретного режима" : "Вход в секретный режим"}</Typography.Headline>
                             <Button className="modal-close-button" onClick={() => { setShowPinModal(false); setPinCode(''); setPinError(false); }} aria-label="Закрыть">
                                 <X size={20} />
                             </Button>
