@@ -2171,7 +2171,7 @@ function CompaniesListPage({
 }
 
 // --- CARGO PAGE (LIST ONLY) ---
-function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string }) {
+function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchText: string, onOpenChat: (cargoNumber?: string) => void }) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -2550,6 +2550,25 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                                     {item.Number}
                                 </Typography.Body>
                                 <Flex align="center" gap="0.5rem">
+                                    <Button
+                                        style={{ 
+                                            padding: '0.25rem', 
+                                            minWidth: 'auto', 
+                                            background: 'transparent',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onOpenChat(item.Number);
+                                        }}
+                                        title="Написать в поддержку"
+                                    >
+                                        <MessageCircle className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                                    </Button>
                                     <Button
                                         style={{ 
                                             padding: '0.25rem', 
@@ -2957,7 +2976,7 @@ const TabBtn = ({ label, icon, active, onClick, onMouseDown, onMouseUp, onMouseL
     </Button>
 );
 
-function ChatPage() {
+function ChatPage({ prefillMessage, onClearPrefill }: { prefillMessage?: string; onClearPrefill?: () => void }) {
     useEffect(() => {
         if (typeof window === "undefined" || typeof document === "undefined") return;
 
@@ -2976,14 +2995,55 @@ function ChatPage() {
         else document.head.appendChild(s);
     }, []);
 
+    const shareOrCopy = async () => {
+        const text = prefillMessage?.trim();
+        if (!text) return;
+        try {
+            if (typeof navigator !== "undefined" && (navigator as any).share) {
+                await (navigator as any).share({ title: "HAULZ — Поддержка", text });
+                return;
+            }
+        } catch {
+            // ignore
+        }
+        try {
+            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+                alert("Текст скопирован. Вставьте в чат.");
+                return;
+            }
+        } catch {
+            // ignore
+        }
+        alert(text);
+    };
+
     return (
         <div className="w-full">
             <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Чат</Typography.Headline>
-                <Typography.Body className="text-theme-secondary" style={{ fontSize: '0.9rem' }}>
-                    Открываем виджет поддержки…
+                <Typography.Body className="text-theme-secondary" style={{ fontSize: '0.95rem', lineHeight: 1.5 }}>
+                    Напишите ваше обращение в чате — и мы готовы вам помочь
                 </Typography.Body>
             </Panel>
+
+            {prefillMessage && (
+                <Panel className="cargo-card" style={{ padding: '1rem', marginTop: '0.75rem' }}>
+                    <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                        Сообщение для чата
+                    </Typography.Body>
+                    <Typography.Body style={{ whiteSpace: "pre-wrap", fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                        {prefillMessage}
+                    </Typography.Body>
+                    <Flex style={{ gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                        <Button className="button-primary" type="button" onClick={shareOrCopy} style={{ flex: 1 }}>
+                            Отправить / Скопировать
+                        </Button>
+                        <Button className="filter-button" type="button" onClick={onClearPrefill} style={{ flex: 1 }}>
+                            Очистить
+                        </Button>
+                    </Flex>
+                </Panel>
+            )}
         </div>
     );
 }
@@ -3154,6 +3214,7 @@ export default function App() {
     const [searchText, setSearchText] = useState('');
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
+    const [chatPrefill, setChatPrefill] = useState<string>("");
 
     useEffect(() => { 
         document.body.className = `${theme}-mode`; 
@@ -3306,6 +3367,14 @@ export default function App() {
     }, [accounts, activeAccountId]);
     const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
+
+    const openSupportChat = (cargoNumber?: string) => {
+        const msg = cargoNumber
+            ? `Добрый день, у меня вопрос по перевозке ${cargoNumber}`
+            : `Добрый день, у меня вопрос по перевозке`;
+        setChatPrefill(msg);
+        setActiveTab("support");
+    };
 
     const handleLoginSubmit = async (e: FormEvent) => {
         e.preventDefault();
@@ -3597,7 +3666,7 @@ export default function App() {
             <div className="app-main">
                 <div className="w-full max-w-4xl">
                     {showDashboard && activeTab === "dashboard" && auth && <DashboardPage auth={auth} onClose={() => {}} />}
-                    {showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} />}
+                    {showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} onOpenChat={openSupportChat} />}
                     {showDashboard && activeTab === "docs" && (
                         <div className="w-full p-8 text-center">
                             <Typography.Headline>Документы</Typography.Headline>
@@ -3605,7 +3674,7 @@ export default function App() {
                 </div>
                     )}
                     {showDashboard && activeTab === "support" && (
-                        <ChatPage />
+                        <ChatPage prefillMessage={chatPrefill} onClearPrefill={() => setChatPrefill("")} />
                     )}
                     {showDashboard && activeTab === "profile" && (
                         <ProfilePage 
@@ -3619,9 +3688,11 @@ export default function App() {
                             onOpenNotifications={openSecretPinModal}
                         />
                     )}
-                    {!showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} />}
+                    {!showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} onOpenChat={openSupportChat} />}
                     {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && <DashboardPage auth={auth} onClose={() => {}} />}
-                    {!showDashboard && activeTab === "support" && auth && <ChatPage />}
+                    {!showDashboard && activeTab === "support" && auth && (
+                        <ChatPage prefillMessage={chatPrefill} onClearPrefill={() => setChatPrefill("")} />
+                    )}
                     {!showDashboard && activeTab === "profile" && (
                         <ProfilePage 
                             accounts={accounts}
