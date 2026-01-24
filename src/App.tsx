@@ -2935,6 +2935,7 @@ function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllT
                 onTouchStart={onCargoPressStart}
                 onTouchEnd={onCargoPressEnd}
             />
+            <TabBtn label="" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />
             <TabBtn label="" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
         </div>
     );
@@ -3083,13 +3084,30 @@ export default function App() {
         const account = accounts.find(acc => acc.id === activeAccountId);
         return account ? { login: account.login, password: account.password } : null;
     }, [accounts, activeAccountId]);
-    const [activeTab, setActiveTab] = useState<Tab>("cargo"); // Первый запуск: "Грузы"
+    const [activeTab, setActiveTab] = useState<Tab>(() => {
+        // "Страница" для поддержки, чтобы можно было ограничить Bitrix по URL: ?tab=support
+        if (typeof window === "undefined") return "cargo";
+        try {
+            const url = new URL(window.location.href);
+            const t = (url.searchParams.get("tab") || "").toLowerCase();
+            if (t === "support") return "support";
+            if (t === "profile") return "profile";
+            if (t === "cargo") return "cargo";
+            if (t === "home" || t === "dashboard") return "dashboard";
+            if (t === "docs") return "docs";
+        } catch {
+            // ignore
+        }
+        // Первый запуск: "Грузы"
+        return "cargo";
+    });
     const [theme, setTheme] = useState('dark'); 
     const [showDashboard, setShowDashboard] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
     const [pinCode, setPinCode] = useState('');
     const [pinError, setPinError] = useState(false);
     const hasRestoredTabRef = React.useRef(false);
+    const hasUrlTabOverrideRef = React.useRef(false);
     
     const openSecretPinModal = () => {
         setShowPinModal(true);
@@ -3186,6 +3204,15 @@ export default function App() {
     useEffect(() => {
         if (typeof window === "undefined") return;
         try {
+            // Если tab задан в URL — не перетираем восстановлением из localStorage
+            try {
+                const url = new URL(window.location.href);
+                const t = (url.searchParams.get("tab") || "").toLowerCase();
+                if (t) hasUrlTabOverrideRef.current = true;
+            } catch {
+                // ignore
+            }
+
             const saved = window.localStorage.getItem("haulz.auth");
             if (saved) {
                 const parsed = JSON.parse(saved) as AuthData;
@@ -3217,12 +3244,12 @@ export default function App() {
                             setActiveAccountId(parsedAccounts[0].id);
                         }
                         // Восстанавливаем последнюю вкладку (без сохранения секретного режима)
-                        if (savedTab) {
+                        if (savedTab && !hasUrlTabOverrideRef.current) {
                             const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs", "support"];
                             const t = savedTab as Tab;
                             if (allowed.includes(t)) {
-                                // docs/support доступны только в секретном режиме — фоллбек на cargo
-                                if ((t === "docs" || t === "support") && !showDashboard) {
+                                // docs доступны только в секретном режиме — фоллбек на cargo
+                                if ((t === "docs") && !showDashboard) {
                                     setActiveTab("cargo");
                                 } else if (t === "home") {
                                     setActiveTab("dashboard");
@@ -3249,6 +3276,19 @@ export default function App() {
             window.localStorage.setItem("haulz.lastTab", activeTab);
         } catch {
             // игнорируем ошибки записи
+        }
+    }, [activeTab]);
+
+    // Синхронизируем URL (для ограничения Bitrix по ссылке)
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            const url = new URL(window.location.href);
+            if (activeTab === "support") url.searchParams.set("tab", "support");
+            else url.searchParams.delete("tab");
+            window.history.replaceState(null, "", url.toString());
+        } catch {
+            // ignore
         }
     }, [activeTab]);
     
@@ -3581,6 +3621,7 @@ export default function App() {
                     )}
                     {!showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} />}
                     {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && <DashboardPage auth={auth} onClose={() => {}} />}
+                    {!showDashboard && activeTab === "support" && auth && <ChatPage />}
                     {!showDashboard && activeTab === "profile" && (
                         <ProfilePage 
                             accounts={accounts}
