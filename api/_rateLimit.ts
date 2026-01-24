@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { kv } from "@vercel/kv";
 
 type RateLimitContext = {
   namespace: string;
@@ -31,6 +30,57 @@ function shortHash(value: string): string {
     hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
   }
   return hash.toString(16).padStart(8, "0");
+}
+
+type UpstashRestResult<T> = { result: T; error?: string };
+
+const KV_REST_API_URL = process.env.KV_REST_API_URL;
+const KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN;
+
+function hasKvConfig(): boolean {
+  return Boolean(KV_REST_API_URL && KV_REST_API_TOKEN);
+}
+
+async function kvFetch<T>(path: string): Promise<T> {
+  if (!hasKvConfig()) throw new Error("KV not configured");
+  const base = KV_REST_API_URL!.endsWith("/") ? KV_REST_API_URL! : `${KV_REST_API_URL!}/`;
+  const url = `${base}${path}`;
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 600);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${KV_REST_API_TOKEN}` },
+      signal: controller.signal,
+    });
+    const json = (await res.json()) as UpstashRestResult<T>;
+    if (!res.ok) throw new Error(json?.error || `KV error: ${res.status}`);
+    return json.result;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function kvIncr(key: string): Promise<number> {
+  return kvFetch<number>(`incr/${encodeURIComponent(key)}`);
+}
+
+async function kvExpire(key: string, sec: number): Promise<number> {
+  return kvFetch<number>(`expire/${encodeURIComponent(key)}/${sec}`);
+}
+
+async function kvTtl(key: string): Promise<number> {
+  return kvFetch<number>(`ttl/${encodeURIComponent(key)}`);
+}
+
+async function kvDel(key: string): Promise<number> {
+  return kvFetch<number>(`del/${encodeURIComponent(key)}`);
+}
+
+async function kvSetEx(key: string, value: string, sec: number): Promise<"OK" | string> {
+  return kvFetch<"OK" | string>(
+    `set/${encodeURIComponent(key)}/${encodeURIComponent(value)}?EX=${sec}`
+  );
 }
 
 export function getClientIp(req: VercelRequest): string {
@@ -88,18 +138,18 @@ export async function enforceRateLimit(
 ): Promise<boolean> {
   // Returns true if allowed, false if blocked (response already sent).
   try {
-    const banTtl = await kv.ttl(ctx.banKey);
+    const banTtl = await kvTtl(ctx.banKey);
     if (typeof banTtl === "number" && banTtl > 0) {
       tooMany(res, banTtl);
       return false;
     }
 
-    const count = await kv.incr(ctx.windowKey);
+    const count = await kvIncr(ctx.windowKey);
     if (count === 1) {
-      await kv.expire(ctx.windowKey, ctx.windowSec);
+      await kvExpire(ctx.windowKey, ctx.windowSec);
     }
     if (count > ctx.limit) {
-      const winTtl = await kv.ttl(ctx.windowKey);
+      const winTtl = await kvTtl(ctx.windowKey);
       tooMany(res, typeof winTtl === "number" && winTtl > 0 ? winTtl : ctx.windowSec);
       return false;
     }
@@ -112,7 +162,7 @@ export async function enforceRateLimit(
 
 export async function markAuthSuccess(ctx: RateLimitContext): Promise<void> {
   try {
-    await kv.del(ctx.failKey);
+    await kvDel(ctx.failKey);
   } catch {
     // ignore
   }
@@ -120,13 +170,13 @@ export async function markAuthSuccess(ctx: RateLimitContext): Promise<void> {
 
 export async function markAuthFailure(ctx: RateLimitContext): Promise<void> {
   try {
-    const fails = await kv.incr(ctx.failKey);
+    const fails = await kvIncr(ctx.failKey);
     if (fails === 1) {
-      await kv.expire(ctx.failKey, DEFAULTS.failWindowSec);
+      await kvExpire(ctx.failKey, DEFAULTS.failWindowSec);
     }
     if (fails >= ctx.banAfterFailures) {
-      await kv.set(ctx.banKey, "1", { ex: ctx.banSec });
-      await kv.del(ctx.failKey);
+      await kvSetEx(ctx.banKey, "1", ctx.banSec);
+      await kvDel(ctx.failKey);
     }
   } catch {
     // ignore
