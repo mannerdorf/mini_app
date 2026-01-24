@@ -2956,6 +2956,37 @@ const TabBtn = ({ label, icon, active, onClick, onMouseDown, onMouseUp, onMouseL
     </Button>
 );
 
+function ChatPage() {
+    useEffect(() => {
+        if (typeof window === "undefined" || typeof document === "undefined") return;
+
+        // Prevent duplicate injections
+        const existing = document.querySelector('script[data-bitrix24-widget="haulz-chat"]');
+        if (existing) return;
+
+        const u = "https://cdn-ru.bitrix24.ru/b33102400/crm/site_button/loader_1_q2c97k.js";
+        const s = document.createElement("script");
+        s.async = true;
+        s.src = `${u}?${(Date.now() / 60000) | 0}`;
+        s.setAttribute("data-bitrix24-widget", "haulz-chat");
+
+        const h = document.getElementsByTagName("script")[0];
+        if (h?.parentNode) h.parentNode.insertBefore(s, h);
+        else document.head.appendChild(s);
+    }, []);
+
+    return (
+        <div className="w-full">
+            <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '1.1rem' }}>Чат</Typography.Headline>
+                <Typography.Body className="text-theme-secondary" style={{ fontSize: '0.9rem' }}>
+                    Открываем виджет поддержки…
+                </Typography.Body>
+            </Panel>
+        </div>
+    );
+}
+
 // ----------------- MAIN APP -----------------
 
 export default function App() {
@@ -3534,10 +3565,7 @@ export default function App() {
                 </div>
                     )}
                     {showDashboard && activeTab === "support" && (
-                        <div className="w-full p-8 text-center">
-                            <Typography.Headline>Поддержка</Typography.Headline>
-                            <Typography.Body className="text-theme-secondary">Раздел в разработке</Typography.Body>
-            </div>
+                        <ChatPage />
                     )}
                     {showDashboard && activeTab === "profile" && (
                         <ProfilePage 
