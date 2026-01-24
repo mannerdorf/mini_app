@@ -1,6 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import https from "https";
 import { URL } from "url";
+import {
+  createRateLimitContext,
+  enforceRateLimit,
+  getClientIp,
+  markAuthFailure,
+  markAuthSuccess,
+} from "./_rateLimit";
 
 const EXTERNAL_API_BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
@@ -47,14 +54,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    // --- Rate limit / brute force protection (Vercel KV) ---
+    const rl = createRateLimitContext({
+      namespace: "download",
+      ip: getClientIp(req),
+      login,
+      // downloads can be heavy; slightly stricter
+      limit: 10,
+      windowSec: 60,
+      banAfterFailures: 15,
+      banSec: 15 * 60,
+    });
+    const allowed = await enforceRateLimit(res, rl);
+    if (!allowed) return;
+
+    // basic validation to reduce abuse
+    if (!/^[\p{L}\d _.-]{1,24}$/u.test(metod)) {
+      return res.status(400).json({ error: "Invalid metod" });
+    }
+    if (!/^[0-9A-Za-zА-Яа-я._-]{1,64}$/u.test(number)) {
+      return res.status(400).json({ error: "Invalid number" });
+    }
+
     // Формируем URL ровно как в Postman/curl:
     // https://.../GetFile?metod=ЭР&Number=000107984
     const fullUrl = new URL(EXTERNAL_API_BASE_URL);
     fullUrl.searchParams.set("metod", metod);
     fullUrl.searchParams.set("Number", number);
 
-    console.log("➡️ GetFile URL:", fullUrl.toString());
-    console.log("➡️ Request params:", { metod, number, login: login?.substring(0, 10) + "..." });
+    // Do not log credentials/PII; keep logs minimal
+    console.log("➡️ GetFile:", { metod, number });
 
     const options: https.RequestOptions = {
       protocol: fullUrl.protocol,
@@ -75,11 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     };
     
-    console.log("➡️ Request headers:", {
-      Auth: `Basic ${login?.substring(0, 10)}...`,
-      Authorization: SERVICE_AUTH,
-      Host: fullUrl.host,
-    });
+    // Avoid logging auth headers
 
       const upstreamReq = https.request(options, (upstreamRes) => {
       const statusCode = upstreamRes.statusCode || 500;
@@ -98,6 +123,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Если 1С вернула ошибку — просто пробрасываем как есть
       if (statusCode < 200 || statusCode >= 300) {
+        // Count as auth failure / brute-force signal
+        markAuthFailure(rl).catch(() => {});
         res.status(statusCode);
         // может быть текст/JSON — просто прокидываем
         upstreamRes.pipe(res);
@@ -177,6 +204,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         // Если это бинарный PDF — отдаём напрямую
         if (isPDF) {
+          markAuthSuccess(rl).catch(() => {});
           console.log("✅ Got binary PDF, returning directly");
           res.status(200);
           res.setHeader("Content-Type", "application/pdf");
@@ -196,6 +224,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Если есть ошибка
           if (jsonResponse.Error && jsonResponse.Error !== "") {
             console.error("❌ Server error:", jsonResponse.Error);
+            markAuthFailure(rl).catch(() => {});
             return res.status(400).json({
               error: "Server returned error",
               message: jsonResponse.Error,
@@ -204,6 +233,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           
           // Если есть data (base64) — декодируем и отдаём как PDF
           if (jsonResponse.data) {
+            markAuthSuccess(rl).catch(() => {});
             console.log("✅ Got base64 data, decoding to PDF. Size:", jsonResponse.data.length);
             const pdfBuffer = Buffer.from(jsonResponse.data, "base64");
             const fileName = jsonResponse.name || `${metod}_${number}.pdf`;
@@ -226,6 +256,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           
           // Success:true но нет data — файл не найден
           console.error("❌ No file data in response. Keys:", Object.keys(jsonResponse));
+          markAuthFailure(rl).catch(() => {});
           return res.status(404).json({
             error: "File not found",
             message: `Документ ${metod} для перевозки ${number} не найден`,
@@ -234,6 +265,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (e) {
           // Не JSON и не PDF — возвращаем ошибку
           console.error("❌ Response is neither PDF nor valid JSON!", e);
+          markAuthFailure(rl).catch(() => {});
           return res.status(500).json({
             error: "Invalid response format",
             message: "Server returned neither PDF nor valid JSON",
@@ -244,6 +276,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       upstreamRes.on("error", (err) => {
         console.error("🔥 Upstream stream error:", err.message);
+        markAuthFailure(rl).catch(() => {});
         if (!res.headersSent) {
           res
             .status(500)
@@ -256,6 +289,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     upstreamReq.on("error", (err) => {
       console.error("🔥 Proxy request error:", err.message);
+      markAuthFailure(rl).catch(() => {});
       if (!res.headersSent) {
         res
           .status(500)

@@ -2,12 +2,52 @@ import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import "./styles.css";
+
+// --- FRIENDLY HTTP ERRORS ---
+async function readJsonOrText(res: Response): Promise<any> {
+    const contentType = res.headers.get("content-type") || "";
+    try {
+        if (contentType.includes("application/json")) return await res.json();
+    } catch { /* ignore */ }
+    try {
+        const text = await res.text();
+        return text;
+    } catch {
+        return null;
+    }
+}
+
+function humanizeStatus(status: number): string {
+    if (status === 400) return "Неверный запрос. Проверьте данные.";
+    if (status === 401 || status === 403) return "Неверный логин или пароль.";
+    if (status === 404) return "Данные не найдены.";
+    if (status === 408) return "Превышено время ожидания. Повторите попытку.";
+    if (status === 429) return "Слишком много попыток. Попробуйте позже.";
+    if (status >= 500) return "Ошибка сервера. Попробуйте позже.";
+    return "Не удалось выполнить запрос. Попробуйте позже.";
+}
+
+async function ensureOk(res: Response, fallback?: string): Promise<void> {
+    if (res.ok) return;
+    const payload = await readJsonOrText(res);
+    const statusMsg = humanizeStatus(res.status);
+    const safe =
+        (typeof payload === "object" && payload && (payload.error || payload.message))
+            ? String(payload.error || payload.message)
+            : (typeof payload === "string" && payload.trim() ? payload.trim() : "");
+    // Для 404/500 всегда показываем человекочитаемо, не "сырые" тексты
+    const message =
+        res.status === 404 ? "Данные не найдены." :
+        res.status >= 500 ? "Ошибка сервера. Попробуйте позже." :
+        safe || fallback || statusMsg;
+    throw new Error(message);
+}
 // --- TELEGRAM MINI APP SUPPORT ---
 const getWebApp = () => {
     if (typeof window === "undefined") return undefined;
@@ -450,7 +490,7 @@ function HomePage({ auth }: { auth: AuthData }) {
                     dateTo,
                 }),
             });
-            if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+            await ensureOk(res, "Ошибка загрузки данных");
             const data = await res.json();
             const list = Array.isArray(data) ? data : (data.items || []);
             const mapNumber = (value: any): number => {
@@ -811,7 +851,7 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
                     dateTo
                 })
             });
-            if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+            await ensureOk(res, "Ошибка загрузки данных");
             const data = await res.json();
             const list = Array.isArray(data) ? data : data.items || [];
             setItems(list.map((item: any) => ({
@@ -1265,6 +1305,40 @@ function AboutCompanyPage({ onBack }: { onBack: () => void }) {
         return `https://yandex.ru/maps/?text=${q}`;
     };
 
+    const shareText = async (title: string, text: string) => {
+        try {
+            // Web Share API (лучше всего для мессенджеров на мобилках)
+            if (typeof navigator !== "undefined" && (navigator as any).share) {
+                await (navigator as any).share({ title, text });
+                return;
+            }
+        } catch {
+            // игнорируем ошибки шаринга/отмены
+        }
+        // Фоллбек: копирование в буфер
+        try {
+            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+                alert("Скопировано");
+                return;
+            }
+        } catch {
+            // ignore
+        }
+        // Последний фоллбек
+        try {
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+            alert("Скопировано");
+        } catch {
+            alert(text);
+        }
+    };
+
     return (
         <div className="w-full">
             <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
@@ -1287,9 +1361,24 @@ function AboutCompanyPage({ onBack }: { onBack: () => void }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.75rem' }}>
                 {HAULZ_OFFICES.map((office) => (
                     <Panel key={office.city} className="cargo-card" style={{ padding: '1rem' }}>
-                        <Typography.Body style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                            {office.city}
-                        </Typography.Body>
+                        <Flex align="center" justify="space-between" style={{ marginBottom: '0.5rem', gap: '0.5rem' }}>
+                            <Typography.Body style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+                                {office.city}
+                            </Typography.Body>
+                            <Button
+                                className="filter-button"
+                                type="button"
+                                title="Поделиться"
+                                aria-label="Поделиться"
+                                style={{ padding: '0.25rem 0.5rem', minWidth: 'auto' }}
+                                onClick={() => {
+                                    const text = `HAULZ — ${office.city}\nАдрес: ${office.address}\nТел.: ${office.phone}\nEmail: ${HAULZ_EMAIL}`;
+                                    shareText(`HAULZ — ${office.city}`, text);
+                                }}
+                            >
+                                <Share2 className="w-4 h-4" />
+                            </Button>
+                        </Flex>
                         <a
                             className="filter-button"
                             href={getMapsUrl(`${office.city}, ${office.address}`)}
@@ -1334,24 +1423,40 @@ function AboutCompanyPage({ onBack }: { onBack: () => void }) {
             </div>
 
             <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                <a
-                    className="filter-button"
-                    href={`mailto:${HAULZ_EMAIL}`}
-                    style={{
-                        width: "100%",
-                        justifyContent: "flex-start",
-                        gap: "0.5rem",
-                        padding: "0.5rem 0.75rem",
-                        backgroundColor: "transparent",
-                        textDecoration: "none",
-                    }}
-                    title="Написать письмо"
-                >
-                    <Mail className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
-                        {HAULZ_EMAIL}
-                    </Typography.Body>
-                </a>
+                <Flex align="center" justify="space-between" style={{ gap: '0.5rem' }}>
+                    <a
+                        className="filter-button"
+                        href={`mailto:${HAULZ_EMAIL}`}
+                        style={{
+                            width: "100%",
+                            justifyContent: "flex-start",
+                            gap: "0.5rem",
+                            padding: "0.5rem 0.75rem",
+                            backgroundColor: "transparent",
+                            textDecoration: "none",
+                            marginRight: "0.5rem",
+                        }}
+                        title="Написать письмо"
+                    >
+                        <Mail className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                        <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                            {HAULZ_EMAIL}
+                        </Typography.Body>
+                    </a>
+                    <Button
+                        className="filter-button"
+                        type="button"
+                        title="Поделиться"
+                        aria-label="Поделиться"
+                        style={{ padding: '0.25rem 0.5rem', minWidth: 'auto', flexShrink: 0 }}
+                        onClick={() => {
+                            const text = `HAULZ\nEmail: ${HAULZ_EMAIL}\nТел.: ${HAULZ_OFFICES.map(o => `${o.city}: ${o.phone}`).join(" | ")}`;
+                            shareText("HAULZ — контакты", text);
+                        }}
+                    >
+                        <Share2 className="w-4 h-4" />
+                    </Button>
+                </Flex>
             </Panel>
         </div>
     );
@@ -2125,7 +2230,7 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
         setLoading(true); setError(null);
         try {
             const res = await fetch(PROXY_API_BASE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, dateFrom, dateTo }) });
-            if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+            await ensureOk(res, "Ошибка загрузки данных");
             const data = await res.json();
             const list = Array.isArray(data) ? data : data.items || [];
             
@@ -2583,11 +2688,29 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     number: item.Number,
                 }),
             });
-            if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+            if (!res.ok) {
+                // Человеческие сообщения вместо "Ошибка 404/500"
+                let message =
+                    res.status === 404
+                        ? "Документ не обнаружен"
+                        : res.status >= 500
+                            ? "Ошибка сервера. Попробуйте позже"
+                            : "Не удалось получить документ";
+                try {
+                    const errData = await res.json();
+                    if (errData?.message && res.status !== 404 && res.status < 500) {
+                        message = String(errData.message);
+                    }
+                } catch {
+                    // ignore parsing errors
+                }
+                throw new Error(message);
+            }
+
             const data = await res.json();
 
             if (!data?.data || !data.name) {
-                throw new Error("Ответ от сервера не содержит файл.");
+                throw new Error("Документ не обнаружен");
             }
 
             // Декодируем base64 в бинарный файл
@@ -2683,10 +2806,8 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     // Базовые документы (всегда доступны)
                     const baseDocs = ['ЭР', 'АПП'];
                     
-                    // Документы в зависимости от статуса оплаты
-                    const availableDocs = isPaid 
-                        ? [...baseDocs, 'СЧЕТ', 'УПД'] // Если оплачен - показываем все
-                        : [...baseDocs, 'СЧЕТ']; // Если не оплачен - скрываем УПД
+                    // Документы (как было ранее): УПД доступен кнопкой в разделе выгрузки документов
+                    const availableDocs = [...baseDocs, 'СЧЕТ', 'УПД'];
                     
                     return (
                         <>
@@ -2710,28 +2831,6 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                                     );
                                 })}
                 </div>
-                            
-                            {/* Кнопка "Оплатить" если счет не оплачен */}
-                            {!isPaid && (
-                                <div style={{ marginTop: '0.75rem' }}>
-                                    <Button 
-                                        className="button-primary" 
-                                        style={{ width: '100%' }}
-                                        onClick={() => {
-                                            const webApp = getWebApp();
-                                            if (webApp && typeof webApp.openLink === 'function') {
-                                                // Открываем страницу оплаты (нужно будет добавить URL)
-                                                webApp.openLink(`https://lk.haulz.pro/payment?number=${item.Number}`);
-                                            } else {
-                                                window.open(`https://lk.haulz.pro/payment?number=${item.Number}`, '_blank');
-                                            }
-                                        }}
-                                    >
-                                        <CreditCard className="w-4 h-4 mr-2" />
-                                        Оплатить
-                                </Button>
-                        </div>
-                            )}
                         </>
                     );
                 })()}
