@@ -80,9 +80,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const text = await upstream.text();
 
     if (!upstream.ok) {
-      await markAuthFailure(rl);
       // Нормализуем ошибки, чтобы не светить "Upstream error: <code>"
       if (upstream.status === 401 || upstream.status === 403) {
+        await markAuthFailure(rl);
         return res.status(401).json({ error: "Неверный логин или пароль." });
       }
       if (upstream.status === 404) {
@@ -107,7 +107,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   } catch (e: any) {
     console.error("Proxy error:", e);
-    await markAuthFailure(rl);
     return res
       .status(500)
       .json({ error: "Proxy error", details: e?.message || String(e) });

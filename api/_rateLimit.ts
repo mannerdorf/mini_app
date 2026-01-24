@@ -71,7 +71,7 @@ export function createRateLimitContext(args: {
 function tooMany(res: VercelResponse, retryAfterSec: number) {
   res.setHeader("Retry-After", String(retryAfterSec));
   return res.status(429).json({
-    error: "Too many attempts. Please try again later.",
+    error: "Слишком много попыток. Попробуйте позже.",
     retryAfterSec,
   });
 }

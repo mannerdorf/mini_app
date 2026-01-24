@@ -934,6 +934,17 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
                 <Panel className="cargo-card" style={{ marginBottom: '1rem' }}>
                     <Typography.Headline style={{ marginBottom: '1rem', fontSize: '1rem' }}>{title}</Typography.Headline>
                     <Typography.Body className="text-theme-secondary">Нет данных для отображения</Typography.Body>
+                    <Flex style={{ gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                        <Button className="filter-button" type="button" onClick={() => setDateFilter("месяц")} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}>
+                            За месяц
+                        </Button>
+                        <Button className="filter-button" type="button" onClick={() => setDateFilter("все")} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}>
+                            За всё время
+                        </Button>
+                        <Button className="filter-button" type="button" onClick={() => setStatusFilter("all")} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}>
+                            Сбросить фильтр статуса
+                        </Button>
+                    </Flex>
                 </Panel>
             );
         }
@@ -2506,6 +2517,20 @@ function CargoPage({ auth, searchText }: { auth: AuthData, searchText: string })
                     <Flex direction="column" align="center">
                         <Package className="w-12 h-12 mx-auto mb-4 text-theme-secondary opacity-50" />
                         <Typography.Body className="text-theme-secondary">Ничего не найдено</Typography.Body>
+                        <Typography.Body className="text-theme-secondary" style={{ fontSize: '0.85rem', marginTop: '0.25rem', textAlign: 'center' }}>
+                            Попробуйте изменить период или сбросить фильтры
+                        </Typography.Body>
+                        <Flex style={{ gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                            <Button className="filter-button" type="button" onClick={() => setDateFilter("месяц")} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}>
+                                За месяц
+                            </Button>
+                            <Button className="filter-button" type="button" onClick={() => setDateFilter("все")} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}>
+                                За всё время
+                            </Button>
+                            <Button className="filter-button" type="button" onClick={() => setStatusFilter("all")} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}>
+                                Все статусы
+                            </Button>
+                        </Flex>
                     </Flex>
                 </Panel>
             )}
@@ -3226,16 +3251,7 @@ export default function App() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ login, password, dateFrom, dateTo }),
             });
-
-            if (!res.ok) {
-                let message = `Ошибка авторизации`;
-                try {
-                    const errorData = await res.json() as ApiError;
-                    if (errorData.error) message = errorData.error;
-                } catch { }
-                setError(message);
-                return;
-            }
+            await ensureOk(res, "Ошибка авторизации");
             // Проверяем, не существует ли уже такой аккаунт
             const existingAccount = accounts.find(acc => acc.login === login);
             let accountId: string;
@@ -3255,7 +3271,7 @@ export default function App() {
             // при первом входе остаемся на "Грузы" или восстановленной вкладке
             setActiveTab((prev) => prev || "cargo");
         } catch (err: any) {
-            setError("Ошибка сети.");
+            setError(err?.message || "Ошибка сети.");
         } finally {
             setLoading(false);
         }

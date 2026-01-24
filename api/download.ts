@@ -123,8 +123,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Если 1С вернула ошибку — просто пробрасываем как есть
       if (statusCode < 200 || statusCode >= 300) {
-        // Count as auth failure / brute-force signal
-        markAuthFailure(rl).catch(() => {});
+        // Считаем это попыткой перебора ТОЛЬКО для 401/403
+        if (statusCode === 401 || statusCode === 403) {
+          markAuthFailure(rl).catch(() => {});
+        }
         res.status(statusCode);
         // может быть текст/JSON — просто прокидываем
         upstreamRes.pipe(res);
@@ -224,7 +226,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Если есть ошибка
           if (jsonResponse.Error && jsonResponse.Error !== "") {
             console.error("❌ Server error:", jsonResponse.Error);
-            markAuthFailure(rl).catch(() => {});
+            // Баним только если похоже на неверную авторизацию
+            const errText = String(jsonResponse.Error).toLowerCase();
+            if (errText.includes("парол") || errText.includes("логин") || errText.includes("auth")) {
+              markAuthFailure(rl).catch(() => {});
+            }
             return res.status(400).json({
               error: "Server returned error",
               message: jsonResponse.Error,
@@ -256,7 +262,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           
           // Success:true но нет data — файл не найден
           console.error("❌ No file data in response. Keys:", Object.keys(jsonResponse));
-          markAuthFailure(rl).catch(() => {});
+          // Файл не найден — не причина для бана
           return res.status(404).json({
             error: "File not found",
             message: `Документ ${metod} для перевозки ${number} не найден`,
@@ -265,7 +271,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (e) {
           // Не JSON и не PDF — возвращаем ошибку
           console.error("❌ Response is neither PDF nor valid JSON!", e);
-          markAuthFailure(rl).catch(() => {});
+          // Форматная ошибка — не причина для бана
           return res.status(500).json({
             error: "Invalid response format",
             message: "Server returned neither PDF nor valid JSON",
@@ -276,7 +282,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       upstreamRes.on("error", (err) => {
         console.error("🔥 Upstream stream error:", err.message);
-        markAuthFailure(rl).catch(() => {});
         if (!res.headersSent) {
           res
             .status(500)
@@ -289,7 +294,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     upstreamReq.on("error", (err) => {
       console.error("🔥 Proxy request error:", err.message);
-      markAuthFailure(rl).catch(() => {});
       if (!res.headersSent) {
         res
           .status(500)
