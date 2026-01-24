@@ -2977,80 +2977,7 @@ const TabBtn = ({ label, icon, active, onClick, onMouseDown, onMouseUp, onMouseL
 );
 
 function ChatPage({ prefillMessage, onClearPrefill }: { prefillMessage?: string; onClearPrefill?: () => void }) {
-    const inlineHostRef = React.useRef<HTMLDivElement | null>(null);
-
-    useEffect(() => {
-        if (typeof window === "undefined" || typeof document === "undefined") return;
-
-        // Prevent duplicate injections
-        const existing = document.querySelector('script[data-bitrix24-widget="haulz-chat"]');
-        if (!existing) {
-            const u = "https://cdn-ru.bitrix24.ru/b33102400/crm/site_button/loader_1_q2c97k.js";
-            const s = document.createElement("script");
-            s.async = true;
-            s.src = `${u}?${(Date.now() / 60000) | 0}`;
-            s.setAttribute("data-bitrix24-widget", "haulz-chat");
-
-            const h = document.getElementsByTagName("script")[0];
-            if (h?.parentNode) h.parentNode.insertBefore(s, h);
-            else document.head.appendChild(s);
-        }
-
-        // Try to mount Bitrix widget inline into our container (best-effort).
-        // Bitrix обычно создаёт фиксированный блок/iframe; мы перетаскиваем его внутрь.
-        const host = inlineHostRef.current;
-        if (!host) return;
-
-        const markInline = (el: HTMLElement) => {
-            el.classList.add("haulz-bitrix-inline-wrapper");
-            document.documentElement.classList.add("haulz-bitrix-inline-mode");
-        };
-
-        const tryMount = (): boolean => {
-            const iframes = Array.from(document.querySelectorAll("iframe")) as HTMLIFrameElement[];
-            const candidates = iframes.filter((f) => {
-                const src = (f.getAttribute("src") || "").toLowerCase();
-                const id = (f.id || "").toLowerCase();
-                return (
-                    src.includes("bitrix24") ||
-                    src.includes("site_button") ||
-                    id.includes("bx24") ||
-                    id.includes("b24")
-                );
-            });
-            const frame = candidates[0];
-            if (!frame) return false;
-
-            const wrapper = frame.closest("div") as HTMLElement | null;
-            const nodeToMove = wrapper || frame;
-            if (nodeToMove instanceof HTMLElement) {
-                // Avoid moving if already inside host
-                if (host.contains(nodeToMove)) return true;
-                host.innerHTML = "";
-                host.appendChild(nodeToMove);
-                markInline(nodeToMove);
-                return true;
-            }
-            return false;
-        };
-
-        // First quick attempt, then observe DOM until widget appears
-        let mounted = tryMount();
-        const observer = new MutationObserver(() => {
-            if (mounted) return;
-            mounted = tryMount();
-            if (mounted) observer.disconnect();
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
-
-        const fallbackTimer = window.setTimeout(() => observer.disconnect(), 8000);
-        return () => {
-            observer.disconnect();
-            window.clearTimeout(fallbackTimer);
-            // keep script loaded; just remove "inline mode" marker so floating widget can behave normally elsewhere
-            document.documentElement.classList.remove("haulz-bitrix-inline-mode");
-        };
-    }, []);
+    const BITRIX_PUBLIC_CHAT_URL = "https://haulz.bitrix24.ru/online/open";
 
     const shareOrCopy = async () => {
         const text = prefillMessage?.trim();
@@ -3084,10 +3011,34 @@ function ChatPage({ prefillMessage, onClearPrefill }: { prefillMessage?: string;
             </Panel>
 
             <Panel className="cargo-card" style={{ padding: '1rem', marginTop: '0.75rem' }}>
-                <div
-                    ref={inlineHostRef}
-                    className="haulz-chat-inline-host"
+                <iframe
+                    className="bitrix-chat-iframe"
+                    src={BITRIX_PUBLIC_CHAT_URL}
+                    title="HAULZ — Поддержка"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    allow="clipboard-write; fullscreen"
                 />
+                <Flex style={{ marginTop: '0.75rem', justifyContent: 'center' }}>
+                    <Typography.Body
+                        style={{
+                            color: 'var(--color-primary-blue)',
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            fontSize: '0.9rem'
+                        }}
+                        onClick={() => {
+                            const webApp = getWebApp();
+                            if (webApp && typeof (webApp as any).openLink === 'function') {
+                                (webApp as any).openLink(BITRIX_PUBLIC_CHAT_URL);
+                            } else {
+                                window.open(BITRIX_PUBLIC_CHAT_URL, '_blank', 'noopener,noreferrer');
+                            }
+                        }}
+                    >
+                        Открыть чат в отдельном окне
+                    </Typography.Body>
+                </Flex>
             </Panel>
 
             {prefillMessage && (
