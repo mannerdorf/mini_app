@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { kv } from "@vercel/kv";
-import { createHash } from "crypto";
 
 type RateLimitContext = {
   namespace: string;
@@ -23,8 +22,15 @@ const DEFAULTS = {
   failWindowSec: 15 * 60, // failures counter TTL
 };
 
+// Edge-safe small hash (no Node "crypto" dependency): FNV-1a 32-bit
 function shortHash(value: string): string {
-  return createHash("sha256").update(value).digest("hex").slice(0, 16);
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    // hash *= 16777619 (with 32-bit overflow)
+    hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
 }
 
 export function getClientIp(req: VercelRequest): string {
