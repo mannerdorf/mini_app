@@ -1,11 +1,4 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import {
-  createRateLimitContext,
-  enforceRateLimit,
-  getClientIp,
-  markAuthFailure,
-  markAuthSuccess,
-} from "./_rateLimit";
 
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
@@ -40,20 +33,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "login and password are required" });
   }
 
-  // --- Rate limit / brute force protection (Vercel KV) ---
-  const rl = createRateLimitContext({
-    namespace: "perevozki",
-    ip: getClientIp(req),
-    login,
-    // tighter for auth:
-    limit: 8,
-    windowSec: 60,
-    banAfterFailures: 12,
-    banSec: 15 * 60,
-  });
-  const allowed = await enforceRateLimit(res, rl);
-  if (!allowed) return;
-
   // validate dates to reduce abuse/noise
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
@@ -82,7 +61,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!upstream.ok) {
       // Нормализуем ошибки, чтобы не светить "Upstream error: <code>"
       if (upstream.status === 401 || upstream.status === 403) {
-        await markAuthFailure(rl);
         return res.status(401).json({ error: "Неверный логин или пароль." });
       }
       if (upstream.status === 404) {
@@ -97,7 +75,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    await markAuthSuccess(rl);
     // если это JSON — вернём JSON, если нет — просто текст
     try {
       const json = JSON.parse(text);

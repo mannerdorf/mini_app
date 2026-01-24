@@ -1,13 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import https from "https";
 import { URL } from "url";
-import {
-  createRateLimitContext,
-  enforceRateLimit,
-  getClientIp,
-  markAuthFailure,
-  markAuthSuccess,
-} from "./_rateLimit";
 
 const EXTERNAL_API_BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
@@ -53,20 +46,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: "Required fields: login, password, metod, number",
       });
     }
-
-    // --- Rate limit / brute force protection (Vercel KV) ---
-    const rl = createRateLimitContext({
-      namespace: "download",
-      ip: getClientIp(req),
-      login,
-      // downloads can be heavy; slightly stricter
-      limit: 10,
-      windowSec: 60,
-      banAfterFailures: 15,
-      banSec: 15 * 60,
-    });
-    const allowed = await enforceRateLimit(res, rl);
-    if (!allowed) return;
 
     // basic validation to reduce abuse
     if (!/^[\p{L}\d _.-]{1,24}$/u.test(metod)) {
@@ -123,10 +102,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Если 1С вернула ошибку — просто пробрасываем как есть
       if (statusCode < 200 || statusCode >= 300) {
-        // Считаем это попыткой перебора ТОЛЬКО для 401/403
-        if (statusCode === 401 || statusCode === 403) {
-          markAuthFailure(rl).catch(() => {});
-        }
         res.status(statusCode);
         // может быть текст/JSON — просто прокидываем
         upstreamRes.pipe(res);
@@ -206,7 +181,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         // Если это бинарный PDF — отдаём напрямую
         if (isPDF) {
-          markAuthSuccess(rl).catch(() => {});
           console.log("✅ Got binary PDF, returning directly");
           res.status(200);
           res.setHeader("Content-Type", "application/pdf");
@@ -226,11 +200,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Если есть ошибка
           if (jsonResponse.Error && jsonResponse.Error !== "") {
             console.error("❌ Server error:", jsonResponse.Error);
-            // Баним только если похоже на неверную авторизацию
-            const errText = String(jsonResponse.Error).toLowerCase();
-            if (errText.includes("парол") || errText.includes("логин") || errText.includes("auth")) {
-              markAuthFailure(rl).catch(() => {});
-            }
             return res.status(400).json({
               error: "Server returned error",
               message: jsonResponse.Error,
@@ -239,7 +208,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           
           // Если есть data (base64) — декодируем и отдаём как PDF
           if (jsonResponse.data) {
-            markAuthSuccess(rl).catch(() => {});
             console.log("✅ Got base64 data, decoding to PDF. Size:", jsonResponse.data.length);
             const pdfBuffer = Buffer.from(jsonResponse.data, "base64");
             const fileName = jsonResponse.name || `${metod}_${number}.pdf`;
