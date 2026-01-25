@@ -11,7 +11,10 @@ async function getRedisValue(key: string): Promise<string | null> {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-  if (!url || !token) return null;
+  if (!url || !token) {
+    console.warn("Upstash Redis not configured in doc handler");
+    return null;
+  }
 
   try {
     // Upstash REST API формат: POST с командой в body
@@ -31,7 +34,13 @@ async function getRedisValue(key: string): Promise<string | null> {
     }
     
     const data = await response.json();
-    return data[0]?.result || null;
+    // Upstash pipeline возвращает массив результатов
+    // Формат: [{result: "value"}] или [{result: "value", error: null}]
+    const firstResult = Array.isArray(data) ? data[0] : data;
+    const value = firstResult?.result;
+    
+    // Если result null или undefined, значит ключ не найден
+    return value || null;
   } catch (error) {
     console.error("Redis get error:", error);
     return null;
@@ -62,7 +71,12 @@ async function deleteRedis(key: string) {
     }
     
     const data = await response.json();
-    return data[0]?.result === 1;
+    // Upstash pipeline возвращает массив результатов
+    // Формат: [{result: 1}] (1 = удалено, 0 = не найдено)
+    const firstResult = Array.isArray(data) ? data[0] : data;
+    const deleted = firstResult?.result === 1 || firstResult?.result === true;
+    
+    return deleted;
   } catch (error) {
     console.error("Redis delete error:", error);
     return false;

@@ -2566,16 +2566,55 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                             if (!item.Number) return;
 
                                             const baseOrigin = typeof window !== "undefined" ? window.location.origin : "";
-                                            const buildLink = (docLabel: "ЭР" | "СЧЕТ" | "УПД" | "АПП") => {
-                                                const metod = DOCUMENT_METHODS[docLabel];
+                                            
+                                            // Создаем длинные ссылки для каждого документа
+                                            const longUrls: Record<string, string> = {};
+                                            const docTypes: Array<{ label: "ЭР" | "СЧЕТ" | "УПД" | "АПП"; metod: string }> = [
+                                                { label: "ЭР", metod: DOCUMENT_METHODS["ЭР"] },
+                                                { label: "СЧЕТ", metod: DOCUMENT_METHODS["СЧЕТ"] },
+                                                { label: "УПД", metod: DOCUMENT_METHODS["УПД"] },
+                                                { label: "АПП", metod: DOCUMENT_METHODS["АПП"] },
+                                            ];
+                                            
+                                            for (const { label, metod } of docTypes) {
                                                 const params = new URLSearchParams({
                                                     login: auth.login,
                                                     password: auth.password,
                                                     metod,
                                                     number: item.Number!,
                                                 });
-                                                return `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
-                                            };
+                                                longUrls[label] = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
+                                            }
+                                            
+                                            // Создаем короткие ссылки через /api/shorten-doc (параллельно)
+                                            const shortUrls: Record<string, string> = {};
+                                            const shortenPromises = docTypes.map(async ({ label, metod }) => {
+                                                try {
+                                                    const res = await fetch('/api/shorten-doc', {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({
+                                                            login: auth.login,
+                                                            password: auth.password,
+                                                            metod,
+                                                            number: item.Number!,
+                                                        }),
+                                                    });
+                                                    
+                                                    if (res.ok) {
+                                                        const data = await res.json();
+                                                        shortUrls[label] = data.shortUrl || longUrls[label];
+                                                    } else {
+                                                        shortUrls[label] = longUrls[label]; // Fallback на длинную ссылку
+                                                    }
+                                                } catch (error) {
+                                                    console.error(`Failed to shorten ${label}:`, error);
+                                                    shortUrls[label] = longUrls[label]; // Fallback на длинную ссылку
+                                                }
+                                            });
+                                            
+                                            // Ждем завершения всех запросов
+                                            await Promise.all(shortenPromises);
 
                                             const lines: string[] = [];
                                             lines.push(`Перевозка: ${item.Number}`);
@@ -2601,10 +2640,10 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
 
                                             lines.push("");
                                             lines.push("Документы:");
-                                            lines.push(`ЭР: ${buildLink("ЭР")}`);
-                                            lines.push(`Счет: ${buildLink("СЧЕТ")}`);
-                                            lines.push(`УПД: ${buildLink("УПД")}`);
-                                            lines.push(`АПП: ${buildLink("АПП")}`);
+                                            lines.push(`ЭР: ${shortUrls["ЭР"] || longUrls["ЭР"]}`);
+                                            lines.push(`Счет: ${shortUrls["СЧЕТ"] || longUrls["СЧЕТ"]}`);
+                                            lines.push(`УПД: ${shortUrls["УПД"] || longUrls["УПД"]}`);
+                                            lines.push(`АПП: ${shortUrls["АПП"] || longUrls["АПП"]}`);
 
                                             const text = lines.join("\n");
 

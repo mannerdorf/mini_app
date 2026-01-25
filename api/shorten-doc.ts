@@ -34,7 +34,16 @@ async function setRedis(key: string, value: string, ttl: number) {
     }
     
     const data = await response.json();
-    return data[0]?.result === "OK";
+    // Upstash pipeline возвращает массив результатов
+    // Формат: [{result: "OK"}, {result: 1}] или [{result: "OK", error: null}, ...]
+    const firstResult = Array.isArray(data) ? data[0] : data;
+    const setResult = firstResult?.result === "OK" || firstResult?.result === true;
+    
+    if (!setResult) {
+      console.error("Redis SET failed for doc token:", JSON.stringify(data));
+    }
+    
+    return setResult;
   } catch (error) {
     console.error("Redis set error:", error);
     return false;

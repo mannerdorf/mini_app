@@ -22,11 +22,17 @@ export async function maxSendMessage(args: {
   format?: "markdown" | "html";
   attachments?: MaxInlineKeyboardAttachment[];
 }) {
+  // MAX API может требовать "Bearer " префикс или просто токен
+  // Проверяем, есть ли уже префикс
+  const authHeader = args.token.startsWith("Bearer ") 
+    ? args.token 
+    : `Bearer ${args.token}`;
+
   const res = await fetch(`${MAX_API_BASE}/messages`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: args.token,
+      Authorization: authHeader,
     },
     body: JSON.stringify({
       chat_id: args.chatId,
@@ -38,10 +44,13 @@ export async function maxSendMessage(args: {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    console.error(`MAX sendMessage failed: ${res.status} ${text}`);
     throw new Error(`MAX sendMessage failed: ${res.status} ${text}`);
   }
 
-  return await res.json().catch(() => ({}));
+  const result = await res.json().catch(() => ({}));
+  console.log("MAX sendMessage success:", JSON.stringify(result));
+  return result;
 }
 
 export function getMaxWebhookSecret(req: VercelRequest): string | null {

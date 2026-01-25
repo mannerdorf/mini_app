@@ -52,18 +52,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     update?.startapp ??
     "";
 
+  console.log("MAX webhook received:", JSON.stringify({ chatId, rawText, update }));
+
   const cargoNumber = extractCargoNumberFromPayload(rawText);
 
   // Если есть номер перевозки — отправляем сообщение с кнопками документов
   if (cargoNumber) {
+    console.log("Cargo number extracted:", cargoNumber);
+    
     // Получаем домен из env или используем дефолтный
     const appDomain = process.env.VERCEL_URL 
       ? `https://${process.env.VERCEL_URL}` 
       : process.env.NEXT_PUBLIC_APP_URL || "https://<твой-домен>";
     
-    // Формируем короткие ссылки для документов
-    // Используем формат: /api/doc-short?metod=...&number=...
-    // Эти ссылки будут открывать мини-апп с параметрами для скачивания
+    // Используем /api/doc-short для редиректа на мини-апп
+    // Мини-апп сам создаст короткие ссылки через /api/shorten-doc при необходимости
     const docUrl = (metod: string) => 
       `${appDomain}/api/doc-short?metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(cargoNumber)}`;
     
@@ -99,19 +102,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     }];
 
-    await maxSendMessage({
-      token: MAX_BOT_TOKEN,
-      chatId,
-      text: `Добрый день!\n\nВижу, что у вас вопрос по перевозке ${cargoNumber}.\n\nВы можете скачать документы:`,
-      attachments,
-    });
+    try {
+      await maxSendMessage({
+        token: MAX_BOT_TOKEN,
+        chatId,
+        text: `Добрый день!\n\nВижу, что у вас вопрос по перевозке ${cargoNumber}.\n\nВы можете скачать документы:`,
+        attachments,
+      });
+      console.log("Message sent successfully to chat:", chatId);
+    } catch (error: any) {
+      console.error("Failed to send message:", error);
+      // Не возвращаем ошибку, чтобы webhook не считался провалившимся
+    }
   } else {
     // Обычное приветствие без кнопок
-    await maxSendMessage({
-      token: MAX_BOT_TOKEN,
-      chatId,
-      text: `Добрый день!\n\nНапишите, пожалуйста, ваш вопрос — мы поможем.`,
-    });
+    try {
+      await maxSendMessage({
+        token: MAX_BOT_TOKEN,
+        chatId,
+        text: `Добрый день!\n\nНапишите, пожалуйста, ваш вопрос — мы поможем.`,
+      });
+      console.log("Welcome message sent successfully to chat:", chatId);
+    } catch (error: any) {
+      console.error("Failed to send welcome message:", error);
+    }
   }
 
   return res.status(200).json({ ok: true });
