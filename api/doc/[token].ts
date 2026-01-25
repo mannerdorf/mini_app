@@ -147,82 +147,113 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log(`[doc/[token]] Processing document: ${docData.metod} for ${docData.number}`);
 
-  // Формируем URL для скачивания документа
-  const { login, password, metod, number } = docData;
-  const fullUrl = new URL(EXTERNAL_API_BASE_URL);
-  fullUrl.searchParams.set("metod", metod);
-  fullUrl.searchParams.set("Number", number);
+    // Формируем URL для скачивания документа ровно как в api/download.ts
+    const { login, password, metod, number } = docData;
+    const fullUrl = new URL(EXTERNAL_API_BASE_URL);
+    fullUrl.searchParams.set("metod", metod);
+    fullUrl.searchParams.set("Number", number);
 
-  // Проксируем запрос к внешнему API и возвращаем PDF
-  return new Promise<void>((resolve) => {
-    const options: https.RequestOptions = {
-      protocol: fullUrl.protocol,
-      hostname: fullUrl.hostname,
-      port: fullUrl.port || 443,
-      path: fullUrl.pathname + fullUrl.search,
-      method: "GET",
-      headers: {
-        Auth: `Basic ${login}:${password}`,
-        Authorization: SERVICE_AUTH,
-        Accept: "*/*",
-        "Accept-Encoding": "identity",
-        "User-Agent": "curl/7.88.1",
-        Host: fullUrl.host,
-      },
-    };
+    console.log(`[doc/[token]] ➡️ Upstream request for ${metod} ${number}`);
 
-    const upstreamReq = https.request(options, (upstreamRes) => {
-      const statusCode = upstreamRes.statusCode || 500;
-      const contentType = upstreamRes.headers["content-type"] || "application/octet-stream";
+    // Проксируем запрос к внешнему API и возвращаем PDF
+    return new Promise<void>((resolve) => {
+      const options: https.RequestOptions = {
+        protocol: fullUrl.protocol,
+        hostname: fullUrl.hostname,
+        port: fullUrl.port || 443,
+        path: fullUrl.pathname + fullUrl.search,
+        method: "GET",
+        headers: {
+          Auth: `Basic ${login}:${password}`,
+          Authorization: SERVICE_AUTH,
+          Accept: "*/*",
+          "Accept-Encoding": "identity",
+          "User-Agent": "curl/7.88.1",
+          Host: fullUrl.host,
+        },
+      };
 
-      if (statusCode < 200 || statusCode >= 300) {
-        res.status(statusCode);
-        upstreamRes.pipe(res);
-        resolve();
-        return;
-      }
+      const upstreamReq = https.request(options, (upstreamRes) => {
+        const statusCode = upstreamRes.statusCode || 500;
+        const contentType = upstreamRes.headers["content-type"] || "application/octet-stream";
 
-      // Буферизуем ответ
-      const chunks: Buffer[] = [];
-      upstreamRes.on("data", (chunk: Buffer) => chunks.push(chunk));
-      upstreamRes.on("end", () => {
-        const fullBuffer = Buffer.concat(chunks);
-        const firstBytes = fullBuffer.slice(0, 4).toString();
-        const isPDF = firstBytes.startsWith("%PDF");
+        console.log(`[doc/[token]] ⬅️ Upstream status: ${statusCode}, type: ${contentType}`);
 
-        if (isPDF) {
-          // Отдаем PDF напрямую
-          res.status(200);
-          res.setHeader("Content-Type", "application/pdf");
-          res.setHeader(
-            "Content-Disposition",
-            `inline; filename="${metod}_${number}.pdf"`
-          );
-          res.setHeader("Content-Length", fullBuffer.length.toString());
-          res.end(fullBuffer);
-        } else {
-          // Пробуем распарсить как JSON
-          try {
-            const json = JSON.parse(fullBuffer.toString("utf-8"));
-            if (json.data) {
-              const pdfBuffer = Buffer.from(json.data, "base64");
-              res.status(200);
-              res.setHeader("Content-Type", "application/pdf");
-              res.setHeader(
-                "Content-Disposition",
-                `inline; filename="${metod}_${number}.pdf"`
-              );
-              res.setHeader("Content-Length", pdfBuffer.length.toString());
-              res.end(pdfBuffer);
-            } else {
-              res.status(404).json({ error: "Документ не обнаружен" });
-            }
-          } catch {
-            res.status(500).json({ error: "Ошибка сервера. Попробуйте позже." });
-          }
+        if (statusCode < 200 || statusCode >= 300) {
+          console.error(`[doc/[token]] Upstream error status: ${statusCode}`);
+          res.status(statusCode);
+          upstreamRes.pipe(res);
+          resolve();
+          return;
         }
-        resolve();
-      });
+
+        // Буферизуем ответ
+        const chunks: Buffer[] = [];
+        upstreamRes.on("data", (chunk: Buffer) => chunks.push(chunk));
+        upstreamRes.on("end", () => {
+          const fullBuffer = Buffer.concat(chunks);
+          const firstBytes = fullBuffer.slice(0, 4).toString();
+          const isPDF = firstBytes.startsWith("%PDF");
+
+          console.log(`[doc/[token]] 📦 Received ${fullBuffer.length} bytes, isPDF: ${isPDF}`);
+
+          if (isPDF) {
+            // Извлекаем имя файла (как в api/download.ts)
+            const extractFileName = (dispositionHeader: string | string[] | undefined, fallback: string): string => {
+              if (!dispositionHeader) return fallback;
+              const header = Array.isArray(dispositionHeader) ? dispositionHeader[0] : dispositionHeader;
+              const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+              if (utf8Match?.[1]) { try { return decodeURIComponent(utf8Match[1]); } catch {} }
+              const quotedMatch = header.match(/filename="([^"]+)"/i);
+              if (quotedMatch?.[1]) { try { return decodeURIComponent(quotedMatch[1]); } catch { return quotedMatch[1]; } }
+              const plainMatch = header.match(/filename=([^;]+)/i);
+              if (plainMatch?.[1]) { const fn = plainMatch[1].trim(); try { return decodeURIComponent(fn); } catch { return fn; } }
+              return fallback;
+            };
+
+            const fileName = extractFileName(upstreamRes.headers["content-disposition"], `${metod}_${number}.pdf`);
+            console.log(`[doc/[token]] ✅ Sending PDF: ${fileName}`);
+
+            res.status(200);
+            res.setHeader("Content-Type", "application/pdf");
+            res.setHeader(
+              "Content-Disposition",
+              `inline; filename="${encodeURIComponent(fileName)}"`
+            );
+            res.setHeader("Content-Length", fullBuffer.length.toString());
+            res.end(fullBuffer);
+          } else {
+            // Пробуем распарсить как JSON
+            const textResponse = fullBuffer.toString("utf-8");
+            console.log(`[doc/[token]] ⚠️ Not a PDF, first 100 chars: ${textResponse.substring(0, 100)}`);
+            try {
+              const json = JSON.parse(textResponse);
+              if (json.data) {
+                console.log(`[doc/[token]] ✅ Got base64 data in JSON, decoding...`);
+                const pdfBuffer = Buffer.from(json.data, "base64");
+                const fileName = json.name || `${metod}_${number}.pdf`;
+                res.status(200);
+                res.setHeader("Content-Type", "application/pdf");
+                res.setHeader(
+                  "Content-Disposition",
+                  `inline; filename="${encodeURIComponent(fileName)}"`
+                );
+                res.setHeader("Content-Length", pdfBuffer.length.toString());
+                res.end(pdfBuffer);
+              } else if (json.Error) {
+                console.error(`[doc/[token]] ❌ Upstream logic error: ${json.Error}`);
+                res.status(400).json({ error: json.Error });
+              } else {
+                console.error(`[doc/[token]] ❌ Unknown JSON format`);
+                res.status(404).json({ error: "Документ не обнаружен" });
+              }
+            } catch (e) {
+              console.error(`[doc/[token]] ❌ Failed to parse as JSON`);
+              res.status(500).json({ error: "Ошибка сервера. Попробуйте позже." });
+            }
+          }
+          resolve();
+        });
 
       upstreamRes.on("error", (err) => {
         console.error("Upstream error:", err);
