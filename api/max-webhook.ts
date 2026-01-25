@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getAiReply } from "../lib/ai-service";
+import { getAiReply } from "../lib/ai-service.js";
 import {
   extractCargoNumberFromPayload,
   getMaxWebhookSecret,
   maxSendMessage,
-} from "../lib/maxBot";
+} from "../lib/maxBot.js";
 
 const MAX_BOT_TOKEN = process.env.MAX_BOT_TOKEN;
 const MAX_WEBHOOK_SECRET = process.env.MAX_WEBHOOK_SECRET;

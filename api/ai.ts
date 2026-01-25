@@ -1,4 +1,4 @@
-import { getAiReply } from "../lib/ai-service";
+import { getAiReply } from "../lib/ai-service.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== "POST") {

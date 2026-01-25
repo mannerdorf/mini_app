@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getAiReply } from "../lib/ai-service";
+import { getAiReply } from "../lib/ai-service.js";
 
 const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
 
@@ -20,6 +20,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!chatId) {
     return res.status(200).json({ ok: true });
   }
+
+  // Контрольная проверка
+  console.log("TG Webhook hit for chatId:", chatId);
 
   try {
     if (userText) {
