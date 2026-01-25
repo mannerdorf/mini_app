@@ -4107,59 +4107,53 @@ export default function App() {
     };
 
     const buildMaxBotLink = (cargoNumber?: string) => {
-        // MAX: передаем параметр запуска, который бот получит и сам отправит сообщение/вопрос.
-        // Используем startapp (как описано в MAX) и короткий payload.
-        if (!cargoNumber) return MAX_SUPPORT_BOT_URL;
-        const safeNumber = String(cargoNumber).trim().slice(0, 64).replace(/[^0-9A-Za-zА-Яа-я._-]/g, "");
-        const payload = `haulz_perevozka_${safeNumber}`;
+        // MAX: передаем параметры в payload через startapp
+        // Формат: haulz_n_[номер]_c_[chatId]
+        const webApp = getWebApp();
+        const chatId = webApp?.initDataUnsafe?.chat?.id || webApp?.initDataUnsafe?.user?.id;
+        
+        let payload = "haulz_support";
+        if (cargoNumber) {
+            const safeNumber = String(cargoNumber).trim().replace(/[^0-9A-Za-zА-Яа-я._-]/g, "");
+            payload = `haulz_n_${safeNumber}`;
+            if (chatId) {
+                payload += `_c_${chatId}`;
+            }
+        } else if (chatId) {
+            payload = `haulz_c_${chatId}`;
+        }
+
         const url = new URL(MAX_SUPPORT_BOT_URL);
         url.searchParams.set("startapp", payload);
-        // На всякий случай добавляем и start (если у MAX/бота ожидается другой ключ)
-        url.searchParams.set("start", payload);
+        url.searchParams.set("start", payload); // Для совместимости
         return url.toString();
     };
 
     const openSupportChat = async (cargoNumber?: string) => {
-        // В MAX вместо виджета открываем бота поддержки или отправляем сообщение
+        // В MAX используем схему с диплинком (startapp), так как это самый надежный способ
         if (isMaxWebApp()) {
-            const webApp = getWebApp();
-            const chatId = webApp?.initDataUnsafe?.user?.id || webApp?.initDataUnsafe?.chat?.id;
+            const botLink = buildMaxBotLink(cargoNumber);
+            console.log("[openSupportChat] Redirecting to MAX bot with payload:", botLink);
             
-            console.log("[openSupportChat] MAX environment detected. chatId:", chatId);
-
+            // Сначала пробуем отправить сообщение через API (как бонус)
+            const webApp = getWebApp();
+            const chatId = webApp?.initDataUnsafe?.chat?.id || webApp?.initDataUnsafe?.user?.id;
+            
             if (chatId) {
-                try {
-                    const text = cargoNumber 
-                        ? `Тестовое сообщение из Mini App по перевозке: ${cargoNumber}`
-                        : "Тестовое сообщение из Mini App";
-                        
-                    const res = await fetch('/api/max-send-message', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ chatId, text })
-                    });
-                    
-                    if (res.ok) {
-                        if (webApp && typeof webApp.showAlert === "function") {
-                            webApp.showAlert("Тестовое сообщение отправлено в чат!");
-                        } else {
-                            alert("Тестовое сообщение отправлено в чат!");
-                        }
-                    } else {
-                        const errData = await res.json().catch(() => ({}));
-                        console.error("[openSupportChat] Failed to send message:", errData);
-                        // Если через API не вышло, пробуем старый метод с ссылкой
-                        openMaxBotLink(buildMaxBotLink(cargoNumber));
-                    }
-                } catch (e) {
-                    console.error("[openSupportChat] Exception sending message:", e);
-                    openMaxBotLink(buildMaxBotLink(cargoNumber));
-                }
-            } else {
-                // Если chatId не найден, используем старый метод с переходом по ссылке
-                console.warn("[openSupportChat] No chatId found, falling back to bot link");
-                openMaxBotLink(buildMaxBotLink(cargoNumber));
+                fetch('/api/max-send-message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        chatId, 
+                        text: cargoNumber 
+                            ? `Перехожу в бота по перевозке ${cargoNumber}...` 
+                            : "Перехожу в поддержку..." 
+                    })
+                }).catch(() => {}); // Игнорируем ошибки, так как основной метод - диплинк
             }
+
+            // Основной метод: переход по ссылке в бота
+            openMaxBotLink(botLink);
             return;
         }
 
