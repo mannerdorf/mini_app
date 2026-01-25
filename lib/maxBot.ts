@@ -54,7 +54,7 @@ export async function maxSendMessage(args: {
 }
 
 export function getMaxWebhookSecret(req: VercelRequest): string | null {
-  const header = req.headers["x-haulz-secret"];
+  const header = req.headers["x-max-bot-api-secret"] || req.headers["x-haulz-secret"];
   if (typeof header === "string" && header.trim()) return header.trim();
   return null;
 }
