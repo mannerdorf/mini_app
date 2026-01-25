@@ -5,45 +5,68 @@ import https from "https";
 const MAX_API_BASE = "platform-api.max.ru";
 
 async function maxSendMessage(token: string, chatId: number, text: string) {
-  const authHeader = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+  // Очищаем токен от возможных пробелов или кавычек, которые могли попасть при вставке в Vercel
+  const cleanToken = token.trim().replace(/^["']|["']$/g, "");
+  
+  // Выводим в консоль Vercel замаскированный токен для проверки
+  console.log(`[max-send-message] Using token: ${cleanToken.substring(0, 4)}...${cleanToken.substring(cleanToken.length - 4)}`);
+
+  const authHeader = cleanToken.startsWith("Bearer ") ? cleanToken : `Bearer ${cleanToken}`;
   
   const body = JSON.stringify({
     chat_id: chatId,
     text: text,
   });
 
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: MAX_API_BASE,
-      path: "/messages",
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": authHeader,
-        "Content-Length": Buffer.byteLength(body),
-      },
-    };
+  const send = (headerValue: string) => {
+    return new Promise((resolve, reject) => {
+      const options = {
+        hostname: MAX_API_BASE,
+        path: "/messages",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": headerValue,
+          "Content-Length": Buffer.byteLength(body),
+        },
+      };
 
-    const req = https.request(options, (res) => {
-      let responseBody = "";
-      res.on("data", (chunk) => { responseBody += chunk; });
-      res.on("end", () => {
-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-          try {
-            resolve(JSON.parse(responseBody));
-          } catch {
-            resolve({ ok: true, raw: responseBody });
+      const req = https.request(options, (res) => {
+        let responseBody = "";
+        res.on("data", (chunk) => { responseBody += chunk; });
+        res.on("end", () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            try {
+              resolve({ ok: true, data: JSON.parse(responseBody) });
+            } catch {
+              resolve({ ok: true, data: responseBody });
+            }
+          } else {
+            resolve({ ok: false, status: res.statusCode, data: responseBody });
           }
-        } else {
-          reject(new Error(`MAX API Error: ${res.statusCode} - ${responseBody}`));
-        }
+        });
       });
+      req.on("error", (e) => reject(e));
+      req.write(body);
+      req.end();
     });
+  };
 
-    req.on("error", (e) => reject(e));
-    req.write(body);
-    req.end();
-  });
+  // Попытка 1: С Bearer
+  console.log("[max-send-message] Attempt 1: with Bearer");
+  let result: any = await send(authHeader);
+  
+  // Попытка 2: Если 401, пробуем БЕЗ Bearer (просто токен)
+  if (!result.ok && result.status === 401) {
+    console.log("[max-send-message] Attempt 1 failed (401), trying Attempt 2: without Bearer");
+    result = await send(cleanToken.replace("Bearer ", ""));
+  }
+
+  if (!result.ok) {
+    throw new Error(`MAX API Error: ${result.status} - ${result.data}`);
+  }
+  
+  return result.data;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
