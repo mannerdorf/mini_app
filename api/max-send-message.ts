@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { maxSendMessage } from "./maxBot";
+import { maxSendMessage } from "../lib/maxBot";
 
 const MAX_BOT_TOKEN = process.env.MAX_BOT_TOKEN;
 

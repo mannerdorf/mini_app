@@ -3,7 +3,7 @@ import {
   extractCargoNumberFromPayload,
   getMaxWebhookSecret,
   maxSendMessage,
-} from "./maxBot";
+} from "../lib/maxBot";
 
 // MAX bot token must be stored in Vercel Environment Variables (server-side only)
 const MAX_BOT_TOKEN = process.env.MAX_BOT_TOKEN;

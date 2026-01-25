@@ -1490,13 +1490,21 @@ function TinyUrlTestPage({ onBack }: { onBack: () => void }) {
                         })
                     });
                     const resStatus = res.status;
-                    const resData = await res.json().catch(() => ({}));
+                    const resText = await res.text();
                     testLogs.push(`Response status: ${resStatus}`);
-                    if (resStatus !== 200) {
-                        testLogs.push(`Error Data: ${JSON.stringify(resData)}`);
+                    
+                    try {
+                        const resData = JSON.parse(resText);
+                        if (resStatus !== 200) {
+                            testLogs.push(`Error Data: ${JSON.stringify(resData)}`);
+                        } else {
+                            testLogs.push("✅ Message sent successfully!");
+                        }
+                    } catch (e) {
+                        testLogs.push(`Raw Response (not JSON): ${resText.substring(0, 200)}`);
                     }
                 } catch (e: any) {
-                    testLogs.push(`Error: ${e.message}`);
+                    testLogs.push(`Fetch Error: ${e.message}`);
                 }
             }
         }
