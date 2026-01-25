@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getAiReply } from "../lib/ai-service";
 import {
   extractCargoNumberFromPayload,
   getMaxWebhookSecret,
@@ -100,26 +101,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Обычное сообщение — через ИИ
     const userText = update?.message?.text || update?.text;
     if (userText) {
-      const appDomain = process.env.VERCEL_URL 
-        ? `https://${process.env.VERCEL_URL}` 
-        : "https://mini-app-lake-phi.vercel.app";
-
-      const aiRes = await fetch(`${appDomain}/api/ai`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: userText }] })
+      const reply = await getAiReply([{ role: 'user', content: userText }]);
+      await maxSendMessage({
+        token: MAX_BOT_TOKEN,
+        chatId,
+        text: reply || "Извините, сейчас я не могу ответить.",
       });
-
-      if (aiRes.ok) {
-        const aiData: any = await aiRes.json();
-        await maxSendMessage({
-          token: MAX_BOT_TOKEN,
-          chatId,
-          text: aiData.reply,
-        });
-      } else {
-        throw new Error("AI service error");
-      }
     } else {
       // Приветствие по умолчанию
       await maxSendMessage({

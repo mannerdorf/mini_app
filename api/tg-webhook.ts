@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
+import { getAiReply } from "../lib/ai-service";
+
 const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -101,23 +103,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 async function processAiReply(chatId: number, text: string) {
   try {
-    const appDomain = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app";
-    const aiRes = await fetch(`${appDomain}/api/ai`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        messages: [{ role: 'user', content: text }]
-      })
-    });
-
-    if (aiRes.ok) {
-      const aiData = await aiRes.json();
-      await sendTgMessage(chatId, aiData.reply);
-    } else {
-      await sendTgMessage(chatId, "Извините, я сейчас немного занят. Напишите позже! 🚛");
-    }
+    const reply = await getAiReply([{ role: 'user', content: text }]);
+    await sendTgMessage(chatId, reply || "Извините, сейчас я не могу ответить.");
   } catch (e) {
     console.error("TG AI error:", e);
+    await sendTgMessage(chatId, "Ошибка при связи с ИИ. 🚛");
   }
 }
 

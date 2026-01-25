@@ -10,10 +10,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const cleanToken = MAX_BOT_TOKEN.trim().replace(/^["']|["']$/g, "");
   
-  const appDomain = process.env.VERCEL_URL 
-    ? `https://${process.env.VERCEL_URL}` 
-    : "https://mini-app-lake-phi.vercel.app";
-  
+  // Используем ваш основной домен, чтобы хук не "отваливался" при новых деплоях
+  const appDomain = "https://mini-app-lake-phi.vercel.app";
   const webhookUrl = `${appDomain}/api/max-webhook`;
 
   const body = JSON.stringify({
