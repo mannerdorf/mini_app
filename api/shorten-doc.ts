@@ -34,13 +34,17 @@ async function setRedis(key: string, value: string, ttl: number) {
     }
     
     const data = await response.json();
+    console.log(`[shorten-doc] Redis SET response:`, JSON.stringify(data));
+    
     // Upstash pipeline возвращает массив результатов
     // Формат: [{result: "OK"}, {result: 1}] или [{result: "OK", error: null}, ...]
     const firstResult = Array.isArray(data) ? data[0] : data;
     const setResult = firstResult?.result === "OK" || firstResult?.result === true;
     
     if (!setResult) {
-      console.error("Redis SET failed for doc token:", JSON.stringify(data));
+      console.error(`[shorten-doc] Redis SET failed for key ${key}:`, JSON.stringify(data));
+    } else {
+      console.log(`[shorten-doc] Redis SET successful for key ${key}`);
     }
     
     return setResult;
@@ -93,12 +97,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Создаем уникальный токен
     const token = crypto.randomBytes(16).toString("hex");
+    const redisKey = `doc:${token}`;
+
+    console.log(`[shorten-doc] Creating token: ${token.substring(0, 8)}... for ${metod} ${number}`);
 
     // Сохраняем данные документа в Redis
     const docData = JSON.stringify({ login, password, metod, number });
-    const saved = await setRedis(`doc:${token}`, docData, TOKEN_MAX_AGE);
+    const saved = await setRedis(redisKey, docData, TOKEN_MAX_AGE);
     
     if (!saved) {
+      console.warn(`[shorten-doc] Failed to save to Redis, using fallback (not persistent)`);
       // Fallback: сохраняем в память (не персистентно)
       docTokenStore.set(token, {
         login,
@@ -107,6 +115,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         number,
         createdAt: Date.now(),
       });
+    } else {
+      console.log(`[shorten-doc] Successfully saved token to Redis: ${redisKey}`);
     }
 
     // Определяем базовый URL
