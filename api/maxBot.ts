@@ -35,7 +35,7 @@ export async function maxSendMessage(args: {
       Authorization: authHeader,
     },
     body: JSON.stringify({
-      chat_id: args.chatId,
+      chat_id: Number(args.chatId), // Принудительно в число
       text: args.text,
       format: args.format,
       attachments: args.attachments,
@@ -43,9 +43,9 @@ export async function maxSendMessage(args: {
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    console.error(`MAX sendMessage failed: ${res.status} ${text}`);
-    throw new Error(`MAX sendMessage failed: ${res.status} ${text}`);
+    const errorText = await res.text().catch(() => "no error text");
+    console.error(`MAX sendMessage failed: status=${res.status}, body=${errorText}`);
+    throw new Error(`MAX API Error: ${res.status} - ${errorText}`);
   }
 
   const result = await res.json().catch(() => ({}));
