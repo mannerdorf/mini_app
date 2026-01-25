@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import https from "https";
 import { URL } from "url";
 
+// Document download handler - uses only Redis (no in-memory fallback)
 const EXTERNAL_API_BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
