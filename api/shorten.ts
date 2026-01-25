@@ -26,13 +26,27 @@ async function setRedis(key: string, value: string, ttl: number) {
   if (!redis) return false;
 
   try {
-    const response = await fetch(`${redis.url}/set/${key}/${encodeURIComponent(value)}/ex/${ttl}`, {
+    // Upstash REST API формат: POST с командой в body
+    const response = await fetch(`${redis.url}/pipeline`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${redis.token}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify([
+        ["SET", key, value],
+        ["EXPIRE", key, ttl],
+      ]),
     });
-    return response.ok;
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("Redis set error:", response.status, text);
+      return false;
+    }
+    
+    const data = await response.json();
+    return data[0]?.result === "OK";
   } catch (error) {
     console.error("Redis set error:", error);
     return false;
@@ -44,15 +58,24 @@ async function getRedisValue(key: string): Promise<string | null> {
   if (!redis) return null;
 
   try {
-    const response = await fetch(`${redis.url}/get/${key}`, {
-      method: "GET",
+    // Upstash REST API формат: POST с командой в body
+    const response = await fetch(`${redis.url}/pipeline`, {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${redis.token}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify([["GET", key]]),
     });
-    if (!response.ok) return null;
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("Redis get error:", response.status, text);
+      return null;
+    }
+    
     const data = await response.json();
-    return data.result || null;
+    return data[0]?.result || null;
   } catch (error) {
     console.error("Redis get error:", error);
     return null;

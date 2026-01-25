@@ -14,15 +14,24 @@ async function getRedisValue(key: string): Promise<string | null> {
   if (!url || !token) return null;
 
   try {
-    const response = await fetch(`${url}/get/${key}`, {
-      method: "GET",
+    // Upstash REST API формат: POST с командой в body
+    const response = await fetch(`${url}/pipeline`, {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify([["GET", key]]),
     });
-    if (!response.ok) return null;
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("Redis get error:", response.status, text);
+      return null;
+    }
+    
     const data = await response.json();
-    return data.result || null;
+    return data[0]?.result || null;
   } catch (error) {
     console.error("Redis get error:", error);
     return null;
@@ -36,13 +45,24 @@ async function deleteRedis(key: string) {
   if (!url || !token) return false;
 
   try {
-    const response = await fetch(`${url}/del/${key}`, {
+    // Upstash REST API формат: POST с командой в body
+    const response = await fetch(`${url}/pipeline`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify([["DEL", key]]),
     });
-    return response.ok;
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("Redis delete error:", response.status, text);
+      return false;
+    }
+    
+    const data = await response.json();
+    return data[0]?.result === 1;
   } catch (error) {
     console.error("Redis delete error:", error);
     return false;
