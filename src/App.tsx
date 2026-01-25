@@ -1303,13 +1303,13 @@ function AccountSwitcher({
 }
 
 // Типы для навигации профиля
-type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about' | 'bitly-test';
+type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about' | 'tinyurl-test';
 
 function truncateForLog(u: string, max = 80) {
     return u.length <= max ? u : u.slice(0, max) + '...';
 }
 
-function BitlyTestPage({ onBack }: { onBack: () => void }) {
+function TinyUrlTestPage({ onBack }: { onBack: () => void }) {
     const [inputUrl, setInputUrl] = useState('');
     const [shortUrl, setShortUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -1328,9 +1328,9 @@ function BitlyTestPage({ onBack }: { onBack: () => void }) {
             const res = await fetch('/api/shorten-ping', { method: 'GET' });
             const data = await res.json().catch(() => ({}));
             addLog(`GET ответ: status=${res.status}, ok=${res.ok}`);
-            addLog(`bitly_configured: ${data.bitly_configured === true ? 'ДА' : 'НЕТ'}`);
-            if (data.bitly_configured) addLog('✅ Токен Bitly задан. Можно пробовать сокращать.');
-            else addLog('❌ BITLY_ACCESS_TOKEN не задан в Vercel.');
+            addLog(`tinyurl_configured: ${data.tinyurl_configured === true ? 'ДА' : 'НЕТ'}`);
+            if (data.tinyurl_configured) addLog('✅ Токен TinyURL задан. Можно пробовать сокращать.');
+            else addLog('❌ TINYURL_API_TOKEN не задан в Vercel.');
         } catch (e: any) {
             addLog(`❌ Ошибка: ${e?.message || String(e)}`);
         }
@@ -1356,7 +1356,7 @@ function BitlyTestPage({ onBack }: { onBack: () => void }) {
         try {
             addLog('Клиент → POST /api/shorten');
             addLog(`Тело запроса: {"url":"${truncateForLog(inputUrl)}"} (длина: ${inputUrl.length})`);
-            addLog('Сервер вызовет Bitly: POST https://api-ssl.bitly.com/v4/shorten');
+            
             const res = await fetch('/api/shorten', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1366,40 +1366,24 @@ function BitlyTestPage({ onBack }: { onBack: () => void }) {
             const raw = await res.text();
             addLog(`Ответ: status=${res.status}, ok=${res.ok}`);
 
-            const logDebug = (d: any) => {
-                if (!d) return;
-                addLog(`Bitly — куда: ${d.bitly_url}`);
-                addLog(`Bitly — метод: ${d.bitly_method}`);
-                addLog(`Bitly — заголовки: ${d.bitly_headers}`);
-                addLog(`Bitly — тело: ${JSON.stringify(d.bitly_body)}`);
-                if (d.bitly_body_url_length != null) addLog(`Bitly — длина long_url: ${d.bitly_body_url_length}`);
-            };
-
             if (res.ok) {
                 let data: any = {};
                 try { data = JSON.parse(raw); } catch { data = { message: raw }; }
-                logDebug(data.debug);
-                addLog(`shortUrl: ${data.shortUrl || '(нет)'}, bitly_called: ${!!data.bitly_called}`);
-                if (data.shortUrl) {
-                    setShortUrl(data.shortUrl);
-                    addLog(`✅ Успешно! Короткая ссылка: ${data.shortUrl}`);
+                if (data.short_url) {
+                    setShortUrl(data.short_url);
+                    addLog(`✅ Успешно! Короткая ссылка: ${data.short_url}`);
                 } else {
                     setError('Короткая ссылка не получена');
-                    addLog(`❌ В ответе нет shortUrl`);
+                    addLog(`❌ В ответе нет short_url`);
                 }
             } else {
                 let errData: any = {};
                 try { errData = JSON.parse(raw); } catch { errData = { message: raw }; }
-                logDebug(errData.debug);
-                if (!errData.debug && raw.includes('FUNCTION_INVOCATION_FAILED')) {
-                    addLog('Сервер упал до ответа. Детали запроса в Bitly — в логах Vercel (Functions → /api/shorten).');
+                if (raw.includes('FUNCTION_INVOCATION_FAILED')) {
+                    addLog('Сервер упал до ответа. Детали — в логах Vercel (Functions → /api/shorten).');
                 }
-                addLog(`bitly_called: ${errData.bitly_called === true ? 'ДА' : 'НЕТ'}`);
-                if (errData.bitly_error) addLog(`bitly_error: ${errData.bitly_error}`);
-                if (errData.bitly_status) addLog(`bitly_status: ${errData.bitly_status}`);
-                if (errData.bitly_raw) addLog(`bitly_raw: ${truncateForLog(errData.bitly_raw, 200)}`);
-                setError(errData.message || raw || `Ошибка ${res.status}`);
-                addLog(`❌ Ошибка: ${errData.message || raw}`);
+                setError(errData.message || errData.error || raw || `Ошибка ${res.status}`);
+                addLog(`❌ Ошибка: ${errData.error || errData.message || raw}`);
             }
         } catch (e: any) {
             const msg = e?.message || String(e);
@@ -1416,7 +1400,7 @@ function BitlyTestPage({ onBack }: { onBack: () => void }) {
                 <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline style={{ fontSize: '1.25rem' }}>Тест Bitly</Typography.Headline>
+                <Typography.Headline style={{ fontSize: '1.25rem' }}>Тест TinyURL</Typography.Headline>
             </Flex>
 
             <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
@@ -1739,7 +1723,7 @@ function ProfilePage({
             id: 'dashboards', 
             label: 'Дашборды', 
             icon: <LayoutGrid className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => setCurrentView('bitly-test')
+            onClick: () => setCurrentView('tinyurl-test')
         },
     ];
     
@@ -1801,8 +1785,8 @@ function ProfilePage({
         />;
     }
 
-    if (currentView === 'bitly-test') {
-        return <BitlyTestPage onBack={() => setCurrentView('main')} />;
+    if (currentView === 'tinyurl-test') {
+        return <TinyUrlTestPage onBack={() => setCurrentView('main')} />;
     }
 
     if (currentView === 'about') {

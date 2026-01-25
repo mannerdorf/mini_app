@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
-import { shortenUrl } from "../lib/bitly";
 
 // Используем Upstash Redis для хранения токенов документов
 const TOKEN_MAX_AGE = 60 * 60; // 1 час в секундах
@@ -125,14 +124,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const protocol = req.headers["x-forwarded-proto"] || "https";
     const tokenUrl = `${protocol}://${host}/api/doc/${token}`;
 
-    // Создаем короткую ссылку через Bitly
+    // Создаем короткую ссылку через TinyURL
     let shortUrl = tokenUrl; // Fallback на прямую ссылку
-    const bitlyResult = await shortenUrl(tokenUrl);
-    if (bitlyResult.ok) {
-      shortUrl = bitlyResult.shortUrl;
-      console.log(`[shorten-doc] Bitly short URL created: ${shortUrl}`);
+    const apiToken = process.env.TINYURL_API_TOKEN;
+
+    if (apiToken) {
+      try {
+        const tinyRes = await fetch("https://api.tinyurl.com/dev/api/v1/create", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: tokenUrl,
+            domain: "tinyurl.com",
+          }),
+        });
+
+        if (tinyRes.ok) {
+          const tinyData = await tinyRes.json();
+          shortUrl = tinyData.data.tiny_url;
+          console.log(`[shorten-doc] TinyURL short URL created: ${shortUrl}`);
+        } else {
+          const errText = await tinyRes.text();
+          console.warn(`[shorten-doc] TinyURL failed: ${tinyRes.status} ${errText}`);
+        }
+      } catch (e) {
+        console.warn(`[shorten-doc] TinyURL fetch exception:`, e);
+      }
     } else {
-      console.warn(`[shorten-doc] Bitly failed: ${bitlyResult.error}, using direct token URL`);
+      console.warn(`[shorten-doc] TINYURL_API_TOKEN not configured, using direct token URL`);
     }
 
     return res.status(200).json({
