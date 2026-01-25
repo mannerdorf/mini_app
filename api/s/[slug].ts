@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { urlStore } from "../shorten";
 
 async function getRedisValue(key: string): Promise<string | null> {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -83,15 +82,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Пробуем получить из Redis
     let url = await getRedisValue(`short:${slug}`);
 
-    // Fallback: пробуем из памяти
-    if (!url) {
-      const entry = urlStore.get(slug);
-      url = entry?.url || null;
-      if (url) {
-        console.log(`[s/[slug]] Found in memory store: ${slug}`);
-      }
-    } else {
+    // В serverless окружении in-memory хранилище не работает
+    // Используем только Redis
+    if (url) {
       console.log(`[s/[slug]] Found in Redis: ${slug}`);
+    } else {
+      console.log(`[s/[slug]] Not found in Redis: ${slug}`);
     }
 
     if (!url) {

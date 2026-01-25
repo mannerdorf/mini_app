@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { docTokenStore } from "../shorten-doc";
 import https from "https";
 import { URL } from "url";
 
@@ -138,22 +137,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Fallback: пробуем из памяти
-    if (!docData) {
-      const entry = docTokenStore.get(token);
-      if (entry) {
-        console.log(`[doc/[token]] Found in memory store`);
-        docData = {
-          login: entry.login,
-          password: entry.password,
-          metod: entry.metod,
-          number: entry.number,
-        };
-        // Удаляем токен из памяти
-        docTokenStore.delete(token);
-      }
-    }
-
+    // В serverless окружении in-memory хранилище не работает
+    // Используем только Redis
     if (!docData) {
       console.log(`[doc/[token]] Token not found or expired: ${token.substring(0, 8)}...`);
       return res.status(404).json({ error: "Document link not found or expired" });
