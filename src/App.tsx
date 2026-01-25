@@ -3189,7 +3189,6 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         }
     };
 
- (Switch to TinyURL for document links and fix Basic Auth encoding)
     // Список явно отображаемых полей (из API примера)
     const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender'];
 
