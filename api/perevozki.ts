@@ -45,34 +45,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   url.searchParams.set("DateE", dateTo);
 
   try {
+    console.log("➡️ Perevozki request for:", login);
     const upstream = await fetch(url.toString(), {
       method: "GET",
       headers: {
         // как в Postman:
-        // Auth: Basic order@lal-auto.com:ZakaZ656565 (должно быть base64)
-        Auth: `Basic ${Buffer.from(`${login}:${password}`).toString("base64")}`,
+        // Auth: Basic order@lal-auto.com:ZakaZ656565
+        Auth: `Basic ${login}:${password}`,
         // Authorization: Basic YWRtaW46anVlYmZueWU=
         Authorization: SERVICE_AUTH,
       },
     });
 
+    console.log("⬅️ Upstream status:", upstream.status);
     const text = await upstream.text();
+    console.log("⬅️ Upstream body start:", text.substring(0, 100));
 
     if (!upstream.ok) {
-      // Нормализуем ошибки, чтобы не светить "Upstream error: <code>"
-      if (upstream.status === 401 || upstream.status === 403) {
-        return res.status(401).json({ error: "Неверный логин или пароль." });
-      }
-      if (upstream.status === 404) {
-        return res.status(404).json({ error: "Данные не найдены." });
-      }
-      if (upstream.status >= 500) {
-        return res.status(502).json({ error: "Ошибка сервиса. Попробуйте позже." });
-      }
-      // пробуем распарсить текст 1С, иначе общий текст
-      return res.status(upstream.status).json({
-        error: "Не удалось получить данные. Попробуйте позже.",
-      });
+      // пробуем вернуть текст 1С как есть
+      return res.status(upstream.status).send(
+        text || {
+          error: `Upstream error: ${upstream.status}`,
+        }
+      );
     }
 
     // если это JSON — вернём JSON, если нет — просто текст
