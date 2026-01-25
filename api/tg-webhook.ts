@@ -23,26 +23,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true });
   }
 
-  // Если пришло голосовое сообщение
-  if (voice) {
-    try {
+  // Сразу отвечаем Телеграму, чтобы он не переотправлял запрос
+  res.status(200).json({ ok: true });
+
+  // Дальнейшая логика в фоне (try/catch обязателен)
+  try {
+    // Если пришло голосовое сообщение
+    if (voice) {
       await sendTgMessage(chatId, "Транскрибирую ваше сообщение... 🎤");
       
-      // 1. Получаем путь к файлу
       const fileRes = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/getFile?file_id=${voice.file_id}`);
-      const fileData = await fileRes.json();
-      const filePath = fileData.result.file_path;
+      const fileData: any = await fileRes.json();
+      const filePath = fileData?.result?.file_path;
       
-      // 2. Скачиваем файл
+      if (!filePath) throw new Error("Could not get file path from Telegram");
+
       const audioRes = await fetch(`https://api.telegram.org/file/bot${TG_BOT_TOKEN}/${filePath}`);
       const audioBuffer = await audioRes.arrayBuffer();
       
-      // 3. Отправляем в OpenAI Whisper (через наш же эндпоинт или напрямую)
-      // Для простоты здесь вызовем напрямую OpenAI, если есть ключ
       const apiKey = process.env.OPENAI_API_KEY;
       if (apiKey) {
         const formData = new FormData();
-        const blob = new Blob([audioBuffer], { type: voice.mime_type });
+        // Используем Blob из глобальной области Node 18+
+        const blob = new Blob([audioBuffer], { type: voice.mime_type || 'audio/ogg' });
         formData.append('file', blob, 'voice.oga');
         formData.append('model', 'whisper-1');
 
@@ -56,48 +59,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const { text } = await whisperRes.json();
           if (text) {
             console.log("TG Transcribed text:", text);
-            // Обрабатываем текст через ИИ
             await processAiReply(chatId, text);
-            return res.status(200).json({ ok: true });
+            return;
           }
         }
       }
       await sendTgMessage(chatId, "Извините, не удалось распознать голосовое сообщение.");
-    } catch (e) {
-      console.error("TG Voice error:", e);
-      await sendTgMessage(chatId, "Произошла ошибка при обработке голоса.");
+      return;
     }
-    return res.status(200).json({ ok: true });
-  }
 
-  if (!userText) {
-    return res.status(200).json({ ok: true });
-  }
+    if (!userText) return;
 
-  // Обработка /start с параметрами
-  if (userText.startsWith("/start ")) {
-    const payload = userText.split(" ")[1];
-    if (payload.startsWith("haulz_n_")) {
-      const cargoNumber = payload.split("_")[2];
-      const appDomain = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app";
-      const docUrl = (m: string) => `${appDomain}/api/doc-short?metod=${encodeURIComponent(m)}&number=${encodeURIComponent(cargoNumber)}`;
+    // Обработка /start с параметрами
+    if (userText.startsWith("/start ")) {
+      const payload = userText.split(" ")[1];
+      if (payload.startsWith("haulz_n_")) {
+        const parts = payload.split("_");
+        const cargoNumber = parts[2];
+        const appDomain = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app";
+        const docUrl = (m: string) => `${appDomain}/api/doc-short?metod=${encodeURIComponent(m)}&number=${encodeURIComponent(cargoNumber)}`;
 
-      const message = `Вижу ваш вопрос по перевозке ${cargoNumber}. Выберите документ для скачивания:`;
-      const keyboard = {
-        inline_keyboard: [
-          [{ text: "ЭР", url: docUrl("ЭР") }, { text: "СЧЕТ", url: docUrl("СЧЕТ") }],
-          [{ text: "УПД", url: docUrl("УПД") }, { text: "АПП", url: docUrl("АПП") }]
-        ]
-      };
+        const message = `Вижу ваш вопрос по перевозке ${cargoNumber}. Выберите документ для скачивания:`;
+        const keyboard = {
+          inline_keyboard: [
+            [{ text: "ЭР", url: docUrl("ЭР") }, { text: "СЧЕТ", url: docUrl("СЧЕТ") }],
+            [{ text: "УПД", url: docUrl("УПД") }, { text: "АПП", url: docUrl("АПП") }]
+          ]
+        };
 
-      await sendTgMessage(chatId, message, keyboard);
-      return res.status(200).json({ ok: true });
+        await sendTgMessage(chatId, message, keyboard);
+        return;
+      }
     }
-  }
 
-  // Обычное сообщение — через ИИ
-  await processAiReply(chatId, userText);
-  return res.status(200).json({ ok: true });
+    // Обычное сообщение — через ИИ
+    await processAiReply(chatId, userText);
+  } catch (e) {
+    console.error("TG Webhook background error:", e);
+    try {
+      await sendTgMessage(chatId, "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте позже.");
+    } catch {}
+  }
 }
 
 async function processAiReply(chatId: number, text: string) {

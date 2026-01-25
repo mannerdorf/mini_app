@@ -50,99 +50,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true });
   }
 
-  // Проверяем разные источники payload для startapp параметра
-  const rawText =
-    update?.message?.text ??
-    update?.text ??
-    update?.payload ??
-    update?.start_param ??
-    update?.startapp ??
-    update?.start_app ??
-    update?.message?.start_param ??
-    update?.message?.startapp ??
-    update?.message?.start_app ??
-    update?.data?.start_param ??
-    update?.data?.startapp ??
-    "";
+  // Сразу отвечаем платформе MAX
+  res.status(200).json({ ok: true });
 
-  // Также проверяем тип события (может быть "start" или "message")
-  const eventType = update?.type ?? update?.event ?? update?.message?.type ?? "";
+  // Остальная логика в фоне
+  try {
+    // Проверяем разные источники payload
+    const rawText =
+      update?.message?.text ??
+      update?.text ??
+      update?.payload ??
+      update?.start_param ??
+      update?.startapp ??
+      update?.start_app ??
+      "";
 
-  console.log("MAX webhook parsed:", JSON.stringify({ 
-    chatId, 
-    rawText, 
-    eventType,
-    hasMessage: !!update?.message,
-    hasData: !!update?.data,
-    keys: Object.keys(update)
-  }));
-
-  const cargoNumber = extractCargoNumberFromPayload(rawText);
-  
-  console.log("MAX webhook cargo number extracted:", cargoNumber);
-
-  // Если это событие bot_started с payload — даем кнопки документов
-  if (cargoNumber) {
-    console.log("Cargo number extracted:", cargoNumber);
+    const cargoNumber = extractCargoNumberFromPayload(rawText);
     
-    // Получаем домен из env или используем дефолтный
-    const appDomain = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
-    
-    // Используем /api/doc-short для редиректа на мини-апп
-    const docUrl = (metod: string) => 
-      `${appDomain}/api/doc-short?metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(cargoNumber)}`;
-    
-    const attachments = [{
-      type: "inline_keyboard" as const,
-      payload: {
-        buttons: [
-          [
-            { type: "link" as const, text: "ЭР", payload: docUrl("ЭР") },
-            { type: "link" as const, text: "СЧЕТ", payload: docUrl("СЧЕТ") },
+    // Если это событие с номером перевозки — даем кнопки
+    if (cargoNumber) {
+      const appDomain = process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}` 
+        : "https://mini-app-lake-phi.vercel.app";
+      
+      const docUrl = (metod: string) => 
+        `${appDomain}/api/doc-short?metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(cargoNumber)}`;
+      
+      const attachments = [{
+        type: "inline_keyboard" as const,
+        payload: {
+          buttons: [
+            [
+              { type: "link" as const, text: "ЭР", payload: docUrl("ЭР") },
+              { type: "link" as const, text: "СЧЕТ", payload: docUrl("СЧЕТ") },
+            ],
+            [
+              { type: "link" as const, text: "УПД", payload: docUrl("УПД") },
+              { type: "link" as const, text: "АПП", payload: docUrl("АПП") },
+            ],
           ],
-          [
-            { type: "link" as const, text: "УПД", payload: docUrl("УПД") },
-            { type: "link" as const, text: "АПП", payload: docUrl("АПП") },
-          ],
-        ],
-      },
-    }];
+        },
+      }];
 
-    try {
       await maxSendMessage({
         token: MAX_BOT_TOKEN,
         chatId,
         text: `Добрый день!\n\nВижу, что у вас вопрос по перевозке ${cargoNumber}.\n\nВы можете скачать документы прямо здесь:`,
         attachments,
       });
-      return res.status(200).json({ ok: true });
-    } catch (error: any) {
-      console.error("Failed to send message:", error);
+      return;
     }
-  }
 
-  // Если это обычное текстовое сообщение — отвечаем через ИИ
-  if (update?.message?.text || update?.text) {
+    // Обычное сообщение — через ИИ
     const userText = update?.message?.text || update?.text;
-    console.log("Using AI to respond to:", userText);
-
-    try {
+    if (userText) {
       const appDomain = process.env.VERCEL_URL 
         ? `https://${process.env.VERCEL_URL}` 
-        : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
+        : "https://mini-app-lake-phi.vercel.app";
 
       const aiRes = await fetch(`${appDomain}/api/ai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          messages: [{ role: 'user', content: userText }]
-        })
+        body: JSON.stringify({ messages: [{ role: 'user', content: userText }] })
       });
 
       if (aiRes.ok) {
-        const aiData = await aiRes.json();
+        const aiData: any = await aiRes.json();
         await maxSendMessage({
           token: MAX_BOT_TOKEN,
           chatId,
@@ -151,26 +124,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } else {
         throw new Error("AI service error");
       }
-    } catch (error) {
-      console.error("AI processing failed:", error);
+    } else {
+      // Приветствие по умолчанию
       await maxSendMessage({
         token: MAX_BOT_TOKEN,
         chatId,
-        text: "Добрый день! Напишите, пожалуйста, ваш вопрос — мы поможем. 🚛",
+        text: "Добрый день! Я ИИ-помощник HAULZ. Чем я могу вам помочь? 😊",
       });
     }
-  } else {
-    // Входящее событие без текста (например, нажатие кнопки без данных)
-    try {
-      await maxSendMessage({
-        token: MAX_BOT_TOKEN,
-        chatId,
-        text: "Добрый день! Я AI-помощник HAULZ. Чем могу помочь? 😊",
-      });
-    } catch (e) {}
+  } catch (error) {
+    console.error("MAX webhook background error:", error);
   }
-
-  return res.status(200).json({ ok: true });
 }
 
 function safeJson(s: string) {
