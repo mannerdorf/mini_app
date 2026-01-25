@@ -9,9 +9,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const cleanToken = MAX_BOT_TOKEN.trim().replace(/^["']|["']$/g, "");
-  // Попробуем без Bearer, если с ним не сработало, 
-  // но в первом запросе используем чистый токен или попробуем оба варианта
   
+  const appDomain = process.env.VERCEL_URL 
+    ? `https://${process.env.VERCEL_URL}` 
+    : "https://mini-app-lake-phi.vercel.app";
+  
+  const webhookUrl = `${appDomain}/api/max-webhook`;
+
   const body = JSON.stringify({
     url: webhookUrl,
     update_types: ["message_created", "bot_started", "message_callback"],
