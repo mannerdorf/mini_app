@@ -12,11 +12,17 @@ async function getRedisValue(key: string): Promise<string | null> {
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!url || !token) {
-    console.warn("Upstash Redis not configured in doc handler");
+    console.warn("[doc/[token]] Upstash Redis not configured in doc handler");
     return null;
   }
 
   try {
+    // Проверяем доступность fetch
+    if (typeof fetch === 'undefined') {
+      console.error("[doc/[token]] fetch is not available in this runtime");
+      return null;
+    }
+    
     // Upstash REST API формат: POST с командой в body
     const response = await fetch(`${url}/pipeline`, {
       method: "POST",
@@ -29,20 +35,34 @@ async function getRedisValue(key: string): Promise<string | null> {
     
     if (!response.ok) {
       const text = await response.text();
-      console.error("Redis get error:", response.status, text);
+      console.error(`[doc/[token]] Redis get error: ${response.status} ${text}`);
       return null;
     }
     
     const data = await response.json();
+    console.log(`[doc/[token]] Redis response for ${key.substring(0, 8)}...:`, JSON.stringify(data).substring(0, 200));
+    
     // Upstash pipeline возвращает массив результатов
     // Формат: [{result: "value"}] или [{result: "value", error: null}]
     const firstResult = Array.isArray(data) ? data[0] : data;
+    
+    // Проверяем наличие ошибки в ответе
+    if (firstResult?.error) {
+      console.error(`[doc/[token]] Redis error in response:`, firstResult.error);
+      return null;
+    }
+    
     const value = firstResult?.result;
     
     // Если result null или undefined, значит ключ не найден
-    return value || null;
-  } catch (error) {
-    console.error("Redis get error:", error);
+    if (value === null || value === undefined) {
+      console.log(`[doc/[token]] Key not found in Redis: ${key.substring(0, 8)}...`);
+      return null;
+    }
+    
+    return String(value);
+  } catch (error: any) {
+    console.error(`[doc/[token]] Redis get exception:`, error?.message || error);
     return null;
   }
 }
@@ -88,49 +108,58 @@ async function deleteRedis(key: string) {
  * GET /api/doc/abc123...
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const token = req.query.token as string;
-
-  if (!token || typeof token !== "string") {
-    return res.status(400).json({ error: "Token is required" });
-  }
-
-  // Пробуем получить из Redis
-  let docDataJson = await getRedisValue(`doc:${token}`);
-  let docData: { login: string; password: string; metod: string; number: string } | null = null;
-
-  if (docDataJson) {
-    try {
-      docData = JSON.parse(docDataJson);
-      // Удаляем токен из Redis (одноразовый)
-      await deleteRedis(`doc:${token}`);
-    } catch {
-      docData = null;
+  try {
+    if (req.method !== "GET") {
+      res.setHeader("Allow", "GET");
+      return res.status(405).json({ error: "Method not allowed" });
     }
-  }
 
-  // Fallback: пробуем из памяти
-  if (!docData) {
-    const entry = docTokenStore.get(token);
-    if (entry) {
-      docData = {
-        login: entry.login,
-        password: entry.password,
-        metod: entry.metod,
-        number: entry.number,
-      };
-      // Удаляем токен из памяти
-      docTokenStore.delete(token);
+    const token = req.query.token as string;
+
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ error: "Token is required" });
     }
-  }
 
-  if (!docData) {
-    return res.status(404).json({ error: "Document link not found or expired" });
-  }
+    console.log(`[doc/[token]] Looking up token: ${token.substring(0, 8)}...`);
+
+    // Пробуем получить из Redis
+    let docDataJson = await getRedisValue(`doc:${token}`);
+    let docData: { login: string; password: string; metod: string; number: string } | null = null;
+
+    if (docDataJson) {
+      try {
+        docData = JSON.parse(docDataJson);
+        console.log(`[doc/[token]] Found in Redis, deleting token`);
+        // Удаляем токен из Redis (одноразовый)
+        await deleteRedis(`doc:${token}`);
+      } catch (parseError) {
+        console.error(`[doc/[token]] Failed to parse JSON from Redis:`, parseError);
+        docData = null;
+      }
+    }
+
+    // Fallback: пробуем из памяти
+    if (!docData) {
+      const entry = docTokenStore.get(token);
+      if (entry) {
+        console.log(`[doc/[token]] Found in memory store`);
+        docData = {
+          login: entry.login,
+          password: entry.password,
+          metod: entry.metod,
+          number: entry.number,
+        };
+        // Удаляем токен из памяти
+        docTokenStore.delete(token);
+      }
+    }
+
+    if (!docData) {
+      console.log(`[doc/[token]] Token not found or expired: ${token.substring(0, 8)}...`);
+      return res.status(404).json({ error: "Document link not found or expired" });
+    }
+
+    console.log(`[doc/[token]] Processing document: ${docData.metod} for ${docData.number}`);
 
   // Формируем URL для скачивания документа
   const { login, password, metod, number } = docData;
@@ -219,7 +248,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     upstreamReq.on("error", (err) => {
-      console.error("Request error:", err);
+      console.error("[doc/[token]] Request error:", err);
       if (!res.headersSent) {
         res.status(500).json({ error: "Ошибка сервера. Попробуйте позже." });
       }
@@ -228,4 +257,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     upstreamReq.end();
   });
+  } catch (error: any) {
+    console.error(`[doc/[token]] Handler error:`, error);
+    if (!res.headersSent) {
+      return res.status(500).json({ 
+        error: "Internal server error",
+        message: error?.message || String(error)
+      });
+    }
+  }
 }
