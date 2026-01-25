@@ -62,21 +62,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const MAX_BOT_TOKEN = process.env.MAX_BOT_TOKEN;
 
+  if (!MAX_BOT_TOKEN || MAX_BOT_TOKEN.trim() === "") {
+    console.error("[max-send-message] MAX_BOT_TOKEN is missing or empty");
+    return res.status(200).json({ 
+      ok: false, 
+      error: "TOKEN_MISSING",
+      message: "Ошибка: MAX_BOT_TOKEN не найден в переменных окружения Vercel. Пожалуйста, добавьте его и сделайте Redeploy." 
+    });
+  }
+
   try {
     let body: any = req.body;
-    if (typeof body === "string") {
-      body = JSON.parse(body);
-    }
-
-    const { chatId, text } = body || {};
-
-    if (!MAX_BOT_TOKEN) {
-      console.error("[max-send-message] Missing MAX_BOT_TOKEN");
-      return res.status(500).json({ 
-        error: "Configuration error", 
-        message: "MAX_BOT_TOKEN is not set in Vercel environment variables" 
-      });
-    }
 
     if (!chatId || !text) {
       return res.status(400).json({ error: "chatId and text are required" });
