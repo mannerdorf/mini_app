@@ -4089,6 +4089,7 @@ export default function App() {
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
 
     const MAX_SUPPORT_BOT_URL = "https://max.ru/id9706037094_bot";
+    const TG_SUPPORT_BOT_URL = "https://t.me/Haulzapp_bot";
 
     const openExternalLink = (url: string) => {
         const webApp = getWebApp();
@@ -4141,16 +4142,37 @@ export default function App() {
         return url.toString();
     };
 
+    const buildTgBotLink = (cargoNumber?: string) => {
+        // Telegram: передаем параметры в payload через start
+        // Формат: haulz_n_[номер]_u_[userId]
+        const webApp = getWebApp();
+        const userId = webApp?.initDataUnsafe?.user?.id;
+        
+        let payload = "haulz_support";
+        if (cargoNumber) {
+            const safeNumber = String(cargoNumber).trim().replace(/[^0-9A-Za-zА-Яа-я._-]/g, "");
+            payload = `haulz_n_${safeNumber}`;
+            if (userId) {
+                payload += `_u_${userId}`;
+            }
+        } else if (userId) {
+            payload = `haulz_u_${userId}`;
+        }
+
+        const url = new URL(TG_SUPPORT_BOT_URL);
+        url.searchParams.set("start", payload);
+        return url.toString();
+    };
+
     const openSupportChat = async (cargoNumber?: string) => {
-        // В MAX используем схему с диплинком (startapp), так как это самый надежный способ
+        const webApp = getWebApp();
+
+        // В MAX используем схему с диплинком (startapp)
         if (isMaxWebApp()) {
             const botLink = buildMaxBotLink(cargoNumber);
             console.log("[openSupportChat] Redirecting to MAX bot with payload:", botLink);
             
-            // Сначала пробуем отправить сообщение через API (как бонус)
-            const webApp = getWebApp();
             const chatId = webApp?.initDataUnsafe?.chat?.id || webApp?.initDataUnsafe?.user?.id;
-            
             if (chatId) {
                 fetch('/api/max-send-message', {
                     method: 'POST',
@@ -4161,14 +4183,35 @@ export default function App() {
                             ? `Перехожу в бота по перевозке ${cargoNumber}...` 
                             : "Перехожу в поддержку..." 
                     })
-                }).catch(() => {}); // Игнорируем ошибки, так как основной метод - диплинк
+                }).catch(() => {});
             }
 
-            // Основной метод: переход по ссылке в бота
             openMaxBotLink(botLink);
             return;
         }
 
+        // В Telegram также переходим на диплинк бота
+        const isTg = !!(window as any).Telegram?.WebApp;
+        if (isTg) {
+            const botLink = buildTgBotLink(cargoNumber);
+            console.log("[openSupportChat] Redirecting to Telegram bot with payload:", botLink);
+            
+            if (webApp && typeof webApp.openTelegramLink === "function") {
+                webApp.openTelegramLink(botLink);
+            } else {
+                openExternalLink(botLink);
+            }
+            
+            // Закрываем мини-апп
+            setTimeout(() => {
+                if (webApp && typeof webApp.close === "function") {
+                    try { webApp.close(); } catch { /* ignore */ }
+                }
+            }, 500);
+            return;
+        }
+
+        // В обычном браузере оставляем внутренний чат
         const msg = cargoNumber
             ? `Добрый день, у меня вопрос по перевозке ${cargoNumber}`
             : `Добрый день, у меня вопрос по перевозке`;
