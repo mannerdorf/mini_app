@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
+import { shortenUrl } from "./bitly";
 
 // Используем Upstash Redis для хранения токенов документов
 const TOKEN_MAX_AGE = 60 * 60; // 1 час в секундах
@@ -119,14 +120,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log(`[shorten-doc] Successfully saved token to Redis: ${redisKey}`);
     }
 
-    // Определяем базовый URL
+    // Определяем базовый URL для токена
     const host = req.headers.host || req.headers["x-forwarded-host"];
     const protocol = req.headers["x-forwarded-proto"] || "https";
-    const shortUrl = `${protocol}://${host}/api/doc/${token}`;
+    const tokenUrl = `${protocol}://${host}/api/doc/${token}`;
+
+    // Создаем короткую ссылку через Bitly
+    let shortUrl = tokenUrl; // Fallback на прямую ссылку
+    const bitlyShortUrl = await shortenUrl(tokenUrl);
+    if (bitlyShortUrl) {
+      shortUrl = bitlyShortUrl;
+      console.log(`[shorten-doc] Bitly short URL created: ${shortUrl}`);
+    } else {
+      console.warn(`[shorten-doc] Bitly failed, using direct token URL`);
+    }
 
     return res.status(200).json({
       shortUrl,
       token,
+      originalUrl: tokenUrl,
     });
   } catch (error: any) {
     console.error("Shorten doc error:", error);
