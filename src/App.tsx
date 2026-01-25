@@ -2567,7 +2567,7 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
 
                                             const baseOrigin = typeof window !== "undefined" ? window.location.origin : "";
                                             
-                                            // Создаем длинные ссылки для каждого документа
+                                            // Формируем длинные ссылки для каждого документа
                                             const longUrls: Record<string, string> = {};
                                             const docTypes: Array<{ label: "ЭР" | "СЧЕТ" | "УПД" | "АПП"; metod: string }> = [
                                                 { label: "ЭР", metod: DOCUMENT_METHODS["ЭР"] },
@@ -2586,29 +2586,28 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                                 longUrls[label] = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
                                             }
                                             
-                                            // Создаем короткие ссылки через /api/shorten-doc (параллельно)
+                                            // Передаем длинные ссылки в Bitly через /api/shorten (параллельно)
                                             const shortUrls: Record<string, string> = {};
-                                            const shortenPromises = docTypes.map(async ({ label, metod }) => {
+                                            const shortenPromises = docTypes.map(async ({ label }) => {
                                                 try {
-                                                    const res = await fetch('/api/shorten-doc', {
+                                                    const res = await fetch('/api/shorten', {
                                                         method: 'POST',
                                                         headers: { 'Content-Type': 'application/json' },
                                                         body: JSON.stringify({
-                                                            login: auth.login,
-                                                            password: auth.password,
-                                                            metod,
-                                                            number: item.Number!,
+                                                            url: longUrls[label],
                                                         }),
                                                     });
                                                     
                                                     if (res.ok) {
                                                         const data = await res.json();
                                                         shortUrls[label] = data.shortUrl || longUrls[label];
+                                                        console.log(`[share] Bitly short URL for ${label}: ${shortUrls[label]}`);
                                                     } else {
+                                                        console.error(`[share] Failed to shorten ${label}:`, res.status);
                                                         shortUrls[label] = longUrls[label]; // Fallback на длинную ссылку
                                                     }
                                                 } catch (error) {
-                                                    console.error(`Failed to shorten ${label}:`, error);
+                                                    console.error(`[share] Failed to shorten ${label}:`, error);
                                                     shortUrls[label] = longUrls[label]; // Fallback на длинную ссылку
                                                 }
                                             });
