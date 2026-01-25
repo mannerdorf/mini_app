@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
-import { shortenUrl } from "./bitly";
+import { shortenUrl } from "../lib/bitly";
 
 // Используем Upstash Redis для хранения токенов документов
 const TOKEN_MAX_AGE = 60 * 60; // 1 час в секундах

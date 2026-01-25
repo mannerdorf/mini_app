@@ -1,9 +1,6 @@
 /**
- * Bitly API helper functions
- * Используем Bitly API v4 для создания коротких ссылок
- * 
- * Токен должен быть добавлен в Vercel Environment Variables:
- * - BITLY_ACCESS_TOKEN
+ * Bitly API helper — вне /api, чтобы Vercel не разворачивал как эндпоинт.
+ * Используем Bitly API v4. Токен: BITLY_ACCESS_TOKEN в Vercel Env.
  */
 
 const BITLY_API_BASE = "https://api-ssl.bitly.com/v4";
