@@ -16,10 +16,22 @@ export async function shortenUrl(longUrl: string): Promise<string | null> {
     return null;
   }
 
-  console.log(`[bitly] Token present: ${token ? 'YES' : 'NO'} (length: ${token?.length || 0})`);
+  if (!token.trim()) {
+    console.warn("[bitly] BITLY_ACCESS_TOKEN is empty or whitespace");
+    return null;
+  }
+
+  console.log(`[bitly] Token present: YES (length: ${token.length})`);
 
   try {
-    console.log(`[bitly] Shortening URL: ${longUrl.substring(0, 100)}...`);
+    console.log(`[bitly] Shortening URL: ${longUrl}`);
+    
+    const requestBody = {
+      long_url: longUrl,
+    };
+    
+    console.log(`[bitly] Request body:`, JSON.stringify(requestBody));
+    console.log(`[bitly] API endpoint: ${BITLY_API_BASE}/shorten`);
     
     const response = await fetch(`${BITLY_API_BASE}/shorten`, {
       method: "POST",
@@ -27,32 +39,46 @@ export async function shortenUrl(longUrl: string): Promise<string | null> {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        long_url: longUrl,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
+    console.log(`[bitly] Response status: ${response.status} ${response.statusText}`);
+    console.log(`[bitly] Response headers:`, Object.fromEntries(response.headers.entries()));
+
+    const responseText = await response.text();
+    console.log(`[bitly] Response body (raw):`, responseText.substring(0, 500));
+
     if (!response.ok) {
-      const text = await response.text();
-      console.error(`[bitly] Shorten failed: ${response.status} ${text}`);
+      console.error(`[bitly] Shorten failed: ${response.status} ${response.statusText}`);
+      console.error(`[bitly] Error response:`, responseText);
       return null;
     }
 
-    const data = await response.json();
-    console.log(`[bitly] Bitly API response:`, JSON.stringify(data));
+    let data: any;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error(`[bitly] Failed to parse JSON response:`, parseError);
+      console.error(`[bitly] Response text:`, responseText);
+      return null;
+    }
+
+    console.log(`[bitly] Parsed response:`, JSON.stringify(data, null, 2));
     
     // Bitly API v4 возвращает поле "link" с короткой ссылкой
-    const shortUrl = data?.link || data?.id || data?.short_url;
+    const shortUrl = data?.link || data?.id || data?.short_url || data?.url;
 
     if (shortUrl) {
       console.log(`[bitly] Successfully shortened: ${longUrl.substring(0, 50)}... -> ${shortUrl}`);
       return shortUrl;
     }
 
-    console.error("[bitly] No short URL in response:", JSON.stringify(data));
+    console.error("[bitly] No short URL in response. Available fields:", Object.keys(data));
+    console.error("[bitly] Full response:", JSON.stringify(data, null, 2));
     return null;
   } catch (error: any) {
     console.error("[bitly] Shorten error:", error?.message || error);
+    console.error("[bitly] Error stack:", error?.stack);
     return null;
   }
 }
