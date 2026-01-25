@@ -1303,7 +1303,184 @@ function AccountSwitcher({
 }
 
 // Типы для навигации профиля
-type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about';
+type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about' | 'bitly-test';
+
+function BitlyTestPage({ onBack }: { onBack: () => void }) {
+    const [inputUrl, setInputUrl] = useState('');
+    const [shortUrl, setShortUrl] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [logs, setLogs] = useState<string[]>([]);
+    const [error, setError] = useState<string | null>(null);
+
+    const addLog = (message: string) => {
+        const timestamp = new Date().toLocaleTimeString('ru-RU');
+        setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+    };
+
+    const handleShorten = async () => {
+        if (!inputUrl.trim()) {
+            setError('Введите URL');
+            return;
+        }
+
+        // Валидация URL
+        try {
+            new URL(inputUrl);
+        } catch {
+            setError('Неверный формат URL');
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+        setShortUrl(null);
+        addLog(`Начало сокращения URL: ${inputUrl}`);
+
+        try {
+            addLog('Отправка запроса на /api/shorten...');
+            const res = await fetch('/api/shorten', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: inputUrl }),
+            });
+
+            addLog(`Ответ получен: status=${res.status}, ok=${res.ok}`);
+
+            if (res.ok) {
+                const data = await res.json();
+                addLog(`Данные ответа: ${JSON.stringify(data)}`);
+                
+                if (data.shortUrl) {
+                    setShortUrl(data.shortUrl);
+                    addLog(`✅ Успешно! Короткая ссылка: ${data.shortUrl}`);
+                } else {
+                    setError('Короткая ссылка не получена');
+                    addLog(`❌ Ошибка: короткая ссылка отсутствует в ответе`);
+                }
+            } else {
+                const errorText = await res.text().catch(() => '');
+                addLog(`❌ Ошибка HTTP: ${res.status} ${errorText}`);
+                setError(`Ошибка: ${res.status} ${errorText}`);
+            }
+        } catch (error: any) {
+            const errorMsg = error?.message || String(error);
+            addLog(`❌ Исключение: ${errorMsg}`);
+            setError(`Ошибка: ${errorMsg}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="w-full">
+            <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-4 h-4" />
+                </Button>
+                <Typography.Headline style={{ fontSize: '1.25rem' }}>Тест Bitly</Typography.Headline>
+            </Flex>
+
+            <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+                <Typography.Label style={{ marginBottom: '0.5rem', display: 'block' }}>
+                    Введите длинную ссылку:
+                </Typography.Label>
+                <Input
+                    type="url"
+                    placeholder="https://example.com/very/long/url..."
+                    value={inputUrl}
+                    onChange={(e) => setInputUrl(e.target.value)}
+                    className="login-input"
+                    style={{ marginBottom: '0.75rem' }}
+                    disabled={loading}
+                />
+                <Button
+                    className="button-primary"
+                    onClick={handleShorten}
+                    disabled={loading || !inputUrl.trim()}
+                    style={{ width: '100%' }}
+                >
+                    {loading ? (
+                        <>
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                            Сокращаю...
+                        </>
+                    ) : (
+                        'Сократить ссылку'
+                    )}
+                </Button>
+
+                {error && (
+                    <Flex align="center" className="login-error mt-4">
+                        <AlertTriangle className="w-5 h-5 mr-2" />
+                        <Typography.Body>{error}</Typography.Body>
+                    </Flex>
+                )}
+
+                {shortUrl && (
+                    <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'var(--color-bg-secondary)', borderRadius: '0.5rem' }}>
+                        <Typography.Label style={{ marginBottom: '0.5rem', display: 'block' }}>
+                            Короткая ссылка:
+                        </Typography.Label>
+                        <Typography.Body
+                            style={{
+                                wordBreak: 'break-all',
+                                color: 'var(--color-primary)',
+                                cursor: 'pointer',
+                            }}
+                            onClick={() => {
+                                navigator.clipboard?.writeText(shortUrl).then(() => {
+                                    alert('Скопировано!');
+                                });
+                            }}
+                        >
+                            {shortUrl}
+                        </Typography.Body>
+                    </div>
+                )}
+            </Panel>
+
+            <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                <Typography.Label style={{ marginBottom: '0.75rem', display: 'block' }}>
+                    Логи:
+                </Typography.Label>
+                <div
+                    style={{
+                        maxHeight: '400px',
+                        overflowY: 'auto',
+                        background: 'var(--color-bg-secondary)',
+                        padding: '0.75rem',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.85rem',
+                        fontFamily: 'monospace',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                    }}
+                >
+                    {logs.length === 0 ? (
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>
+                            Логи появятся здесь после попытки сокращения ссылки...
+                        </Typography.Body>
+                    ) : (
+                        logs.map((log, idx) => (
+                            <div key={idx} style={{ marginBottom: '0.25rem' }}>
+                                {log}
+                            </div>
+                        ))
+                    )}
+                </div>
+                {logs.length > 0 && (
+                    <Button
+                        className="filter-button"
+                        onClick={() => setLogs([])}
+                        style={{ marginTop: '0.75rem', width: '100%' }}
+                    >
+                        Очистить логи
+                    </Button>
+                )}
+            </Panel>
+        </div>
+    );
+}
 
 function AboutCompanyPage({ onBack }: { onBack: () => void }) {
     const normalizePhoneToTel = (phone: string) => {
@@ -1513,7 +1690,7 @@ function ProfilePage({
             id: 'dashboards', 
             label: 'Дашборды', 
             icon: <LayoutGrid className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => {}
+            onClick: () => setCurrentView('bitly-test')
         },
     ];
     
@@ -1573,6 +1750,10 @@ function ProfilePage({
             onAddAccount={onAddAccount}
             onSuccess={() => setCurrentView('companies')}
         />;
+    }
+
+    if (currentView === 'bitly-test') {
+        return <BitlyTestPage onBack={() => setCurrentView('main')} />;
     }
 
     if (currentView === 'about') {
