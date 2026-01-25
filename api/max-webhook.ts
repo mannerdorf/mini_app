@@ -61,10 +61,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? `https://${process.env.VERCEL_URL}` 
       : process.env.NEXT_PUBLIC_APP_URL || "https://<твой-домен>";
     
-    // Формируем кнопки для документов (скрытые ссылки через кнопки типа "link")
-    // По документации MAX, кнопка типа "link" имеет payload как URL
+    // Формируем короткие ссылки для документов
+    // Используем формат: /api/doc-short?metod=...&number=...
+    // Эти ссылки будут открывать мини-апп с параметрами для скачивания
     const docUrl = (metod: string) => 
-      `${appDomain}/api/download?metod=${encodeURIComponent(metod)}&Number=${encodeURIComponent(cargoNumber)}`;
+      `${appDomain}/api/doc-short?metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(cargoNumber)}`;
     
     const attachments = [{
       type: "inline_keyboard" as const,

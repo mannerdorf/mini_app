@@ -1,0 +1,17 @@
+{
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "@vercel/node"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/s/:slug",
+      "destination": "/api/s/[slug]"
+    },
+    {
+      "source": "/api/doc/:token",
+      "destination": "/api/doc/[token]"
+    }
+  ]
+}
