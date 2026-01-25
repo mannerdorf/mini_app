@@ -2385,7 +2385,7 @@ function CompaniesListPage({
 }
 
 // --- CARGO PAGE (LIST ONLY) ---
-function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchText: string, onOpenChat: (cargoNumber?: string) => void }) {
+function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchText: string, onOpenChat: (cargoNumber?: string) => void | Promise<void> }) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -3899,10 +3899,47 @@ export default function App() {
         return url.toString();
     };
 
-    const openSupportChat = (cargoNumber?: string) => {
-        // В MAX вместо виджета открываем бота поддержки
+    const openSupportChat = async (cargoNumber?: string) => {
+        // В MAX вместо виджета открываем бота поддержки или отправляем сообщение
         if (isMaxWebApp()) {
-            openMaxBotLink(buildMaxBotLink(cargoNumber));
+            const webApp = getWebApp();
+            const chatId = webApp?.initDataUnsafe?.user?.id || webApp?.initDataUnsafe?.chat?.id;
+            
+            console.log("[openSupportChat] MAX environment detected. chatId:", chatId);
+
+            if (chatId) {
+                try {
+                    const text = cargoNumber 
+                        ? `Тестовое сообщение из Mini App по перевозке: ${cargoNumber}`
+                        : "Тестовое сообщение из Mini App";
+                        
+                    const res = await fetch('/api/max-send-message', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chatId, text })
+                    });
+                    
+                    if (res.ok) {
+                        if (webApp && typeof webApp.showAlert === "function") {
+                            webApp.showAlert("Тестовое сообщение отправлено в чат!");
+                        } else {
+                            alert("Тестовое сообщение отправлено в чат!");
+                        }
+                    } else {
+                        const errData = await res.json().catch(() => ({}));
+                        console.error("[openSupportChat] Failed to send message:", errData);
+                        // Если через API не вышло, пробуем старый метод с ссылкой
+                        openMaxBotLink(buildMaxBotLink(cargoNumber));
+                    }
+                } catch (e) {
+                    console.error("[openSupportChat] Exception sending message:", e);
+                    openMaxBotLink(buildMaxBotLink(cargoNumber));
+                }
+            } else {
+                // Если chatId не найден, используем старый метод с переходом по ссылке
+                console.warn("[openSupportChat] No chatId found, falling back to bot link");
+                openMaxBotLink(buildMaxBotLink(cargoNumber));
+            }
             return;
         }
 
@@ -4256,8 +4293,8 @@ export default function App() {
                             // При клике на "Грузы" переходим на грузы, но остаемся в секретном режиме
                             setActiveTab("cargo");
                         } else if (tab === "support" && isMaxWebApp()) {
-                            // MAX: поддержка через бота
-                            openMaxBotLink(buildMaxBotLink());
+                            // MAX: поддержка через бота или тестовое сообщение
+                            openSupportChat();
                         } else {
                             // Для других вкладок просто переключаемся, остаемся в секретном режиме
                             setActiveTab(tab);
@@ -4266,7 +4303,7 @@ export default function App() {
                         // В обычном режиме "home" ведёт на дашборд
                         if (tab === "home") setActiveTab("dashboard");
                         else if (tab === "support" && isMaxWebApp()) {
-                            openMaxBotLink(buildMaxBotLink());
+                            openSupportChat();
                         } else setActiveTab(tab);
                     }
                 }}
