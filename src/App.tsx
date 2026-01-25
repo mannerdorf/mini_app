@@ -2886,7 +2886,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                             <Typography.Label style={{ fontSize: '0.8rem' }}>{pdfViewer.name}</Typography.Label>
                             <Button size="small" onClick={() => { URL.revokeObjectURL(pdfViewer.url); setPdfViewer(null); }}>
                                 <X size={16} />
-                            </Button>
+                                </Button>
                         </div>
                         <object 
                             data={pdfViewer.url} 
@@ -3004,13 +3004,7 @@ function ChatPage({ prefillMessage, onClearPrefill }: { prefillMessage?: string;
 
     return (
         <div className="w-full">
-            <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                <Typography.Body className="text-theme-secondary" style={{ fontSize: '0.95rem', lineHeight: 1.5 }}>
-                    Напишите ваше обращение в чате — и мы готовы вам помочь
-                </Typography.Body>
-            </Panel>
-
-            <Panel className="cargo-card" style={{ padding: '1rem', marginTop: '0.75rem' }}>
+            <div className="bitrix-chat-fullbleed">
                 <iframe
                     className="bitrix-chat-iframe"
                     src={BITRIX_PUBLIC_CHAT_URL}
@@ -3019,27 +3013,7 @@ function ChatPage({ prefillMessage, onClearPrefill }: { prefillMessage?: string;
                     referrerPolicy="no-referrer-when-downgrade"
                     allow="clipboard-write; fullscreen"
                 />
-                <Flex style={{ marginTop: '0.75rem', justifyContent: 'center' }}>
-                    <Typography.Body
-                        style={{
-                            color: 'var(--color-primary-blue)',
-                            cursor: 'pointer',
-                            textDecoration: 'underline',
-                            fontSize: '0.9rem'
-                        }}
-                        onClick={() => {
-                            const webApp = getWebApp();
-                            if (webApp && typeof (webApp as any).openLink === 'function') {
-                                (webApp as any).openLink(BITRIX_PUBLIC_CHAT_URL);
-                            } else {
-                                window.open(BITRIX_PUBLIC_CHAT_URL, '_blank', 'noopener,noreferrer');
-                            }
-                        }}
-                    >
-                        Открыть чат в отдельном окне
-                    </Typography.Body>
-                </Flex>
-            </Panel>
+            </div>
 
             {prefillMessage && (
                 <Panel className="cargo-card" style={{ padding: '1rem', marginTop: '0.75rem' }}>
@@ -3383,7 +3357,35 @@ export default function App() {
     const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
 
+    const MAX_SUPPORT_BOT_URL = "https://max.ru/id9706037094_bot";
+
+    const openExternalLink = (url: string) => {
+        const webApp = getWebApp();
+        if (webApp && typeof (webApp as any).openLink === "function") {
+            (webApp as any).openLink(url);
+        } else {
+            window.open(url, "_blank", "noopener,noreferrer");
+        }
+    };
+
+    const buildMaxBotLink = (cargoNumber?: string) => {
+        // MAX: передаем параметр запуска, который бот получит и сам отправит сообщение/вопрос.
+        // Используем startapp (как описано в MAX) и короткий payload.
+        if (!cargoNumber) return MAX_SUPPORT_BOT_URL;
+        const safeNumber = String(cargoNumber).trim().slice(0, 64).replace(/[^0-9A-Za-zА-Яа-я._-]/g, "");
+        const payload = `haulz_perevozka_${safeNumber}`;
+        const url = new URL(MAX_SUPPORT_BOT_URL);
+        url.searchParams.set("startapp", payload);
+        return url.toString();
+    };
+
     const openSupportChat = (cargoNumber?: string) => {
+        // В MAX вместо виджета открываем бота поддержки
+        if (isMaxWebApp()) {
+            openExternalLink(buildMaxBotLink(cargoNumber));
+            return;
+        }
+
         const msg = cargoNumber
             ? `Добрый день, у меня вопрос по перевозке ${cargoNumber}`
             : `Добрый день, у меня вопрос по перевозке`;
@@ -3689,6 +3691,7 @@ export default function App() {
                 </div>
                     )}
                     {showDashboard && activeTab === "support" && (
+                        // В MAX вкладка "Поддержка" открывает бота, тут оставляем Telegram/браузерный вариант
                         <ChatPage prefillMessage={chatPrefill} onClearPrefill={() => setChatPrefill("")} />
                     )}
                     {showDashboard && activeTab === "profile" && (
@@ -3720,7 +3723,7 @@ export default function App() {
                             onOpenNotifications={openSecretPinModal}
                         />
                     )}
-                </div>
+            </div>
             </div>
             <TabBar 
                 active={activeTab} 
@@ -3732,6 +3735,9 @@ export default function App() {
                         } else if (tab === "cargo") {
                             // При клике на "Грузы" переходим на грузы, но остаемся в секретном режиме
                             setActiveTab("cargo");
+                        } else if (tab === "support" && isMaxWebApp()) {
+                            // MAX: поддержка через бота
+                            openExternalLink(buildMaxBotLink());
                         } else {
                             // Для других вкладок просто переключаемся, остаемся в секретном режиме
                             setActiveTab(tab);
@@ -3739,7 +3745,9 @@ export default function App() {
                     } else {
                         // В обычном режиме "home" ведёт на дашборд
                         if (tab === "home") setActiveTab("dashboard");
-                        else setActiveTab(tab);
+                        else if (tab === "support" && isMaxWebApp()) {
+                            openExternalLink(buildMaxBotLink());
+                        } else setActiveTab(tab);
                     }
                 }}
                 // вход в секретный режим теперь через "Уведомления" в профиле
