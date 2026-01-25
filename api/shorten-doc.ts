@@ -127,12 +127,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Создаем короткую ссылку через Bitly
     let shortUrl = tokenUrl; // Fallback на прямую ссылку
-    const bitlyShortUrl = await shortenUrl(tokenUrl);
-    if (bitlyShortUrl) {
-      shortUrl = bitlyShortUrl;
+    const bitlyResult = await shortenUrl(tokenUrl);
+    if (bitlyResult.ok) {
+      shortUrl = bitlyResult.shortUrl;
       console.log(`[shorten-doc] Bitly short URL created: ${shortUrl}`);
     } else {
-      console.warn(`[shorten-doc] Bitly failed, using direct token URL`);
+      console.warn(`[shorten-doc] Bitly failed: ${bitlyResult.error}, using direct token URL`);
     }
 
     return res.status(200).json({

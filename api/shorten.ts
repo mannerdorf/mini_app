@@ -1,70 +1,106 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { shortenUrl } from "./bitly";
 
+function truncateUrl(u: string, max = 80): string {
+  if (!u || u.length <= max) return u;
+  return u.slice(0, max) + "...";
+}
+
 /**
  * Создает короткую ссылку через Bitly API
- * POST /api/shorten
- * Body: { url: "https://..." }
+ * GET  /api/shorten → { ok: true, bitly_configured: boolean } (диагностика)
+ * POST /api/shorten Body: { url: "https://..." }
  * 
- * Токен должен быть добавлен в Vercel Environment Variables:
- * - BITLY_ACCESS_TOKEN
+ * Токен: BITLY_ACCESS_TOKEN в Vercel Environment Variables.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  const send = (status: number, body: object) => {
+    try {
+      res.status(status).json(body);
+    } catch (e) {
+      console.error("[shorten] Failed to send JSON:", e);
+    }
+  };
 
   try {
+    if (req.method === "GET") {
+      const configured = !!(process.env.BITLY_ACCESS_TOKEN || "").trim();
+      return send(200, { ok: true, bitly_configured: configured });
+    }
+
+    if (req.method !== "POST") {
+      res.setHeader("Allow", "GET, POST");
+      return send(405, { error: "Method not allowed" });
+    }
+
     let body: any = req.body;
     if (typeof body === "string") {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON body" });
+        return send(400, { error: "Invalid JSON body" });
       }
     }
 
     const { url } = body || {};
-
     if (!url || typeof url !== "string") {
-      return res.status(400).json({ error: "URL is required" });
+      return send(400, { error: "URL is required" });
     }
 
-    // Валидация URL
     try {
       new URL(url);
     } catch {
-      return res.status(400).json({ error: "Invalid URL format" });
+      return send(400, { error: "Invalid URL format" });
     }
 
-    // Создаем короткую ссылку через Bitly
-    console.log(`[shorten] Attempting to shorten URL: ${url}`);
-    console.log(`[shorten] URL length: ${url.length}`);
-    console.log(`[shorten] BITLY_ACCESS_TOKEN configured: ${process.env.BITLY_ACCESS_TOKEN ? 'YES' : 'NO'}`);
-    
-    const shortUrl = await shortenUrl(url);
+    const BITLY_URL = "https://api-ssl.bitly.com/v4/shorten";
+    const debug = {
+      bitly_url: BITLY_URL,
+      bitly_method: "POST",
+      bitly_headers: "Content-Type: application/json, Authorization: Bearer ***",
+      bitly_body: { long_url: truncateUrl(url) },
+      bitly_body_url_length: url.length,
+    };
 
-    if (!shortUrl) {
-      console.error(`[shorten] Bitly shortening failed for URL: ${url}`);
-      console.error(`[shorten] Check Vercel logs for detailed Bitly API error`);
-      return res.status(500).json({
-        error: "Failed to create short URL via Bitly",
-        message: "Bitly service unavailable or token not configured. Check server logs for details.",
+    console.log(`[shorten] Shortening URL: ${truncateUrl(url)} (length: ${url.length})`);
+    console.log(`[shorten] BITLY_ACCESS_TOKEN: ${process.env.BITLY_ACCESS_TOKEN ? "YES" : "NO"}`);
+    console.log(`[shorten] Вызов Bitly: POST ${BITLY_URL}, body: {"long_url":"${truncateUrl(url)}"}`);
+
+    const result = await shortenUrl(url);
+
+    if (result.ok) {
+      console.log(`[shorten] OK: ${truncateUrl(url)} -> ${result.shortUrl}`);
+      return send(200, {
+        shortUrl: result.shortUrl,
+        originalUrl: url,
+        bitly_called: true,
+        debug,
       });
     }
 
-    console.log(`[shorten] Successfully shortened: ${url.substring(0, 50)}... -> ${shortUrl}`);
-
-    return res.status(200).json({
-      shortUrl,
-      originalUrl: url,
+    console.error(`[shorten] Bitly failed: ${result.error} (status: ${result.status})`);
+    return send(500, {
+      error: "Failed to create short URL via Bitly",
+      message: result.error || "Bitly error",
+      bitly_called: true,
+      bitly_error: result.error,
+      bitly_status: result.status,
+      bitly_raw: result.raw ? result.raw.slice(0, 300) : undefined,
+      debug,
     });
   } catch (error: any) {
-    console.error("[shorten] Error:", error);
-    return res.status(500).json({
+    console.error("[shorten] Handler error:", error?.message || error);
+    const BITLY_URL = "https://api-ssl.bitly.com/v4/shorten";
+    return send(500, {
       error: "Failed to create short URL",
       message: error?.message || String(error),
+      bitly_called: false,
+      debug: {
+        bitly_url: BITLY_URL,
+        bitly_method: "POST",
+        bitly_headers: "Content-Type: application/json, Authorization: Bearer ***",
+        bitly_body: { long_url: "(не дошли до запроса)" },
+      },
     });
   }
 }
