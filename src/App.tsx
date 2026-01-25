@@ -51,12 +51,41 @@ async function ensureOk(res: Response, fallback?: string): Promise<void> {
 // --- TELEGRAM MINI APP SUPPORT ---
 const getWebApp = () => {
     if (typeof window === "undefined") return undefined;
+    
     // MAX Bridge использует window.WebApp (после подключения max-web-app.js)
     // Telegram использует window.Telegram.WebApp
-    return (
-        window.Telegram?.WebApp ||
-        (window as any).WebApp // MAX Bridge
-    );
+    const webApp = window.Telegram?.WebApp || (window as any).WebApp;
+
+    // ЕСЛИ мы в MAX и initData пустое, пробуем распарсить из URL hash (#WebAppData=...)
+    if (webApp && !webApp.initData && isMaxWebApp()) {
+        try {
+            const hash = window.location.hash || "";
+            if (hash.includes("WebAppData=")) {
+                const rawData = hash.split("WebAppData=")[1]?.split("&")[0];
+                if (rawData) {
+                    const decoded = decodeURIComponent(rawData);
+                    webApp.initData = decoded;
+                    
+                    // Парсим в initDataUnsafe
+                    const params = new URLSearchParams(decoded);
+                    const unsafe: any = {};
+                    params.forEach((val, key) => {
+                        if (key === "user" || key === "chat") {
+                            try { unsafe[key] = JSON.parse(val); } catch(e) {}
+                        } else {
+                            unsafe[key] = val;
+                        }
+                    });
+                    webApp.initDataUnsafe = unsafe;
+                    console.log("[getWebApp] Manually parsed WebAppData from hash:", unsafe);
+                }
+            }
+        } catch (e) {
+            console.error("[getWebApp] Error parsing MAX hash:", e);
+        }
+    }
+
+    return webApp;
 };
 
 const isMaxWebApp = () => {
@@ -1420,21 +1449,48 @@ function TinyUrlTestPage({ onBack }: { onBack: () => void }) {
             }
 
             const chatId = unsafe.user?.id || unsafe.chat?.id || (window as any).WebAppUser?.id || (window as any).userId;
-            testLogs.push(`Final Detected chatId: ${chatId}`);
+            testLogs.push(`Detected chatId from unsafe: ${chatId}`);
+
+            // Попытка прямого парсинга из URL для отладки
+            let manualChatId = null;
+            try {
+                const hash = window.location.hash;
+                if (hash.includes("WebAppData=")) {
+                    const data = decodeURIComponent(hash.split("WebAppData=")[1].split("&")[0]);
+                    const params = new URLSearchParams(data);
+                    const chatStr = params.get("chat");
+                    if (chatStr) {
+                        const chatObj = JSON.parse(chatStr);
+                        manualChatId = chatObj.id;
+                        testLogs.push(`Manual parse chatId (chat): ${manualChatId}`);
+                    }
+                    if (!manualChatId) {
+                        const userStr = params.get("user");
+                        if (userStr) {
+                            const userObj = JSON.parse(userStr);
+                            manualChatId = userObj.id;
+                            testLogs.push(`Manual parse chatId (user): ${manualChatId}`);
+                        }
+                    }
+                }
+            } catch(e) { testLogs.push(`Manual parse error: ${e}`); }
+
+            const finalId = chatId || manualChatId;
+            testLogs.push(`Final Detected chatId: ${finalId}`);
             
-            if (chatId) {
+            if (finalId) {
                 try {
                     testLogs.push("Sending test message...");
                     const res = await fetch('/api/max-send-message', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
-                            chatId, 
-                            text: `🛠 ТЕСТ ИЗ ПРОФИЛЯ\nChatID: ${chatId}\nTime: ${new Date().toLocaleTimeString()}` 
+                            chatId: finalId, 
+                            text: `🛠 ТЕСТ ИЗ ПРОФИЛЯ\nChatID: ${finalId}\nTime: ${new Date().toLocaleTimeString()}` 
                         })
                     });
-                    const resData = await res.json().catch(() => ({}));
-                    testLogs.push(`Response status: ${res.status}`);
+                    const resStatus = res.status;
+                    testLogs.push(`Response status: ${resStatus}`);
                 } catch (e: any) {
                     testLogs.push(`Error: ${e.message}`);
                 }
