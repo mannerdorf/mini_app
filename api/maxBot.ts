@@ -60,8 +60,24 @@ export function getMaxWebhookSecret(req: VercelRequest): string | null {
 }
 
 export function extractCargoNumberFromPayload(payload: unknown): string | null {
-  const s = String(payload ?? "");
+  const s = String(payload ?? "").trim();
+  
+  if (!s) {
+    console.log("[extractCargoNumber] Empty payload");
+    return null;
+  }
+  
+  console.log("[extractCargoNumber] Searching in payload:", s.substring(0, 100));
+  
+  // Ищем паттерн haulz_perevozka_<номер>
   const m = s.match(/haulz_perevozka_([0-9A-Za-zА-Яа-я._-]{1,64})/u);
-  return m?.[1] || null;
+  
+  if (m && m[1]) {
+    console.log("[extractCargoNumber] Found cargo number:", m[1]);
+    return m[1];
+  }
+  
+  console.log("[extractCargoNumber] No cargo number found in payload");
+  return null;
 }
 

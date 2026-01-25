@@ -30,6 +30,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const update: any = typeof req.body === "string" ? safeJson(req.body) : req.body;
   if (!update) return res.status(400).json({ error: "Invalid JSON" });
 
+  // Логируем весь update для диагностики
+  console.log("MAX webhook received full update:", JSON.stringify(update, null, 2));
+
   // Best-effort extraction of chat_id and payload.
   // MAX Update shapes can vary; we handle common patterns.
   const chatId =
@@ -38,23 +41,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     update?.message?.chat_id ??
     update?.message?.chatId ??
     update?.chat?.id ??
-    update?.chat?.chat_id;
+    update?.chat?.chat_id ??
+    update?.user?.id ??
+    update?.user_id;
 
   if (!chatId) {
+    console.warn("MAX webhook: No chatId found in update:", JSON.stringify(update));
     return res.status(200).json({ ok: true });
   }
 
+  // Проверяем разные источники payload для startapp параметра
   const rawText =
     update?.message?.text ??
     update?.text ??
     update?.payload ??
     update?.start_param ??
     update?.startapp ??
+    update?.start_app ??
+    update?.message?.start_param ??
+    update?.message?.startapp ??
+    update?.message?.start_app ??
+    update?.data?.start_param ??
+    update?.data?.startapp ??
     "";
 
-  console.log("MAX webhook received:", JSON.stringify({ chatId, rawText, update }));
+  // Также проверяем тип события (может быть "start" или "message")
+  const eventType = update?.type ?? update?.event ?? update?.message?.type ?? "";
+
+  console.log("MAX webhook parsed:", JSON.stringify({ 
+    chatId, 
+    rawText, 
+    eventType,
+    hasMessage: !!update?.message,
+    hasData: !!update?.data,
+    keys: Object.keys(update)
+  }));
 
   const cargoNumber = extractCargoNumberFromPayload(rawText);
+  
+  console.log("MAX webhook cargo number extracted:", cargoNumber);
 
   // Если есть номер перевозки — отправляем сообщение с кнопками документов
   if (cargoNumber) {
