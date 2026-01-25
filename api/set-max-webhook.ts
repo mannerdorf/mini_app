@@ -9,38 +9,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const cleanToken = MAX_BOT_TOKEN.trim().replace(/^["']|["']$/g, "");
-  const appDomain = process.env.VERCEL_URL 
-    ? `https://${process.env.VERCEL_URL}` 
-    : "https://mini-app-lake-phi.vercel.app";
+  // Попробуем без Bearer, если с ним не сработало, 
+  // но в первом запросе используем чистый токен или попробуем оба варианта
   
-  const webhookUrl = `${appDomain}/api/max-webhook`;
-
   const body = JSON.stringify({
     url: webhookUrl,
     update_types: ["message_created", "bot_started", "message_callback"],
     secret: process.env.MAX_WEBHOOK_SECRET || "haulz_secret_2026"
   });
 
-  const options = {
-    hostname: "platform-api.max.ru",
-    path: "/subscriptions",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": cleanToken.startsWith("Bearer ") ? cleanToken : `Bearer ${cleanToken}`,
-      "Content-Length": Buffer.byteLength(body),
-    },
-  };
+  const sendRequest = (authValue: string) => {
+    return new Promise((resolve, reject) => {
+      const options = {
+        hostname: "platform-api.max.ru",
+        path: "/subscriptions",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authValue,
+          "Content-Length": Buffer.byteLength(body),
+        },
+      };
 
-  try {
-    const result = await new Promise((resolve, reject) => {
       const apiReq = https.request(options, (apiRes) => {
         let responseBody = "";
         apiRes.on("data", (chunk) => { responseBody += chunk; });
         apiRes.on("end", () => {
           resolve({
             statusCode: apiRes.statusCode,
-            body: responseBody
+            body: responseBody,
+            authUsed: authValue.substring(0, 10) + "..."
           });
         });
       });
@@ -48,6 +46,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       apiReq.write(body);
       apiReq.end();
     });
+  };
+
+  try {
+    // Попытка 1: С Bearer
+    let result: any = await sendRequest(cleanToken.startsWith("Bearer ") ? cleanToken : `Bearer ${cleanToken}`);
+    
+    // Попытка 2: Если 401, пробуем БЕЗ Bearer
+    if (result.statusCode === 401) {
+      console.log("401 with Bearer, trying without...");
+      result = await sendRequest(cleanToken.replace("Bearer ", ""));
+    }
 
     return res.status(200).json({
       message: "Webhook setup attempt finished",
