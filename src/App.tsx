@@ -2800,9 +2800,9 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                                 longUrls[label] = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
                                             }
                                             
-                                            // Передаем длинные ссылки в Bitly через /api/shorten (параллельно)
+                                            // Передаем длинные ссылки в TinyURL через /api/shorten (параллельно)
                                             const shortUrls: Record<string, string> = {};
-                                            console.log('[share] Starting to shorten URLs via Bitly...');
+                                            console.log('[share] Starting to shorten URLs via TinyURL...');
                                             
                                             const shortenPromises = docTypes.map(async ({ label }) => {
                                                 try {
@@ -2821,8 +2821,8 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                                     if (res.ok) {
                                                         const data = await res.json();
                                                         console.log(`[share] Response data for ${label}:`, data);
-                                                        shortUrls[label] = data.shortUrl || longUrls[label];
-                                                        console.log(`[share] Bitly short URL for ${label}: ${shortUrls[label]}`);
+                                                        shortUrls[label] = data.short_url || longUrls[label];
+                                                        console.log(`[share] TinyURL short URL for ${label}: ${shortUrls[label]}`);
                                                     } else {
                                                         const errorText = await res.text().catch(() => '');
                                                         console.error(`[share] Failed to shorten ${label}: ${res.status} ${errorText}`);
