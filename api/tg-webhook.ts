@@ -17,8 +17,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const chatId = update?.message?.chat?.id;
   const userText = update?.message?.text;
+  const voice = update?.message?.voice;
 
-  if (!chatId || !userText) {
+  if (!chatId) {
+    return res.status(200).json({ ok: true });
+  }
+
+  // Если пришло голосовое сообщение
+  if (voice) {
+    try {
+      await sendTgMessage(chatId, "Транскрибирую ваше сообщение... 🎤");
+      
+      // 1. Получаем путь к файлу
+      const fileRes = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/getFile?file_id=${voice.file_id}`);
+      const fileData = await fileRes.json();
+      const filePath = fileData.result.file_path;
+      
+      // 2. Скачиваем файл
+      const audioRes = await fetch(`https://api.telegram.org/file/bot${TG_BOT_TOKEN}/${filePath}`);
+      const audioBuffer = await audioRes.arrayBuffer();
+      
+      // 3. Отправляем в OpenAI Whisper (через наш же эндпоинт или напрямую)
+      // Для простоты здесь вызовем напрямую OpenAI, если есть ключ
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (apiKey) {
+        const formData = new FormData();
+        const blob = new Blob([audioBuffer], { type: voice.mime_type });
+        formData.append('file', blob, 'voice.oga');
+        formData.append('model', 'whisper-1');
+
+        const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${apiKey}` },
+          body: formData
+        });
+
+        if (whisperRes.ok) {
+          const { text } = await whisperRes.json();
+          if (text) {
+            console.log("TG Transcribed text:", text);
+            // Обрабатываем текст через ИИ
+            await processAiReply(chatId, text);
+            return res.status(200).json({ ok: true });
+          }
+        }
+      }
+      await sendTgMessage(chatId, "Извините, не удалось распознать голосовое сообщение.");
+    } catch (e) {
+      console.error("TG Voice error:", e);
+      await sendTgMessage(chatId, "Произошла ошибка при обработке голоса.");
+    }
+    return res.status(200).json({ ok: true });
+  }
+
+  if (!userText) {
     return res.status(200).json({ ok: true });
   }
 
@@ -44,13 +96,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Обычное сообщение — через ИИ
+  await processAiReply(chatId, userText);
+  return res.status(200).json({ ok: true });
+}
+
+async function processAiReply(chatId: number, text: string) {
   try {
     const appDomain = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app";
     const aiRes = await fetch(`${appDomain}/api/ai`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        messages: [{ role: 'user', content: userText }]
+        messages: [{ role: 'user', content: text }]
       })
     });
 
@@ -63,8 +120,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (e) {
     console.error("TG AI error:", e);
   }
-
-  return res.status(200).json({ ok: true });
 }
 
 async function sendTgMessage(chatId: number, text: string, replyMarkup?: any) {
