@@ -1375,17 +1375,34 @@ function TinyUrlTestPage({ onBack }: { onBack: () => void }) {
         testLogs.push(`Time: ${new Date().toISOString()}`);
         testLogs.push(`Environment: ${isMaxWebApp() ? "MAX" : "Not MAX"}`);
         testLogs.push(`window.WebApp: ${!!(window as any).WebApp}`);
+        testLogs.push(`URL Params: ${window.location.search}`);
         
         if (webApp) {
-            testLogs.push(`initDataUnsafe keys: ${Object.keys(webApp.initDataUnsafe || {}).join(", ")}`);
-            if (webApp.initDataUnsafe?.user) {
-                testLogs.push(`user: ${JSON.stringify(webApp.initDataUnsafe.user)}`);
-            }
-            if (webApp.initDataUnsafe?.chat) {
-                testLogs.push(`chat: ${JSON.stringify(webApp.initDataUnsafe.chat)}`);
-            }
+            testLogs.push(`WebApp Keys: ${Object.keys(webApp).filter(k => typeof webApp[k] !== 'function').join(", ")}`);
             
-            const chatId = webApp.initDataUnsafe?.user?.id || webApp.initDataUnsafe?.chat?.id;
+            const unsafe = webApp.initDataUnsafe || {};
+            testLogs.push(`initDataUnsafe Keys: ${Object.keys(unsafe).join(", ")}`);
+            
+            if (unsafe.user) testLogs.push(`user: ${JSON.stringify(unsafe.user)}`);
+            if (unsafe.chat) testLogs.push(`chat: ${JSON.stringify(unsafe.chat)}`);
+            if (unsafe.query_id) testLogs.push(`query_id: ${unsafe.query_id}`);
+            if (unsafe.start_param) testLogs.push(`start_param: ${unsafe.start_param}`);
+            
+            // Проверяем само поле initData (сырая строка)
+            if (webApp.initData) {
+                testLogs.push(`initData (raw): ${webApp.initData.substring(0, 50)}...`);
+                try {
+                    const params = new URLSearchParams(webApp.initData);
+                    const userStr = params.get("user");
+                    if (userStr) {
+                        testLogs.push(`Parsed user from initData: ${userStr}`);
+                    }
+                } catch (e) {
+                    testLogs.push(`InitData parse error: ${e}`);
+                }
+            }
+
+            const chatId = unsafe.user?.id || unsafe.chat?.id || (window as any).WebAppUser?.id;
             testLogs.push(`Detected chatId: ${chatId}`);
             
             if (chatId) {
@@ -1406,7 +1423,12 @@ function TinyUrlTestPage({ onBack }: { onBack: () => void }) {
                     testLogs.push(`Error: ${e.message}`);
                 }
             } else {
-                testLogs.push("Error: No chatId found!");
+                testLogs.push("Error: No chatId found in initDataUnsafe!");
+                testLogs.push("Searching in other window properties...");
+                const possibleIds = [];
+                if ((window as any).userId) possibleIds.push(`window.userId: ${(window as any).userId}`);
+                if ((window as any).chatId) possibleIds.push(`window.chatId: ${(window as any).chatId}`);
+                if (possibleIds.length > 0) testLogs.push(possibleIds.join("\n"));
             }
         } else {
             testLogs.push("Error: WebApp is not available!");
