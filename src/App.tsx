@@ -2866,19 +2866,12 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                             });
 
                                             lines.push("");
-                                            lines.push("Документы (короткие):");
+                                            lines.push("Документы:");
                                             lines.push(`ЭР: ${shortUrls["ЭР"] || "(не удалось сократить)"}`);
                                             lines.push(`Счет: ${shortUrls["СЧЕТ"] || "(не удалось сократить)"}`);
                                             lines.push(`УПД: ${shortUrls["УПД"] || "(не удалось сократить)"}`);
                                             lines.push(`АПП: ${shortUrls["АПП"] || "(не удалось сократить)"}`);
                                             
-                                            lines.push("");
-                                            lines.push("Документы (прямые):");
-                                            lines.push(`ЭР: ${longUrls["ЭР"]}`);
-                                            lines.push(`Счет: ${longUrls["СЧЕТ"]}`);
-                                            lines.push(`УПД: ${longUrls["УПД"]}`);
-                                            lines.push(`АПП: ${longUrls["АПП"]}`);
-
                                             const text = lines.join("\n");
 
                                             try {
@@ -3259,19 +3252,12 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                                     if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
                                     
                                     lines.push("");
-                                    lines.push("Документы (короткие):");
+                                    lines.push("Документы:");
                                     lines.push(`ЭР: ${shortUrls["ЭР"]}`);
                                     lines.push(`Счет: ${shortUrls["СЧЕТ"]}`);
                                     lines.push(`УПД: ${shortUrls["УПД"]}`);
                                     lines.push(`АПП: ${shortUrls["АПП"]}`);
                                     
-                                    lines.push("");
-                                    lines.push("Документы (прямые):");
-                                    lines.push(`ЭР: ${longUrls["ЭР"]}`);
-                                    lines.push(`Счет: ${longUrls["СЧЕТ"]}`);
-                                    lines.push(`УПД: ${longUrls["УПД"]}`);
-                                    lines.push(`АПП: ${longUrls["АПП"]}`);
-
                                     const text = lines.join("\n");
 
                                     if (typeof navigator !== "undefined" && (navigator as any).share) {
