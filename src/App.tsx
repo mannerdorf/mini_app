@@ -2561,6 +2561,92 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                             alignItems: 'center',
                                             justifyContent: 'center'
                                         }}
+                                        onClick={async (e) => {
+                                            e.stopPropagation();
+                                            if (!item.Number) return;
+
+                                            const baseOrigin = typeof window !== "undefined" ? window.location.origin : "";
+                                            const buildLink = (docLabel: "ЭР" | "СЧЕТ" | "УПД" | "АПП") => {
+                                                const metod = DOCUMENT_METHODS[docLabel];
+                                                const params = new URLSearchParams({
+                                                    login: auth.login,
+                                                    password: auth.password,
+                                                    metod,
+                                                    number: item.Number!,
+                                                });
+                                                return `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
+                                            };
+
+                                            const lines: string[] = [];
+                                            lines.push(`Перевозка: ${item.Number}`);
+                                            if (item.State) lines.push(`Статус: ${normalizeStatus(item.State)}`);
+                                            if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
+                                            if (item.DateVr) lines.push(`Доставка: ${formatDate(item.DateVr)}`);
+                                            if (item.Sender) lines.push(`Отправитель: ${item.Sender}`);
+                                            if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
+                                            if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
+                                            if (item.W !== undefined) lines.push(`Вес: ${item.W} кг`);
+                                            if (item.Value !== undefined) lines.push(`Объем: ${item.Value} м³`);
+                                            if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
+                                            if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
+
+                                            // Остальные поля (если нужно "всю информацию")
+                                            Object.entries(item).forEach(([k, v]) => {
+                                                if ([
+                                                    "Number","State","DatePrih","DateVr","Sender","Mest","PW","W","Value","Sum","StateBill"
+                                                ].includes(k)) return;
+                                                if (v === undefined || v === null || v === "" || (typeof v === "string" && v.trim() === "")) return;
+                                                lines.push(`${k}: ${String(v)}`);
+                                            });
+
+                                            lines.push("");
+                                            lines.push("Документы:");
+                                            lines.push(`ЭР: ${buildLink("ЭР")}`);
+                                            lines.push(`Счет: ${buildLink("СЧЕТ")}`);
+                                            lines.push(`УПД: ${buildLink("УПД")}`);
+                                            lines.push(`АПП: ${buildLink("АПП")}`);
+
+                                            const text = lines.join("\n");
+
+                                            try {
+                                                if (typeof navigator !== "undefined" && (navigator as any).share) {
+                                                    await (navigator as any).share({
+                                                        title: `HAULZ — перевозка ${item.Number}`,
+                                                        text,
+                                                    });
+                                                    return;
+                                                }
+                                            } catch {
+                                                // ignore
+                                            }
+
+                                            try {
+                                                if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                                                    await navigator.clipboard.writeText(text);
+                                                    alert("Скопировано");
+                                                    return;
+                                                }
+                                            } catch {
+                                                // ignore
+                                            }
+
+                                            alert(text);
+                                        }}
+                                        title="Поделиться"
+                                    >
+                                        <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                                    </Button>
+                                    <Button
+                                        style={{ 
+                                            padding: '0.25rem', 
+                                            minWidth: 'auto', 
+                                            background: 'transparent',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onOpenChat(item.Number);
@@ -3368,6 +3454,21 @@ export default function App() {
         }
     };
 
+    const openMaxBotLink = (url: string) => {
+        // MAX может игнорировать openLink из mini-app. Самый надёжный путь: навигация + close().
+        try {
+            window.location.href = url;
+        } catch {
+            openExternalLink(url);
+        }
+        const webApp = getWebApp();
+        if (webApp && typeof (webApp as any).close === "function") {
+            setTimeout(() => {
+                try { (webApp as any).close(); } catch { /* ignore */ }
+            }, 200);
+        }
+    };
+
     const buildMaxBotLink = (cargoNumber?: string) => {
         // MAX: передаем параметр запуска, который бот получит и сам отправит сообщение/вопрос.
         // Используем startapp (как описано в MAX) и короткий payload.
@@ -3376,13 +3477,15 @@ export default function App() {
         const payload = `haulz_perevozka_${safeNumber}`;
         const url = new URL(MAX_SUPPORT_BOT_URL);
         url.searchParams.set("startapp", payload);
+        // На всякий случай добавляем и start (если у MAX/бота ожидается другой ключ)
+        url.searchParams.set("start", payload);
         return url.toString();
     };
 
     const openSupportChat = (cargoNumber?: string) => {
         // В MAX вместо виджета открываем бота поддержки
         if (isMaxWebApp()) {
-            openExternalLink(buildMaxBotLink(cargoNumber));
+            openMaxBotLink(buildMaxBotLink(cargoNumber));
             return;
         }
 
@@ -3737,7 +3840,7 @@ export default function App() {
                             setActiveTab("cargo");
                         } else if (tab === "support" && isMaxWebApp()) {
                             // MAX: поддержка через бота
-                            openExternalLink(buildMaxBotLink());
+                            openMaxBotLink(buildMaxBotLink());
                         } else {
                             // Для других вкладок просто переключаемся, остаемся в секретном режиме
                             setActiveTab(tab);
@@ -3746,7 +3849,7 @@ export default function App() {
                         // В обычном режиме "home" ведёт на дашборд
                         if (tab === "home") setActiveTab("dashboard");
                         else if (tab === "support" && isMaxWebApp()) {
-                            openExternalLink(buildMaxBotLink());
+                            openMaxBotLink(buildMaxBotLink());
                         } else setActiveTab(tab);
                     }
                 }}

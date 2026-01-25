@@ -179,14 +179,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const firstBytes = fullBuffer.slice(0, 4).toString();
         const isPDF = firstBytes.startsWith("%PDF");
         
-        // Если это бинарный PDF — отдаём напрямую
+        // Если это бинарный PDF:
+        // - GET (MAX): отдаём PDF напрямую
+        // - POST (Telegram/mini-app): возвращаем JSON { data(base64), name }
         if (isPDF) {
           console.log("✅ Got binary PDF, returning directly");
-          res.status(200);
-          res.setHeader("Content-Type", "application/pdf");
-          res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fileName)}"`);
-          res.setHeader("Content-Length", fullBuffer.length.toString());
-          return res.end(fullBuffer);
+          if (req.method === "GET") {
+            res.status(200);
+            res.setHeader("Content-Type", "application/pdf");
+            res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fileName)}"`);
+            res.setHeader("Content-Length", fullBuffer.length.toString());
+            return res.end(fullBuffer);
+          }
+          return res.status(200).json({
+            data: fullBuffer.toString("base64"),
+            name: fileName,
+          });
         }
         
         // Если не PDF — пробуем распарсить как JSON
