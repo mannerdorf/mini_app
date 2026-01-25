@@ -16,6 +16,8 @@ export async function shortenUrl(longUrl: string): Promise<string | null> {
     return null;
   }
 
+  console.log(`[bitly] Token present: ${token ? 'YES' : 'NO'} (length: ${token?.length || 0})`);
+
   try {
     console.log(`[bitly] Shortening URL: ${longUrl.substring(0, 100)}...`);
     

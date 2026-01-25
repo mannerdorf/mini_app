@@ -39,14 +39,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Создаем короткую ссылку через Bitly
+    console.log(`[shorten] Attempting to shorten URL: ${url.substring(0, 100)}...`);
     const shortUrl = await shortenUrl(url);
 
     if (!shortUrl) {
+      console.error(`[shorten] Bitly shortening failed for URL: ${url.substring(0, 100)}...`);
       return res.status(500).json({
         error: "Failed to create short URL via Bitly",
         message: "Bitly service unavailable or token not configured",
       });
     }
+
+    console.log(`[shorten] Successfully shortened: ${url.substring(0, 50)}... -> ${shortUrl}`);
 
     return res.status(200).json({
       shortUrl,
