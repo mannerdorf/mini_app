@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
@@ -3713,8 +3713,6 @@ function ChatPage({
     const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [isTyping, setIsReady] = useState(false);
-    const [isRecording, setIsRecording] = useState(false);
-    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
     const scrollRef = React.useRef<HTMLDivElement>(null);
 
     // Начальное приветствие
@@ -3740,70 +3738,6 @@ function ChatPage({
             if (onClearPrefill) onClearPrefill();
         }
     }, [prefillMessage]);
-
-    const startRecording = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
-            // Проверяем поддерживаемые форматы
-            const mimeType = MediaRecorder.isTypeSupported('audio/webm') 
-                ? 'audio/webm' 
-                : 'audio/mp4';
-                
-            const recorder = new MediaRecorder(stream, { mimeType });
-            const chunks: Blob[] = [];
-
-            recorder.ondataavailable = (e) => chunks.push(e.data);
-            recorder.onstop = async () => {
-                const blob = new Blob(chunks, { type: mimeType });
-                await sendVoiceMessage(blob);
-                stream.getTracks().forEach(track => track.stop());
-            };
-
-            recorder.start();
-            setMediaRecorder(recorder);
-            setIsRecording(true);
-        } catch (err) {
-            console.error("Recording error:", err);
-            alert("Не удалось включить микрофон. Убедитесь, что у приложения есть доступ.");
-        }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-            setIsRecording(false);
-        }
-    };
-
-    const sendVoiceMessage = async (blob: Blob) => {
-        setIsReady(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', blob, 'voice.webm');
-
-            const res = await fetch('/api/transcribe', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (res.ok) {
-                const { text } = await res.json();
-                if (text && text.trim()) {
-                    handleSend(text);
-                } else {
-                    setMessages(prev => [...prev, { role: 'assistant', content: "Извините, не удалось разобрать голосовое сообщение." }]);
-                }
-            } else {
-                throw new Error("Transcription failed");
-            }
-        } catch (e) {
-            console.error("Voice send error:", e);
-            setMessages(prev => [...prev, { role: 'assistant', content: "Ошибка при обработке голоса." }]);
-        } finally {
-            setIsReady(false);
-        }
-    };
 
     const handleSend = async (text: string) => {
         const messageText = text || inputValue.trim();
@@ -3905,32 +3839,18 @@ function ChatPage({
             <div style={{ padding: '1rem', background: 'var(--color-background)', borderTop: '1px solid var(--color-border)' }}>
                 <form 
                     onSubmit={(e) => { e.preventDefault(); handleSend(inputValue); }}
-                    style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}
+                    style={{ display: 'flex', gap: '0.5rem' }}
                 >
-                    <Button
-                        type="button"
-                        onClick={isRecording ? stopRecording : startRecording}
-                        style={{ 
-                            padding: '0.5rem', 
-                            minWidth: 'auto', 
-                            borderRadius: '50%',
-                            backgroundColor: isRecording ? '#ef4444' : 'var(--color-panel-secondary)',
-                            color: isRecording ? '#fff' : 'var(--color-theme-primary)',
-                            border: '1px solid var(--color-border)'
-                        }}
-                    >
-                        {isRecording ? <Square size={20} /> : <Mic size={20} />}
-                    </Button>
                     <Input
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
-                        placeholder={isRecording ? "Записываю голос..." : "Напишите ваш вопрос..."}
+                        placeholder="Напишите ваш вопрос..."
                         style={{ flex: 1 }}
-                        disabled={isTyping || isRecording}
+                        disabled={isTyping}
                     />
                     <Button 
                         type="submit" 
-                        disabled={!inputValue.trim() || isTyping || isRecording}
+                        disabled={!inputValue.trim() || isTyping}
                         className="button-primary"
                         style={{ padding: '0.5rem', minWidth: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
