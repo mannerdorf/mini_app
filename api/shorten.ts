@@ -1,27 +1,66 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
 
-// In-memory хранилище для коротких ссылок
-// В production лучше использовать Vercel KV или другую БД
-const urlStore = new Map<string, { url: string; createdAt: number }>();
+// Используем Upstash Redis для хранения коротких ссылок
+// Бесплатный tier: https://upstash.com
+// Добавь в Vercel Environment Variables:
+// - UPSTASH_REDIS_REST_URL
+// - UPSTASH_REDIS_REST_TOKEN
 
-// Очистка старых записей (старше 7 дней)
-const CLEANUP_INTERVAL = 7 * 24 * 60 * 60 * 1000; // 7 дней
-const MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 дней
+const MAX_AGE = 30 * 24 * 60 * 60; // 30 дней в секундах
 
-function cleanupOldEntries() {
-  const now = Date.now();
-  for (const [slug, entry] of urlStore.entries()) {
-    if (now - entry.createdAt > MAX_AGE) {
-      urlStore.delete(slug);
-    }
+async function getRedis() {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) {
+    console.warn("Upstash Redis not configured, falling back to in-memory (not persistent)");
+    return null;
+  }
+
+  return { url, token };
+}
+
+async function setRedis(key: string, value: string, ttl: number) {
+  const redis = await getRedis();
+  if (!redis) return false;
+
+  try {
+    const response = await fetch(`${redis.url}/set/${key}/${encodeURIComponent(value)}/ex/${ttl}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${redis.token}`,
+      },
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("Redis set error:", error);
+    return false;
   }
 }
 
-// Периодическая очистка (каждые 7 дней)
-if (typeof setInterval !== "undefined") {
-  setInterval(cleanupOldEntries, CLEANUP_INTERVAL);
+async function getRedisValue(key: string): Promise<string | null> {
+  const redis = await getRedis();
+  if (!redis) return null;
+
+  try {
+    const response = await fetch(`${redis.url}/get/${key}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${redis.token}`,
+      },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.result || null;
+  } catch (error) {
+    console.error("Redis get error:", error);
+    return null;
+  }
 }
+
+// Fallback in-memory хранилище (только если Redis не настроен)
+const urlStore = new Map<string, { url: string; createdAt: number }>();
 
 /**
  * Создает короткую ссылку из длинного URL
@@ -60,11 +99,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const hash = crypto.createHash("sha256").update(url).digest("hex");
     const slug = hash.substring(0, 8);
 
-    // Сохраняем в хранилище
-    urlStore.set(slug, {
-      url,
-      createdAt: Date.now(),
-    });
+    // Сохраняем в Redis (или fallback в память)
+    const saved = await setRedis(`short:${slug}`, url, MAX_AGE);
+    if (!saved) {
+      // Fallback: сохраняем в память (не персистентно)
+      urlStore.set(slug, {
+        url,
+        createdAt: Date.now(),
+      });
+    }
 
     // Определяем базовый URL
     const host = req.headers.host || req.headers["x-forwarded-host"];

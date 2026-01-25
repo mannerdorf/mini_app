@@ -7,6 +7,48 @@ const EXTERNAL_API_BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
+async function getRedisValue(key: string): Promise<string | null> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) return null;
+
+  try {
+    const response = await fetch(`${url}/get/${key}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.result || null;
+  } catch (error) {
+    console.error("Redis get error:", error);
+    return null;
+  }
+}
+
+async function deleteRedis(key: string) {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) return false;
+
+  try {
+    const response = await fetch(`${url}/del/${key}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("Redis delete error:", error);
+    return false;
+  }
+}
+
 /**
  * Редирект/скачивание документа по токену
  * GET /api/doc/abc123...
@@ -23,19 +65,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Token is required" });
   }
 
-  const docData = docTokenStore.get(token);
+  // Пробуем получить из Redis
+  let docDataJson = await getRedisValue(`doc:${token}`);
+  let docData: { login: string; password: string; metod: string; number: string } | null = null;
+
+  if (docDataJson) {
+    try {
+      docData = JSON.parse(docDataJson);
+      // Удаляем токен из Redis (одноразовый)
+      await deleteRedis(`doc:${token}`);
+    } catch {
+      docData = null;
+    }
+  }
+
+  // Fallback: пробуем из памяти
+  if (!docData) {
+    const entry = docTokenStore.get(token);
+    if (entry) {
+      docData = {
+        login: entry.login,
+        password: entry.password,
+        metod: entry.metod,
+        number: entry.number,
+      };
+      // Удаляем токен из памяти
+      docTokenStore.delete(token);
+    }
+  }
 
   if (!docData) {
     return res.status(404).json({ error: "Document link not found or expired" });
   }
 
-  // Удаляем токен после использования (одноразовый)
-  docTokenStore.delete(token);
-
   // Формируем URL для скачивания документа
+  const { login, password, metod, number } = docData;
   const fullUrl = new URL(EXTERNAL_API_BASE_URL);
-  fullUrl.searchParams.set("metod", docData.metod);
-  fullUrl.searchParams.set("Number", docData.number);
+  fullUrl.searchParams.set("metod", metod);
+  fullUrl.searchParams.set("Number", number);
 
   // Проксируем запрос к внешнему API и возвращаем PDF
   return new Promise<void>((resolve) => {
@@ -46,7 +113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       path: fullUrl.pathname + fullUrl.search,
       method: "GET",
       headers: {
-        Auth: `Basic ${docData.login}:${docData.password}`,
+        Auth: `Basic ${login}:${password}`,
         Authorization: SERVICE_AUTH,
         Accept: "*/*",
         "Accept-Encoding": "identity",
@@ -80,7 +147,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           res.setHeader("Content-Type", "application/pdf");
           res.setHeader(
             "Content-Disposition",
-            `inline; filename="${docData.metod}_${docData.number}.pdf"`
+            `inline; filename="${metod}_${number}.pdf"`
           );
           res.setHeader("Content-Length", fullBuffer.length.toString());
           res.end(fullBuffer);
@@ -94,7 +161,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               res.setHeader("Content-Type", "application/pdf");
               res.setHeader(
                 "Content-Disposition",
-                `inline; filename="${docData.metod}_${docData.number}.pdf"`
+                `inline; filename="${metod}_${number}.pdf"`
               );
               res.setHeader("Content-Length", pdfBuffer.length.toString());
               res.end(pdfBuffer);

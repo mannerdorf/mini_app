@@ -1,8 +1,33 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
 
-// Хранилище для токенов документов (временные токены для доступа к документам)
-// В production лучше использовать Vercel KV
+// Используем Upstash Redis для хранения токенов документов
+const TOKEN_MAX_AGE = 60 * 60; // 1 час в секундах
+
+async function setRedis(key: string, value: string, ttl: number) {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+  if (!url || !token) {
+    console.warn("Upstash Redis not configured for doc tokens");
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${url}/set/${key}/${encodeURIComponent(value)}/ex/${ttl}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.ok;
+  } catch (error) {
+    console.error("Redis set error:", error);
+    return false;
+  }
+}
+
+// Fallback in-memory хранилище
 const docTokenStore = new Map<
   string,
   {
@@ -13,23 +38,6 @@ const docTokenStore = new Map<
     createdAt: number;
   }
 >();
-
-// Очистка старых токенов (старше 1 часа)
-const TOKEN_MAX_AGE = 60 * 60 * 1000; // 1 час
-const CLEANUP_INTERVAL = 10 * 60 * 1000; // каждые 10 минут
-
-function cleanupOldTokens() {
-  const now = Date.now();
-  for (const [token, entry] of docTokenStore.entries()) {
-    if (now - entry.createdAt > TOKEN_MAX_AGE) {
-      docTokenStore.delete(token);
-    }
-  }
-}
-
-if (typeof setInterval !== "undefined") {
-  setInterval(cleanupOldTokens, CLEANUP_INTERVAL);
-}
 
 /**
  * Создает короткую ссылку для документа с временным токеном
@@ -63,14 +71,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Создаем уникальный токен
     const token = crypto.randomBytes(16).toString("hex");
 
-    // Сохраняем данные документа
-    docTokenStore.set(token, {
-      login,
-      password,
-      metod,
-      number,
-      createdAt: Date.now(),
-    });
+    // Сохраняем данные документа в Redis
+    const docData = JSON.stringify({ login, password, metod, number });
+    const saved = await setRedis(`doc:${token}`, docData, TOKEN_MAX_AGE);
+    
+    if (!saved) {
+      // Fallback: сохраняем в память (не персистентно)
+      docTokenStore.set(token, {
+        login,
+        password,
+        metod,
+        number,
+        createdAt: Date.now(),
+      });
+    }
 
     // Определяем базовый URL
     const host = req.headers.host || req.headers["x-forwarded-host"];
