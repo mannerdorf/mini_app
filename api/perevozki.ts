@@ -49,8 +49,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       method: "GET",
       headers: {
         // как в Postman:
-        // Auth: Basic order@lal-auto.com:ZakaZ656565
-        Auth: `Basic ${login}:${password}`,
+        // Auth: Basic order@lal-auto.com:ZakaZ656565 (должно быть base64)
+        Auth: `Basic ${Buffer.from(`${login}:${password}`).toString("base64")}`,
         // Authorization: Basic YWRtaW46anVlYmZueWU=
         Authorization: SERVICE_AUTH,
       },

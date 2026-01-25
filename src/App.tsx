@@ -3150,6 +3150,46 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
+
+    const handleDownloadMax = async (docType: string) => {
+        if (!item.Number) return alert("Нет номера перевозки");
+        setDownloading(docType); 
+        setDownloadError(null);
+        
+        try {
+            const webApp = getWebApp();
+            const metod = DOCUMENT_METHODS[docType];
+            const origin = typeof window !== "undefined" ? window.location.origin : "";
+            const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}`;
+
+            // Сокращаем ссылку через наш прокси (TinyURL)
+            const shortenRes = await fetch('/api/shorten', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: directUrl })
+            });
+
+            if (!shortenRes.ok) {
+                throw new Error("Ошибка сокращения ссылки");
+            }
+
+            const { short_url } = await shortenRes.json();
+
+            if (webApp && typeof webApp.openLink === "function") {
+                webApp.openLink(short_url, { try_instant_view: false } as any);
+            } else {
+                window.open(short_url, "_blank", "noopener,noreferrer");
+            }
+            
+        } catch (e: any) {
+            setDownloadError(e.message || "Ошибка");
+            console.error("Download error:", e);
+        } finally {
+            setDownloading(null);
+        }
+    };
+
+ (Switch to TinyURL for document links and fix Basic Auth encoding)
     // Список явно отображаемых полей (из API примера)
     const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender'];
 
@@ -3242,6 +3282,21 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                     );
                 })()}
 
+
+                {(isMaxWebApp() || isMaxDocsEnabled()) && (
+                    <>
+                        <Typography.Headline style={{marginTop: '0.75rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
+                            Документы (MAX)
+                        </Typography.Headline>
+                        <div className="document-buttons">
+                            {['ЭР', 'АПП', 'СЧЕТ', 'УПД'].map(doc => (
+                                <Button key={`max-${doc}`} className="doc-button" onClick={() => handleDownloadMax(doc)} disabled={downloading === doc}>
+                                    {downloading === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} {doc}
+                                </Button>
+                            ))}
+                        </div>
+                    </>
+                )}
                 {/* Встроенный просмотрщик PDF (метод 4: object/embed) */}
                 {pdfViewer && (
                     <div style={{ marginTop: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
