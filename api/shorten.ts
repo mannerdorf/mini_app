@@ -25,11 +25,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const response = await fetch("https://api.tinyurl.com/dev/api/v1/create", {
+    const response = await fetch("https://api.tinyurl.com/create", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiToken}`,
         "Content-Type": "application/json",
+        "Accept": "application/json",
       },
       body: JSON.stringify({
         url: url,
@@ -37,18 +38,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }),
     });
 
-    const data = await response.json();
+    const rawResponse = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(rawResponse);
+    } catch {
+      data = { raw: rawResponse };
+    }
 
     if (!response.ok) {
-      console.error("TinyURL error:", data);
+      console.error("TinyURL error response:", rawResponse);
       return res.status(response.status).json({
         error: "TinyURL API error",
-        details: data.errors || data,
+        status: response.status,
+        details: data.errors || data.message || data,
       });
     }
 
     return res.status(200).json({
-      short_url: data.data.tiny_url,
+      short_url: data.data?.tiny_url || data.tiny_url,
     });
   } catch (error: any) {
     console.error("Shorten error:", error);

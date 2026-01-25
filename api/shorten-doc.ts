@@ -130,11 +130,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (apiToken) {
       try {
-        const tinyRes = await fetch("https://api.tinyurl.com/dev/api/v1/create", {
+        const tinyRes = await fetch("https://api.tinyurl.com/create", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${apiToken}`,
             "Content-Type": "application/json",
+            "Accept": "application/json",
           },
           body: JSON.stringify({
             url: tokenUrl,
@@ -144,7 +145,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (tinyRes.ok) {
           const tinyData = await tinyRes.json();
-          shortUrl = tinyData.data.tiny_url;
+          shortUrl = tinyData.data?.tiny_url || tinyData.tiny_url;
           console.log(`[shorten-doc] TinyURL short URL created: ${shortUrl}`);
         } else {
           const errText = await tinyRes.text();
