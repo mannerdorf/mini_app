@@ -815,6 +815,7 @@ function CustomPeriodModal({
 // --- DASHBOARD PAGE (SECRET) ---
 function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void }) {
     const [items, setItems] = useState<CargoItem[]>([]);
+    const [debugInfo, setDebugInfo] = useState<string>("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
@@ -830,6 +831,56 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
     // Chart type selector
     const [chartType, setChartType] = useState<'money' | 'weight' | 'places'>('money');
     
+    const testMaxMessage = async () => {
+        const webApp = getWebApp();
+        const logs: string[] = [];
+        
+        logs.push(`Time: ${new Date().toISOString()}`);
+        logs.push(`Environment: ${isMaxWebApp() ? "MAX" : "Not MAX"}`);
+        logs.push(`window.WebApp: ${!!(window as any).WebApp}`);
+        logs.push(`window.Telegram.WebApp: ${!!window.Telegram?.WebApp}`);
+        
+        if (webApp) {
+            logs.push(`initData: ${webApp.initData ? "present" : "absent"}`);
+            logs.push(`initDataUnsafe keys: ${Object.keys(webApp.initDataUnsafe || {}).join(", ")}`);
+            if (webApp.initDataUnsafe?.user) {
+                logs.push(`user: ${JSON.stringify(webApp.initDataUnsafe.user)}`);
+            }
+            if (webApp.initDataUnsafe?.chat) {
+                logs.push(`chat: ${JSON.stringify(webApp.initDataUnsafe.chat)}`);
+            }
+            
+            const chatId = webApp.initDataUnsafe?.user?.id || webApp.initDataUnsafe?.chat?.id;
+            logs.push(`Detected chatId: ${chatId}`);
+            
+            if (chatId) {
+                try {
+                    logs.push("Sending test message...");
+                    const res = await fetch('/api/max-send-message', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            chatId, 
+                            text: `🛠 ТЕСТ ИЗ ДАШБОРДА\nChatID: ${chatId}\nTime: ${new Date().toLocaleTimeString()}` 
+                        })
+                    });
+                    const resData = await res.json().catch(() => ({}));
+                    logs.push(`Response status: ${res.status}`);
+                    logs.push(`Response data: ${JSON.stringify(resData)}`);
+                } catch (e: any) {
+                    logs.push(`Error: ${e.message}`);
+                }
+            } else {
+                logs.push("Error: No chatId found!");
+            }
+        } else {
+            logs.push("Error: WebApp is not available!");
+        }
+        
+        setDebugInfo(logs.join("\n"));
+        console.log("[testMaxMessage]", logs);
+    };
+
     const apiDateRange = useMemo(() => 
         dateFilter === "период" 
             ? { dateFrom: customDateFrom, dateTo: customDateTo } 
@@ -981,8 +1032,31 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
         const darkColor = rgb ? `rgb(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${Math.max(0, rgb.b - 30)})` : color;
         
         return (
-            <div>
-                <div style={{ overflowX: 'auto', width: '100%' }}>
+            <div className="w-full">
+                {isMaxWebApp() && (
+                    <Panel className="cargo-card mb-4" style={{ padding: '1rem', background: '#222', color: '#fff', border: '1px dashed #555' }}>
+                        <Typography.Headline style={{ fontSize: '1rem', marginBottom: '0.5rem', color: '#ffcc00' }}>🛠 MAX Debug (Dashboard)</Typography.Headline>
+                        <Flex vertical gap="0.75rem">
+                            <Button onClick={testMaxMessage} className="filter-button" style={{ background: '#ffcc00', color: '#000', fontWeight: 'bold' }}>
+                                Отправить тестовое сообщение
+                            </Button>
+                            {debugInfo && (
+                                <pre style={{ 
+                                    background: '#000', 
+                                    padding: '0.75rem', 
+                                    borderRadius: '8px', 
+                                    fontSize: '0.75rem', 
+                                    overflowX: 'auto',
+                                    whiteSpace: 'pre-wrap',
+                                    border: '1px solid #333'
+                                }}>
+                                    {debugInfo}
+                                </pre>
+                            )}
+                        </Flex>
+                    </Panel>
+                )}
+                <div style={{ padding: '0 0.5rem' }}>
                     <svg 
                         width={Math.max(chartWidth, '100%')} 
                         height={chartHeight}
