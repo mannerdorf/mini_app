@@ -73,9 +73,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     let body: any = req.body;
+    // Парсим body вручную, если Vercel этого не сделал
+    if (typeof body === "string" && body.trim().startsWith("{")) {
+      try { body = JSON.parse(body); } catch (e) {}
+    }
+
+    const chatId = body?.chatId || body?.chat_id;
+    const text = body?.text;
 
     if (!chatId || !text) {
-      return res.status(400).json({ error: "chatId and text are required" });
+      return res.status(400).json({ 
+        error: "Missing fields", 
+        message: "chatId and text are required",
+        received: { chatId: !!chatId, text: !!text },
+        bodyType: typeof body
+      });
     }
 
     const numericChatId = Number(chatId);
