@@ -2866,11 +2866,18 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                             });
 
                                             lines.push("");
-                                            lines.push("Документы:");
-                                            lines.push(`ЭР: ${shortUrls["ЭР"] || longUrls["ЭР"]}`);
-                                            lines.push(`Счет: ${shortUrls["СЧЕТ"] || longUrls["СЧЕТ"]}`);
-                                            lines.push(`УПД: ${shortUrls["УПД"] || longUrls["УПД"]}`);
-                                            lines.push(`АПП: ${shortUrls["АПП"] || longUrls["АПП"]}`);
+                                            lines.push("Документы (короткие):");
+                                            lines.push(`ЭР: ${shortUrls["ЭР"] || "(не удалось сократить)"}`);
+                                            lines.push(`Счет: ${shortUrls["СЧЕТ"] || "(не удалось сократить)"}`);
+                                            lines.push(`УПД: ${shortUrls["УПД"] || "(не удалось сократить)"}`);
+                                            lines.push(`АПП: ${shortUrls["АПП"] || "(не удалось сократить)"}`);
+                                            
+                                            lines.push("");
+                                            lines.push("Документы (прямые):");
+                                            lines.push(`ЭР: ${longUrls["ЭР"]}`);
+                                            lines.push(`Счет: ${longUrls["СЧЕТ"]}`);
+                                            lines.push(`УПД: ${longUrls["УПД"]}`);
+                                            lines.push(`АПП: ${longUrls["АПП"]}`);
 
                                             const text = lines.join("\n");
 
@@ -3203,8 +3210,18 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                                     ];
                                     
                                     const shortUrls: Record<string, string> = {};
+                                    const longUrls: Record<string, string> = {};
                                     
                                     const shortenPromises = docTypes.map(async ({ label, metod }) => {
+                                        const params = new URLSearchParams({
+                                            login: auth.login,
+                                            password: auth.password,
+                                            metod,
+                                            number: item.Number!,
+                                        });
+                                        const longUrl = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
+                                        longUrls[label] = longUrl;
+
                                         try {
                                             const res = await fetch('/api/shorten-doc', {
                                                 method: 'POST',
@@ -3221,23 +3238,10 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                                                 const data = await res.json();
                                                 shortUrls[label] = data.shortUrl || data.short_url;
                                             } else {
-                                                // Fallback
-                                                const params = new URLSearchParams({
-                                                    login: auth.login,
-                                                    password: auth.password,
-                                                    metod,
-                                                    number: item.Number!,
-                                                });
-                                                shortUrls[label] = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
+                                                shortUrls[label] = longUrl;
                                             }
                                         } catch {
-                                            const params = new URLSearchParams({
-                                                login: auth.login,
-                                                password: auth.password,
-                                                metod,
-                                                number: item.Number!,
-                                            });
-                                            shortUrls[label] = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
+                                            shortUrls[label] = longUrl;
                                         }
                                     });
                                     
@@ -3255,11 +3259,18 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                                     if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
                                     
                                     lines.push("");
-                                    lines.push("Документы:");
+                                    lines.push("Документы (короткие):");
                                     lines.push(`ЭР: ${shortUrls["ЭР"]}`);
                                     lines.push(`Счет: ${shortUrls["СЧЕТ"]}`);
                                     lines.push(`УПД: ${shortUrls["УПД"]}`);
                                     lines.push(`АПП: ${shortUrls["АПП"]}`);
+                                    
+                                    lines.push("");
+                                    lines.push("Документы (прямые):");
+                                    lines.push(`ЭР: ${longUrls["ЭР"]}`);
+                                    lines.push(`Счет: ${longUrls["СЧЕТ"]}`);
+                                    lines.push(`УПД: ${longUrls["УПД"]}`);
+                                    lines.push(`АПП: ${longUrls["АПП"]}`);
 
                                     const text = lines.join("\n");
 
