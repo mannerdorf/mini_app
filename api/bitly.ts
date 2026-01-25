@@ -17,6 +17,8 @@ export async function shortenUrl(longUrl: string): Promise<string | null> {
   }
 
   try {
+    console.log(`[bitly] Shortening URL: ${longUrl.substring(0, 100)}...`);
+    
     const response = await fetch(`${BITLY_API_BASE}/shorten`, {
       method: "POST",
       headers: {
@@ -35,10 +37,13 @@ export async function shortenUrl(longUrl: string): Promise<string | null> {
     }
 
     const data = await response.json();
-    const shortUrl = data?.link || data?.id;
+    console.log(`[bitly] Bitly API response:`, JSON.stringify(data));
+    
+    // Bitly API v4 возвращает поле "link" с короткой ссылкой
+    const shortUrl = data?.link || data?.id || data?.short_url;
 
     if (shortUrl) {
-      console.log(`[bitly] Shortened: ${longUrl.substring(0, 50)}... -> ${shortUrl}`);
+      console.log(`[bitly] Successfully shortened: ${longUrl.substring(0, 50)}... -> ${shortUrl}`);
       return shortUrl;
     }
 

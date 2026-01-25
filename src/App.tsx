@@ -2588,8 +2588,12 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                             
                                             // Передаем длинные ссылки в Bitly через /api/shorten (параллельно)
                                             const shortUrls: Record<string, string> = {};
+                                            console.log('[share] Starting to shorten URLs via Bitly...');
+                                            
                                             const shortenPromises = docTypes.map(async ({ label }) => {
                                                 try {
+                                                    console.log(`[share] Sending ${label} to /api/shorten: ${longUrls[label].substring(0, 80)}...`);
+                                                    
                                                     const res = await fetch('/api/shorten', {
                                                         method: 'POST',
                                                         headers: { 'Content-Type': 'application/json' },
@@ -2598,22 +2602,27 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                                         }),
                                                     });
                                                     
+                                                    console.log(`[share] Response for ${label}: status=${res.status}, ok=${res.ok}`);
+                                                    
                                                     if (res.ok) {
                                                         const data = await res.json();
+                                                        console.log(`[share] Response data for ${label}:`, data);
                                                         shortUrls[label] = data.shortUrl || longUrls[label];
                                                         console.log(`[share] Bitly short URL for ${label}: ${shortUrls[label]}`);
                                                     } else {
-                                                        console.error(`[share] Failed to shorten ${label}:`, res.status);
+                                                        const errorText = await res.text().catch(() => '');
+                                                        console.error(`[share] Failed to shorten ${label}: ${res.status} ${errorText}`);
                                                         shortUrls[label] = longUrls[label]; // Fallback на длинную ссылку
                                                     }
-                                                } catch (error) {
-                                                    console.error(`[share] Failed to shorten ${label}:`, error);
+                                                } catch (error: any) {
+                                                    console.error(`[share] Exception shortening ${label}:`, error?.message || error);
                                                     shortUrls[label] = longUrls[label]; // Fallback на длинную ссылку
                                                 }
                                             });
                                             
                                             // Ждем завершения всех запросов
                                             await Promise.all(shortenPromises);
+                                            console.log('[share] All shorten requests completed. Short URLs:', shortUrls);
 
                                             const lines: string[] = [];
                                             lines.push(`Перевозка: ${item.Number}`);
