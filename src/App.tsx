@@ -2800,19 +2800,23 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                                 longUrls[label] = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
                                             }
                                             
-                                            // Передаем длинные ссылки в TinyURL через /api/shorten (параллельно)
+                                            // Передаем данные в TinyURL через /api/shorten-doc (параллельно)
+                                            // Это создает временные токены, чтобы не светить логин/пароль в ссылках
                                             const shortUrls: Record<string, string> = {};
-                                            console.log('[share] Starting to shorten URLs via TinyURL...');
+                                            console.log('[share] Starting to shorten URLs via TinyURL (token mode)...');
                                             
-                                            const shortenPromises = docTypes.map(async ({ label }) => {
+                                            const shortenPromises = docTypes.map(async ({ label, metod }) => {
                                                 try {
-                                                    console.log(`[share] Sending ${label} to /api/shorten: ${longUrls[label].substring(0, 80)}...`);
+                                                    console.log(`[share] Creating token for ${label}...`);
                                                     
-                                                    const res = await fetch('/api/shorten', {
+                                                    const res = await fetch('/api/shorten-doc', {
                                                         method: 'POST',
                                                         headers: { 'Content-Type': 'application/json' },
                                                         body: JSON.stringify({
-                                                            url: longUrls[label],
+                                                            login: auth.login,
+                                                            password: auth.password,
+                                                            metod,
+                                                            number: item.Number,
                                                         }),
                                                     });
                                                     
@@ -2821,16 +2825,17 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                                     if (res.ok) {
                                                         const data = await res.json();
                                                         console.log(`[share] Response data for ${label}:`, data);
-                                                        shortUrls[label] = data.short_url || longUrls[label];
+                                                        shortUrls[label] = data.shortUrl || data.short_url;
                                                         console.log(`[share] TinyURL short URL for ${label}: ${shortUrls[label]}`);
                                                     } else {
                                                         const errorText = await res.text().catch(() => '');
                                                         console.error(`[share] Failed to shorten ${label}: ${res.status} ${errorText}`);
-                                                        shortUrls[label] = longUrls[label]; // Fallback на длинную ссылку
+                                                        // Если токенизация не сработала, используем прямую ссылку (хотя это менее безопасно)
+                                                        shortUrls[label] = longUrls[label];
                                                     }
                                                 } catch (error: any) {
                                                     console.error(`[share] Exception shortening ${label}:`, error?.message || error);
-                                                    shortUrls[label] = longUrls[label]; // Fallback на длинную ссылку
+                                                    shortUrls[label] = longUrls[label];
                                                 }
                                             });
                                             
@@ -3180,8 +3185,108 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    {/* Заголовок без "Перевозка" */}
-                    <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></Button>
+                    <Flex align="center" gap="0.5rem">
+                        <Button
+                            className="filter-button"
+                            style={{ padding: '0.25rem 0.5rem', minWidth: 'auto' }}
+                            onClick={async () => {
+                                if (!item.Number) return;
+                                setDownloading("share");
+                                
+                                try {
+                                    const baseOrigin = typeof window !== "undefined" ? window.location.origin : "";
+                                    const docTypes: Array<{ label: "ЭР" | "СЧЕТ" | "УПД" | "АПП"; metod: string }> = [
+                                        { label: "ЭР", metod: DOCUMENT_METHODS["ЭР"] },
+                                        { label: "СЧЕТ", metod: DOCUMENT_METHODS["СЧЕТ"] },
+                                        { label: "УПД", metod: DOCUMENT_METHODS["УПД"] },
+                                        { label: "АПП", metod: DOCUMENT_METHODS["АПП"] },
+                                    ];
+                                    
+                                    const shortUrls: Record<string, string> = {};
+                                    
+                                    const shortenPromises = docTypes.map(async ({ label, metod }) => {
+                                        try {
+                                            const res = await fetch('/api/shorten-doc', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    login: auth.login,
+                                                    password: auth.password,
+                                                    metod,
+                                                    number: item.Number,
+                                                }),
+                                            });
+                                            
+                                            if (res.ok) {
+                                                const data = await res.json();
+                                                shortUrls[label] = data.shortUrl || data.short_url;
+                                            } else {
+                                                // Fallback
+                                                const params = new URLSearchParams({
+                                                    login: auth.login,
+                                                    password: auth.password,
+                                                    metod,
+                                                    number: item.Number!,
+                                                });
+                                                shortUrls[label] = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
+                                            }
+                                        } catch {
+                                            const params = new URLSearchParams({
+                                                login: auth.login,
+                                                password: auth.password,
+                                                metod,
+                                                number: item.Number!,
+                                            });
+                                            shortUrls[label] = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
+                                        }
+                                    });
+                                    
+                                    await Promise.all(shortenPromises);
+
+                                    const lines: string[] = [];
+                                    lines.push(`Перевозка: ${item.Number}`);
+                                    if (item.State) lines.push(`Статус: ${normalizeStatus(item.State)}`);
+                                    if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
+                                    if (item.DateVr) lines.push(`Доставка: ${formatDate(item.DateVr)}`);
+                                    if (item.Sender) lines.push(`Отправитель: ${item.Sender}`);
+                                    if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
+                                    if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
+                                    if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
+                                    if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
+                                    
+                                    lines.push("");
+                                    lines.push("Документы:");
+                                    lines.push(`ЭР: ${shortUrls["ЭР"]}`);
+                                    lines.push(`Счет: ${shortUrls["СЧЕТ"]}`);
+                                    lines.push(`УПД: ${shortUrls["УПД"]}`);
+                                    lines.push(`АПП: ${shortUrls["АПП"]}`);
+
+                                    const text = lines.join("\n");
+
+                                    if (typeof navigator !== "undefined" && (navigator as any).share) {
+                                        await (navigator as any).share({
+                                            title: `HAULZ — перевозка ${item.Number}`,
+                                            text,
+                                        });
+                                    } else if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+                                        await navigator.clipboard.writeText(text);
+                                        alert("Информация скопирована в буфер обмена");
+                                    } else {
+                                        alert(text);
+                                    }
+                                } catch (e: any) {
+                                    console.error("Share error:", e);
+                                    alert("Ошибка при попытке поделиться");
+                                } finally {
+                                    setDownloading(null);
+                                }
+                            }}
+                            title="Поделиться"
+                        >
+                            {downloading === "share" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+                        </Button>
+                        <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></Button>
+                    </Flex>
                 </div>
                 {downloadError && <Typography.Body className="login-error mb-2">{downloadError}</Typography.Body>}
                 
