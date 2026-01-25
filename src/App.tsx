@@ -1032,31 +1032,8 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
         const darkColor = rgb ? `rgb(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${Math.max(0, rgb.b - 30)})` : color;
         
         return (
-            <div className="w-full">
-                {isMaxWebApp() && (
-                    <Panel className="cargo-card mb-4" style={{ padding: '1rem', background: '#222', color: '#fff', border: '1px dashed #555' }}>
-                        <Typography.Headline style={{ fontSize: '1rem', marginBottom: '0.5rem', color: '#ffcc00' }}>🛠 MAX Debug (Dashboard)</Typography.Headline>
-                        <Flex vertical gap="0.75rem">
-                            <Button onClick={testMaxMessage} className="filter-button" style={{ background: '#ffcc00', color: '#000', fontWeight: 'bold' }}>
-                                Отправить тестовое сообщение
-                            </Button>
-                            {debugInfo && (
-                                <pre style={{ 
-                                    background: '#000', 
-                                    padding: '0.75rem', 
-                                    borderRadius: '8px', 
-                                    fontSize: '0.75rem', 
-                                    overflowX: 'auto',
-                                    whiteSpace: 'pre-wrap',
-                                    border: '1px solid #333'
-                                }}>
-                                    {debugInfo}
-                                </pre>
-                            )}
-                        </Flex>
-                    </Panel>
-                )}
-                <div style={{ padding: '0 0.5rem' }}>
+            <div>
+                <div style={{ overflowX: 'auto', width: '100%' }}>
                     <svg 
                         width={Math.max(chartWidth, '100%')} 
                         height={chartHeight}
@@ -1389,6 +1366,54 @@ function TinyUrlTestPage({ onBack }: { onBack: () => void }) {
     const [loading, setLoading] = useState(false);
     const [logs, setLogs] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [maxDebugInfo, setMaxDebugInfo] = useState<string>("");
+
+    const testMaxMessage = async () => {
+        const webApp = getWebApp();
+        const testLogs: string[] = [];
+        
+        testLogs.push(`Time: ${new Date().toISOString()}`);
+        testLogs.push(`Environment: ${isMaxWebApp() ? "MAX" : "Not MAX"}`);
+        testLogs.push(`window.WebApp: ${!!(window as any).WebApp}`);
+        
+        if (webApp) {
+            testLogs.push(`initDataUnsafe keys: ${Object.keys(webApp.initDataUnsafe || {}).join(", ")}`);
+            if (webApp.initDataUnsafe?.user) {
+                testLogs.push(`user: ${JSON.stringify(webApp.initDataUnsafe.user)}`);
+            }
+            if (webApp.initDataUnsafe?.chat) {
+                testLogs.push(`chat: ${JSON.stringify(webApp.initDataUnsafe.chat)}`);
+            }
+            
+            const chatId = webApp.initDataUnsafe?.user?.id || webApp.initDataUnsafe?.chat?.id;
+            testLogs.push(`Detected chatId: ${chatId}`);
+            
+            if (chatId) {
+                try {
+                    testLogs.push("Sending test message...");
+                    const res = await fetch('/api/max-send-message', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            chatId, 
+                            text: `🛠 ТЕСТ ИЗ ПРОФИЛЯ\nChatID: ${chatId}\nTime: ${new Date().toLocaleTimeString()}` 
+                        })
+                    });
+                    const resData = await res.json().catch(() => ({}));
+                    testLogs.push(`Response status: ${res.status}`);
+                    testLogs.push(`Response data: ${JSON.stringify(resData)}`);
+                } catch (e: any) {
+                    testLogs.push(`Error: ${e.message}`);
+                }
+            } else {
+                testLogs.push("Error: No chatId found!");
+            }
+        } else {
+            testLogs.push("Error: WebApp is not available!");
+        }
+        
+        setMaxDebugInfo(testLogs.join("\n"));
+    };
 
     const addLog = (message: string) => {
         const timestamp = new Date().toLocaleTimeString('ru-RU');
@@ -1545,6 +1570,30 @@ function TinyUrlTestPage({ onBack }: { onBack: () => void }) {
                     </div>
                 )}
             </Panel>
+
+            {isMaxWebApp() && (
+                <Panel className="cargo-card mb-4" style={{ padding: '1rem', background: '#222', color: '#fff', border: '1px dashed #555', marginTop: '1rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', marginBottom: '0.5rem', color: '#ffcc00' }}>🛠 MAX Debug (Profile Section)</Typography.Headline>
+                    <Flex vertical gap="0.75rem">
+                        <Button onClick={testMaxMessage} className="filter-button" style={{ background: '#ffcc00', color: '#000', fontWeight: 'bold' }}>
+                            Отправить тестовое сообщение
+                        </Button>
+                        {maxDebugInfo && (
+                            <pre style={{ 
+                                background: '#000', 
+                                padding: '0.75rem', 
+                                borderRadius: '8px', 
+                                fontSize: '0.75rem', 
+                                overflowX: 'auto',
+                                whiteSpace: 'pre-wrap',
+                                border: '1px solid #333'
+                            }}>
+                                {maxDebugInfo}
+                            </pre>
+                        )}
+                    </Flex>
+                </Panel>
+            )}
 
             <Panel className="cargo-card" style={{ padding: '1rem' }}>
                 <Typography.Label style={{ marginBottom: '0.75rem', display: 'block' }}>
