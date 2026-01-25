@@ -1490,7 +1490,11 @@ function TinyUrlTestPage({ onBack }: { onBack: () => void }) {
                         })
                     });
                     const resStatus = res.status;
+                    const resData = await res.json().catch(() => ({}));
                     testLogs.push(`Response status: ${resStatus}`);
+                    if (resStatus !== 200) {
+                        testLogs.push(`Error Data: ${JSON.stringify(resData)}`);
+                    }
                 } catch (e: any) {
                     testLogs.push(`Error: ${e.message}`);
                 }

@@ -34,9 +34,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, result });
   } catch (error: any) {
     console.error("api/max-send-message error:", error);
+    // Более детальный вывод ошибки для фронтенда
     return res.status(500).json({ 
       error: "Failed to send message", 
-      message: error?.message || String(error) 
+      message: error?.message || String(error),
+      details: error.stack
     });
   }
 }
