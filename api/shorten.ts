@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { shortenUrl } from "./bitly";
 
 function truncateUrl(u: string, max = 80): string {
   if (!u || u.length <= max) return u;
@@ -66,6 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log(`[shorten] BITLY_ACCESS_TOKEN: ${process.env.BITLY_ACCESS_TOKEN ? "YES" : "NO"}`);
     console.log(`[shorten] Вызов Bitly: POST ${BITLY_URL}, body: {"long_url":"${truncateUrl(url)}"}`);
 
+    const { shortenUrl } = await import("./bitly");
     const result = await shortenUrl(url);
 
     if (result.ok) {

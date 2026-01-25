@@ -1323,9 +1323,9 @@ function BitlyTestPage({ onBack }: { onBack: () => void }) {
 
     const handlePing = async () => {
         setError(null);
-        addLog('Проверка GET /api/shorten...');
+        addLog('Проверка GET /api/shorten-ping...');
         try {
-            const res = await fetch('/api/shorten', { method: 'GET' });
+            const res = await fetch('/api/shorten-ping', { method: 'GET' });
             const data = await res.json().catch(() => ({}));
             addLog(`GET ответ: status=${res.status}, ok=${res.ok}`);
             addLog(`bitly_configured: ${data.bitly_configured === true ? 'ДА' : 'НЕТ'}`);
