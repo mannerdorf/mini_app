@@ -12,7 +12,7 @@ async function getRedisValue(key: string): Promise<string | null> {
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!url || !token) {
-    console.warn("[doc/[token]] Upstash Redis not configured in doc handler");
+    console.error("[doc/[token]] UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN is missing!");
     return null;
   }
 
@@ -129,9 +129,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (docDataJson) {
       try {
         docData = JSON.parse(docDataJson);
-        console.log(`[doc/[token]] Found in Redis, deleting token`);
-        // Удаляем токен из Redis (одноразовый)
-        await deleteRedis(`doc:${token}`);
+        console.log(`[doc/[token]] Found in Redis`);
+        // Не удаляем токен сразу, чтобы ссылка работала несколько раз (например, при превью в мессенджерах)
+        // Он удалится сам через час по TTL
       } catch (parseError) {
         console.error(`[doc/[token]] Failed to parse JSON from Redis:`, parseError);
         docData = null;

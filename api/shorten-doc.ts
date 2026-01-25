@@ -119,6 +119,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log(`[shorten-doc] Successfully saved token to Redis: ${redisKey}`);
     }
 
+    // Добавляем флаг в ответ для диагностики
+    const debug = {
+      redis_saved: saved,
+      redis_configured: !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+    };
+
     // Определяем базовый URL для токена
     const host = req.headers.host || req.headers["x-forwarded-host"];
     const protocol = req.headers["x-forwarded-proto"] || "https";
@@ -162,6 +168,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       shortUrl,
       token,
       originalUrl: tokenUrl,
+      debug
     });
   } catch (error: any) {
     console.error("Shorten doc error:", error);
