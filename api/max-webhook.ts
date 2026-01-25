@@ -50,10 +50,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true });
   }
 
-  // Сразу отвечаем платформе MAX
-  res.status(200).json({ ok: true });
-
-  // Остальная логика в фоне
   try {
     // Проверяем разные источники payload
     const rawText =
@@ -98,7 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         text: `Добрый день!\n\nВижу, что у вас вопрос по перевозке ${cargoNumber}.\n\nВы можете скачать документы прямо здесь:`,
         attachments,
       });
-      return;
+      return res.status(200).json({ ok: true });
     }
 
     // Обычное сообщение — через ИИ
@@ -133,8 +129,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
   } catch (error) {
-    console.error("MAX webhook background error:", error);
+    console.error("MAX webhook error:", error);
   }
+
+  return res.status(200).json({ ok: true });
 }
 
 function safeJson(s: string) {

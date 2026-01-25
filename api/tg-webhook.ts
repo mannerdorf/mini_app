@@ -23,10 +23,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true });
   }
 
-  // Сразу отвечаем Телеграму, чтобы он не переотправлял запрос
-  res.status(200).json({ ok: true });
-
-  // Дальнейшая логика в фоне (try/catch обязателен)
   try {
     // Если пришло голосовое сообщение
     if (voice) {
@@ -36,70 +32,71 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const fileData: any = await fileRes.json();
       const filePath = fileData?.result?.file_path;
       
-      if (!filePath) throw new Error("Could not get file path from Telegram");
+      if (filePath) {
+        const audioRes = await fetch(`https://api.telegram.org/file/bot${TG_BOT_TOKEN}/${filePath}`);
+        const audioBuffer = await audioRes.arrayBuffer();
+        
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (apiKey) {
+          const formData = new FormData();
+          const blob = new Blob([audioBuffer], { type: voice.mime_type || 'audio/ogg' });
+          formData.append('file', blob, 'voice.oga');
+          formData.append('model', 'whisper-1');
 
-      const audioRes = await fetch(`https://api.telegram.org/file/bot${TG_BOT_TOKEN}/${filePath}`);
-      const audioBuffer = await audioRes.arrayBuffer();
-      
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (apiKey) {
-        const formData = new FormData();
-        // Используем Blob из глобальной области Node 18+
-        const blob = new Blob([audioBuffer], { type: voice.mime_type || 'audio/ogg' });
-        formData.append('file', blob, 'voice.oga');
-        formData.append('model', 'whisper-1');
+          const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+            body: formData
+          });
 
-        const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${apiKey}` },
-          body: formData
-        });
-
-        if (whisperRes.ok) {
-          const { text } = await whisperRes.json();
-          if (text) {
-            console.log("TG Transcribed text:", text);
-            await processAiReply(chatId, text);
-            return;
+          if (whisperRes.ok) {
+            const { text } = await whisperRes.json();
+            if (text) {
+              console.log("TG Transcribed text:", text);
+              await processAiReply(chatId, text);
+              return res.status(200).json({ ok: true });
+            }
           }
         }
       }
       await sendTgMessage(chatId, "Извините, не удалось распознать голосовое сообщение.");
-      return;
+      return res.status(200).json({ ok: true });
     }
 
-    if (!userText) return;
+    if (userText) {
+      // Обработка /start с параметрами
+      if (userText.startsWith("/start ")) {
+        const payload = userText.split(" ")[1];
+        if (payload && payload.startsWith("haulz_n_")) {
+          const parts = payload.split("_");
+          const cargoNumber = parts[2];
+          const appDomain = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app";
+          const docUrl = (m: string) => `${appDomain}/api/doc-short?metod=${encodeURIComponent(m)}&number=${encodeURIComponent(cargoNumber)}`;
 
-    // Обработка /start с параметрами
-    if (userText.startsWith("/start ")) {
-      const payload = userText.split(" ")[1];
-      if (payload.startsWith("haulz_n_")) {
-        const parts = payload.split("_");
-        const cargoNumber = parts[2];
-        const appDomain = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app";
-        const docUrl = (m: string) => `${appDomain}/api/doc-short?metod=${encodeURIComponent(m)}&number=${encodeURIComponent(cargoNumber)}`;
+          const message = `Вижу ваш вопрос по перевозке ${cargoNumber}. Выберите документ для скачивания:`;
+          const keyboard = {
+            inline_keyboard: [
+              [{ text: "ЭР", url: docUrl("ЭР") }, { text: "СЧЕТ", url: docUrl("СЧЕТ") }],
+              [{ text: "УПД", url: docUrl("УПД") }, { text: "АПП", url: docUrl("АПП") }]
+            ]
+          };
 
-        const message = `Вижу ваш вопрос по перевозке ${cargoNumber}. Выберите документ для скачивания:`;
-        const keyboard = {
-          inline_keyboard: [
-            [{ text: "ЭР", url: docUrl("ЭР") }, { text: "СЧЕТ", url: docUrl("СЧЕТ") }],
-            [{ text: "УПД", url: docUrl("УПД") }, { text: "АПП", url: docUrl("АПП") }]
-          ]
-        };
-
-        await sendTgMessage(chatId, message, keyboard);
-        return;
+          await sendTgMessage(chatId, message, keyboard);
+          return res.status(200).json({ ok: true });
+        }
       }
-    }
 
-    // Обычное сообщение — через ИИ
-    await processAiReply(chatId, userText);
+      // Обычное сообщение — через ИИ
+      await processAiReply(chatId, userText);
+    }
   } catch (e) {
-    console.error("TG Webhook background error:", e);
+    console.error("TG Webhook error:", e);
     try {
-      await sendTgMessage(chatId, "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте позже.");
+      await sendTgMessage(chatId, "Извините, произошла ошибка. Попробуйте позже.");
     } catch {}
   }
+
+  return res.status(200).json({ ok: true });
 }
 
 async function processAiReply(chatId: number, text: string) {
