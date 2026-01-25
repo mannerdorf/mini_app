@@ -3969,6 +3969,14 @@ export default function App() {
                 const number = param.replace('delivery_', '');
                 setContextCargoNumber(number);
                 setActiveTab('cargo');
+            } else if (param.startsWith('haulz_n_')) {
+                // Обработка нашего нового формата: haulz_n_[номер](_c_[chatId])
+                const parts = param.split('_');
+                const number = parts[2]; // haulz(0)_n(1)_NUMBER(2)
+                if (number) {
+                    setContextCargoNumber(number);
+                    setActiveTab('cargo');
+                }
             }
         }
     }, []);
@@ -4092,17 +4100,21 @@ export default function App() {
     };
 
     const openMaxBotLink = (url: string) => {
-        // MAX может игнорировать openLink из mini-app. Самый надёжный путь: навигация + close().
-        try {
-            window.location.href = url;
-        } catch {
-            openExternalLink(url);
-        }
         const webApp = getWebApp();
-        if (webApp && typeof (webApp as any).close === "function") {
+        // Используем метод openLink из Bridge, чтобы MAX открыл это именно как внешнюю ссылку (переход в чат)
+        if (webApp && typeof webApp.openLink === "function") {
+            console.log("[openMaxBotLink] Opening via Bridge.openLink:", url);
+            webApp.openLink(url);
+            
+            // Закрываем мини-апп через небольшую паузу, чтобы дать чату открыться
             setTimeout(() => {
-                try { (webApp as any).close(); } catch { /* ignore */ }
-            }, 200);
+                if (typeof (webApp as any).close === "function") {
+                    try { (webApp as any).close(); } catch { /* ignore */ }
+                }
+            }, 500);
+        } else {
+            console.log("[openMaxBotLink] Bridge.openLink not available, using location.href");
+            window.location.href = url;
         }
     };
 
