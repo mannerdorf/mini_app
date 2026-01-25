@@ -81,17 +81,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   
   console.log("MAX webhook cargo number extracted:", cargoNumber);
 
-  // Если есть номер перевозки — отправляем сообщение с кнопками документов
+  // Если это событие bot_started с payload — даем кнопки документов
   if (cargoNumber) {
     console.log("Cargo number extracted:", cargoNumber);
     
     // Получаем домен из env или используем дефолтный
     const appDomain = process.env.VERCEL_URL 
       ? `https://${process.env.VERCEL_URL}` 
-      : process.env.NEXT_PUBLIC_APP_URL || "https://<твой-домен>";
+      : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
     
     // Используем /api/doc-short для редиректа на мини-апп
-    // Мини-апп сам создаст короткие ссылки через /api/shorten-doc при необходимости
     const docUrl = (metod: string) => 
       `${appDomain}/api/doc-short?metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(cargoNumber)}`;
     
@@ -100,28 +99,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payload: {
         buttons: [
           [
-            { 
-              type: "link" as const, 
-              text: "ЭР", 
-              payload: docUrl("ЭР")
-            },
-            { 
-              type: "link" as const, 
-              text: "СЧЕТ", 
-              payload: docUrl("СЧЕТ")
-            },
+            { type: "link" as const, text: "ЭР", payload: docUrl("ЭР") },
+            { type: "link" as const, text: "СЧЕТ", payload: docUrl("СЧЕТ") },
           ],
           [
-            { 
-              type: "link" as const, 
-              text: "УПД", 
-              payload: docUrl("УПД")
-            },
-            { 
-              type: "link" as const, 
-              text: "АПП", 
-              payload: docUrl("АПП")
-            },
+            { type: "link" as const, text: "УПД", payload: docUrl("УПД") },
+            { type: "link" as const, text: "АПП", payload: docUrl("АПП") },
           ],
         ],
       },
@@ -131,26 +114,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await maxSendMessage({
         token: MAX_BOT_TOKEN,
         chatId,
-        text: `Добрый день!\n\nВижу, что у вас вопрос по перевозке ${cargoNumber}.\n\nВы можете скачать документы:`,
+        text: `Добрый день!\n\nВижу, что у вас вопрос по перевозке ${cargoNumber}.\n\nВы можете скачать документы прямо здесь:`,
         attachments,
       });
-      console.log("Message sent successfully to chat:", chatId);
+      return res.status(200).json({ ok: true });
     } catch (error: any) {
       console.error("Failed to send message:", error);
-      // Не возвращаем ошибку, чтобы webhook не считался провалившимся
+    }
+  }
+
+  // Если это обычное текстовое сообщение — отвечаем через ИИ
+  if (update?.message?.text || update?.text) {
+    const userText = update?.message?.text || update?.text;
+    console.log("Using AI to respond to:", userText);
+
+    try {
+      const appDomain = process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}` 
+        : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
+
+      const aiRes = await fetch(`${appDomain}/api/ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          messages: [{ role: 'user', content: userText }]
+        })
+      });
+
+      if (aiRes.ok) {
+        const aiData = await aiRes.json();
+        await maxSendMessage({
+          token: MAX_BOT_TOKEN,
+          chatId,
+          text: aiData.reply,
+        });
+      } else {
+        throw new Error("AI service error");
+      }
+    } catch (error) {
+      console.error("AI processing failed:", error);
+      await maxSendMessage({
+        token: MAX_BOT_TOKEN,
+        chatId,
+        text: "Добрый день! Напишите, пожалуйста, ваш вопрос — мы поможем. 🚛",
+      });
     }
   } else {
-    // Обычное приветствие без кнопок
+    // Входящее событие без текста (например, нажатие кнопки без данных)
     try {
       await maxSendMessage({
         token: MAX_BOT_TOKEN,
         chatId,
-        text: `Добрый день!\n\nНапишите, пожалуйста, ваш вопрос — мы поможем.`,
+        text: "Добрый день! Я AI-помощник HAULZ. Чем могу помочь? 😊",
       });
-      console.log("Welcome message sent successfully to chat:", chatId);
-    } catch (error: any) {
-      console.error("Failed to send welcome message:", error);
-    }
+    } catch (e) {}
   }
 
   return res.status(200).json({ ok: true });

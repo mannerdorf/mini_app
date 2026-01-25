@@ -3699,63 +3699,165 @@ const TabBtn = ({ label, icon, active, onClick, onMouseDown, onMouseUp, onMouseL
     </Button>
 );
 
-function ChatPage({ prefillMessage, onClearPrefill }: { prefillMessage?: string; onClearPrefill?: () => void }) {
-    const BITRIX_PUBLIC_CHAT_URL = "https://haulz.bitrix24.ru/online/open";
+function ChatPage({ 
+    prefillMessage, 
+    onClearPrefill,
+    auth,
+    cargoItems
+}: { 
+    prefillMessage?: string; 
+    onClearPrefill?: () => void;
+    auth?: AuthData;
+    cargoItems?: CargoItem[];
+}) {
+    const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
+    const [inputValue, setInputValue] = useState("");
+    const [isTyping, setIsReady] = useState(false);
+    const scrollRef = React.useRef<HTMLDivElement>(null);
 
-    const shareOrCopy = async () => {
-        const text = prefillMessage?.trim();
-        if (!text) return;
-        try {
-            if (typeof navigator !== "undefined" && (navigator as any).share) {
-                await (navigator as any).share({ title: "HAULZ — Поддержка", text });
-                return;
-            }
-        } catch {
-            // ignore
+    // Начальное приветствие
+    useEffect(() => {
+        if (messages.length === 0) {
+            setMessages([
+                { role: 'assistant', content: "Здравствуйте! Я AI-помощник HAULZ. Чем я могу вам помочь? 🚛" }
+            ]);
         }
-        try {
-            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(text);
-                alert("Текст скопирован. Вставьте в чат.");
-                return;
-            }
-        } catch {
-            // ignore
+    }, []);
+
+    // Автоматическая прокрутка вниз
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-        alert(text);
+    }, [messages, isTyping]);
+
+    // Обработка предзаполненного сообщения
+    useEffect(() => {
+        if (prefillMessage && prefillMessage.trim()) {
+            handleSend(prefillMessage);
+            if (onClearPrefill) onClearPrefill();
+        }
+    }, [prefillMessage]);
+
+    const handleSend = async (text: string) => {
+        const messageText = text || inputValue.trim();
+        if (!messageText || isTyping) return;
+
+        const newMessages = [...messages, { role: 'user' as const, content: messageText }];
+        setMessages(newMessages);
+        setInputValue("");
+        setIsReady(true);
+
+        try {
+            // Подготавливаем контекст (только важные поля, чтобы не перегружать токены)
+            const context = {
+                userLogin: auth?.login,
+                activeCargoCount: cargoItems?.length || 0,
+                recentCargo: cargoItems?.slice(0, 5).map(i => ({
+                    number: i.Number,
+                    status: normalizeStatus(i.State),
+                    date: i.DatePrih,
+                    sender: i.Sender
+                }))
+            };
+
+            const res = await fetch('/api/ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    messages: newMessages.slice(-10), // Отправляем последние 10 сообщений для контекста
+                    context 
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+            } else {
+                throw new Error("Failed to get AI reply");
+            }
+        } catch (e) {
+            setMessages(prev => [...prev, { 
+                role: 'assistant', 
+                content: "Извините, сейчас я не могу ответить. Пожалуйста, попробуйте позже или свяжитесь с поддержкой через бота." 
+            }]);
+        } finally {
+            setIsReady(false);
+        }
     };
 
     return (
-        <div className="w-full">
-            <div className="bitrix-chat-fullbleed">
-                <iframe
-                    className="bitrix-chat-iframe"
-                    src={BITRIX_PUBLIC_CHAT_URL}
-                    title="HAULZ — Поддержка"
-                    loading="lazy"
-                    referrerPolicy="no-referrer-when-downgrade"
-                    allow="clipboard-write; fullscreen"
-                />
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)', width: '100%' }}>
+            {/* Окно сообщений */}
+            <div 
+                ref={scrollRef}
+                style={{ 
+                    flex: 1, 
+                    overflowY: 'auto', 
+                    padding: '1rem', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '1rem',
+                    scrollBehavior: 'smooth' 
+                }}
+            >
+                {messages.map((msg, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                        <div style={{ 
+                            maxWidth: '85%', 
+                            padding: '0.75rem 1rem', 
+                            borderRadius: '1rem', 
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                            backgroundColor: msg.role === 'user' ? 'var(--color-theme-primary)' : 'var(--color-panel-secondary)',
+                            color: msg.role === 'user' ? '#fff' : 'inherit',
+                            borderBottomRightRadius: msg.role === 'user' ? '0' : '1rem',
+                            borderBottomLeftRadius: msg.role === 'user' ? '1rem' : '0',
+                            border: msg.role === 'user' ? 'none' : '1px solid var(--color-border)'
+                        }}>
+                            <Typography.Body style={{ color: 'inherit', fontSize: '0.95rem', lineHeight: '1.4', margin: 0 }}>
+                                {msg.content}
+                            </Typography.Body>
+                        </div>
+                    </div>
+                ))}
+                {isTyping && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                        <div style={{ 
+                            padding: '0.75rem 1rem', 
+                            borderRadius: '1rem', 
+                            backgroundColor: 'var(--color-panel-secondary)',
+                            border: '1px solid var(--color-border)',
+                            borderBottomLeftRadius: '0'
+                        }}>
+                            <Loader2 className="w-5 h-5 animate-spin text-theme-primary" />
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {prefillMessage && (
-                <Panel className="cargo-card" style={{ padding: '1rem', marginTop: '0.75rem' }}>
-                    <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                        Сообщение для чата
-                    </Typography.Body>
-                    <Typography.Body style={{ whiteSpace: "pre-wrap", fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
-                        {prefillMessage}
-                    </Typography.Body>
-                    <Flex style={{ gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-                        <Button className="button-primary" type="button" onClick={shareOrCopy} style={{ flex: 1 }}>
-                            Отправить / Скопировать
-                        </Button>
-                        <Button className="filter-button" type="button" onClick={onClearPrefill} style={{ flex: 1 }}>
-                            Очистить
-                        </Button>
-                    </Flex>
-                </Panel>
-            )}
+            {/* Поле ввода */}
+            <div style={{ padding: '1rem', background: 'var(--color-background)', borderTop: '1px solid var(--color-border)' }}>
+                <form 
+                    onSubmit={(e) => { e.preventDefault(); handleSend(inputValue); }}
+                    style={{ display: 'flex', gap: '0.5rem' }}
+                >
+                    <Input
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        placeholder="Напишите ваш вопрос..."
+                        style={{ flex: 1 }}
+                        disabled={isTyping}
+                    />
+                    <Button 
+                        type="submit" 
+                        disabled={!inputValue.trim() || isTyping}
+                        className="button-primary"
+                        style={{ padding: '0.5rem', minWidth: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                        <ArrowUp size={20} />
+                    </Button>
+                </form>
+            </div>
         </div>
     );
 }
@@ -4518,7 +4620,11 @@ export default function App() {
                     )}
                     {showDashboard && activeTab === "support" && (
                         // В MAX вкладка "Поддержка" открывает бота, тут оставляем Telegram/браузерный вариант
-                        <ChatPage prefillMessage={chatPrefill} onClearPrefill={() => setChatPrefill("")} />
+                        <ChatPage 
+                            prefillMessage={chatPrefill} 
+                            onClearPrefill={() => setChatPrefill("")} 
+                            auth={auth}
+                        />
                     )}
                     {showDashboard && activeTab === "profile" && (
                         <ProfilePage 
@@ -4535,7 +4641,11 @@ export default function App() {
                     {!showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} onOpenChat={openSupportChat} />}
                     {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && <DashboardPage auth={auth} onClose={() => {}} />}
                     {!showDashboard && activeTab === "support" && auth && (
-                        <ChatPage prefillMessage={chatPrefill} onClearPrefill={() => setChatPrefill("")} />
+                        <ChatPage 
+                            prefillMessage={chatPrefill} 
+                            onClearPrefill={() => setChatPrefill("")} 
+                            auth={auth}
+                        />
                     )}
                     {!showDashboard && activeTab === "profile" && (
                         <ProfilePage 
