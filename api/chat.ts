@@ -14,9 +14,11 @@ function coerceBody(req: VercelRequest): any {
 }
 
 function getAppDomain() {
-  return process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
+  return process.env.NEXT_PUBLIC_APP_URL
+    ? process.env.NEXT_PUBLIC_APP_URL
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "https://mini-app-lake-phi.vercel.app";
 }
 
 function extractCargoNumber(text: string) {
@@ -44,34 +46,36 @@ function extractDocMethods(text: string) {
   return Array.from(new Set(methods));
 }
 
-async function makeTinyUrl(url: string) {
-  const apiToken = process.env.TINYURL_API_TOKEN;
-  if (!apiToken) return url;
+async function makeDocShortUrl(
+  appDomain: string,
+  method: string,
+  number: string,
+  auth?: { login?: string; password?: string },
+) {
+  const fallback = `${appDomain}/api/doc-short?metod=${encodeURIComponent(method)}&number=${encodeURIComponent(number)}`;
+  if (!auth?.login || !auth?.password) return fallback;
+
   try {
-    const response = await fetch("https://api.tinyurl.com/create", {
+    const res = await fetch(`${appDomain}/api/shorten-doc`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({ url, domain: "tinyurl.com" }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        login: auth.login,
+        password: auth.password,
+        metod: method,
+        number,
+      }),
     });
-    const raw = await response.text();
-    let data: any = {};
-    try {
-      data = raw ? JSON.parse(raw) : {};
-    } catch {
-      data = { raw };
+    if (!res.ok) {
+      const raw = await res.text().catch(() => "");
+      console.warn("shorten-doc failed:", res.status, raw);
+      return fallback;
     }
-    if (!response.ok) {
-      console.warn("TinyURL error:", response.status, data?.errors || data?.message || data);
-      return url;
-    }
-    return data?.data?.tiny_url || data?.tiny_url || url;
+    const data = await res.json().catch(() => ({}));
+    return data?.shortUrl || data?.short_url || data?.originalUrl || fallback;
   } catch (err: any) {
-    console.warn("TinyURL failed:", err?.message || err);
-    return url;
+    console.warn("shorten-doc exception:", err?.message || err);
+    return fallback;
   }
 }
 
@@ -83,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = coerceBody(req);
-    const { sessionId, userId, message, messages, context, customer, action } = body;
+    const { sessionId, userId, message, messages, context, customer, action, auth } = body;
 
     const sid =
       typeof sessionId === "string" && sessionId.trim()
@@ -164,9 +168,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const appDomain = getAppDomain();
         const links = await Promise.all(
           docMethods.map(async (method) => {
-            const url = `${appDomain}/api/doc-short?metod=${encodeURIComponent(method)}&number=${encodeURIComponent(cargoNumber)}`;
-            const shortUrl = await makeTinyUrl(url);
-            return { method, url: shortUrl };
+            const url = await makeDocShortUrl(appDomain, method, cargoNumber, auth);
+            return { method, url };
           }),
         );
         const lines = links.map((item) => `• ${item.method}: ${item.url}`);

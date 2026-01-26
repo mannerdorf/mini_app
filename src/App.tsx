@@ -3897,6 +3897,14 @@ function ChatPage({
         let lastIndex = 0;
         let match: RegExpExecArray | null;
         let keyIndex = 0;
+        const openChatLink = (url: string) => {
+            const webApp = (window as any)?.Telegram?.WebApp || (window as any)?.MaxWebApp;
+            if (webApp && typeof webApp.openLink === "function") {
+                webApp.openLink(url);
+                return;
+            }
+            window.open(url, "_blank", "noopener,noreferrer");
+        };
 
         while ((match = combined.exec(line)) !== null) {
             const start = match.index;
@@ -3907,15 +3915,24 @@ function ChatPage({
 
             if (rawValue.startsWith("http")) {
                 parts.push(
-                    <a
+                    <button
                         key={`url-${keyIndex}`}
-                        href={rawValue}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ color: "inherit", textDecoration: "underline" }}
+                        type="button"
+                        onClick={() => openChatLink(rawValue)}
+                        style={{
+                            background: "transparent",
+                            border: "none",
+                            padding: 0,
+                            margin: 0,
+                            cursor: "pointer",
+                            color: "inherit",
+                            textDecoration: "underline",
+                            font: "inherit",
+                            textAlign: "left"
+                        }}
                     >
                         {rawValue}
-                    </a>
+                    </button>
                 );
             } else if (onOpenCargo) {
                 const cargoNumber = rawValue.replace(/\D+/g, "");
@@ -4215,7 +4232,8 @@ function ChatPage({
                     userId: userIdOverride || auth?.login,
                     message: messageText,
                     context,
-                    customer: customerOverride
+                    customer: customerOverride,
+                    auth: auth?.login && auth?.password ? { login: auth.login, password: auth.password } : undefined
                 })
             });
 
@@ -4293,14 +4311,14 @@ function ChatPage({
             <div className="chat-input-bar" style={{ padding: '0.75rem', background: 'var(--color-bg-primary)', borderTop: '1px solid var(--color-border)' }}>
                 <form 
                     onSubmit={(e) => { e.preventDefault(); handleSend(inputValue); }}
-                    style={{ display: 'flex', gap: '0.5rem' }}
+                    style={{ display: 'flex', gap: '0.5rem', height: '44px' }}
                 >
                     <Input
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder="Напишите ваш вопрос..."
                         className="chat-input"
-                        style={{ flex: 1 }}
+                        style={{ flex: 1, height: '44px' }}
                         disabled={isTyping || isRecording || isTranscribing}
                     />
                     <Button
@@ -4308,7 +4326,7 @@ function ChatPage({
                         disabled={isTyping || isTranscribing}
                         className="chat-action-button chat-mic-button"
                         onClick={() => (isRecording ? stopRecording() : startRecording())}
-                        style={{ padding: '0.5rem', minWidth: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ padding: '0.5rem', minWidth: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
                         title={isRecording ? "Остановить запись" : "Записать голосовое"}
                     >
@@ -4318,7 +4336,7 @@ function ChatPage({
                         type="submit" 
                         disabled={!inputValue.trim() || isTyping || isRecording || isTranscribing}
                         className="chat-action-button chat-send-button"
-                        style={{ padding: '0.5rem', minWidth: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ padding: '0.5rem', minWidth: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
                         <ArrowUp size={20} />
                     </Button>
