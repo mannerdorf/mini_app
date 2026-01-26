@@ -18,6 +18,7 @@ export type MaxInlineKeyboardAttachment = {
 export async function maxSendMessage(args: {
   token: string;
   chatId: number | string;
+  recipientUserId?: number | string;
   text: string;
   format?: "markdown" | "html";
   attachments?: MaxInlineKeyboardAttachment[];
@@ -28,6 +29,14 @@ export async function maxSendMessage(args: {
     ? args.token 
     : `Bearer ${args.token}`;
 
+  const numericChatId = Number(args.chatId);
+  const recipientUserId = args.recipientUserId ?? args.chatId;
+  const numericRecipientUserId = Number(recipientUserId);
+  const recipient =
+    Number.isFinite(numericRecipientUserId)
+      ? { user_id: numericRecipientUserId }
+      : undefined;
+
   const res = await fetch(`${MAX_API_BASE}/messages`, {
     method: "POST",
     headers: {
@@ -35,7 +44,8 @@ export async function maxSendMessage(args: {
       Authorization: authHeader,
     },
     body: JSON.stringify({
-      chat_id: Number(args.chatId), // Принудительно в число
+      ...(recipient ? { recipient } : {}),
+      ...(Number.isFinite(numericChatId) ? { chat_id: numericChatId } : {}),
       text: args.text,
       format: args.format,
       attachments: args.attachments,

@@ -4,7 +4,7 @@ import https from "https";
 // Встраиваем логику прямо в файл, чтобы исключить проблемы с импортом в Vercel
 const MAX_API_BASE = "platform-api.max.ru";
 
-async function maxSendMessage(token: string, chatId: number, text: string) {
+async function maxSendMessage(token: string, chatId: number, text: string, recipientUserId?: number) {
   // Очищаем токен от возможных пробелов или кавычек, которые могли попасть при вставке в Vercel
   const cleanToken = token.trim().replace(/^["']|["']$/g, "");
   
@@ -15,6 +15,7 @@ async function maxSendMessage(token: string, chatId: number, text: string) {
   
   const body = JSON.stringify({
     chat_id: chatId,
+    ...(typeof recipientUserId === "number" ? { recipient: { user_id: recipientUserId } } : {}),
     text: text,
   });
 
@@ -102,6 +103,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const chatId = body?.chatId || body?.chat_id;
+    const userId = body?.userId || body?.user_id || body?.recipientUserId;
     const text = body?.text;
 
     if (!chatId || !text) {
@@ -118,9 +120,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "chatId must be a number" });
     }
 
-    console.log(`[max-send-message] Sending to ${numericChatId}...`);
+    const numericUserId = userId !== undefined ? Number(userId) : undefined;
+    const validRecipientUserId = Number.isFinite(numericUserId) ? numericUserId : undefined;
+
+    console.log(`[max-send-message] Sending to ${numericChatId}${validRecipientUserId ? ` (user ${validRecipientUserId})` : ""}...`);
     
-    const result = await maxSendMessage(MAX_BOT_TOKEN, numericChatId, text);
+    const result = await maxSendMessage(MAX_BOT_TOKEN, numericChatId, text, validRecipientUserId);
     console.log("[max-send-message] Success!");
 
     return res.status(200).json({ ok: true, result });

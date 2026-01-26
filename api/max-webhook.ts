@@ -47,6 +47,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     update?.user?.id ??
     update?.user_id;
 
+  const senderId =
+    update?.message?.sender?.user_id ??
+    update?.message?.sender?.userId ??
+    update?.sender?.user_id ??
+    update?.sender?.userId;
+
   if (!chatId) {
     console.warn("MAX webhook: No chatId found in update:", JSON.stringify(update));
     return res.status(200).json({ ok: true });
@@ -74,6 +80,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   console.log("MAX webhook parsed:", JSON.stringify({ 
     chatId, 
+    senderId,
+    replyUserId: senderId ?? null,
     rawText, 
     eventType,
     hasMessage: !!update?.message,
@@ -117,6 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await maxSendMessage({
         token: MAX_BOT_TOKEN,
         chatId,
+        recipientUserId: senderId ?? undefined,
         text: `Добрый день!\n\nВижу, что у вас вопрос по перевозке ${cargoNumber}.\n\nВы можете скачать документы прямо здесь:`,
         attachments,
       });
@@ -132,6 +141,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log("Using AI to respond to:", userText);
 
     try {
+      const replyTarget = senderId ?? chatId;
       const appDomain = process.env.NEXT_PUBLIC_APP_URL
         || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
 
@@ -139,8 +149,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          sessionId: `max_${chatId}`,
-          userId: String(chatId),
+          sessionId: `max_${replyTarget ?? chatId}`,
+          userId: String(replyTarget ?? chatId),
           message: userText,
           channel: "max"
         })
@@ -151,6 +161,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await maxSendMessage({
           token: MAX_BOT_TOKEN,
           chatId,
+          recipientUserId: senderId ?? undefined,
           text: aiData.reply,
         });
       } else {
@@ -161,6 +172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await maxSendMessage({
         token: MAX_BOT_TOKEN,
         chatId,
+        recipientUserId: senderId ?? undefined,
         text: "Добрый день! Напишите, пожалуйста, ваш вопрос — мы поможем. 🚛",
       });
     }
@@ -170,6 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await maxSendMessage({
         token: MAX_BOT_TOKEN,
         chatId,
+        recipientUserId: senderId ?? undefined,
         text: "Добрый день! Я AI-помощник HAULZ. Чем могу помочь? 😊",
       });
     } catch (e) {}
