@@ -368,6 +368,8 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     color: #111827;
 }
 .light-mode .chat-send-button {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+    border: 1px solid rgba(37, 99, 235, 0.6) !important;
     color: #fff !important;
 }
 .light-mode .chat-mic-button {

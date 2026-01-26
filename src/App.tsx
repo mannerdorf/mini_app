@@ -130,6 +130,7 @@ type Account = { login: string; password: string; id: string; customer?: string;
 type Tab = "home" | "cargo" | "docs" | "support" | "profile" | "dashboard"; // Все разделы + секретный dashboard
 type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
 type StatusFilter = "all" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
+type PaymentFilter = "all" | "unpaid" | "paid" | "partial" | "cancelled" | "unknown";
 type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom"; // Оставлено, так как это может использоваться в Home, который пока остается в коде ниже
 
 // --- ИСПОЛЬЗУЕМ ТОЛЬКО ПЕРЕМЕННЫЕ ИЗ API ---
@@ -313,6 +314,28 @@ const getSumColorByPaymentStatus = (stateBill: string | undefined): string => {
     return 'var(--color-text-primary)'; // По умолчанию
 };
 
+const getPaymentFilterKey = (stateBill: string | undefined): PaymentFilter => {
+    if (!stateBill) return "unknown";
+    const lower = stateBill.toLowerCase().trim();
+    if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
+        lower.includes('не оплачён') || lower.includes('неоплачён') ||
+        lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending') ||
+        lower === 'не оплачен' || lower === 'неоплачен') {
+        return "unpaid";
+    }
+    if (lower.includes('отменен') || lower.includes('аннулирован') || lower.includes('отменён') ||
+        lower.includes('cancelled') || lower.includes('canceled')) {
+        return "cancelled";
+    }
+    if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
+        return "paid";
+    }
+    if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) {
+        return "partial";
+    }
+    return "unknown";
+};
+
 const getFilterKeyByStatus = (s: string | undefined): StatusFilter => { 
     if (!s) return 'all'; 
     const normalized = normalizeStatus(s);
@@ -325,6 +348,14 @@ const getFilterKeyByStatus = (s: string | undefined): StatusFilter => {
 }
 
 const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "in_transit": "В пути", "ready": "Готов к выдаче", "delivering": "На доставке", "delivered": "Доставлено", "favorites": "Избранные" };
+const PAYMENT_STATUS_MAP: Record<PaymentFilter, string> = {
+    all: "Все",
+    unpaid: "Не оплачен",
+    paid: "Оплачен",
+    partial: "Частично",
+    cancelled: "Отменен",
+    unknown: "Без статуса",
+};
 
 const resolveChecked = (value: unknown): boolean => {
     if (typeof value === "boolean") return value;
@@ -691,6 +722,49 @@ function HomePage({ auth }: { auth: AuthData }) {
                 </Panel>
             </Grid>
 
+            {/* Умные нотификации */}
+            <Typography.Headline style={{ marginTop: '1.5rem', marginBottom: '0.75rem', fontSize: '1rem' }}>
+                Умные нотификации
+            </Typography.Headline>
+            <Grid className="stats-grid" cols={2} gap={12}>
+                <Panel
+                    className="stat-card"
+                    onClick={() => onOpenCargoFilters({ payment: "unpaid" })}
+                    style={{ cursor: 'pointer' }}
+                >
+                    <div className="flex justify-between items-center mb-2">
+                        <CreditCard className="w-5 h-5 text-theme-primary" />
+                        <Typography.Label className="text-xs text-theme-secondary">
+                            Счета
+                        </Typography.Label>
+                    </div>
+                    <Typography.Display className="text-2xl font-bold text-white">
+                        {unpaidCount}
+                    </Typography.Display>
+                    <Typography.Label className="text-sm text-theme-secondary mt-1">
+                        Не оплачено
+                    </Typography.Label>
+                </Panel>
+                <Panel
+                    className="stat-card"
+                    onClick={() => onOpenCargoFilters({ status: "ready" })}
+                    style={{ cursor: 'pointer' }}
+                >
+                    <div className="flex justify-between items-center mb-2">
+                        <Check className="w-5 h-5 text-theme-primary" />
+                        <Typography.Label className="text-xs text-theme-secondary">
+                            Перевозки
+                        </Typography.Label>
+                    </div>
+                    <Typography.Display className="text-2xl font-bold text-white">
+                        {readyCount}
+                    </Typography.Display>
+                    <Typography.Label className="text-sm text-theme-secondary mt-1">
+                        Готовы к выдаче
+                    </Typography.Label>
+                </Panel>
+            </Grid>
+
             {/* Загрузка / ошибка */}
             {loading && (
                 <Flex direction="column" align="center" className="text-center py-8">
@@ -852,7 +926,15 @@ function CustomPeriodModal({
 }
 
 // --- DASHBOARD PAGE (SECRET) ---
-function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void }) {
+function DashboardPage({
+    auth,
+    onClose,
+    onOpenCargoFilters,
+}: {
+    auth: AuthData;
+    onClose: () => void;
+    onOpenCargoFilters: (filters: { status?: StatusFilter; payment?: PaymentFilter }) => void;
+}) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [debugInfo, setDebugInfo] = useState<string>("");
     const [loading, setLoading] = useState(true);
@@ -869,6 +951,14 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
     
     // Chart type selector
     const [chartType, setChartType] = useState<'money' | 'weight' | 'places'>('money');
+
+    const unpaidCount = useMemo(() => {
+        return items.filter(item => getPaymentFilterKey(item.StateBill) === "unpaid").length;
+    }, [items]);
+
+    const readyCount = useMemo(() => {
+        return items.filter(item => getFilterKeyByStatus(item.State) === "ready").length;
+    }, [items]);
     
     const testMaxMessage = async () => {
         const webApp = getWebApp();
@@ -1768,13 +1858,15 @@ function AiChatProfilePage({
     auth,
     accountId,
     customer,
-    onOpenCargo
+    onOpenCargo,
+    chatId
 }: {
     onBack: () => void;
     auth: AuthData | null;
     accountId: string | null;
     customer: string | null;
     onOpenCargo: (cargoNumber: string) => void;
+    chatId: string | null;
 }) {
     const [prefillMessage, setPrefillMessage] = useState<string | undefined>(undefined);
 
@@ -1802,8 +1894,8 @@ function AiChatProfilePage({
                 {auth ? (
                     <ChatPage
                         auth={auth}
-                        sessionOverride={`ai_${customer || accountId || "anon"}`}
-                        userIdOverride={customer || accountId || "anon"}
+                        sessionOverride={`ai_${customer || accountId || "anon"}_${chatId || "anon"}`}
+                        userIdOverride={chatId || customer || accountId || "anon"}
                         customerOverride={customer || undefined}
                         prefillMessage={prefillMessage}
                         onClearPrefill={() => setPrefillMessage(undefined)}
@@ -2689,7 +2781,11 @@ function CargoPage({
     onOpenChat, 
     onCustomerDetected,
     contextCargoNumber,
-    onClearContextCargo
+    onClearContextCargo,
+    initialStatusFilter,
+    initialPaymentFilter,
+    initialSenderFilter,
+    onClearQuickFilters
 }: { 
     auth: AuthData; 
     searchText: string; 
@@ -2697,6 +2793,10 @@ function CargoPage({
     onCustomerDetected?: (customer: string) => void;
     contextCargoNumber?: string | null;
     onClearContextCargo?: () => void;
+    initialStatusFilter?: StatusFilter;
+    initialPaymentFilter?: PaymentFilter;
+    initialSenderFilter?: string | null;
+    onClearQuickFilters?: () => void;
 }) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -2706,11 +2806,15 @@ function CargoPage({
     // Filters State
     const [dateFilter, setDateFilter] = useState<DateFilter>("неделя");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+    const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
+    const [senderFilter, setSenderFilter] = useState<string>("all");
     const [customDateFrom, setCustomDateFrom] = useState(DEFAULT_DATE_FROM);
     const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    const [isPaymentDropdownOpen, setIsPaymentDropdownOpen] = useState(false);
+    const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [showSummary, setShowSummary] = useState(true);
     // Sort State
     const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>(null);
@@ -2799,6 +2903,29 @@ function CargoPage({
     useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo]);
 
     useEffect(() => {
+        if (initialStatusFilter) setStatusFilter(initialStatusFilter);
+        if (initialPaymentFilter) setPaymentFilter(initialPaymentFilter);
+        if (typeof initialSenderFilter === "string") {
+            setSenderFilter(initialSenderFilter || "all");
+        }
+        setIsStatusDropdownOpen(false);
+        setIsPaymentDropdownOpen(false);
+        setIsSenderDropdownOpen(false);
+        if (initialStatusFilter || initialPaymentFilter || typeof initialSenderFilter === "string") {
+            onClearQuickFilters?.();
+        }
+    }, [initialStatusFilter, initialPaymentFilter, initialSenderFilter, onClearQuickFilters]);
+
+    const senderOptions = useMemo(() => {
+        const set = new Set<string>();
+        items.forEach(item => {
+            const sender = (item.Sender || "").trim();
+            if (sender) set.add(sender);
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b, "ru"));
+    }, [items]);
+
+    useEffect(() => {
         if (!contextCargoNumber) return;
         const match = items.find(item => String(item.Number) === String(contextCargoNumber));
         if (match) {
@@ -2819,6 +2946,16 @@ function CargoPage({
             res = res.filter(i => i.Number && favorites.has(i.Number));
         } else if (statusFilter !== 'all') {
             res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
+        }
+        if (paymentFilter !== 'all') {
+            res = res.filter(i => getPaymentFilterKey(i.StateBill) === paymentFilter);
+        }
+        if (senderFilter !== 'all') {
+            if (senderFilter === "__empty__") {
+                res = res.filter(i => !(i.Sender || "").trim());
+            } else {
+                res = res.filter(i => (i.Sender || "").trim() === senderFilter);
+            }
         }
         if (searchText) {
             const lower = searchText.toLowerCase();
@@ -2924,7 +3061,7 @@ function CargoPage({
         }
         
         return res;
-    }, [items, statusFilter, searchText, sortBy, sortOrder, favorites]);
+    }, [items, statusFilter, paymentFilter, senderFilter, searchText, sortBy, sortOrder, favorites]);
 
     // Подсчет сумм из отфильтрованных элементов
     const summary = useMemo(() => {
@@ -3016,6 +3153,36 @@ function CargoPage({
                         {Object.keys(STATUS_MAP).map(key => (
                             <div key={key} className="dropdown-item" onClick={() => { setStatusFilter(key as any); setIsStatusDropdownOpen(false); }}>
                                 <Typography.Body>{STATUS_MAP[key as StatusFilter]}</Typography.Body>
+                            </div>
+                        ))}
+                    </div>}
+                </div>
+                <div className="filter-group">
+                    <Button className="filter-button" onClick={() => { setIsPaymentDropdownOpen(!isPaymentDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); }}>
+                        Оплата: {PAYMENT_STATUS_MAP[paymentFilter]} <ChevronDown className="w-4 h-4"/>
+                    </Button>
+                    {isPaymentDropdownOpen && <div className="filter-dropdown">
+                        {Object.keys(PAYMENT_STATUS_MAP).map(key => (
+                            <div key={key} className="dropdown-item" onClick={() => { setPaymentFilter(key as PaymentFilter); setIsPaymentDropdownOpen(false); }}>
+                                <Typography.Body>{PAYMENT_STATUS_MAP[key as PaymentFilter]}</Typography.Body>
+                            </div>
+                        ))}
+                    </div>}
+                </div>
+                <div className="filter-group">
+                    <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsPaymentDropdownOpen(false); }}>
+                        Отправитель: {senderFilter === "all" ? "Все" : senderFilter === "__empty__" ? "Без отправителя" : senderFilter} <ChevronDown className="w-4 h-4"/>
+                    </Button>
+                    {isSenderDropdownOpen && <div className="filter-dropdown">
+                        <div className="dropdown-item" onClick={() => { setSenderFilter("all"); setIsSenderDropdownOpen(false); }}>
+                            <Typography.Body>Все</Typography.Body>
+                        </div>
+                        <div className="dropdown-item" onClick={() => { setSenderFilter("__empty__"); setIsSenderDropdownOpen(false); }}>
+                            <Typography.Body>Без отправителя</Typography.Body>
+                        </div>
+                        {senderOptions.map(sender => (
+                            <div key={sender} className="dropdown-item" onClick={() => { setSenderFilter(sender); setIsSenderDropdownOpen(false); }}>
+                                <Typography.Body>{sender}</Typography.Body>
                             </div>
                         ))}
                     </div>}
@@ -3313,7 +3480,17 @@ function CargoPage({
             </div>
             )}
 
-            {selectedCargo && <CargoDetailsModal item={selectedCargo} isOpen={!!selectedCargo} onClose={() => setSelectedCargo(null)} auth={auth} />}
+            {selectedCargo && (
+                <CargoDetailsModal
+                    item={selectedCargo}
+                    isOpen={!!selectedCargo}
+                    onClose={() => setSelectedCargo(null)}
+                    auth={auth}
+                    onOpenChat={onOpenChat}
+                    isFavorite={isFavorite}
+                    onToggleFavorite={toggleFavorite}
+                />
+            )}
             <FilterDialog isOpen={isCustomModalOpen} onClose={() => setIsCustomModalOpen(false)} dateFrom={customDateFrom} dateTo={customDateTo} onApply={(f, t) => { setCustomDateFrom(f); setCustomDateTo(t); }} />
         </div>
     );
@@ -3343,7 +3520,23 @@ function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: { isOpen: 
     );
 }
 
-function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, isOpen: boolean, onClose: () => void, auth: AuthData }) {
+function CargoDetailsModal({
+    item,
+    isOpen,
+    onClose,
+    auth,
+    onOpenChat,
+    isFavorite,
+    onToggleFavorite,
+}: {
+    item: CargoItem;
+    isOpen: boolean;
+    onClose: () => void;
+    auth: AuthData;
+    onOpenChat: (cargoNumber?: string) => void | Promise<void>;
+    isFavorite: (cargoNumber: string | undefined) => boolean;
+    onToggleFavorite: (cargoNumber: string | undefined) => void;
+}) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
     const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string; docType: string; blob?: Blob; downloadFileName?: string } | null>(null);
@@ -3521,7 +3714,8 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <Flex align="center" gap="0.5rem">
+                    <Flex align="center" justify="space-between">
+                        <Flex align="center" gap="0.5rem">
                         <Button
                             className="filter-button"
                             style={{ padding: '0.25rem 0.5rem', minWidth: 'auto' }}
@@ -3619,6 +3813,46 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                         >
                             {downloading === "share" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
                         </Button>
+                        <Button
+                            style={{ 
+                                padding: '0.25rem', 
+                                minWidth: 'auto', 
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                            onClick={() => onOpenChat(item.Number)}
+                            title="Открыть AI чат"
+                        >
+                            <MessageCircle className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                        </Button>
+                        <Button
+                            style={{ 
+                                padding: '0.25rem', 
+                                minWidth: 'auto', 
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                            onClick={() => onToggleFavorite(item.Number)}
+                            title={isFavorite(item.Number) ? "Удалить из избранного" : "Добавить в избранное"}
+                        >
+                            <Heart 
+                                className="w-4 h-4" 
+                                style={{ 
+                                    fill: isFavorite(item.Number) ? '#ef4444' : 'transparent',
+                                    color: isFavorite(item.Number) ? '#ef4444' : 'var(--color-text-secondary)',
+                                    transition: 'all 0.2s'
+                                }} 
+                            />
+                        </Button>
+                        </Flex>
                         <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></Button>
                     </Flex>
                 </div>
@@ -4503,6 +4737,11 @@ export default function App() {
         // Первый запуск: "Грузы"
         return "cargo";
     });
+    const [cargoQuickFilters, setCargoQuickFilters] = useState<{
+        status?: StatusFilter;
+        payment?: PaymentFilter;
+        sender?: string | null;
+    } | null>(null);
     const [theme, setTheme] = useState('dark'); 
     const [showDashboard, setShowDashboard] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
@@ -4832,6 +5071,19 @@ export default function App() {
         setContextCargoNumber(cargoNumber);
         setActiveTab("cargo");
     };
+
+    const openCargoWithFilters = (filters: { status?: StatusFilter; payment?: PaymentFilter }) => {
+        setCargoQuickFilters(filters);
+        setActiveTab("cargo");
+    };
+    const chatIdentity = (() => {
+        const webApp = getWebApp();
+        const userId = webApp?.initDataUnsafe?.user?.id;
+        const chatId = webApp?.initDataUnsafe?.chat?.id;
+        if (userId) return String(userId);
+        if (chatId) return String(chatId);
+        return null;
+    })();
 
     const openSupportChat = async (cargoNumber?: string) => {
         setActiveTab("support");
@@ -5189,7 +5441,13 @@ export default function App() {
             </header>
             <div className="app-main">
                 <div className="w-full max-w-4xl">
-                    {showDashboard && activeTab === "dashboard" && auth && <DashboardPage auth={auth} onClose={() => {}} />}
+                    {showDashboard && activeTab === "dashboard" && auth && (
+                        <DashboardPage
+                            auth={auth}
+                            onClose={() => {}}
+                            onOpenCargoFilters={openCargoWithFilters}
+                        />
+                    )}
                     {showDashboard && activeTab === "cargo" && auth && (
                         <CargoPage
                             auth={auth}
@@ -5198,6 +5456,10 @@ export default function App() {
                             onCustomerDetected={updateActiveAccountCustomer}
                             contextCargoNumber={contextCargoNumber}
                             onClearContextCargo={() => setContextCargoNumber(null)}
+                            initialStatusFilter={cargoQuickFilters?.status}
+                            initialPaymentFilter={cargoQuickFilters?.payment}
+                            initialSenderFilter={cargoQuickFilters?.sender ?? null}
+                            onClearQuickFilters={() => setCargoQuickFilters(null)}
                         />
                     )}
                     {showDashboard && activeTab === "docs" && (
@@ -5213,6 +5475,7 @@ export default function App() {
                             accountId={activeAccountId}
                             customer={activeAccount?.customer || null}
                             onOpenCargo={openCargoFromChat}
+                            chatId={chatIdentity}
                         />
                     )}
                     {showDashboard && activeTab === "profile" && (
@@ -5236,9 +5499,19 @@ export default function App() {
                             onCustomerDetected={updateActiveAccountCustomer}
                             contextCargoNumber={contextCargoNumber}
                             onClearContextCargo={() => setContextCargoNumber(null)}
+                            initialStatusFilter={cargoQuickFilters?.status}
+                            initialPaymentFilter={cargoQuickFilters?.payment}
+                            initialSenderFilter={cargoQuickFilters?.sender ?? null}
+                            onClearQuickFilters={() => setCargoQuickFilters(null)}
                         />
                     )}
-                    {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && <DashboardPage auth={auth} onClose={() => {}} />}
+                    {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (
+                        <DashboardPage
+                            auth={auth}
+                            onClose={() => {}}
+                            onOpenCargoFilters={openCargoWithFilters}
+                        />
+                    )}
                     {!showDashboard && activeTab === "support" && auth && (
                         <AiChatProfilePage
                             onBack={() => setActiveTab("cargo")}
@@ -5246,6 +5519,7 @@ export default function App() {
                             accountId={activeAccountId}
                             customer={activeAccount?.customer || null}
                             onOpenCargo={openCargoFromChat}
+                            chatId={chatIdentity}
                         />
                     )}
                     {!showDashboard && activeTab === "profile" && (
