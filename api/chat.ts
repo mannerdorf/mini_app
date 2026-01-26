@@ -58,6 +58,11 @@ function wantsFullInfo(text: string) {
   );
 }
 
+function wantsNoLinks(text: string) {
+  const lower = text.toLowerCase();
+  return lower.includes("без ссылок");
+}
+
 async function makeDocShortUrl(
   appDomain: string,
   method: string,
@@ -236,21 +241,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         params,
       );
 
-      const appDomain = getAppDomain();
-      const methods = ["ЭР", "СЧЕТ", "УПД", "АПП"];
-      const links = await Promise.all(
-        methods.map(async (method) => {
-          const url = await makeDocShortUrl(appDomain, method, cargoNumber, auth);
-          return `• ${method}: ${url}`;
-        }),
-      );
-
       const content = cargoDoc.rows[0]?.content?.trim();
       const blocks: string[] = [];
       if (content) blocks.push(content);
-      blocks.push("");
-      blocks.push("Документы:");
-      blocks.push(...links);
+
+      if (!wantsNoLinks(userMessage)) {
+        const appDomain = getAppDomain();
+        const methods = ["ЭР", "СЧЕТ", "УПД", "АПП"];
+        const links = await Promise.all(
+          methods.map(async (method) => {
+            const url = await makeDocShortUrl(appDomain, method, cargoNumber, auth);
+            return `• ${method}: ${url}`;
+          }),
+        );
+        blocks.push("");
+        blocks.push("Документы:");
+        blocks.push(...links);
+      }
 
       const reply = `Вот то, что вы просили по перевозке № ${cargoNumber}:\n${blocks.join("\n")}`;
 
