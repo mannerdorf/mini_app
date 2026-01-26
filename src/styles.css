@@ -255,6 +255,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     justify-content: flex-start;
     flex-wrap: nowrap;
     overflow-x: auto;
+    overflow-y: visible;
     padding-bottom: 0.25rem;
     -webkit-overflow-scrolling: touch;
 }
@@ -271,11 +272,11 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .filter-group {
     flex: 0 0 auto;
 }
-.filter-group { position: relative; }
+.filter-group { position: relative; z-index: 30; }
 .filter-button { display: flex; align-items: center; padding: 0.5rem 0.75rem; background-color: var(--color-bg-card); color: var(--color-text-primary); border: 1px solid var(--color-border); border-radius: 0.5rem; cursor: pointer; font-size: 0.9rem; }
 .filter-button:hover { background-color: var(--color-bg-hover); }
 .filter-button:active { opacity: 0.8; }
-.filter-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; background-color: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 0.5rem; margin-top: 0.25rem; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden; }
+.filter-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 999; background-color: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 0.5rem; margin-top: 0.25rem; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18); overflow: hidden; }
 .dropdown-item { padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.9rem; }
 .dropdown-item:hover { background-color: var(--color-bg-hover); }
 
