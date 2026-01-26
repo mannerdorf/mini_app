@@ -3746,7 +3746,14 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     useEffect(() => {
         if (didRunRef.current) return;
         didRunRef.current = true;
-        onOpenSupport();
+        if (typeof window !== "undefined") {
+            const key = "haulz.support.redirected";
+            const already = window.sessionStorage.getItem(key);
+            if (!already) {
+                window.sessionStorage.setItem(key, "1");
+                onOpenSupport();
+            }
+        }
     }, [onOpenSupport]);
 
     const isMax = isMaxWebApp();
@@ -3760,7 +3767,12 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     return (
         <div className="w-full p-8 text-center">
             <Typography.Headline>Поддержка</Typography.Headline>
-            <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>{message}</Typography.Body>
+            <Typography.Body style={{ color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+                {message}
+            </Typography.Body>
+            <Button className="button-primary" onClick={onOpenSupport}>
+                Открыть поддержку
+            </Button>
         </div>
     );
 }
