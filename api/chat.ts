@@ -24,6 +24,16 @@ function extractCargoNumber(text: string) {
   return match?.[1] || null;
 }
 
+function extractLastCargoNumberFromHistory(rows: { role: ChatRole; content: string }[]) {
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const row = rows[i];
+    if (!row?.content) continue;
+    const number = extractCargoNumber(row.content);
+    if (number) return number;
+  }
+  return null;
+}
+
 function extractDocMethods(text: string) {
   const lower = text.toLowerCase();
   const methods: string[] = [];
@@ -144,7 +154,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const docMethods = extractDocMethods(userMessage);
     if (docMethods.length > 0) {
-      const cargoNumber = extractCargoNumber(userMessage);
+      const cargoNumber =
+        extractCargoNumber(userMessage) ||
+        extractLastCargoNumberFromHistory(history.rows);
       let reply = "";
       if (!cargoNumber) {
         reply = "Пожалуйста, укажите номер перевозки, чтобы я дал ссылку на документ.";
@@ -158,7 +170,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }),
         );
         const lines = links.map((item) => `• ${item.method}: ${item.url}`);
-        reply = `Вот короткие ссылки на документы по перевозке № ${cargoNumber}:\n${lines.join("\n")}`;
+        reply = `Вот то, что вы просили по перевозке № ${cargoNumber}:\n${lines.join("\n")}`;
       }
 
       await pool.query(

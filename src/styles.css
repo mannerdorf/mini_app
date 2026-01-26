@@ -308,6 +308,9 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .chat-input-bar {
     background: var(--color-bg-secondary);
 }
+.chat-input-bar form {
+    align-items: stretch;
+}
 .chat-input {
     background-color: var(--color-bg-input) !important;
     color: var(--color-text-primary) !important;
@@ -330,6 +333,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
     background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
     color: #111827;
+    height: 100%;
 }
 .chat-action-button:active {
     transform: translateY(1px);

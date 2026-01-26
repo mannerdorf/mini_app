@@ -3890,39 +3890,58 @@ function ChatPage({
     const streamRef = React.useRef<MediaStream | null>(null);
 
     const renderLineWithLinks = (line: string) => {
-        if (!onOpenCargo) return line;
         const parts: React.ReactNode[] = [];
-        const regex = /№\s*\d{4,}|\b\d{6,}\b/g;
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const cargoRegex = /№\s*\d{4,}|\b\d{6,}\b/g;
+        const combined = new RegExp(`${urlRegex.source}|${cargoRegex.source}`, "g");
         let lastIndex = 0;
         let match: RegExpExecArray | null;
         let keyIndex = 0;
 
-        while ((match = regex.exec(line)) !== null) {
+        while ((match = combined.exec(line)) !== null) {
             const start = match.index;
             const rawValue = match[0];
             if (start > lastIndex) {
                 parts.push(line.slice(lastIndex, start));
             }
-            const cargoNumber = rawValue.replace(/\D+/g, "");
-            parts.push(
-                <button
-                    key={`${cargoNumber}-${keyIndex}`}
-                    type="button"
-                    onClick={() => onOpenCargo(cargoNumber)}
-                    style={{
-                        background: "transparent",
-                        border: "none",
-                        padding: 0,
-                        margin: 0,
-                        cursor: "pointer",
-                        color: "inherit",
-                        textDecoration: "underline",
-                        font: "inherit"
-                    }}
-                >
-                    {rawValue}
-                </button>
-            );
+
+            if (rawValue.startsWith("http")) {
+                parts.push(
+                    <a
+                        key={`url-${keyIndex}`}
+                        href={rawValue}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: "inherit", textDecoration: "underline" }}
+                    >
+                        {rawValue}
+                    </a>
+                );
+            } else if (onOpenCargo) {
+                const cargoNumber = rawValue.replace(/\D+/g, "");
+                parts.push(
+                    <button
+                        key={`cargo-${keyIndex}`}
+                        type="button"
+                        onClick={() => onOpenCargo(cargoNumber)}
+                        style={{
+                            background: "transparent",
+                            border: "none",
+                            padding: 0,
+                            margin: 0,
+                            cursor: "pointer",
+                            color: "inherit",
+                            textDecoration: "underline",
+                            font: "inherit"
+                        }}
+                    >
+                        {rawValue}
+                    </button>
+                );
+            } else {
+                parts.push(rawValue);
+            }
+
             lastIndex = start + rawValue.length;
             keyIndex += 1;
         }
@@ -3989,10 +4008,21 @@ function ChatPage({
         streamRef.current = null;
     };
 
+    const getAudioFileName = (mimeType: string) => {
+        if (mimeType.includes("webm")) return "voice.webm";
+        if (mimeType.includes("ogg")) return "voice.ogg";
+        if (mimeType.includes("mpeg") || mimeType.includes("mp3")) return "voice.mp3";
+        if (mimeType.includes("wav")) return "voice.wav";
+        if (mimeType.includes("mp4") || mimeType.includes("m4a")) return "voice.m4a";
+        return "voice.webm";
+    };
+
     const transcribeAndSend = async (blob: Blob) => {
         setIsTranscribing(true);
         try {
-            const file = new File([blob], "voice.webm", { type: blob.type || "audio/webm" });
+            const mimeType = blob.type || "audio/webm";
+            const fileName = getAudioFileName(mimeType);
+            const file = new File([blob], fileName, { type: mimeType });
             const formData = new FormData();
             formData.append("audio", file);
 
@@ -4020,10 +4050,23 @@ function ChatPage({
 
     const startRecording = async () => {
         if (isRecording || isTranscribing) return;
+        if (typeof MediaRecorder === "undefined") {
+            setMessages(prev => [...prev, { role: 'assistant', content: "Запись голоса не поддерживается в этом браузере." }]);
+            return;
+        }
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
-            const recorder = new MediaRecorder(stream);
+            const preferredTypes = [
+                "audio/webm;codecs=opus",
+                "audio/ogg;codecs=opus",
+                "audio/webm",
+                "audio/ogg",
+                "audio/mp4",
+                "audio/mpeg"
+            ];
+            const mimeType = preferredTypes.find(type => MediaRecorder.isTypeSupported(type));
+            const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
             chunksRef.current = [];
 
             recorder.ondataavailable = (event) => {
