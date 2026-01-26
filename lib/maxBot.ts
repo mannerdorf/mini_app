@@ -37,20 +37,28 @@ export async function maxSendMessage(args: {
       ? { user_id: numericRecipientUserId }
       : undefined;
 
-  const res = await fetch(`${MAX_API_BASE}/messages`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: authHeader,
-    },
-    body: JSON.stringify({
-      ...(recipient ? { recipient } : {}),
-      ...(Number.isFinite(numericChatId) ? { chat_id: numericChatId } : {}),
-      text: args.text,
-      format: args.format,
-      attachments: args.attachments,
-    }),
+  const payload = JSON.stringify({
+    ...(recipient ? { recipient } : {}),
+    ...(Number.isFinite(numericChatId) ? { chat_id: numericChatId } : {}),
+    text: args.text,
+    format: args.format,
+    attachments: args.attachments,
   });
+
+  const send = (authorization: string) =>
+    fetch(`${MAX_API_BASE}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authorization,
+      },
+      body: payload,
+    });
+
+  let res = await send(authHeader);
+  if (!res.ok && res.status === 401 && !args.token.startsWith("Bearer ")) {
+    res = await send(args.token);
+  }
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "no error text");
