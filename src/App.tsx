@@ -1767,10 +1767,12 @@ function AiChatProfilePage({
     onBack,
     auth,
     accountId,
+    customer,
 }: {
     onBack: () => void;
     auth: AuthData | null;
     accountId: string | null;
+    customer: string | null;
 }) {
     return (
         <div
@@ -1788,7 +1790,8 @@ function AiChatProfilePage({
                     <ChatPage
                         auth={auth}
                         sessionOverride={accountId ? `ai_${accountId}` : "ai_anon"}
-                        userIdOverride={accountId || "anon"}
+                    userIdOverride={customer || accountId || "anon"}
+                    customerOverride={customer || undefined}
                     />
                 ) : (
                     <Panel className="cargo-card" style={{ padding: '1rem', width: '100%' }}>
@@ -2079,6 +2082,7 @@ function ProfilePage({
                 onBack={() => setCurrentView('main')}
                 auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password } : null}
                 accountId={activeAccountId}
+                customer={activeAccount?.customer || null}
             />
         );
     }
@@ -3810,7 +3814,8 @@ function ChatPage({
     auth,
     cargoItems,
     sessionOverride,
-    userIdOverride
+    userIdOverride,
+    customerOverride
 }: { 
     prefillMessage?: string; 
     onClearPrefill?: () => void;
@@ -3818,6 +3823,7 @@ function ChatPage({
     cargoItems?: CargoItem[];
     sessionOverride?: string;
     userIdOverride?: string;
+    customerOverride?: string;
 }) {
     const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
     const [inputValue, setInputValue] = useState("");
@@ -3871,6 +3877,21 @@ function ChatPage({
         setIsReady(true);
 
         try {
+            if (auth?.login && auth?.password) {
+                const today = new Date().toISOString().split("T")[0];
+                await fetch('/api/perevozki', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        login: auth.login,
+                        password: auth.password,
+                        dateFrom: "2024-01-01",
+                        dateTo: today,
+                        customer: customerOverride,
+                    }),
+                }).catch(() => {});
+            }
+
             // Подготавливаем контекст (только важные поля, чтобы не перегружать токены)
             const context = {
                 userLogin: auth?.login,

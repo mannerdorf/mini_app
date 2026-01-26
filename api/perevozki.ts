@@ -98,8 +98,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 function formatCargoContent(item: any) {
   const number = item?.Number ?? item?.number ?? "";
+  const customer = item?.Customer ?? item?.customer ?? "";
   const lines = [
     `Перевозка: ${number}`,
+    `Заказчик: ${customer}`,
     `Статус: ${item?.State ?? ""}`,
     `Дата приемки: ${item?.DatePrih ?? ""}`,
     `Дата доставки: ${item?.DateVr ?? ""}`,
@@ -123,7 +125,8 @@ async function ingestCargoItems(items: any[], login: string) {
       batch.map(async (item) => {
         const number = item?.Number ?? item?.number;
         if (!number) return;
-        const sourceId = `${login}:${number}`;
+        const customer = item?.Customer ?? item?.customer ?? null;
+        const sourceId = `${customer || login}:${number}`;
         const content = formatCargoContent(item);
         if (!content) return;
         await upsertDocument({
@@ -133,6 +136,7 @@ async function ingestCargoItems(items: any[], login: string) {
           content,
           metadata: {
             number,
+            customer,
             datePrih: item?.DatePrih ?? null,
             dateVr: item?.DateVr ?? null,
             state: item?.State ?? null,
