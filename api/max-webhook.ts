@@ -15,6 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const debug = String((req.query as any)?.debug ?? "") === "1";
   if (!MAX_BOT_TOKEN) {
     return res.status(500).json({ error: "MAX_BOT_TOKEN is not configured" });
   }
@@ -88,6 +89,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     hasData: !!update?.data,
     keys: Object.keys(update)
   }));
+
+  if (debug) {
+    const cleanToken = (MAX_BOT_TOKEN || "").trim().replace(/^["']|["']$/g, "");
+    return res.status(200).json({
+      ok: true,
+      debug: {
+        tokenConfigured: !!MAX_BOT_TOKEN,
+        tokenLength: cleanToken.length,
+        tokenMasked:
+          cleanToken.length >= 8
+            ? `${cleanToken.slice(0, 4)}...${cleanToken.slice(-4)}`
+            : "(short)",
+        chatId,
+        senderId,
+        rawText,
+      },
+    });
+  }
 
   const cargoNumber = extractCargoNumberFromPayload(rawText);
   
