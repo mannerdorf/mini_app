@@ -28,11 +28,10 @@ export async function maxSendMessage(args: {
   format?: "markdown" | "html";
   attachments?: MaxInlineKeyboardAttachment[];
 }) {
-  // MAX API может требовать "Bearer " префикс или просто токен
-  // Проверяем, есть ли уже префикс
-  const authHeader = args.token.startsWith("Bearer ") 
-    ? args.token 
-    : `Bearer ${args.token}`;
+  // MAX API ожидает токен в Authorization без Bearer
+  const cleanToken = args.token.startsWith("Bearer ")
+    ? args.token.slice("Bearer ".length)
+    : args.token;
 
   const numericChatId = Number(args.chatId);
   const explicitRecipient = args.recipient
@@ -73,9 +72,9 @@ export async function maxSendMessage(args: {
       body: payload,
     });
 
-  let res = await send(authHeader);
-  if (!res.ok && res.status === 401 && !args.token.startsWith("Bearer ")) {
-    res = await send(args.token);
+  let res = await send(cleanToken);
+  if (!res.ok && res.status === 401) {
+    res = await send(`Bearer ${cleanToken}`);
   }
 
   if (!res.ok) {

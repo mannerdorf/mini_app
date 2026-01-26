@@ -17,7 +17,7 @@ async function maxSendMessage(
   // Выводим в консоль Vercel замаскированный токен для проверки
   console.log(`[max-send-message] Using token: ${cleanToken.substring(0, 4)}...${cleanToken.substring(cleanToken.length - 4)}`);
 
-  const authHeader = cleanToken.startsWith("Bearer ") ? cleanToken : `Bearer ${cleanToken}`;
+  const authHeader = cleanToken;
   
   const body = JSON.stringify({
     ...(recipient ? { recipient } : {}),
@@ -66,8 +66,8 @@ async function maxSendMessage(
   
   // Попытка 2: Если 401, пробуем БЕЗ Bearer (просто токен)
   if (!result.ok && result.status === 401) {
-    console.log("[max-send-message] Attempt 1 failed (401), trying Attempt 2: without Bearer");
-    result = await send(cleanToken.replace("Bearer ", ""));
+    console.log("[max-send-message] Attempt 1 failed (401), trying Attempt 2: with Bearer");
+    result = await send(`Bearer ${cleanToken}`);
   }
 
   if (!result.ok) {
