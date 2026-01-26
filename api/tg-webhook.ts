@@ -44,9 +44,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const payload = userText.split(" ")[1];
     if (payload.startsWith("haulz_n_")) {
       const cargoNumber = payload.split("_")[2];
-      const appDomain = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
+      const appDomain = process.env.NEXT_PUBLIC_APP_URL
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
       const docUrl = (m: string) => `${appDomain}/api/doc-short?metod=${encodeURIComponent(m)}&number=${encodeURIComponent(cargoNumber)}`;
 
       const message = `Вижу ваш вопрос по перевозке ${cargoNumber}. Выберите документ для скачивания:`;
@@ -68,9 +67,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     : null;
 
   try {
-    const appDomain = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
+    const appDomain = process.env.NEXT_PUBLIC_APP_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
     if (debugInfo) debugInfo.appDomain = appDomain;
     const aiRes = await fetch(`${appDomain}/api/chat`, {
       method: 'POST',
