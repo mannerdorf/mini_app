@@ -4019,7 +4019,8 @@ function ChatPage({
         if (mimeType.includes("ogg")) return "voice.ogg";
         if (mimeType.includes("mpeg") || mimeType.includes("mp3")) return "voice.mp3";
         if (mimeType.includes("wav")) return "voice.wav";
-        if (mimeType.includes("mp4") || mimeType.includes("m4a")) return "voice.m4a";
+        if (mimeType.includes("mp4")) return "voice.mp4";
+        if (mimeType.includes("m4a")) return "voice.m4a";
         return "voice.webm";
     };
 
@@ -4030,7 +4031,10 @@ function ChatPage({
                 throw new Error("Запись слишком короткая");
             }
             const rawType = blob.type || recorderRef.current?.mimeType || "audio/webm";
-            const baseType = rawType.split(";")[0];
+            let baseType = rawType.split(";")[0];
+            if (baseType === "audio/aac" || baseType === "audio/x-aac") {
+                baseType = "audio/mp4";
+            }
             const fileName = getAudioFileName(baseType);
             const file = new File([blob], fileName, { type: baseType });
             const formData = new FormData();
