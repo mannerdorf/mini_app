@@ -1763,6 +1763,40 @@ function TinyUrlTestPage({ onBack }: { onBack: () => void }) {
     );
 }
 
+function AiChatProfilePage({
+    onBack,
+    auth,
+    accountId,
+}: {
+    onBack: () => void;
+    auth: AuthData | null;
+    accountId: string | null;
+}) {
+    return (
+        <div className="w-full">
+            <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-4 h-4" />
+                </Button>
+                <Typography.Headline style={{ fontSize: '1.25rem' }}>AI чат</Typography.Headline>
+            </Flex>
+            {auth ? (
+                <ChatPage
+                    auth={auth}
+                    sessionOverride={accountId ? `ai_${accountId}` : "ai_anon"}
+                    userIdOverride={accountId || "anon"}
+                />
+            ) : (
+                <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                        Сначала выберите компанию.
+                    </Typography.Body>
+                </Panel>
+            )}
+        </div>
+    );
+}
+
 function AboutCompanyPage({ onBack }: { onBack: () => void }) {
     const normalizePhoneToTel = (phone: string) => {
         const digits = phone.replace(/[^\d+]/g, "");
@@ -1952,6 +1986,7 @@ function ProfilePage({
     onOpenNotifications: () => void;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
+    const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
     
     // Настройки
     const settingsItems = [
@@ -2034,7 +2069,13 @@ function ProfilePage({
     }
 
     if (currentView === 'tinyurl-test') {
-        return <TinyUrlTestPage onBack={() => setCurrentView('main')} />;
+        return (
+            <AiChatProfilePage
+                onBack={() => setCurrentView('main')}
+                auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password } : null}
+                accountId={activeAccountId}
+            />
+        );
     }
 
     if (currentView === 'about') {
@@ -3746,33 +3787,14 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     useEffect(() => {
         if (didRunRef.current) return;
         didRunRef.current = true;
-        if (typeof window !== "undefined") {
-            const key = "haulz.support.redirected";
-            const already = window.sessionStorage.getItem(key);
-            if (!already) {
-                window.sessionStorage.setItem(key, "1");
-                onOpenSupport();
-            }
-        }
     }, [onOpenSupport]);
 
-    const isMax = isMaxWebApp();
-    const isTg = !!(window as any).Telegram?.WebApp;
-    const message = isMax
-        ? "Открываем поддержку в MAX..."
-        : isTg
-            ? "Открываем поддержку в Telegram..."
-            : "Поддержка доступна в MAX или Telegram.";
+    const message = "Поддержка временно доступна только внутри мини‑приложения.";
 
     return (
         <div className="w-full p-8 text-center">
             <Typography.Headline>Поддержка</Typography.Headline>
-            <Typography.Body style={{ color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
-                {message}
-            </Typography.Body>
-            <Button className="button-primary" onClick={onOpenSupport}>
-                Открыть поддержку
-            </Button>
+            <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>{message}</Typography.Body>
         </div>
     );
 }
@@ -3781,17 +3803,22 @@ function ChatPage({
     prefillMessage, 
     onClearPrefill,
     auth,
-    cargoItems
+    cargoItems,
+    sessionOverride,
+    userIdOverride
 }: { 
     prefillMessage?: string; 
     onClearPrefill?: () => void;
     auth?: AuthData;
     cargoItems?: CargoItem[];
+    sessionOverride?: string;
+    userIdOverride?: string;
 }) {
     const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [isTyping, setIsReady] = useState(false);
     const [sessionId, setSessionId] = useState<string>(() => {
+        if (sessionOverride) return sessionOverride;
         if (typeof window === "undefined") return "server";
         const key = "haulz.chat.sessionId";
         const existing = window.localStorage.getItem(key);
@@ -3856,7 +3883,7 @@ function ChatPage({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     sessionId,
-                    userId: auth?.login,
+                    userId: userIdOverride || auth?.login,
                     message: messageText,
                     context 
                 })
@@ -3864,7 +3891,7 @@ function ChatPage({
 
             if (res.ok) {
                 const data = await res.json();
-                if (data?.sessionId && typeof data.sessionId === "string" && data.sessionId !== sessionId) {
+                if (!sessionOverride && data?.sessionId && typeof data.sessionId === "string" && data.sessionId !== sessionId) {
                     setSessionId(data.sessionId);
                     if (typeof window !== "undefined") {
                         window.localStorage.setItem("haulz.chat.sessionId", data.sessionId);
@@ -4390,6 +4417,8 @@ export default function App() {
     };
 
     const openSupportChat = async (cargoNumber?: string) => {
+        setActiveTab("support");
+        return;
         const webApp = getWebApp();
 
         // В MAX используем схему с диплинком (startapp)
