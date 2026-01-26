@@ -254,20 +254,10 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     width: 100%;
     justify-content: flex-start;
     flex-wrap: nowrap;
-    overflow-x: auto;
     overflow-y: visible;
+    overflow-x: visible;
     padding-bottom: 0.25rem;
-    -webkit-overflow-scrolling: touch;
-}
-.filters-container::-webkit-scrollbar {
-    height: 6px;
-}
-.filters-container::-webkit-scrollbar-thumb {
-    background: var(--color-border);
-    border-radius: 999px;
-}
-.filters-container::-webkit-scrollbar-track {
-    background: transparent;
+    position: relative;
 }
 .filter-group {
     flex: 0 0 auto;
