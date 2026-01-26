@@ -296,17 +296,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         extractLastCargoNumberFromHistory(history.rows);
       let reply = "";
       if (!cargoNumber) {
-        reply = "Пожалуйста, укажите номер перевозки, чтобы я дал ссылку на документ.";
+        reply = "Пожалуйста, укажите номер перевозки, чтобы я смог помочь со скачиванием.";
       } else {
-        const appDomain = getAppDomain();
-        const links = await Promise.all(
-          docMethods.map(async (method) => {
-            const url = await makeDocShortUrl(appDomain, method, cargoNumber, auth);
-            return { method, url };
-          }),
-        );
-        const lines = links.map((item) => `• ${item.method}: ${item.url}`);
-        reply = `Вот то, что вы просили по перевозке № ${cargoNumber}:\n${lines.join("\n")}`;
+        reply = `Скачать файл вы можете, нажав на кнопку шеринга в перевозке № ${cargoNumber}.`;
       }
 
       await pool.query(
