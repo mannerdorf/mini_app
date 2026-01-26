@@ -49,6 +49,14 @@ async function ensureOk(res: Response, fallback?: string): Promise<void> {
         safe || fallback || statusMsg;
     throw new Error(message);
 }
+
+function extractCustomerFromPerevozki(payload: any): string | null {
+    const list = Array.isArray(payload) ? payload : payload?.items || [];
+    if (!Array.isArray(list)) return null;
+    const item = list.find((entry: any) => entry?.Customer || entry?.customer);
+    const customer = item?.Customer ?? item?.customer;
+    return customer ? String(customer) : null;
+}
 // --- TELEGRAM MINI APP SUPPORT ---
 const getWebApp = () => {
     if (typeof window === "undefined") return undefined;
@@ -4390,6 +4398,8 @@ export default function App() {
                 body: JSON.stringify({ login, password, dateFrom, dateTo }),
             });
             await ensureOk(res, "Ошибка авторизации");
+            const payload = await readJsonOrText(res);
+            const detectedCustomer = extractCustomerFromPerevozki(payload);
             // Проверяем, не существует ли уже такой аккаунт
             const existingAccount = accounts.find(acc => acc.login === login);
             let accountId: string;
@@ -4397,11 +4407,20 @@ export default function App() {
             if (existingAccount) {
                 // Аккаунт уже существует, переключаемся на него
                 accountId = existingAccount.id;
+                if (detectedCustomer && existingAccount.customer !== detectedCustomer) {
+                    setAccounts(prev =>
+                        prev.map(acc =>
+                            acc.id === existingAccount.id
+                                ? { ...acc, customer: detectedCustomer }
+                                : acc
+                        )
+                    );
+                }
                 setActiveAccountId(accountId);
             } else {
                 // Создаем новый аккаунт
                 accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                const newAccount: Account = { login, password, id: accountId };
+                const newAccount: Account = { login, password, id: accountId, customer: detectedCustomer || undefined };
                 setAccounts(prev => [...prev, newAccount]);
                 setActiveAccountId(accountId);
             }
@@ -4476,10 +4495,13 @@ export default function App() {
             } catch { }
             throw new Error(message);
         }
+
+        const payload = await readJsonOrText(res);
+        const detectedCustomer = extractCustomerFromPerevozki(payload);
         
         // Создаем новый аккаунт
         const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const newAccount: Account = { login, password, id: accountId };
+        const newAccount: Account = { login, password, id: accountId, customer: detectedCustomer || undefined };
         setAccounts(prev => [...prev, newAccount]);
         setActiveAccountId(accountId);
     };
