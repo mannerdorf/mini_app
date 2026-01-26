@@ -126,9 +126,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Определяем базовый URL для токена
+    const envDomain = process.env.NEXT_PUBLIC_APP_URL
+      ? process.env.NEXT_PUBLIC_APP_URL
+      : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : null;
     const host = req.headers.host || req.headers["x-forwarded-host"];
     const protocol = req.headers["x-forwarded-proto"] || "https";
-    const tokenUrl = `${protocol}://${host}/api/doc/${token}`;
+    const base = envDomain || (host ? `${protocol}://${host}` : "");
+    const baseUrl = base.endsWith("/") ? base.slice(0, -1) : base;
+    const tokenUrl = `${baseUrl}/api/doc/${token}`;
 
     // Создаем короткую ссылку через TinyURL
     let shortUrl = tokenUrl; // Fallback на прямую ссылку

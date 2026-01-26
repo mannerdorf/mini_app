@@ -2022,18 +2022,7 @@ function ProfilePage({
             icon: <Building2 className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('companies')
         },
-        { 
-            id: 'notifications', 
-            label: 'Уведомления', 
-            icon: <Bell className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => onOpenNotifications()
-        },
-        { 
-            id: 'dashboards', 
-            label: 'Дашборды', 
-            icon: <LayoutGrid className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => setCurrentView('tinyurl-test')
-        },
+        // temporarily hidden: notifications and dashboards
     ];
     
     // Информация
@@ -4037,9 +4026,13 @@ function ChatPage({
     const transcribeAndSend = async (blob: Blob) => {
         setIsTranscribing(true);
         try {
-            const mimeType = blob.type || "audio/webm";
-            const fileName = getAudioFileName(mimeType);
-            const file = new File([blob], fileName, { type: mimeType });
+            if (!blob || blob.size < 256) {
+                throw new Error("Запись слишком короткая");
+            }
+            const rawType = blob.type || recorderRef.current?.mimeType || "audio/webm";
+            const baseType = rawType.split(";")[0];
+            const fileName = getAudioFileName(baseType);
+            const file = new File([blob], fileName, { type: baseType });
             const formData = new FormData();
             formData.append("audio", file);
 
