@@ -13,6 +13,27 @@ function coerceBody(req: VercelRequest): any {
   return body ?? {};
 }
 
+function getAppDomain() {
+  return process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
+}
+
+function extractCargoNumber(text: string) {
+  const match = text.match(/(?:№\s*)?(\d{4,})/);
+  return match?.[1] || null;
+}
+
+function extractDocMethods(text: string) {
+  const lower = text.toLowerCase();
+  const methods: string[] = [];
+  if (/\bэр\b/.test(lower)) methods.push("ЭР");
+  if (/сч[её]т/.test(lower)) methods.push("СЧЕТ");
+  if (/\bупд\b/.test(lower)) methods.push("УПД");
+  if (/\bапп\b/.test(lower)) methods.push("АПП");
+  return Array.from(new Set(methods));
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -89,6 +110,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        limit 20`,
       [sid],
     );
+
+    const docMethods = extractDocMethods(userMessage);
+    if (docMethods.length > 0) {
+      const cargoNumber = extractCargoNumber(userMessage);
+      let reply = "";
+      if (!cargoNumber) {
+        reply = "Пожалуйста, укажите номер перевозки, чтобы я дал ссылку на документ.";
+      } else {
+        const appDomain = getAppDomain();
+        const lines = docMethods.map((method) => {
+          const url = `${appDomain}/api/doc-short?metod=${encodeURIComponent(method)}&number=${encodeURIComponent(cargoNumber)}`;
+          return `• ${method}: ${url}`;
+        });
+        reply = `Вот короткие ссылки на документы по перевозке № ${cargoNumber}:\n${lines.join("\n")}`;
+      }
+
+      await pool.query(
+        `insert into chat_messages (session_id, role, content)
+         values ($1, 'assistant', $2)`,
+        [sid, reply],
+      );
+      await pool.query(`update chat_sessions set updated_at = now() where id = $1`, [
+        sid,
+      ]);
+
+      const dialogLines = [
+        ...history.rows.reverse(),
+        { role: "assistant" as const, content: reply },
+      ]
+        .map((item) => {
+          const role = item.role === "user" ? "Пользователь" : "Ассистент";
+          return `${role}: ${item.content}`;
+        })
+        .join("\n");
+
+      upsertDocument({
+        sourceType: "chat",
+        sourceId: sid,
+        title: `Диалог ${sid}`,
+        content: dialogLines,
+        metadata: {
+          sessionId: sid,
+          userId: typeof userId === "string" ? userId : null,
+        },
+      }).catch((error) => {
+        console.warn("RAG chat ingest failed:", error?.message || error);
+      });
+
+      return res.status(200).json({ sessionId: sid, reply });
+    }
 
     let ragContext = "";
     try {

@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
@@ -3869,6 +3869,8 @@ function ChatPage({
     const [inputValue, setInputValue] = useState("");
     const [isTyping, setIsReady] = useState(false);
     const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+    const [isTranscribing, setIsTranscribing] = useState(false);
     const [sessionId, setSessionId] = useState<string>(() => {
         if (sessionOverride) return sessionOverride;
         if (typeof window === "undefined") return "server";
@@ -3883,6 +3885,9 @@ function ChatPage({
         return sid;
     });
     const scrollRef = React.useRef<HTMLDivElement>(null);
+    const recorderRef = React.useRef<MediaRecorder | null>(null);
+    const chunksRef = React.useRef<Blob[]>([]);
+    const streamRef = React.useRef<MediaStream | null>(null);
 
     const renderLineWithLinks = (line: string) => {
         if (!onOpenCargo) return line;
@@ -3978,6 +3983,85 @@ function ChatPage({
             </div>
         );
     };
+
+    const stopStream = () => {
+        streamRef.current?.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+    };
+
+    const transcribeAndSend = async (blob: Blob) => {
+        setIsTranscribing(true);
+        try {
+            const file = new File([blob], "voice.webm", { type: blob.type || "audio/webm" });
+            const formData = new FormData();
+            formData.append("audio", file);
+
+            const res = await fetch("/api/transcribe", {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data?.error || `Ошибка ${res.status}`);
+            }
+            const text = String(data?.text || "").trim();
+            if (text) {
+                await handleSend(text);
+            } else {
+                setMessages(prev => [...prev, { role: 'assistant', content: "Не удалось распознать речь." }]);
+            }
+        } catch (e: any) {
+            const msg = e?.message || "Не удалось распознать речь";
+            setMessages(prev => [...prev, { role: 'assistant', content: `Ошибка распознавания: ${msg}` }]);
+        } finally {
+            setIsTranscribing(false);
+        }
+    };
+
+    const startRecording = async () => {
+        if (isRecording || isTranscribing) return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streamRef.current = stream;
+            const recorder = new MediaRecorder(stream);
+            chunksRef.current = [];
+
+            recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    chunksRef.current.push(event.data);
+                }
+            };
+
+            recorder.onstop = async () => {
+                const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+                stopStream();
+                await transcribeAndSend(blob);
+            };
+
+            recorderRef.current = recorder;
+            recorder.start();
+            setIsRecording(true);
+        } catch (e) {
+            stopStream();
+            setMessages(prev => [...prev, { role: 'assistant', content: "Не удалось получить доступ к микрофону." }]);
+        }
+    };
+
+    const stopRecording = () => {
+        if (!recorderRef.current) return;
+        recorderRef.current.stop();
+        recorderRef.current = null;
+        setIsRecording(false);
+    };
+
+    useEffect(() => {
+        return () => {
+            if (recorderRef.current && recorderRef.current.state !== "inactive") {
+                try { recorderRef.current.stop(); } catch { /* ignore */ }
+            }
+            stopStream();
+        };
+    }, []);
 
     useEffect(() => {
         if (!sessionOverride) return;
@@ -4172,11 +4256,22 @@ function ChatPage({
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder="Напишите ваш вопрос..."
                         style={{ flex: 1 }}
-                        disabled={isTyping}
+                        disabled={isTyping || isRecording || isTranscribing}
                     />
+                    <Button
+                        type="button"
+                        disabled={isTyping || isTranscribing}
+                        className="button-primary"
+                        onClick={() => (isRecording ? stopRecording() : startRecording())}
+                        style={{ padding: '0.5rem', minWidth: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
+                        title={isRecording ? "Остановить запись" : "Записать голосовое"}
+                    >
+                        {isRecording ? <Square size={18} /> : <Mic size={18} />}
+                    </Button>
                     <Button 
                         type="submit" 
-                        disabled={!inputValue.trim() || isTyping}
+                        disabled={!inputValue.trim() || isTyping || isRecording || isTranscribing}
                         className="button-primary"
                         style={{ padding: '0.5rem', minWidth: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
@@ -4622,7 +4717,7 @@ export default function App() {
             if (cargoNumber) {
                 window.sessionStorage.setItem(
                     "haulz.chat.prefill",
-                    `Покажи информацию по перевозке ${cargoNumber}`
+                    `Пожалуйста, предоставьте полную информацию по перевозке № ${cargoNumber}`
                 );
             }
         }
