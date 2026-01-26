@@ -90,6 +90,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     keys: Object.keys(update)
   }));
 
+  const recipientFromUpdate = update?.message?.recipient ?? null;
+
   if (debug) {
     const cleanToken = (MAX_BOT_TOKEN || "").trim().replace(/^["']|["']$/g, "");
     return res.status(200).json({
@@ -104,6 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         chatId,
         senderId,
         rawText,
+        recipient: recipientFromUpdate,
       },
     });
   }
@@ -144,7 +147,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await maxSendMessage({
         token: MAX_BOT_TOKEN,
         chatId,
-        recipientUserId: senderId ?? undefined,
+        recipient: recipientFromUpdate ?? undefined,
+        recipientUserId: recipientFromUpdate ? undefined : senderId ?? undefined,
         text: `Добрый день!\n\nВижу, что у вас вопрос по перевозке ${cargoNumber}.\n\nВы можете скачать документы прямо здесь:`,
         attachments,
       });
@@ -180,7 +184,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await maxSendMessage({
           token: MAX_BOT_TOKEN,
           chatId,
-          recipientUserId: senderId ?? undefined,
+          recipient: recipientFromUpdate ?? undefined,
+          recipientUserId: recipientFromUpdate ? undefined : senderId ?? undefined,
           text: aiData.reply,
         });
       } else {
@@ -191,7 +196,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await maxSendMessage({
         token: MAX_BOT_TOKEN,
         chatId,
-        recipientUserId: senderId ?? undefined,
+        recipient: recipientFromUpdate ?? undefined,
+        recipientUserId: recipientFromUpdate ? undefined : senderId ?? undefined,
         text: "Добрый день! Напишите, пожалуйста, ваш вопрос — мы поможем. 🚛",
       });
     }
@@ -201,7 +207,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await maxSendMessage({
         token: MAX_BOT_TOKEN,
         chatId,
-        recipientUserId: senderId ?? undefined,
+        recipient: recipientFromUpdate ?? undefined,
+        recipientUserId: recipientFromUpdate ? undefined : senderId ?? undefined,
         text: "Добрый день! Я AI-помощник HAULZ. Чем могу помочь? 😊",
       });
     } catch (e) {}

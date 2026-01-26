@@ -18,6 +18,11 @@ export type MaxInlineKeyboardAttachment = {
 export async function maxSendMessage(args: {
   token: string;
   chatId: number | string;
+  recipient?: {
+    chat_id?: number | string;
+    chat_type?: string;
+    user_id?: number | string;
+  };
   recipientUserId?: number | string;
   text: string;
   format?: "markdown" | "html";
@@ -30,16 +35,29 @@ export async function maxSendMessage(args: {
     : `Bearer ${args.token}`;
 
   const numericChatId = Number(args.chatId);
-  const recipientUserId = args.recipientUserId ?? args.chatId;
-  const numericRecipientUserId = Number(recipientUserId);
+  const explicitRecipient = args.recipient
+    ? {
+        ...(args.recipient.chat_id !== undefined
+          ? { chat_id: Number(args.recipient.chat_id) }
+          : {}),
+        ...(args.recipient.chat_type ? { chat_type: args.recipient.chat_type } : {}),
+        ...(args.recipient.user_id !== undefined
+          ? { user_id: Number(args.recipient.user_id) }
+          : {}),
+      }
+    : undefined;
+
+  const fallbackRecipientUserId = args.recipientUserId ?? args.chatId;
+  const numericRecipientUserId = Number(fallbackRecipientUserId);
   const recipient =
-    Number.isFinite(numericRecipientUserId)
+    explicitRecipient ??
+    (Number.isFinite(numericRecipientUserId)
       ? { user_id: numericRecipientUserId }
-      : undefined;
+      : undefined);
 
   const payload = JSON.stringify({
     ...(recipient ? { recipient } : {}),
-    ...(Number.isFinite(numericChatId) ? { chat_id: numericChatId } : {}),
+    ...(!recipient && Number.isFinite(numericChatId) ? { chat_id: numericChatId } : {}),
     text: args.text,
     format: args.format,
     attachments: args.attachments,
