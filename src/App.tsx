@@ -130,7 +130,6 @@ type Account = { login: string; password: string; id: string; customer?: string;
 type Tab = "home" | "cargo" | "docs" | "support" | "profile" | "dashboard"; // Все разделы + секретный dashboard
 type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
 type StatusFilter = "all" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
-type PaymentFilter = "all" | "unpaid" | "paid" | "partial" | "cancelled" | "unknown";
 type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom"; // Оставлено, так как это может использоваться в Home, который пока остается в коде ниже
 
 // --- ИСПОЛЬЗУЕМ ТОЛЬКО ПЕРЕМЕННЫЕ ИЗ API ---
@@ -314,7 +313,7 @@ const getSumColorByPaymentStatus = (stateBill: string | undefined): string => {
     return 'var(--color-text-primary)'; // По умолчанию
 };
 
-const getPaymentFilterKey = (stateBill: string | undefined): PaymentFilter => {
+const getPaymentFilterKey = (stateBill: string | undefined) => {
     if (!stateBill) return "unknown";
     const lower = stateBill.toLowerCase().trim();
     if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
@@ -348,14 +347,6 @@ const getFilterKeyByStatus = (s: string | undefined): StatusFilter => {
 }
 
 const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "in_transit": "В пути", "ready": "Готов к выдаче", "delivering": "На доставке", "delivered": "Доставлено", "favorites": "Избранные" };
-const PAYMENT_STATUS_MAP: Record<PaymentFilter, string> = {
-    all: "Все",
-    unpaid: "Не оплачен",
-    paid: "Оплачен",
-    partial: "Частично",
-    cancelled: "Отменен",
-    unknown: "Без статуса",
-};
 
 const resolveChecked = (value: unknown): boolean => {
     if (typeof value === "boolean") return value;
@@ -729,7 +720,7 @@ function HomePage({ auth }: { auth: AuthData }) {
             <Grid className="stats-grid" cols={2} gap={12}>
                 <Panel
                     className="stat-card"
-                    onClick={() => onOpenCargoFilters({ payment: "unpaid" })}
+                    onClick={() => onOpenCargoFilters({ search: "не оплачен" })}
                     style={{ cursor: 'pointer' }}
                 >
                     <div className="flex justify-between items-center mb-2">
@@ -933,7 +924,7 @@ function DashboardPage({
 }: {
     auth: AuthData;
     onClose: () => void;
-    onOpenCargoFilters: (filters: { status?: StatusFilter; payment?: PaymentFilter }) => void;
+    onOpenCargoFilters: (filters: { status?: StatusFilter; search?: string }) => void;
 }) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [debugInfo, setDebugInfo] = useState<string>("");
@@ -2783,8 +2774,6 @@ function CargoPage({
     contextCargoNumber,
     onClearContextCargo,
     initialStatusFilter,
-    initialPaymentFilter,
-    initialSenderFilter,
     onClearQuickFilters
 }: { 
     auth: AuthData; 
@@ -2794,8 +2783,6 @@ function CargoPage({
     contextCargoNumber?: string | null;
     onClearContextCargo?: () => void;
     initialStatusFilter?: StatusFilter;
-    initialPaymentFilter?: PaymentFilter;
-    initialSenderFilter?: string | null;
     onClearQuickFilters?: () => void;
 }) {
     const [items, setItems] = useState<CargoItem[]>([]);
@@ -2806,15 +2793,11 @@ function CargoPage({
     // Filters State
     const [dateFilter, setDateFilter] = useState<DateFilter>("неделя");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-    const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>("all");
-    const [senderFilter, setSenderFilter] = useState<string>("all");
     const [customDateFrom, setCustomDateFrom] = useState(DEFAULT_DATE_FROM);
     const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
-    const [isPaymentDropdownOpen, setIsPaymentDropdownOpen] = useState(false);
-    const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [showSummary, setShowSummary] = useState(true);
     // Sort State
     const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>(null);
@@ -2904,26 +2887,11 @@ function CargoPage({
 
     useEffect(() => {
         if (initialStatusFilter) setStatusFilter(initialStatusFilter);
-        if (initialPaymentFilter) setPaymentFilter(initialPaymentFilter);
-        if (typeof initialSenderFilter === "string") {
-            setSenderFilter(initialSenderFilter || "all");
-        }
         setIsStatusDropdownOpen(false);
-        setIsPaymentDropdownOpen(false);
-        setIsSenderDropdownOpen(false);
-        if (initialStatusFilter || initialPaymentFilter || typeof initialSenderFilter === "string") {
+        if (initialStatusFilter) {
             onClearQuickFilters?.();
         }
-    }, [initialStatusFilter, initialPaymentFilter, initialSenderFilter, onClearQuickFilters]);
-
-    const senderOptions = useMemo(() => {
-        const set = new Set<string>();
-        items.forEach(item => {
-            const sender = (item.Sender || "").trim();
-            if (sender) set.add(sender);
-        });
-        return Array.from(set).sort((a, b) => a.localeCompare(b, "ru"));
-    }, [items]);
+    }, [initialStatusFilter, onClearQuickFilters]);
 
     useEffect(() => {
         if (!contextCargoNumber) return;
@@ -2946,16 +2914,6 @@ function CargoPage({
             res = res.filter(i => i.Number && favorites.has(i.Number));
         } else if (statusFilter !== 'all') {
             res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
-        }
-        if (paymentFilter !== 'all') {
-            res = res.filter(i => getPaymentFilterKey(i.StateBill) === paymentFilter);
-        }
-        if (senderFilter !== 'all') {
-            if (senderFilter === "__empty__") {
-                res = res.filter(i => !(i.Sender || "").trim());
-            } else {
-                res = res.filter(i => (i.Sender || "").trim() === senderFilter);
-            }
         }
         if (searchText) {
             const lower = searchText.toLowerCase();
@@ -3061,7 +3019,7 @@ function CargoPage({
         }
         
         return res;
-    }, [items, statusFilter, paymentFilter, senderFilter, searchText, sortBy, sortOrder, favorites]);
+    }, [items, statusFilter, searchText, sortBy, sortOrder, favorites]);
 
     // Подсчет сумм из отфильтрованных элементов
     const summary = useMemo(() => {
@@ -3153,36 +3111,6 @@ function CargoPage({
                         {Object.keys(STATUS_MAP).map(key => (
                             <div key={key} className="dropdown-item" onClick={() => { setStatusFilter(key as any); setIsStatusDropdownOpen(false); }}>
                                 <Typography.Body>{STATUS_MAP[key as StatusFilter]}</Typography.Body>
-                            </div>
-                        ))}
-                    </div>}
-                </div>
-                <div className="filter-group">
-                    <Button className="filter-button" onClick={() => { setIsPaymentDropdownOpen(!isPaymentDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); }}>
-                        Оплата: {PAYMENT_STATUS_MAP[paymentFilter]} <ChevronDown className="w-4 h-4"/>
-                    </Button>
-                    {isPaymentDropdownOpen && <div className="filter-dropdown">
-                        {Object.keys(PAYMENT_STATUS_MAP).map(key => (
-                            <div key={key} className="dropdown-item" onClick={() => { setPaymentFilter(key as PaymentFilter); setIsPaymentDropdownOpen(false); }}>
-                                <Typography.Body>{PAYMENT_STATUS_MAP[key as PaymentFilter]}</Typography.Body>
-                            </div>
-                        ))}
-                    </div>}
-                </div>
-                <div className="filter-group">
-                    <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsPaymentDropdownOpen(false); }}>
-                        Отправитель: {senderFilter === "all" ? "Все" : senderFilter === "__empty__" ? "Без отправителя" : senderFilter} <ChevronDown className="w-4 h-4"/>
-                    </Button>
-                    {isSenderDropdownOpen && <div className="filter-dropdown">
-                        <div className="dropdown-item" onClick={() => { setSenderFilter("all"); setIsSenderDropdownOpen(false); }}>
-                            <Typography.Body>Все</Typography.Body>
-                        </div>
-                        <div className="dropdown-item" onClick={() => { setSenderFilter("__empty__"); setIsSenderDropdownOpen(false); }}>
-                            <Typography.Body>Без отправителя</Typography.Body>
-                        </div>
-                        {senderOptions.map(sender => (
-                            <div key={sender} className="dropdown-item" onClick={() => { setSenderFilter(sender); setIsSenderDropdownOpen(false); }}>
-                                <Typography.Body>{sender}</Typography.Body>
                             </div>
                         ))}
                     </div>}
@@ -3940,20 +3868,6 @@ function CargoDetailsModal({
                 })()}
 
 
-                {(isMaxWebApp() || isMaxDocsEnabled()) && (
-                    <>
-                        <Typography.Headline style={{marginTop: '0.75rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
-                            Документы (MAX)
-                        </Typography.Headline>
-                        <div className="document-buttons">
-                            {['ЭР', 'АПП', 'СЧЕТ', 'УПД'].map(doc => (
-                                <Button key={`max-${doc}`} className="doc-button" onClick={() => handleDownloadMax(doc)} disabled={downloading === doc}>
-                                    {downloading === doc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />} {doc}
-                                </Button>
-                            ))}
-                        </div>
-                    </>
-                )}
                 {/* Встроенный просмотрщик PDF (метод 4: object/embed) */}
                 {pdfViewer && (
                     <div style={{ marginTop: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
@@ -4739,8 +4653,7 @@ export default function App() {
     });
     const [cargoQuickFilters, setCargoQuickFilters] = useState<{
         status?: StatusFilter;
-        payment?: PaymentFilter;
-        sender?: string | null;
+        search?: string;
     } | null>(null);
     const [theme, setTheme] = useState('dark'); 
     const [showDashboard, setShowDashboard] = useState(false);
@@ -5072,8 +4985,12 @@ export default function App() {
         setActiveTab("cargo");
     };
 
-    const openCargoWithFilters = (filters: { status?: StatusFilter; payment?: PaymentFilter }) => {
+    const openCargoWithFilters = (filters: { status?: StatusFilter; search?: string }) => {
         setCargoQuickFilters(filters);
+        if (filters.search) {
+            setSearchText(filters.search);
+            handleSearch(filters.search);
+        }
         setActiveTab("cargo");
     };
     const chatIdentity = (() => {
@@ -5457,8 +5374,6 @@ export default function App() {
                             contextCargoNumber={contextCargoNumber}
                             onClearContextCargo={() => setContextCargoNumber(null)}
                             initialStatusFilter={cargoQuickFilters?.status}
-                            initialPaymentFilter={cargoQuickFilters?.payment}
-                            initialSenderFilter={cargoQuickFilters?.sender ?? null}
                             onClearQuickFilters={() => setCargoQuickFilters(null)}
                         />
                     )}
@@ -5500,8 +5415,6 @@ export default function App() {
                             contextCargoNumber={contextCargoNumber}
                             onClearContextCargo={() => setContextCargoNumber(null)}
                             initialStatusFilter={cargoQuickFilters?.status}
-                            initialPaymentFilter={cargoQuickFilters?.payment}
-                            initialSenderFilter={cargoQuickFilters?.sender ?? null}
                             onClearQuickFilters={() => setCargoQuickFilters(null)}
                         />
                     )}
