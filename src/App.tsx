@@ -1402,6 +1402,22 @@ function truncateForLog(u: string, max = 80) {
 }
 
 function TinyUrlTestPage({ onBack }: { onBack: () => void }) {
+    return (
+        <div className="w-full">
+            <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
+                    <ArrowLeft className="w-4 h-4" />
+                </Button>
+                <Typography.Headline style={{ fontSize: '1.25rem' }}>Дашборды</Typography.Headline>
+            </Flex>
+            <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                    Раздел временно недоступен.
+                </Typography.Body>
+            </Panel>
+        </div>
+    );
+
     const [inputUrl, setInputUrl] = useState('');
     const [shortUrl, setShortUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -3155,7 +3171,7 @@ function CargoPage({ auth, searchText, onOpenChat, onCustomerDetected }: { auth:
                                         }}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onOpenChat(item.Number);
+                                            onOpenChat();
                                         }}
                                         title="Написать в поддержку"
                                     >
@@ -3724,6 +3740,31 @@ const TabBtn = ({ label, icon, active, onClick, onMouseDown, onMouseUp, onMouseL
     </Button>
 );
 
+function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
+    const didRunRef = React.useRef(false);
+
+    useEffect(() => {
+        if (didRunRef.current) return;
+        didRunRef.current = true;
+        onOpenSupport();
+    }, [onOpenSupport]);
+
+    const isMax = isMaxWebApp();
+    const isTg = !!(window as any).Telegram?.WebApp;
+    const message = isMax
+        ? "Открываем поддержку в MAX..."
+        : isTg
+            ? "Открываем поддержку в Telegram..."
+            : "Поддержка доступна в MAX или Telegram.";
+
+    return (
+        <div className="w-full p-8 text-center">
+            <Typography.Headline>Поддержка</Typography.Headline>
+            <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>{message}</Typography.Body>
+        </div>
+    );
+}
+
 function ChatPage({ 
     prefillMessage, 
     onClearPrefill,
@@ -4090,7 +4131,6 @@ export default function App() {
     const [searchText, setSearchText] = useState('');
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
-    const [chatPrefill, setChatPrefill] = useState<string>("");
     const [isChatOpen, setIsChatOpen] = useState(false);
 
     useEffect(() => { 
@@ -4290,6 +4330,10 @@ export default function App() {
         const webApp = getWebApp();
         const chatId = webApp?.initDataUnsafe?.chat?.id || webApp?.initDataUnsafe?.user?.id;
         
+        if (!cargoNumber) {
+            return MAX_SUPPORT_BOT_URL;
+        }
+
         let payload = "haulz_support";
         if (cargoNumber) {
             const safeNumber = String(cargoNumber).trim().replace(/[^0-9A-Za-zА-Яа-я._-]/g, "");
@@ -4313,6 +4357,10 @@ export default function App() {
         const webApp = getWebApp();
         const userId = webApp?.initDataUnsafe?.user?.id;
         
+        if (!cargoNumber) {
+            return TG_SUPPORT_BOT_URL;
+        }
+
         let payload = "haulz_support";
         if (cargoNumber) {
             const safeNumber = String(cargoNumber).trim().replace(/[^0-9A-Za-zА-Яа-я._-]/g, "");
@@ -4376,11 +4424,7 @@ export default function App() {
             return;
         }
 
-        // В обычном браузере оставляем внутренний чат
-        const msg = cargoNumber
-            ? `Добрый день, у меня вопрос по перевозке ${cargoNumber}`
-            : `Добрый день, у меня вопрос по перевозке`;
-        setChatPrefill(msg);
+        // В обычном браузере показываем заглушку
         setActiveTab("support");
     };
 
@@ -4703,12 +4747,7 @@ export default function App() {
                 </div>
                     )}
                     {showDashboard && activeTab === "support" && (
-                        // В MAX вкладка "Поддержка" открывает бота, тут оставляем Telegram/браузерный вариант
-                        <ChatPage 
-                            prefillMessage={chatPrefill} 
-                            onClearPrefill={() => setChatPrefill("")} 
-                            auth={auth}
-                        />
+                        <SupportRedirectPage onOpenSupport={() => openSupportChat()} />
                     )}
                     {showDashboard && activeTab === "profile" && (
                         <ProfilePage 
@@ -4732,11 +4771,7 @@ export default function App() {
                     )}
                     {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && <DashboardPage auth={auth} onClose={() => {}} />}
                     {!showDashboard && activeTab === "support" && auth && (
-                        <ChatPage 
-                            prefillMessage={chatPrefill} 
-                            onClearPrefill={() => setChatPrefill("")} 
-                            auth={auth}
-                        />
+                        <SupportRedirectPage onOpenSupport={() => openSupportChat()} />
                     )}
                     {!showDashboard && activeTab === "profile" && (
                         <ProfilePage 
