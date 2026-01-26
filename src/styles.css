@@ -93,7 +93,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     margin-bottom: 1rem;
     position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: 45;
 }
 .header-top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
 .header-auth-info { display: flex; align-items: center; font-size: 0.9rem; color: var(--color-text-secondary); }
@@ -267,6 +267,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .filter-button:hover { background-color: var(--color-bg-hover); }
 .filter-button:active { opacity: 0.8; }
 .filter-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 999; background-color: var(--color-bg-card); border: 1px solid var(--color-border); border-radius: 0.5rem; margin-top: 0.25rem; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18); overflow: hidden; }
+.account-switcher .filter-dropdown { z-index: 60; }
 .dropdown-item { padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.9rem; }
 .dropdown-item:hover { background-color: var(--color-bg-hover); }
 
