@@ -125,12 +125,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await sendTgMessageChunked(chatId, "Ссылка устарела. Откройте бота из мини‑приложения ещё раз.");
         return res.status(200).json({ ok: true });
       }
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = null;
+      }
       const saved = await setRedisValue(`tg:bind:${chatId}`, raw, TG_LINK_TTL_SECONDS);
       if (!saved) {
         await sendTgMessageChunked(chatId, "Не удалось сохранить привязку. Попробуйте позже.");
         return res.status(200).json({ ok: true });
       }
-      await sendTgMessageChunked(chatId, "Готово! Аккаунт привязан. Теперь можно писать в чат.");
+      const customerLabel = parsed?.customer || parsed?.login || "не указан";
+      await sendTgMessageChunked(
+        chatId,
+        `Готово! Аккаунт привязан.\nЗаказчик: ${customerLabel}\nТеперь можно писать в чат.`,
+      );
       return res.status(200).json({ ok: true });
     }
   }
