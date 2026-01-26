@@ -40,6 +40,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     update?.chatId ??
     update?.message?.chat_id ??
     update?.message?.chatId ??
+    update?.message?.recipient?.chat_id ??
+    update?.message?.recipient?.chatId ??
     update?.chat?.id ??
     update?.chat?.chat_id ??
     update?.user?.id ??
@@ -53,6 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Проверяем разные источники payload для startapp параметра
   const rawText =
     update?.message?.text ??
+    update?.message?.body?.text ??
     update?.text ??
     update?.payload ??
     update?.start_param ??
@@ -61,6 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     update?.message?.start_param ??
     update?.message?.startapp ??
     update?.message?.start_app ??
+    update?.message?.body?.payload ??
     update?.data?.start_param ??
     update?.data?.startapp ??
     "";
@@ -86,9 +90,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log("Cargo number extracted:", cargoNumber);
     
     // Получаем домен из env или используем дефолтный
-    const appDomain = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
+    const appDomain = process.env.NEXT_PUBLIC_APP_URL
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
     
     // Используем /api/doc-short для редиректа на мини-апп
     const docUrl = (metod: string) => 
@@ -129,9 +132,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log("Using AI to respond to:", userText);
 
     try {
-      const appDomain = process.env.VERCEL_URL 
-        ? `https://${process.env.VERCEL_URL}` 
-        : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
+      const appDomain = process.env.NEXT_PUBLIC_APP_URL
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
 
       const aiRes = await fetch(`${appDomain}/api/chat`, {
         method: 'POST',
@@ -139,7 +141,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify({ 
           sessionId: `max_${chatId}`,
           userId: String(chatId),
-          message: userText
+          message: userText,
+          channel: "max"
         })
       });
 

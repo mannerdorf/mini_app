@@ -76,6 +76,13 @@ export function extractCargoNumberFromPayload(payload: unknown): string | null {
     console.log("[extractCargoNumber] Found cargo number:", m[1]);
     return m[1];
   }
+
+  // Поддержка нового формата: haulz_n_<номер>
+  const m2 = s.match(/haulz_n_([0-9A-Za-zА-Яа-я._-]{1,64})/u);
+  if (m2 && m2[1]) {
+    console.log("[extractCargoNumber] Found cargo number (haulz_n):", m2[1]);
+    return m2[1];
+  }
   
   console.log("[extractCargoNumber] No cargo number found in payload");
   return null;
