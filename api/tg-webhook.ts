@@ -5,6 +5,7 @@ import fs from "node:fs";
 const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const TG_MAX_MESSAGE_LENGTH = 4096;
+const TG_BOT_LINK_BASE = "https://t.me/Haulzapp_bot?startapp=haulz_n_";
 const TG_LINK_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 async function getRedisValue(key: string): Promise<string | null> {
@@ -205,7 +206,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         userId: String(chatId),
         message: userText,
         customer: boundCustomer || undefined,
-        auth: boundAuth
+        auth: boundAuth,
+        channel: "telegram"
       })
     });
     if (debugInfo) debugInfo.aiStatus = aiRes.status;
@@ -221,7 +223,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (debugInfo) debugInfo.aiData = aiData;
 
     if (aiRes.ok) {
-      await sendTgMessageChunked(chatId, aiData.reply || "Не удалось получить ответ.");
+      const replyText = linkCargoNumbersForTelegram(aiData.reply || "Не удалось получить ответ.");
+      await sendTgMessageChunked(chatId, replyText);
     } else {
       const errorText = aiData?.error || aiData?.message || raw || "Ошибка сервера";
       await sendTgMessageChunked(chatId, `Ошибка: ${errorText}`);
@@ -276,6 +279,15 @@ function splitTelegramMessage(text: string, maxLen = 3500): string[] {
   }
   pushCurrent();
   return chunks.length ? chunks : [text];
+}
+
+function linkCargoNumbersForTelegram(text: string) {
+  const cargoRegex = /(?:№\s*)?(\d{4,})/g;
+  return String(text).replace(cargoRegex, (match, num) => {
+    const safe = String(num || "").trim();
+    if (!safe) return match;
+    return `№ ${safe} (${TG_BOT_LINK_BASE}${safe})`;
+  });
 }
 
 async function sendTgMessage(chatId: number, text: string, replyMarkup?: any) {

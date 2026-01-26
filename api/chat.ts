@@ -84,6 +84,18 @@ function extractDocMethods(text: string) {
   return Array.from(new Set(methods));
 }
 
+function wantsDocuments(text: string) {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("скач") ||
+    lower.includes("выгруз") ||
+    lower.includes("получ") ||
+    lower.includes("отправ") ||
+    lower.includes("ссылк") ||
+    lower.includes("документ")
+  );
+}
+
 function wantsFullInfo(text: string) {
   const lower = text.toLowerCase();
   return (
@@ -183,7 +195,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = coerceBody(req);
-    const { sessionId, userId, message, messages, context, customer, action, auth } = body;
+    const { sessionId, userId, message, messages, context, customer, action, auth, channel } = body;
 
     const sid =
       typeof sessionId === "string" && sessionId.trim()
@@ -296,7 +308,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const blocks: string[] = [];
       if (content) blocks.push(content);
 
-      if (!wantsNoLinks(userMessage)) {
+      if (channel === "telegram" && !wantsNoLinks(userMessage)) {
         const appDomain = getAppDomain();
         const methods = ["ЭР", "СЧЕТ", "УПД", "АПП"];
         const links = await Promise.all(
@@ -348,7 +360,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const docMethods = extractDocMethods(userMessage);
-    if (docMethods.length > 0) {
+    if (docMethods.length > 0 && wantsDocuments(userMessage)) {
       const cargoNumber =
         extractCargoNumber(userMessage) ||
         extractLastCargoNumberFromHistory(history.rows);
@@ -356,7 +368,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!cargoNumber) {
         reply = "Пожалуйста, укажите номер перевозки, чтобы я смог помочь со скачиванием.";
       } else {
-        reply = `Скачать файл вы можете, нажав на кнопку шеринга в перевозке № ${cargoNumber}.`;
+        if (channel === "telegram") {
+          const appDomain = getAppDomain();
+          const links = await Promise.all(
+            docMethods.map(async (method) => {
+              const url = await makeDocShortUrl(appDomain, method, cargoNumber, auth);
+              return `• ${method}: ${url}`;
+            }),
+          );
+          reply = `Вот ссылки на документы по перевозке № ${cargoNumber}:\n${links.join("\n")}`;
+        } else {
+          reply = `Скачать файл вы можете, нажав на кнопку шеринга в перевозке № ${cargoNumber}.`;
+        }
       }
 
       await pool.query(
