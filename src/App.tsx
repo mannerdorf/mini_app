@@ -4820,7 +4820,7 @@ export default function App() {
             if (cargoNumber) {
                 window.sessionStorage.setItem(
                     "haulz.chat.prefill",
-                    `Пожалуйста, предоставьте полную информацию по перевозке № ${cargoNumber}`
+                    `Пожалуйста, предоставьте полную информацию по перевозке № ${cargoNumber} без ссылок на документы`
                 );
             }
         }
