@@ -117,7 +117,7 @@ const PROXY_API_SEND_DOC_URL = '/api/send-document';
 // --- TYPES ---
 type ApiError = { error?: string; [key: string]: unknown; };
 type AuthData = { login: string; password: string; id?: string; };
-type Account = { login: string; password: string; id: string; };
+type Account = { login: string; password: string; id: string; customer?: string; };
 // УДАЛЕНО: type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 type Tab = "home" | "cargo" | "docs" | "support" | "profile" | "dashboard"; // Все разделы + секретный dashboard
 type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
@@ -1319,6 +1319,7 @@ function AccountSwitcher({
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const activeAccount = accounts.find(acc => acc.id === activeAccountId);
+    const activeLabel = activeAccount?.customer || activeAccount?.login || 'Не выбран';
     
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -1348,7 +1349,7 @@ function AccountSwitcher({
                 title={`Переключить аккаунт (${accounts.length} аккаунтов)`}
             >
                 <UserIcon className="w-4 h-4" />
-                <Typography.Body style={{ fontSize: '0.9rem' }}>{activeAccount?.login || 'Не выбран'}</Typography.Body>
+                <Typography.Body style={{ fontSize: '0.9rem' }}>{activeLabel}</Typography.Body>
                 <ChevronDown className="w-4 h-4" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </Button>
             {isOpen && (
@@ -1371,7 +1372,7 @@ function AccountSwitcher({
                             <Flex align="center" style={{ flex: 1, gap: '0.5rem' }}>
                                 <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                                 <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeAccountId === account.id ? 'bold' : 'normal' }}>
-                                    {account.login}
+                                    {account.customer || account.login}
                                 </Typography.Body>
                             </Flex>
                             {activeAccountId === account.id && (
@@ -2566,7 +2567,7 @@ function CompaniesListPage({
                                             textOverflow: 'ellipsis',
                                         }}
                                     >
-                                        {account.login}
+                                        {account.customer || account.login}
                                     </Typography.Body>
                                 </Flex>
 
@@ -2608,7 +2609,7 @@ function CompaniesListPage({
 }
 
 // --- CARGO PAGE (LIST ONLY) ---
-function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchText: string, onOpenChat: (cargoNumber?: string) => void | Promise<void> }) {
+function CargoPage({ auth, searchText, onOpenChat, onCustomerDetected }: { auth: AuthData, searchText: string, onOpenChat: (cargoNumber?: string) => void | Promise<void>; onCustomerDetected?: (customer: string) => void }) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -2683,7 +2684,7 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
             const list = Array.isArray(data) ? data : data.items || [];
             
             // МАППИНГ ДАННЫХ: используем только указанные поля API
-            setItems(list.map((item: any) => ({
+            const mapped = list.map((item: any) => ({
                 ...item,
                 Number: item.Number, 
                 DatePrih: item.DatePrih, 
@@ -2697,7 +2698,13 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                 StateBill: item.StateBill, // Статус счета
                 Sender: item.Sender, // Отправитель
                 Customer: item.Customer ?? item.customer, // Заказчик
-            })));
+            }));
+            setItems(mapped);
+
+            const customer = mapped.find((item: CargoItem) => item.Customer)?.Customer;
+            if (customer && onCustomerDetected) {
+                onCustomerDetected(customer);
+            }
         } catch (e: any) { setError(e.message); } finally { setLoading(false); }
     }, [auth]);
 
@@ -3988,6 +3995,10 @@ export default function App() {
         const account = accounts.find(acc => acc.id === activeAccountId);
         return account ? { login: account.login, password: account.password } : null;
     }, [accounts, activeAccountId]);
+    const activeAccount = useMemo(() => {
+        if (!activeAccountId) return null;
+        return accounts.find(acc => acc.id === activeAccountId) || null;
+    }, [accounts, activeAccountId]);
     const [activeTab, setActiveTab] = useState<Tab>(() => {
         // "Страница" для поддержки, чтобы можно было ограничить Bitrix по URL: ?tab=support
         if (typeof window === "undefined") return "cargo";
@@ -4012,6 +4023,17 @@ export default function App() {
     const [pinError, setPinError] = useState(false);
     const hasRestoredTabRef = React.useRef(false);
     const hasUrlTabOverrideRef = React.useRef(false);
+
+    const updateActiveAccountCustomer = useCallback((customer: string) => {
+        if (!activeAccountId || !customer) return;
+        setAccounts(prev =>
+            prev.map(acc =>
+                acc.id === activeAccountId
+                    ? (acc.customer === customer ? acc : { ...acc, customer })
+                    : acc
+            )
+        );
+    }, [activeAccountId]);
     
     const openSecretPinModal = () => {
         setShowPinModal(true);
@@ -4617,7 +4639,7 @@ export default function App() {
                         ) : (
                             <Flex align="center">
                         <UserIcon className="w-4 h-4 mr-2" />
-                                <Typography.Body>{auth?.login || 'Не выбран'}</Typography.Body>
+                                <Typography.Body>{activeAccount?.customer || activeAccount?.login || 'Не выбран'}</Typography.Body>
                             </Flex>
                         )}
                     </Flex>
@@ -4642,7 +4664,14 @@ export default function App() {
             <div className="app-main">
                 <div className="w-full max-w-4xl">
                     {showDashboard && activeTab === "dashboard" && auth && <DashboardPage auth={auth} onClose={() => {}} />}
-                    {showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} onOpenChat={openSupportChat} />}
+                    {showDashboard && activeTab === "cargo" && auth && (
+                        <CargoPage
+                            auth={auth}
+                            searchText={searchText}
+                            onOpenChat={openSupportChat}
+                            onCustomerDetected={updateActiveAccountCustomer}
+                        />
+                    )}
                     {showDashboard && activeTab === "docs" && (
                         <div className="w-full p-8 text-center">
                             <Typography.Headline>Документы</Typography.Headline>
@@ -4669,7 +4698,14 @@ export default function App() {
                             onOpenNotifications={openSecretPinModal}
                         />
                     )}
-                    {!showDashboard && activeTab === "cargo" && auth && <CargoPage auth={auth} searchText={searchText} onOpenChat={openSupportChat} />}
+                    {!showDashboard && activeTab === "cargo" && auth && (
+                        <CargoPage
+                            auth={auth}
+                            searchText={searchText}
+                            onOpenChat={openSupportChat}
+                            onCustomerDetected={updateActiveAccountCustomer}
+                        />
+                    )}
                     {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && <DashboardPage auth={auth} onClose={() => {}} />}
                     {!showDashboard && activeTab === "support" && auth && (
                         <ChatPage 
