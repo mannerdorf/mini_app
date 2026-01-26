@@ -4034,13 +4034,15 @@ export default function App() {
 
     const updateActiveAccountCustomer = useCallback((customer: string) => {
         if (!activeAccountId || !customer) return;
-        setAccounts(prev =>
-            prev.map(acc =>
-                acc.id === activeAccountId
-                    ? (acc.customer === customer ? acc : { ...acc, customer })
-                    : acc
-            )
-        );
+        setAccounts(prev => {
+            const current = prev.find(acc => acc.id === activeAccountId);
+            if (!current || current.customer === customer) {
+                return prev;
+            }
+            return prev.map(acc =>
+                acc.id === activeAccountId ? { ...acc, customer } : acc
+            );
+        });
     }, [activeAccountId]);
     
     const openSecretPinModal = () => {
