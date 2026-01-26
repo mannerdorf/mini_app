@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "openai": "^6.16.0",
+    "pg": "^8.17.2",
     "firebase": "^10.12.3",
     "lucide-react": "^0.395.0",
     "@maxhub/max-ui": "^0.1.12",

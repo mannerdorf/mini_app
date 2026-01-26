@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import React from "react";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
+import { ChatModal } from "./ChatModal";
 import "./styles.css";
 
 // --- FRIENDLY HTTP ERRORS ---
@@ -4029,6 +4030,7 @@ export default function App() {
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
     const [chatPrefill, setChatPrefill] = useState<string>("");
+    const [isChatOpen, setIsChatOpen] = useState(false);
 
     useEffect(() => { 
         document.body.className = `${theme}-mode`; 
@@ -4594,6 +4596,9 @@ export default function App() {
                         <Button className="search-toggle-button" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'} aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}>
                             {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                         </Button>
+                        <Button className="search-toggle-button" onClick={() => setIsChatOpen(true)} aria-label="Открыть чат">
+                            <MessageCircle className="w-5 h-5" />
+                        </Button>
                         <Button className="search-toggle-button" onClick={() => { setIsSearchExpanded(!isSearchExpanded); if(isSearchExpanded) { handleSearch(''); setSearchText(''); } }}>
                             {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
                         </Button>
@@ -4759,6 +4764,12 @@ export default function App() {
                     </div>
                 </div>
             )}
+            
+            <ChatModal
+                isOpen={isChatOpen}
+                onClose={() => setIsChatOpen(false)}
+                userId={auth?.login || "anon"}
+            />
         </Container>
     );
 }
