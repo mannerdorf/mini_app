@@ -9,6 +9,8 @@ import React from "react";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import { ChatModal } from "./ChatModal";
 import "./styles.css";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile } from "@ffmpeg/util";
 
 // --- FRIENDLY HTTP ERRORS ---
 async function readJsonOrText(res: Response): Promise<any> {
@@ -4025,6 +4027,8 @@ function ChatPage({
     const recorderRef = React.useRef<MediaRecorder | null>(null);
     const chunksRef = React.useRef<Blob[]>([]);
     const streamRef = React.useRef<MediaStream | null>(null);
+    const ffmpegRef = React.useRef<FFmpeg | null>(null);
+    const ffmpegLoadingRef = React.useRef<Promise<FFmpeg> | null>(null);
 
     const renderLineWithLinks = (line: string) => {
         const parts: React.ReactNode[] = [];
@@ -4162,6 +4166,39 @@ function ChatPage({
         streamRef.current = null;
     };
 
+    const loadFfmpeg = async () => {
+        if (ffmpegRef.current) return ffmpegRef.current;
+        if (!ffmpegLoadingRef.current) {
+            const ffmpeg = new FFmpeg();
+            const baseUrl = "https://unpkg.com/@ffmpeg/core@0.12.6/dist";
+            ffmpegLoadingRef.current = (async () => {
+                await ffmpeg.load({
+                    coreURL: `${baseUrl}/ffmpeg-core.js`,
+                    wasmURL: `${baseUrl}/ffmpeg-core.wasm`,
+                    workerURL: `${baseUrl}/ffmpeg-core.worker.js`
+                });
+                ffmpegRef.current = ffmpeg;
+                return ffmpeg;
+            })();
+        }
+        return ffmpegLoadingRef.current;
+    };
+
+    const convertAacToMp4 = async (inputBlob: Blob) => {
+        const ffmpeg = await loadFfmpeg();
+        const inputName = "input.aac";
+        const outputName = "output.mp4";
+        try {
+            await ffmpeg.writeFile(inputName, await fetchFile(inputBlob));
+            await ffmpeg.exec(["-i", inputName, "-c:a", "aac", "-b:a", "128k", outputName]);
+            const data = await ffmpeg.readFile(outputName);
+            return new Blob([data], { type: "audio/mp4" });
+        } finally {
+            try { await ffmpeg.deleteFile(inputName); } catch { /* ignore */ }
+            try { await ffmpeg.deleteFile(outputName); } catch { /* ignore */ }
+        }
+    };
+
     const encodeWav = (audioBuffer: AudioBuffer) => {
         const channelCount = audioBuffer.numberOfChannels;
         const sampleRate = audioBuffer.sampleRate;
@@ -4232,9 +4269,15 @@ function ChatPage({
             const rawType = blob.type || recorderRef.current?.mimeType || "audio/webm";
             let baseType = rawType.split(";")[0];
             if (baseType === "audio/aac" || baseType === "audio/x-aac") {
-                // iOS can return raw AAC (ADTS). Convert to WAV for Whisper.
-                blob = await convertAacToWav(blob);
-                baseType = "audio/wav";
+                // iOS can return raw AAC (ADTS). Convert to MP4 (AAC) via ffmpeg.wasm.
+                try {
+                    blob = await convertAacToMp4(blob);
+                    baseType = "audio/mp4";
+                } catch (err) {
+                    // Fallback to WAV if ffmpeg fails to load or convert.
+                    blob = await convertAacToWav(blob);
+                    baseType = "audio/wav";
+                }
             }
             const fileName = getAudioFileName(baseType);
             const file = new File([blob], fileName, { type: baseType });
@@ -4519,7 +4562,16 @@ function ChatPage({
                         style={{ flex: 1, height: '44px' }}
                         disabled={isTyping || isRecording || isTranscribing}
                     />
-                    {/* microphone hidden for now */}
+                    <Button
+                        type="button"
+                        onClick={() => (isRecording ? stopRecording() : startRecording())}
+                        disabled={isTyping || isTranscribing}
+                        className="chat-action-button chat-mic-button"
+                        style={{ padding: '0.5rem', minWidth: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title={isRecording ? "Остановить запись" : "Записать голос"}
+                    >
+                        {isRecording ? <Square size={18} /> : <Mic size={18} />}
+                    </Button>
                     <Button 
                         type="submit" 
                         disabled={!inputValue.trim() || isTyping || isRecording || isTranscribing}
