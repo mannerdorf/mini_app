@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { getPool } from "../api/_db";
+import { getPool } from "../api/_db.js";
 
 const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
 const DEFAULT_MAX_CHARS = 1200;
