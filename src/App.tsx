@@ -4014,6 +4014,57 @@ function ChatPage({
         streamRef.current = null;
     };
 
+    const encodeWav = (audioBuffer: AudioBuffer) => {
+        const channelCount = audioBuffer.numberOfChannels;
+        const sampleRate = audioBuffer.sampleRate;
+        const length = audioBuffer.length;
+        const buffer = new ArrayBuffer(44 + length * 2 * channelCount);
+        const view = new DataView(buffer);
+        let offset = 0;
+
+        const writeString = (s: string) => {
+            for (let i = 0; i < s.length; i += 1) {
+                view.setUint8(offset++, s.charCodeAt(i));
+            }
+        };
+
+        writeString("RIFF");
+        view.setUint32(offset, 36 + length * 2 * channelCount, true); offset += 4;
+        writeString("WAVE");
+        writeString("fmt ");
+        view.setUint32(offset, 16, true); offset += 4; // PCM chunk size
+        view.setUint16(offset, 1, true); offset += 2; // PCM format
+        view.setUint16(offset, channelCount, true); offset += 2;
+        view.setUint32(offset, sampleRate, true); offset += 4;
+        view.setUint32(offset, sampleRate * channelCount * 2, true); offset += 4;
+        view.setUint16(offset, channelCount * 2, true); offset += 2;
+        view.setUint16(offset, 16, true); offset += 2;
+        writeString("data");
+        view.setUint32(offset, length * 2 * channelCount, true); offset += 4;
+
+        for (let i = 0; i < length; i += 1) {
+            for (let ch = 0; ch < channelCount; ch += 1) {
+                const sample = audioBuffer.getChannelData(ch)[i];
+                const clamped = Math.max(-1, Math.min(1, sample));
+                view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+                offset += 2;
+            }
+        }
+
+        return new Blob([buffer], { type: "audio/wav" });
+    };
+
+    const convertAacToWav = async (blob: Blob) => {
+        const arrayBuffer = await blob.arrayBuffer();
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        try {
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            return encodeWav(audioBuffer);
+        } finally {
+            audioContext.close().catch(() => {});
+        }
+    };
+
     const getAudioFileName = (mimeType: string) => {
         if (mimeType.includes("webm")) return "voice.webm";
         if (mimeType.includes("ogg")) return "voice.ogg";
@@ -4033,7 +4084,9 @@ function ChatPage({
             const rawType = blob.type || recorderRef.current?.mimeType || "audio/webm";
             let baseType = rawType.split(";")[0];
             if (baseType === "audio/aac" || baseType === "audio/x-aac") {
-                baseType = "audio/mp4";
+                // iOS can return raw AAC (ADTS). Convert to WAV for Whisper.
+                blob = await convertAacToWav(blob);
+                baseType = "audio/wav";
             }
             const fileName = getAudioFileName(baseType);
             const file = new File([blob], fileName, { type: baseType });

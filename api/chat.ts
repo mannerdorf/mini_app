@@ -55,6 +55,37 @@ async function makeDocShortUrl(
   const fallback = `${appDomain}/api/doc-short?metod=${encodeURIComponent(method)}&number=${encodeURIComponent(number)}`;
   if (!auth?.login || !auth?.password) return fallback;
 
+  const shortenWithTinyUrl = async (url: string) => {
+    const apiToken = process.env.TINYURL_API_TOKEN;
+    if (!apiToken) return null;
+    try {
+      const response = await fetch("https://api.tinyurl.com/create", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({ url, domain: "tinyurl.com" }),
+      });
+      const raw = await response.text();
+      let data: any = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = { raw };
+      }
+      if (!response.ok) {
+        console.warn("TinyURL error:", response.status, data?.errors || data?.message || data);
+        return null;
+      }
+      return data?.data?.tiny_url || data?.tiny_url || null;
+    } catch (err: any) {
+      console.warn("TinyURL failed:", err?.message || err);
+      return null;
+    }
+  };
+
   try {
     const res = await fetch(`${appDomain}/api/shorten-doc`, {
       method: "POST",
@@ -72,7 +103,17 @@ async function makeDocShortUrl(
       return fallback;
     }
     const data = await res.json().catch(() => ({}));
-    return data?.shortUrl || data?.short_url || data?.originalUrl || fallback;
+    const shortUrl = data?.shortUrl || data?.short_url;
+    if (typeof shortUrl === "string" && shortUrl.includes("tinyurl.com")) {
+      return shortUrl;
+    }
+    const originalUrl = data?.originalUrl;
+    if (typeof originalUrl === "string") {
+      const tinyUrl = await shortenWithTinyUrl(originalUrl);
+      if (tinyUrl) return tinyUrl;
+      return originalUrl;
+    }
+    return fallback;
   } catch (err: any) {
     console.warn("shorten-doc exception:", err?.message || err);
     return fallback;
