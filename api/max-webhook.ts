@@ -127,8 +127,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Если это обычное текстовое сообщение — отвечаем через ИИ
-  if (update?.message?.text || update?.text) {
-    const userText = update?.message?.text || update?.text;
+  if (rawText) {
+    const userText = rawText;
     console.log("Using AI to respond to:", userText);
 
     try {
