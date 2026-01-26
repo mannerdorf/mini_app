@@ -1773,26 +1773,31 @@ function AiChatProfilePage({
     accountId: string | null;
 }) {
     return (
-        <div className="w-full">
+        <div
+            className="w-full"
+            style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 240px)' }}
+        >
             <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
                 <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>AI чат</Typography.Headline>
             </Flex>
-            {auth ? (
-                <ChatPage
-                    auth={auth}
-                    sessionOverride={accountId ? `ai_${accountId}` : "ai_anon"}
-                    userIdOverride={accountId || "anon"}
-                />
-            ) : (
-                <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
-                        Сначала выберите компанию.
-                    </Typography.Body>
-                </Panel>
-            )}
+            <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+                {auth ? (
+                    <ChatPage
+                        auth={auth}
+                        sessionOverride={accountId ? `ai_${accountId}` : "ai_anon"}
+                        userIdOverride={accountId || "anon"}
+                    />
+                ) : (
+                    <Panel className="cargo-card" style={{ padding: '1rem', width: '100%' }}>
+                        <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                            Сначала выберите компанию.
+                        </Typography.Body>
+                    </Panel>
+                )}
+            </div>
         </div>
     );
 }
@@ -3889,22 +3894,22 @@ function ChatPage({
                 })
             });
 
-            if (res.ok) {
-                const data = await res.json();
-                if (!sessionOverride && data?.sessionId && typeof data.sessionId === "string" && data.sessionId !== sessionId) {
-                    setSessionId(data.sessionId);
-                    if (typeof window !== "undefined") {
-                        window.localStorage.setItem("haulz.chat.sessionId", data.sessionId);
-                    }
-                }
-                setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
-            } else {
-                throw new Error("Failed to get AI reply");
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data?.error || data?.message || `Ошибка ${res.status}`);
             }
-        } catch (e) {
+            if (!sessionOverride && data?.sessionId && typeof data.sessionId === "string" && data.sessionId !== sessionId) {
+                setSessionId(data.sessionId);
+                if (typeof window !== "undefined") {
+                    window.localStorage.setItem("haulz.chat.sessionId", data.sessionId);
+                }
+            }
+            setMessages(prev => [...prev, { role: 'assistant', content: data.reply || "" }]);
+        } catch (e: any) {
+            const msg = e?.message || "Не удалось получить ответ";
             setMessages(prev => [...prev, { 
                 role: 'assistant', 
-                content: "Извините, сейчас я не могу ответить. Пожалуйста, попробуйте позже или свяжитесь с поддержкой через бота." 
+                content: `Ошибка: ${msg}` 
             }]);
         } finally {
             setIsReady(false);
@@ -3912,7 +3917,7 @@ function ChatPage({
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)', width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%' }}>
             {/* Окно сообщений */}
             <div 
                 ref={scrollRef}
@@ -3961,7 +3966,7 @@ function ChatPage({
             </div>
 
             {/* Поле ввода */}
-            <div style={{ padding: '1rem', background: 'var(--color-background)', borderTop: '1px solid var(--color-border)' }}>
+            <div style={{ padding: '0.75rem', background: 'var(--color-bg-primary)', borderTop: '1px solid var(--color-border)' }}>
                 <form 
                     onSubmit={(e) => { e.preventDefault(); handleSend(inputValue); }}
                     style={{ display: 'flex', gap: '0.5rem' }}

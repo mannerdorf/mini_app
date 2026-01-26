@@ -27,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     login,
     password,
     dateFrom = "2024-01-01",
-    dateTo = "2026-01-01",
+    dateTo = new Date().toISOString().split("T")[0],
     customer,
   } = body || {};
 
