@@ -96,6 +96,18 @@ function wantsDocuments(text: string) {
   );
 }
 
+function isPaymentStatusQuery(text: string) {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("не оплач") ||
+    lower.includes("неоплач") ||
+    lower.includes("оплач") ||
+    lower.includes("оплата") ||
+    lower.includes("задолж") ||
+    lower.includes("долг")
+  );
+}
+
 function wantsFullInfo(text: string) {
   const lower = text.toLowerCase();
   return (
@@ -360,7 +372,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const docMethods = extractDocMethods(userMessage);
-    if (docMethods.length > 0 && (channel === "telegram" || wantsDocuments(userMessage))) {
+    const paymentQuery = isPaymentStatusQuery(userMessage);
+    const wantsDocLinks = wantsDocuments(userMessage);
+    if (docMethods.length > 0 && (wantsDocLinks || (channel === "telegram" && !paymentQuery))) {
       const cargoNumber =
         extractCargoNumber(userMessage) ||
         extractLastCargoNumberFromHistory(history.rows);
