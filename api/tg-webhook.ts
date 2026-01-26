@@ -56,11 +56,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     });
 
+    const raw = await aiRes.text();
+    let aiData: any = {};
+    try {
+      aiData = raw ? JSON.parse(raw) : {};
+    } catch {
+      aiData = { message: raw };
+    }
+
     if (aiRes.ok) {
-      const aiData = await aiRes.json();
-      await sendTgMessage(chatId, aiData.reply);
+      await sendTgMessage(chatId, aiData.reply || "Не удалось получить ответ.");
     } else {
-      await sendTgMessage(chatId, "Извините, я сейчас немного занят. Напишите позже! 🚛");
+      const errorText = aiData?.error || aiData?.message || raw || "Ошибка сервера";
+      await sendTgMessage(chatId, `Ошибка: ${errorText}`);
     }
   } catch (e) {
     console.error("TG AI error:", e);

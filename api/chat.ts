@@ -21,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = coerceBody(req);
-    const { sessionId, userId, message, messages, context } = body;
+    const { sessionId, userId, message, messages, context, customer } = body;
 
     // Поддержка двух форматов:
     // 1. Простой формат: { message, sessionId?, userId? }
@@ -76,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const topK = Number(process.env.RAG_TOP_K || 5);
       const minScore = Number(process.env.RAG_MIN_SCORE || 0);
-      const ragResults = await searchSimilar(userMessage, { topK, minScore });
+      const ragResults = await searchSimilar(userMessage, { topK, minScore, customer });
       if (ragResults.length > 0) {
         ragContext = ragResults
           .map((item, idx) => {
@@ -102,6 +102,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 КОНТЕКСТ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ:
 ${context ? JSON.stringify(context, null, 2) : "Пользователь пока не авторизован или данных о перевозках нет."}
+
+АКТИВНЫЙ ЗАКАЗЧИК:
+${customer || "Не указан."}
 
 ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ (из базы знаний):
 ${ragContext || "Нет дополнительных данных."}

@@ -1789,9 +1789,9 @@ function AiChatProfilePage({
                 {auth ? (
                     <ChatPage
                         auth={auth}
-                        sessionOverride={accountId ? `ai_${accountId}` : "ai_anon"}
-                    userIdOverride={customer || accountId || "anon"}
-                    customerOverride={customer || undefined}
+                        sessionOverride={`ai_${customer || accountId || "anon"}`}
+                        userIdOverride={customer || accountId || "anon"}
+                        customerOverride={customer || undefined}
                     />
                 ) : (
                     <Panel className="cargo-card" style={{ padding: '1rem', width: '100%' }}>
@@ -3843,6 +3843,13 @@ function ChatPage({
     });
     const scrollRef = React.useRef<HTMLDivElement>(null);
 
+    useEffect(() => {
+        if (!sessionOverride) return;
+        setSessionId(sessionOverride);
+        setMessages([]);
+        setInputValue("");
+    }, [sessionOverride]);
+
     // Начальное приветствие
     useEffect(() => {
         if (messages.length === 0) {
@@ -3895,6 +3902,7 @@ function ChatPage({
             // Подготавливаем контекст (только важные поля, чтобы не перегружать токены)
             const context = {
                 userLogin: auth?.login,
+                customer: customerOverride,
                 activeCargoCount: cargoItems?.length || 0,
                 recentCargo: cargoItems?.slice(0, 5).map(i => ({
                     number: i.Number,
@@ -3911,7 +3919,8 @@ function ChatPage({
                     sessionId,
                     userId: userIdOverride || auth?.login,
                     message: messageText,
-                    context 
+                    context,
+                    customer: customerOverride
                 })
             });
 

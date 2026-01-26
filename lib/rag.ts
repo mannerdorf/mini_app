@@ -181,7 +181,12 @@ export async function upsertDocument(input: RagDocumentInput) {
 
 export async function searchSimilar(
   query: string,
-  options?: { topK?: number; minScore?: number; sourceTypes?: string[] },
+  options?: {
+    topK?: number;
+    minScore?: number;
+    sourceTypes?: string[];
+    customer?: string | null;
+  },
 ) {
   const pool = getPool();
   const topK = options?.topK ?? Number(process.env.RAG_TOP_K || 5);
@@ -191,12 +196,19 @@ export async function searchSimilar(
   const vector = toVectorLiteral(embedding);
 
   const params: Array<string | number | string[]> = [vector, topK];
-  let whereClause = "";
+  const clauses: string[] = [];
 
   if (options?.sourceTypes && options.sourceTypes.length > 0) {
     params.push(options.sourceTypes);
-    whereClause = `where d.source_type = any($${params.length})`;
+    clauses.push(`d.source_type = any($${params.length})`);
   }
+
+  if (options?.customer) {
+    params.push(options.customer);
+    clauses.push(`d.metadata->>'customer' = $${params.length}`);
+  }
+
+  const whereClause = clauses.length > 0 ? `where ${clauses.join(" and ")}` : "";
 
   const result = await pool.query<RagSearchResult>(
     `select
