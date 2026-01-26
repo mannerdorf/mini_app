@@ -133,11 +133,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? `https://${process.env.VERCEL_URL}` 
         : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
 
-      const aiRes = await fetch(`${appDomain}/api/ai`, {
+      const aiRes = await fetch(`${appDomain}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          messages: [{ role: 'user', content: userText }]
+          sessionId: `max_${chatId}`,
+          userId: String(chatId),
+          message: userText
         })
       });
 

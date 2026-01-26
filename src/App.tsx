@@ -126,9 +126,9 @@ type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom"; // Ос�
 
 // --- ИСПОЛЬЗУЕМ ТОЛЬКО ПЕРЕМЕННЫЕ ИЗ API ---
 type CargoItem = {
-    Number?: string; DatePrih?: string; DateVr?: string; State?: string; Mest?: number | string; 
-    PW?: number | string; W?: number | string; Value?: number | string; Sum?: number | string; 
-    StateBill?: string; Sender?: string; [key: string]: any; // Для всех остальных полей
+    Number?: string; DatePrih?: string; DateVr?: string; State?: string; Mest?: number | string;
+    PW?: number | string; W?: number | string; Value?: number | string; Sum?: number | string;
+    StateBill?: string; Sender?: string; Customer?: string; [key: string]: any; // Для всех остальных полей
 };
 
 type CargoStat = {
@@ -543,6 +543,7 @@ function HomePage({ auth }: { auth: AuthData }) {
                     Sum: mapNumber(item.Sum),
                     StateBill: item.StateBill,
                     Sender: item.Sender,
+                    Customer: item.Customer ?? item.customer,
                 }))
             );
         } catch (e: any) {
@@ -948,6 +949,7 @@ function DashboardPage({ auth, onClose }: { auth: AuthData, onClose: () => void 
                 Sum: item.Sum,
                 StateBill: item.StateBill,
                 Sender: item.Sender,
+                Customer: item.Customer ?? item.customer,
             })));
         } catch (e: any) {
             setError(e.message);
@@ -2694,6 +2696,7 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                 Sum: item.Sum, 
                 StateBill: item.StateBill, // Статус счета
                 Sender: item.Sender, // Отправитель
+                Customer: item.Customer ?? item.customer, // Заказчик
             })));
         } catch (e: any) { setError(e.message); } finally { setLoading(false); }
     }, [auth]);
@@ -2712,7 +2715,7 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
         if (searchText) {
             const lower = searchText.toLowerCase();
             // Обновлены поля поиска: PW вместо PV, добавлен Sender
-            res = res.filter(i => [i.Number, i.State, i.Sender, formatDate(i.DatePrih), formatCurrency(i.Sum), String(i.PW), String(i.Mest)].join(' ').toLowerCase().includes(lower));
+            res = res.filter(i => [i.Number, i.State, i.Sender, i.Customer, formatDate(i.DatePrih), formatCurrency(i.Sum), String(i.PW), String(i.Mest)].join(' ').toLowerCase().includes(lower));
         }
         
         // Применяем сортировку ТОЛЬКО по датам
@@ -3070,6 +3073,7 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                             if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
                                             if (item.DateVr) lines.push(`Доставка: ${formatDate(item.DateVr)}`);
                                             if (item.Sender) lines.push(`Отправитель: ${item.Sender}`);
+                                            if (item.Customer) lines.push(`Заказчик: ${item.Customer}`);
                                             if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
                                             if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                             if (item.W !== undefined) lines.push(`Вес: ${item.W} кг`);
@@ -3080,7 +3084,7 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                             // Остальные поля (если нужно "всю информацию")
                                             Object.entries(item).forEach(([k, v]) => {
                                                 if ([
-                                                    "Number","State","DatePrih","DateVr","Sender","Mest","PW","W","Value","Sum","StateBill"
+                                                    "Number","State","DatePrih","DateVr","Sender","Customer","Mest","PW","W","Value","Sum","StateBill"
                                                 ].includes(k)) return;
                                                 if (v === undefined || v === null || v === "" || (typeof v === "string" && v.trim() === "")) return;
                                                 lines.push(`${k}: ${String(v)}`);
@@ -3186,6 +3190,9 @@ function CargoPage({ auth, searchText, onOpenChat }: { auth: AuthData, searchTex
                                     {formatCurrency(item.Sum)}
                                 </Typography.Body>
                             </Flex>
+                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>
+                                Заказчик: {item.Customer || '-'}
+                            </Typography.Label>
                             <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                                 <Flex gap="1rem">
                                     <Typography.Label>Мест: {item.Mest || '-'}</Typography.Label>
@@ -3400,7 +3407,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
     };
 
     // Список явно отображаемых полей (из API примера)
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer'];
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -3467,6 +3474,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                                     if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
                                     if (item.DateVr) lines.push(`Доставка: ${formatDate(item.DateVr)}`);
                                     if (item.Sender) lines.push(`Отправитель: ${item.Sender}`);
+                                    if (item.Customer) lines.push(`Заказчик: ${item.Customer}`);
                                     if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
                                     if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                     if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
@@ -3523,6 +3531,7 @@ function CargoDetailsModal({ item, isOpen, onClose, auth }: { item: CargoItem, i
                         return '-';
                     })()} /> {/* Используем DateVr */}
                     <DetailItem label="Отправитель" value={item.Sender || '-'} /> {/* Добавляем Sender */}
+                    <DetailItem label="Заказчик" value={item.Customer || '-'} />
                     <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary"/>} />
                     <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary"/>} highlighted /> {/* Используем PW */}
                     <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем W */}
@@ -3714,6 +3723,18 @@ function ChatPage({
     const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [isTyping, setIsReady] = useState(false);
+    const [sessionId, setSessionId] = useState<string>(() => {
+        if (typeof window === "undefined") return "server";
+        const key = "haulz.chat.sessionId";
+        const existing = window.localStorage.getItem(key);
+        if (existing) return existing;
+        const sid =
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+                ? crypto.randomUUID()
+                : `s_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        window.localStorage.setItem(key, sid);
+        return sid;
+    });
     const scrollRef = React.useRef<HTMLDivElement>(null);
 
     // Начальное приветствие
@@ -3762,17 +3783,25 @@ function ChatPage({
                 }))
             };
 
-            const res = await fetch('/api/ai', {
+            const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    messages: newMessages.slice(-10), // Отправляем последние 10 сообщений для контекста
+                    sessionId,
+                    userId: auth?.login,
+                    message: messageText,
                     context 
                 })
             });
 
             if (res.ok) {
                 const data = await res.json();
+                if (data?.sessionId && typeof data.sessionId === "string" && data.sessionId !== sessionId) {
+                    setSessionId(data.sessionId);
+                    if (typeof window !== "undefined") {
+                        window.localStorage.setItem("haulz.chat.sessionId", data.sessionId);
+                    }
+                }
                 setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
             } else {
                 throw new Error("Failed to get AI reply");
@@ -4595,9 +4624,6 @@ export default function App() {
                     <Flex align="center" className="space-x-3">
                         <Button className="search-toggle-button" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'} aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}>
                             {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                        </Button>
-                        <Button className="search-toggle-button" onClick={() => setIsChatOpen(true)} aria-label="Открыть чат">
-                            <MessageCircle className="w-5 h-5" />
                         </Button>
                         <Button className="search-toggle-button" onClick={() => { setIsSearchExpanded(!isSearchExpanded); if(isSearchExpanded) { handleSearch(''); setSearchText(''); } }}>
                             {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}

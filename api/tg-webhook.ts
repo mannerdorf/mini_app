@@ -46,11 +46,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Обычное сообщение — через ИИ
   try {
     const appDomain = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app";
-    const aiRes = await fetch(`${appDomain}/api/ai`, {
+    const aiRes = await fetch(`${appDomain}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
-        messages: [{ role: 'user', content: userText }]
+        sessionId: `tg_${chatId}`,
+        userId: String(chatId),
+        message: userText
       })
     });
 

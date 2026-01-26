@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { upsertDocument } from "../lib/rag";
 
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
@@ -27,6 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     password,
     dateFrom = "2024-01-01",
     dateTo = "2026-01-01",
+    customer,
   } = body || {};
 
   if (!login || !password) {
@@ -43,6 +45,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const url = new URL(BASE_URL);
   url.searchParams.set("DateB", dateFrom);
   url.searchParams.set("DateE", dateTo);
+  if (customer) {
+    url.searchParams.set("Customer", String(customer));
+  }
 
   try {
     console.log("➡️ Perevozki request for:", login);
@@ -73,6 +78,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // если это JSON — вернём JSON, если нет — просто текст
     try {
       const json = JSON.parse(text);
+      const list = Array.isArray(json) ? json : json.items || [];
+      if (Array.isArray(list) && list.length > 0) {
+        ingestCargoItems(list, login).catch((error) => {
+          console.error("RAG cargo ingest error:", error?.message || error);
+        });
+      }
       return res.status(200).json(json);
     } catch {
       return res.status(200).send(text);
@@ -82,5 +93,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res
       .status(500)
       .json({ error: "Proxy error", details: e?.message || String(e) });
+  }
+}
+
+function formatCargoContent(item: any) {
+  const number = item?.Number ?? item?.number ?? "";
+  const lines = [
+    `Перевозка: ${number}`,
+    `Статус: ${item?.State ?? ""}`,
+    `Дата приемки: ${item?.DatePrih ?? ""}`,
+    `Дата доставки: ${item?.DateVr ?? ""}`,
+    `Отправитель: ${item?.Sender ?? ""}`,
+    `Мест: ${item?.Mest ?? ""}`,
+    `Платный вес: ${item?.PW ?? ""}`,
+    `Вес: ${item?.W ?? ""}`,
+    `Объем: ${item?.Value ?? ""}`,
+    `Сумма: ${item?.Sum ?? ""}`,
+    `Статус счета: ${item?.StateBill ?? ""}`,
+  ];
+
+  return lines.filter((line) => !line.endsWith(": ")).join("\n");
+}
+
+async function ingestCargoItems(items: any[], login: string) {
+  const batchSize = 5;
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.allSettled(
+      batch.map(async (item) => {
+        const number = item?.Number ?? item?.number;
+        if (!number) return;
+        const sourceId = `${login}:${number}`;
+        const content = formatCargoContent(item);
+        if (!content) return;
+        await upsertDocument({
+          sourceType: "cargo",
+          sourceId,
+          title: `Перевозка ${number}`,
+          content,
+          metadata: {
+            number,
+            datePrih: item?.DatePrih ?? null,
+            dateVr: item?.DateVr ?? null,
+            state: item?.State ?? null,
+            sender: item?.Sender ?? null,
+          },
+        });
+      }),
+    );
   }
 }
