@@ -21,7 +21,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = coerceBody(req);
-    const { sessionId, userId, message, messages, context, customer } = body;
+    const { sessionId, userId, message, messages, context, customer, action } = body;
+
+    const sid =
+      typeof sessionId === "string" && sessionId.trim()
+        ? sessionId.trim()
+        : crypto.randomUUID();
+
+    const pool = getPool();
+
+    if (action === "history") {
+      if (!sessionId || typeof sessionId !== "string") {
+        return res.status(400).json({ error: "sessionId is required" });
+      }
+      const history = await pool.query<{
+        role: ChatRole;
+        content: string;
+      }>(
+        `select role, content
+         from chat_messages
+         where session_id = $1
+         order by created_at asc
+         limit 50`,
+        [sid],
+      );
+      return res.status(200).json({ sessionId: sid, history: history.rows });
+    }
 
     // Поддержка двух форматов:
     // 1. Простой формат: { message, sessionId?, userId? }
@@ -36,13 +61,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!apiKey) {
       return res.status(500).json({ error: "OPENAI_API_KEY is not configured" });
     }
-
-    const sid =
-      typeof sessionId === "string" && sessionId.trim()
-        ? sessionId.trim()
-        : crypto.randomUUID();
-
-    const pool = getPool();
     await pool.query(
       `insert into chat_sessions (id, user_id)
        values ($1, $2)

@@ -1995,6 +1995,15 @@ function ProfilePage({
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const nextView = window.sessionStorage.getItem("haulz.profile.view");
+        if (nextView === "ai") {
+            setCurrentView("tinyurl-test");
+            window.sessionStorage.removeItem("haulz.profile.view");
+        }
+    }, []);
     
     // Настройки
     const settingsItems = [
@@ -3828,6 +3837,7 @@ function ChatPage({
     const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [isTyping, setIsReady] = useState(false);
+    const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
     const [sessionId, setSessionId] = useState<string>(() => {
         if (sessionOverride) return sessionOverride;
         if (typeof window === "undefined") return "server";
@@ -3843,21 +3853,103 @@ function ChatPage({
     });
     const scrollRef = React.useRef<HTMLDivElement>(null);
 
+    const renderMessageContent = (text: string) => {
+        const blocks = String(text || "").split(/\n{2,}/).filter(Boolean);
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {blocks.map((block, blockIndex) => {
+                    const lines = block.split(/\n/).filter(Boolean);
+                    const isBulleted = lines.length > 0 && lines.every(line => /^[-•]\s+/.test(line));
+                    const isNumbered = lines.length > 0 && lines.every(line => /^\d+[.)]\s+/.test(line));
+
+                    if (isBulleted) {
+                        return (
+                            <ul key={blockIndex} style={{ margin: 0, paddingLeft: '1.25rem', listStyleType: 'disc' }}>
+                                {lines.map((line, lineIndex) => (
+                                    <li key={lineIndex}>
+                                        <Typography.Body style={{ color: 'inherit', fontSize: '0.95rem', lineHeight: '1.4', margin: 0 }}>
+                                            {line.replace(/^[-•]\s+/, "")}
+                                        </Typography.Body>
+                                    </li>
+                                ))}
+                            </ul>
+                        );
+                    }
+
+                    if (isNumbered) {
+                        return (
+                            <ol key={blockIndex} style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                                {lines.map((line, lineIndex) => (
+                                    <li key={lineIndex}>
+                                        <Typography.Body style={{ color: 'inherit', fontSize: '0.95rem', lineHeight: '1.4', margin: 0 }}>
+                                            {line.replace(/^\d+[.)]\s+/, "")}
+                                        </Typography.Body>
+                                    </li>
+                                ))}
+                            </ol>
+                        );
+                    }
+
+                    return (
+                        <Typography.Body
+                            key={blockIndex}
+                            style={{ color: 'inherit', fontSize: '0.95rem', lineHeight: '1.4', margin: 0, whiteSpace: 'pre-wrap' }}
+                        >
+                            {block}
+                        </Typography.Body>
+                    );
+                })}
+            </div>
+        );
+    };
+
     useEffect(() => {
         if (!sessionOverride) return;
         setSessionId(sessionOverride);
         setMessages([]);
         setInputValue("");
+        setHasLoadedHistory(false);
     }, [sessionOverride]);
+
+    useEffect(() => {
+        let isActive = true;
+        const loadHistory = async () => {
+            if (!sessionId) return;
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId, action: "history" })
+                });
+                if (!res.ok) return;
+                const data = await res.json().catch(() => ({}));
+                if (!isActive) return;
+                if (Array.isArray(data?.history)) {
+                    setMessages(
+                        data.history
+                            .filter((item: any) => item?.role === "user" || item?.role === "assistant")
+                            .map((item: any) => ({ role: item.role, content: String(item.content || "") }))
+                    );
+                }
+            } finally {
+                if (isActive) setHasLoadedHistory(true);
+            }
+        };
+
+        loadHistory();
+        return () => {
+            isActive = false;
+        };
+    }, [sessionId]);
 
     // Начальное приветствие
     useEffect(() => {
-        if (messages.length === 0) {
+        if (hasLoadedHistory && messages.length === 0) {
             setMessages([
                 { role: 'assistant', content: "Здравствуйте! Я AI-помощник HAULZ. Чем я могу вам помочь? 🚛" }
             ]);
         }
-    }, []);
+    }, [hasLoadedHistory, messages.length]);
 
     // Автоматическая прокрутка вниз
     useEffect(() => {
@@ -3974,9 +4066,7 @@ function ChatPage({
                             borderBottomLeftRadius: msg.role === 'user' ? '1rem' : '0',
                             border: msg.role === 'user' ? 'none' : '1px solid var(--color-border)'
                         }}>
-                            <Typography.Body style={{ color: 'inherit', fontSize: '0.95rem', lineHeight: '1.4', margin: 0 }}>
-                                {msg.content}
-                            </Typography.Body>
+                            {renderMessageContent(msg.content)}
                         </div>
                     </div>
                 ))}
@@ -4451,6 +4541,13 @@ export default function App() {
         return url.toString();
     };
 
+    const openAiChatDeepLink = () => {
+        if (typeof window !== "undefined") {
+            window.sessionStorage.setItem("haulz.profile.view", "ai");
+        }
+        setActiveTab("profile");
+    };
+
     const openSupportChat = async (cargoNumber?: string) => {
         setActiveTab("support");
         return;
@@ -4812,7 +4909,7 @@ export default function App() {
                         <CargoPage
                             auth={auth}
                             searchText={searchText}
-                            onOpenChat={openSupportChat}
+                            onOpenChat={openAiChatDeepLink}
                             onCustomerDetected={updateActiveAccountCustomer}
                         />
                     )}
@@ -4841,7 +4938,7 @@ export default function App() {
                         <CargoPage
                             auth={auth}
                             searchText={searchText}
-                            onOpenChat={openSupportChat}
+                            onOpenChat={openAiChatDeepLink}
                             onCustomerDetected={updateActiveAccountCustomer}
                         />
                     )}
