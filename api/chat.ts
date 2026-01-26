@@ -34,6 +34,37 @@ function extractDocMethods(text: string) {
   return Array.from(new Set(methods));
 }
 
+async function makeTinyUrl(url: string) {
+  const apiToken = process.env.TINYURL_API_TOKEN;
+  if (!apiToken) return url;
+  try {
+    const response = await fetch("https://api.tinyurl.com/create", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ url, domain: "tinyurl.com" }),
+    });
+    const raw = await response.text();
+    let data: any = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = { raw };
+    }
+    if (!response.ok) {
+      console.warn("TinyURL error:", response.status, data?.errors || data?.message || data);
+      return url;
+    }
+    return data?.data?.tiny_url || data?.tiny_url || url;
+  } catch (err: any) {
+    console.warn("TinyURL failed:", err?.message || err);
+    return url;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -119,10 +150,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         reply = "Пожалуйста, укажите номер перевозки, чтобы я дал ссылку на документ.";
       } else {
         const appDomain = getAppDomain();
-        const lines = docMethods.map((method) => {
-          const url = `${appDomain}/api/doc-short?metod=${encodeURIComponent(method)}&number=${encodeURIComponent(cargoNumber)}`;
-          return `• ${method}: ${url}`;
-        });
+        const links = await Promise.all(
+          docMethods.map(async (method) => {
+            const url = `${appDomain}/api/doc-short?metod=${encodeURIComponent(method)}&number=${encodeURIComponent(cargoNumber)}`;
+            const shortUrl = await makeTinyUrl(url);
+            return { method, url: shortUrl };
+          }),
+        );
+        const lines = links.map((item) => `• ${item.method}: ${item.url}`);
         reply = `Вот короткие ссылки на документы по перевозке № ${cargoNumber}:\n${lines.join("\n")}`;
       }
 

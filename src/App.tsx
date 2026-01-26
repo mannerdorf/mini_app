@@ -4199,10 +4199,11 @@ function ChatPage({
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%' }}>
+        <div className="chat-shell" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%' }}>
             {/* Окно сообщений */}
             <div 
                 ref={scrollRef}
+                className="chat-messages"
                 style={{ 
                     flex: 1, 
                     overflowY: 'auto', 
@@ -4215,7 +4216,7 @@ function ChatPage({
             >
                 {messages.map((msg, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                        <div style={{ 
+                        <div className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'}`} style={{ 
                             maxWidth: '85%', 
                             padding: '0.75rem 1rem', 
                             borderRadius: '1rem', 
@@ -4246,7 +4247,7 @@ function ChatPage({
             </div>
 
             {/* Поле ввода */}
-            <div style={{ padding: '0.75rem', background: 'var(--color-bg-primary)', borderTop: '1px solid var(--color-border)' }}>
+            <div className="chat-input-bar" style={{ padding: '0.75rem', background: 'var(--color-bg-primary)', borderTop: '1px solid var(--color-border)' }}>
                 <form 
                     onSubmit={(e) => { e.preventDefault(); handleSend(inputValue); }}
                     style={{ display: 'flex', gap: '0.5rem' }}
@@ -4255,13 +4256,14 @@ function ChatPage({
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder="Напишите ваш вопрос..."
+                        className="chat-input"
                         style={{ flex: 1 }}
                         disabled={isTyping || isRecording || isTranscribing}
                     />
                     <Button
                         type="button"
                         disabled={isTyping || isTranscribing}
-                        className="button-primary"
+                        className="chat-action-button chat-mic-button"
                         onClick={() => (isRecording ? stopRecording() : startRecording())}
                         style={{ padding: '0.5rem', minWidth: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
@@ -4272,7 +4274,7 @@ function ChatPage({
                     <Button 
                         type="submit" 
                         disabled={!inputValue.trim() || isTyping || isRecording || isTranscribing}
-                        className="button-primary"
+                        className="chat-action-button chat-send-button"
                         style={{ padding: '0.5rem', minWidth: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
                         <ArrowUp size={20} />
