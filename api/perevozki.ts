@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { upsertDocument } from "../lib/rag";
+import { upsertDocument } from "../lib/rag.js";
 
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";

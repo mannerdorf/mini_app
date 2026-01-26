@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import OpenAI from "openai";
 import { getPool } from "./_db";
-import { searchSimilar, upsertDocument } from "../lib/rag";
+import { searchSimilar, upsertDocument } from "../lib/rag.js";
 
 type ChatRole = "system" | "user" | "assistant";
 
