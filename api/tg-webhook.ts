@@ -223,11 +223,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (debugInfo) debugInfo.aiData = aiData;
 
     if (aiRes.ok) {
-      const replyText = linkCargoNumbersForTelegram(aiData.reply || "Не удалось получить ответ.");
-      await sendTgMessageChunked(chatId, replyText);
+      const replyText = aiData.reply || "Не удалось получить ответ.";
+      await sendTgMessageChunked(chatId, replyText, { formatLinks: true });
     } else {
       const errorText = aiData?.error || aiData?.message || raw || "Ошибка сервера";
-      await sendTgMessageChunked(chatId, `Ошибка: ${errorText}`);
+      await sendTgMessageChunked(chatId, `Ошибка: ${errorText}`, { formatLinks: false });
     }
   } catch (e) {
     if (debugInfo) debugInfo.error = String((e as any)?.message || e);
@@ -248,6 +248,14 @@ function normalizeText(text: unknown): string {
   } catch {
     return String(text);
   }
+}
+
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function splitTelegramMessage(text: string, maxLen = 3500): string[] {
@@ -281,13 +289,31 @@ function splitTelegramMessage(text: string, maxLen = 3500): string[] {
   return chunks.length ? chunks : [text];
 }
 
-function linkCargoNumbersForTelegram(text: string) {
+function formatTelegramHtmlWithLinks(text: string) {
   const cargoRegex = /(?:№\s*)?(\d{4,})/g;
-  return String(text).replace(cargoRegex, (match, num) => {
-    const safe = String(num || "").trim();
-    if (!safe) return match;
-    return `№ ${safe} (${TG_BOT_LINK_BASE}${safe})`;
-  });
+  const raw = String(text);
+  let lastIndex = 0;
+  let result = "";
+  let match: RegExpExecArray | null;
+
+  while ((match = cargoRegex.exec(raw))) {
+    const [fullMatch, num] = match;
+    const start = match.index;
+    const end = start + fullMatch.length;
+    const safeNum = String(num || "").trim();
+
+    result += escapeHtml(raw.slice(lastIndex, start));
+    if (safeNum) {
+      const url = `${TG_BOT_LINK_BASE}${safeNum}`;
+      result += `<a href="${escapeHtml(url)}">№ ${escapeHtml(safeNum)}</a>`;
+    } else {
+      result += escapeHtml(fullMatch);
+    }
+    lastIndex = end;
+  }
+
+  result += escapeHtml(raw.slice(lastIndex));
+  return result || escapeHtml(raw);
 }
 
 async function sendTgMessage(chatId: number, text: string, replyMarkup?: any) {
@@ -297,7 +323,9 @@ async function sendTgMessage(chatId: number, text: string, replyMarkup?: any) {
     body: JSON.stringify({
       chat_id: chatId,
       text: text,
-      reply_markup: replyMarkup
+      reply_markup: replyMarkup,
+      parse_mode: "HTML",
+      disable_web_page_preview: true
     })
   });
   if (!res.ok) {
@@ -306,12 +334,17 @@ async function sendTgMessage(chatId: number, text: string, replyMarkup?: any) {
   }
 }
 
-async function sendTgMessageChunked(chatId: number, text: unknown, replyMarkup?: any) {
+async function sendTgMessageChunked(
+  chatId: number,
+  text: unknown,
+  options?: { replyMarkup?: any; formatLinks?: boolean },
+) {
   let safeText = normalizeText(text).trim();
   if (!safeText) safeText = "Ответ пустой.";
   const chunks = splitTelegramMessage(safeText, TG_MAX_MESSAGE_LENGTH - 200);
   for (let i = 0; i < chunks.length; i += 1) {
-    await sendTgMessage(chatId, chunks[i], i === 0 ? replyMarkup : undefined);
+    const formatted = options?.formatLinks ? formatTelegramHtmlWithLinks(chunks[i]) : escapeHtml(chunks[i]);
+    await sendTgMessage(chatId, formatted, i === 0 ? options?.replyMarkup : undefined);
   }
 }
 

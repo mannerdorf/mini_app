@@ -360,7 +360,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const docMethods = extractDocMethods(userMessage);
-    if (docMethods.length > 0 && wantsDocuments(userMessage)) {
+    if (docMethods.length > 0 && (channel === "telegram" || wantsDocuments(userMessage))) {
       const cargoNumber =
         extractCargoNumber(userMessage) ||
         extractLastCargoNumberFromHistory(history.rows);
