@@ -1768,12 +1768,25 @@ function AiChatProfilePage({
     auth,
     accountId,
     customer,
+    onOpenCargo
 }: {
     onBack: () => void;
     auth: AuthData | null;
     accountId: string | null;
     customer: string | null;
+    onOpenCargo: (cargoNumber: string) => void;
 }) {
+    const [prefillMessage, setPrefillMessage] = useState<string | undefined>(undefined);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const stored = window.sessionStorage.getItem("haulz.chat.prefill");
+        if (stored) {
+            setPrefillMessage(stored);
+            window.sessionStorage.removeItem("haulz.chat.prefill");
+        }
+    }, []);
+
     return (
         <div
             className="w-full"
@@ -1792,6 +1805,9 @@ function AiChatProfilePage({
                         sessionOverride={`ai_${customer || accountId || "anon"}`}
                         userIdOverride={customer || accountId || "anon"}
                         customerOverride={customer || undefined}
+                        prefillMessage={prefillMessage}
+                        onClearPrefill={() => setPrefillMessage(undefined)}
+                        onOpenCargo={onOpenCargo}
                     />
                 ) : (
                     <Panel className="cargo-card" style={{ padding: '1rem', width: '100%' }}>
@@ -1982,7 +1998,8 @@ function ProfilePage({
     onRemoveAccount,
     onOpenOffer,
     onOpenPersonalConsent,
-    onOpenNotifications
+    onOpenNotifications,
+    onOpenCargo
 }: { 
     accounts: Account[]; 
     activeAccountId: string | null; 
@@ -1992,19 +2009,11 @@ function ProfilePage({
     onOpenOffer: () => void;
     onOpenPersonalConsent: () => void;
     onOpenNotifications: () => void;
+    onOpenCargo: (cargoNumber: string) => void;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
 
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const nextView = window.sessionStorage.getItem("haulz.profile.view");
-        if (nextView === "ai") {
-            setCurrentView("tinyurl-test");
-            window.sessionStorage.removeItem("haulz.profile.view");
-        }
-    }, []);
-    
     // Настройки
     const settingsItems = [
         { 
@@ -2086,14 +2095,7 @@ function ProfilePage({
     }
 
     if (currentView === 'tinyurl-test') {
-        return (
-            <AiChatProfilePage
-                onBack={() => setCurrentView('main')}
-                auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password } : null}
-                accountId={activeAccountId}
-                customer={activeAccount?.customer || null}
-            />
-        );
+        return <TinyUrlTestPage onBack={() => setCurrentView('main')} />;
     }
 
     if (currentView === 'about') {
@@ -2692,7 +2694,21 @@ function CompaniesListPage({
 }
 
 // --- CARGO PAGE (LIST ONLY) ---
-function CargoPage({ auth, searchText, onOpenChat, onCustomerDetected }: { auth: AuthData, searchText: string, onOpenChat: (cargoNumber?: string) => void | Promise<void>; onCustomerDetected?: (customer: string) => void }) {
+function CargoPage({ 
+    auth, 
+    searchText, 
+    onOpenChat, 
+    onCustomerDetected,
+    contextCargoNumber,
+    onClearContextCargo
+}: { 
+    auth: AuthData; 
+    searchText: string; 
+    onOpenChat: (cargoNumber?: string) => void | Promise<void>; 
+    onCustomerDetected?: (customer: string) => void;
+    contextCargoNumber?: string | null;
+    onClearContextCargo?: () => void;
+}) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -2792,6 +2808,19 @@ function CargoPage({ auth, searchText, onOpenChat, onCustomerDetected }: { auth:
     }, [auth]);
 
     useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo]);
+
+    useEffect(() => {
+        if (!contextCargoNumber) return;
+        const match = items.find(item => String(item.Number) === String(contextCargoNumber));
+        if (match) {
+            setSelectedCargo(match);
+            onClearContextCargo?.();
+            return;
+        }
+        if (!loading) {
+            onClearContextCargo?.();
+        }
+    }, [contextCargoNumber, items, loading, onClearContextCargo]);
 
     // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
@@ -3230,9 +3259,9 @@ function CargoPage({ auth, searchText, onOpenChat, onCustomerDetected }: { auth:
                                         }}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onOpenChat();
+                                            onOpenChat(item.Number);
                                         }}
-                                        title="Написать в поддержку"
+                                        title="Открыть AI чат"
                                     >
                                         <MessageCircle className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
                                     </Button>
@@ -3824,7 +3853,8 @@ function ChatPage({
     cargoItems,
     sessionOverride,
     userIdOverride,
-    customerOverride
+    customerOverride,
+    onOpenCargo
 }: { 
     prefillMessage?: string; 
     onClearPrefill?: () => void;
@@ -3833,6 +3863,7 @@ function ChatPage({
     sessionOverride?: string;
     userIdOverride?: string;
     customerOverride?: string;
+    onOpenCargo?: (cargoNumber: string) => void;
 }) {
     const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
     const [inputValue, setInputValue] = useState("");
@@ -3853,6 +3884,51 @@ function ChatPage({
     });
     const scrollRef = React.useRef<HTMLDivElement>(null);
 
+    const renderLineWithLinks = (line: string) => {
+        if (!onOpenCargo) return line;
+        const parts: React.ReactNode[] = [];
+        const regex = /№\s*\d{4,}|\b\d{6,}\b/g;
+        let lastIndex = 0;
+        let match: RegExpExecArray | null;
+        let keyIndex = 0;
+
+        while ((match = regex.exec(line)) !== null) {
+            const start = match.index;
+            const rawValue = match[0];
+            if (start > lastIndex) {
+                parts.push(line.slice(lastIndex, start));
+            }
+            const cargoNumber = rawValue.replace(/\D+/g, "");
+            parts.push(
+                <button
+                    key={`${cargoNumber}-${keyIndex}`}
+                    type="button"
+                    onClick={() => onOpenCargo(cargoNumber)}
+                    style={{
+                        background: "transparent",
+                        border: "none",
+                        padding: 0,
+                        margin: 0,
+                        cursor: "pointer",
+                        color: "inherit",
+                        textDecoration: "underline",
+                        font: "inherit"
+                    }}
+                >
+                    {rawValue}
+                </button>
+            );
+            lastIndex = start + rawValue.length;
+            keyIndex += 1;
+        }
+
+        if (lastIndex < line.length) {
+            parts.push(line.slice(lastIndex));
+        }
+
+        return parts;
+    };
+
     const renderMessageContent = (text: string) => {
         const blocks = String(text || "").split(/\n{2,}/).filter(Boolean);
         return (
@@ -3868,7 +3944,7 @@ function ChatPage({
                                 {lines.map((line, lineIndex) => (
                                     <li key={lineIndex}>
                                         <Typography.Body style={{ color: 'inherit', fontSize: '0.95rem', lineHeight: '1.4', margin: 0 }}>
-                                            {line.replace(/^[-•]\s+/, "")}
+                                            {renderLineWithLinks(line.replace(/^[-•]\s+/, ""))}
                                         </Typography.Body>
                                     </li>
                                 ))}
@@ -3882,7 +3958,7 @@ function ChatPage({
                                 {lines.map((line, lineIndex) => (
                                     <li key={lineIndex}>
                                         <Typography.Body style={{ color: 'inherit', fontSize: '0.95rem', lineHeight: '1.4', margin: 0 }}>
-                                            {line.replace(/^\d+[.)]\s+/, "")}
+                                            {renderLineWithLinks(line.replace(/^\d+[.)]\s+/, ""))}
                                         </Typography.Body>
                                     </li>
                                 ))}
@@ -3895,7 +3971,7 @@ function ChatPage({
                             key={blockIndex}
                             style={{ color: 'inherit', fontSize: '0.95rem', lineHeight: '1.4', margin: 0, whiteSpace: 'pre-wrap' }}
                         >
-                            {block}
+                            {renderLineWithLinks(block)}
                         </Typography.Body>
                     );
                 })}
@@ -4541,11 +4617,22 @@ export default function App() {
         return url.toString();
     };
 
-    const openAiChatDeepLink = () => {
+    const openAiChatDeepLink = (cargoNumber?: string) => {
         if (typeof window !== "undefined") {
-            window.sessionStorage.setItem("haulz.profile.view", "ai");
+            if (cargoNumber) {
+                window.sessionStorage.setItem(
+                    "haulz.chat.prefill",
+                    `Покажи информацию по перевозке ${cargoNumber}`
+                );
+            }
         }
-        setActiveTab("profile");
+        setActiveTab("support");
+    };
+
+    const openCargoFromChat = (cargoNumber: string) => {
+        if (!cargoNumber) return;
+        setContextCargoNumber(cargoNumber);
+        setActiveTab("cargo");
     };
 
     const openSupportChat = async (cargoNumber?: string) => {
@@ -4911,6 +4998,8 @@ export default function App() {
                             searchText={searchText}
                             onOpenChat={openAiChatDeepLink}
                             onCustomerDetected={updateActiveAccountCustomer}
+                            contextCargoNumber={contextCargoNumber}
+                            onClearContextCargo={() => setContextCargoNumber(null)}
                         />
                     )}
                     {showDashboard && activeTab === "docs" && (
@@ -4920,7 +5009,13 @@ export default function App() {
                 </div>
                     )}
                     {showDashboard && activeTab === "support" && (
-                        <SupportRedirectPage onOpenSupport={() => openSupportChat()} />
+                        <AiChatProfilePage
+                            onBack={() => setActiveTab("cargo")}
+                            auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password } : null}
+                            accountId={activeAccountId}
+                            customer={activeAccount?.customer || null}
+                            onOpenCargo={openCargoFromChat}
+                        />
                     )}
                     {showDashboard && activeTab === "profile" && (
                         <ProfilePage 
@@ -4932,6 +5027,7 @@ export default function App() {
                             onOpenOffer={() => setIsOfferOpen(true)}
                             onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
                             onOpenNotifications={openSecretPinModal}
+                            onOpenCargo={openCargoFromChat}
                         />
                     )}
                     {!showDashboard && activeTab === "cargo" && auth && (
@@ -4940,11 +5036,19 @@ export default function App() {
                             searchText={searchText}
                             onOpenChat={openAiChatDeepLink}
                             onCustomerDetected={updateActiveAccountCustomer}
+                            contextCargoNumber={contextCargoNumber}
+                            onClearContextCargo={() => setContextCargoNumber(null)}
                         />
                     )}
                     {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && <DashboardPage auth={auth} onClose={() => {}} />}
                     {!showDashboard && activeTab === "support" && auth && (
-                        <SupportRedirectPage onOpenSupport={() => openSupportChat()} />
+                        <AiChatProfilePage
+                            onBack={() => setActiveTab("cargo")}
+                            auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password } : null}
+                            accountId={activeAccountId}
+                            customer={activeAccount?.customer || null}
+                            onOpenCargo={openCargoFromChat}
+                        />
                     )}
                     {!showDashboard && activeTab === "profile" && (
                         <ProfilePage 
@@ -4956,6 +5060,7 @@ export default function App() {
                             onOpenOffer={() => setIsOfferOpen(true)}
                             onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
                             onOpenNotifications={openSecretPinModal}
+                            onOpenCargo={openCargoFromChat}
                         />
                     )}
             </div>

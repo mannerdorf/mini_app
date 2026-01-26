@@ -15,8 +15,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const update = req.body;
   console.log("TG Webhook update:", JSON.stringify(update));
 
-  const chatId = update?.message?.chat?.id;
-  const userText = update?.message?.text;
+  const chatId = update?.message?.chat?.id || update?.callback_query?.message?.chat?.id;
+  const userText = update?.message?.text || update?.callback_query?.data;
 
   if (!chatId || !userText) {
     return res.status(200).json({ ok: true });
@@ -27,7 +27,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const payload = userText.split(" ")[1];
     if (payload.startsWith("haulz_n_")) {
       const cargoNumber = payload.split("_")[2];
-      const appDomain = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app";
+      const appDomain = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
       const docUrl = (m: string) => `${appDomain}/api/doc-short?metod=${encodeURIComponent(m)}&number=${encodeURIComponent(cargoNumber)}`;
 
       const message = `Вижу ваш вопрос по перевозке ${cargoNumber}. Выберите документ для скачивания:`;
@@ -45,7 +47,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Обычное сообщение — через ИИ
   try {
-    const appDomain = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app";
+    const appDomain = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.NEXT_PUBLIC_APP_URL || "https://mini-app-lake-phi.vercel.app";
     const aiRes = await fetch(`${appDomain}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -78,7 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 async function sendTgMessage(chatId: number, text: string, replyMarkup?: any) {
-  await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+  const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -87,4 +91,8 @@ async function sendTgMessage(chatId: number, text: string, replyMarkup?: any) {
       reply_markup: replyMarkup
     })
   });
+  if (!res.ok) {
+    const raw = await res.text().catch(() => "");
+    console.error("TG sendMessage failed:", res.status, raw);
+  }
 }
