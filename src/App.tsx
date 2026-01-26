@@ -213,6 +213,67 @@ const formatDate = (dateString: string | undefined): string => {
     return dateString;
 };
 
+const HOLIDAYS_MM_DD = new Set([
+    "01-01", "01-02", "01-03", "01-04", "01-05", "01-06", "01-07", "01-08",
+    "02-23", "03-08", "05-01", "05-09", "06-12", "11-04",
+]);
+
+const parseDateOnly = (dateString: string | undefined): Date | null => {
+    if (!dateString) return null;
+    const clean = dateString.split("T")[0].trim();
+    if (!clean) return null;
+    const isoMatch = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+        const [, y, m, d] = isoMatch;
+        return new Date(Number(y), Number(m) - 1, Number(d));
+    }
+    const dotMatch = clean.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (dotMatch) {
+        const [, d, m, y] = dotMatch;
+        return new Date(Number(y), Number(m) - 1, Number(d));
+    }
+    const slashMatch = clean.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (slashMatch) {
+        const [, d, m, y] = slashMatch;
+        return new Date(Number(y), Number(m) - 1, Number(d));
+    }
+    const parsed = new Date(clean);
+    return isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getDateInfo = (dateString: string | undefined) => {
+    const text = formatDate(dateString);
+    const date = parseDateOnly(dateString);
+    if (!date) return { text, isWeekend: false, isHoliday: false };
+    const day = date.getDay();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    const key = `${mm}-${dd}`;
+    const isWeekend = day === 0 || day === 6;
+    const isHoliday = HOLIDAYS_MM_DD.has(key);
+    return { text, isWeekend, isHoliday };
+};
+
+const getDateTextColor = (dateString: string | undefined) => {
+    const info = getDateInfo(dateString);
+    return info.isHoliday || info.isWeekend ? "#ef4444" : "var(--color-text-secondary)";
+};
+
+const DateText = ({ value, className, style }: { value?: string; className?: string; style?: React.CSSProperties }) => {
+    const info = getDateInfo(value);
+    const classes = [
+        className,
+        info.isHoliday ? "date-holiday" : info.isWeekend ? "date-weekend" : null,
+    ]
+        .filter(Boolean)
+        .join(" ");
+    return (
+        <span className={classes} style={style}>
+            {info.text}
+        </span>
+    );
+};
+
 const formatCurrency = (value: number | string | undefined): string => {
     if (value === undefined || value === null || (typeof value === 'string' && value.trim() === "")) return '-';
     const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
@@ -1232,7 +1293,7 @@ function DashboardPage({
                                         x={x + barWidth / 2}
                                         y={chartHeight - paddingBottom + 20}
                                         fontSize="10"
-                                        fill="var(--color-text-secondary)"
+                                        fill={getDateTextColor(d.date)}
                                         textAnchor="middle"
                                         transform={`rotate(-45 ${x + barWidth / 2} ${chartHeight - paddingBottom + 20})`}
                                     >
@@ -1289,7 +1350,7 @@ function DashboardPage({
             </div>
             
             <Typography.Body className="text-sm text-theme-secondary mb-4 text-center">
-                Период: {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
+                Период: <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
             </Typography.Body>
             
             {loading && (
@@ -3144,7 +3205,7 @@ function CargoPage({
             </div>
 
             <Typography.Body className="text-sm text-theme-secondary mb-4 text-center">
-                Период: {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
+                Период: <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
             </Typography.Body>
 
             {/* Суммирующая строка */}
@@ -3409,7 +3470,7 @@ function CargoPage({
                                     </Button>
                                     <Calendar className="w-4 h-4 text-theme-secondary" />
                                     <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
-                                        {formatDate(item.DatePrih)}
+                                        <DateText value={item.DatePrih} />
                                     </Typography.Label>
                             </Flex>
                         </Flex>
@@ -3816,13 +3877,13 @@ function CargoDetailsModal({
                 <div className="details-grid-modal">
                     <DetailItem label="Номер" value={item.Number} />
                     <DetailItem label="Статус" value={normalizeStatus(item.State)} statusClass={getStatusClass(item.State)} />
-                    <DetailItem label="Приход" value={formatDate(item.DatePrih)} />
+                    <DetailItem label="Приход" value={<DateText value={item.DatePrih} />} />
                     <DetailItem label="Доставка" value={(() => {
                         // Показываем дату доставки только если груз доставлен
                         const status = normalizeStatus(item.State);
                         const lower = status.toLowerCase();
                         if (lower.includes('доставлен') || lower.includes('заверш')) {
-                            return formatDate(item.DateVr);
+                            return <DateText value={item.DateVr} />;
                         }
                         return '-';
                     })()} /> {/* Используем DateVr */}

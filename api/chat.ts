@@ -14,6 +14,13 @@ const HAULZ_CONTACTS = {
   ],
 };
 
+const DOC_METHODS_MAP: Record<string, string> = {
+  "ЭР": "ЭР",
+  "АПП": "АПП",
+  "СЧЕТ": "Счет",
+  "УПД": "Акт",
+};
+
 function isContactsRequest(text: string) {
   const lower = text.toLowerCase();
   return (
@@ -325,7 +332,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const methods = ["ЭР", "СЧЕТ", "УПД", "АПП"];
         const links = await Promise.all(
           methods.map(async (method) => {
-            const url = await makeDocShortUrl(appDomain, method, cargoNumber, auth);
+            const mapped = DOC_METHODS_MAP[method] || method;
+            const url = await makeDocShortUrl(appDomain, mapped, cargoNumber, auth);
             return `• ${method}: ${url}`;
           }),
         );
@@ -386,7 +394,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const appDomain = getAppDomain();
           const links = await Promise.all(
             docMethods.map(async (method) => {
-              const url = await makeDocShortUrl(appDomain, method, cargoNumber, auth);
+              const mapped = DOC_METHODS_MAP[method] || method;
+              const url = await makeDocShortUrl(appDomain, mapped, cargoNumber, auth);
               return `• ${method}: ${url}`;
             }),
           );

@@ -217,6 +217,8 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .cargo-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
 .order-number { color: var(--color-text-primary); }
 .date { color: var(--color-text-secondary); display: flex; align-items: center; }
+.date-weekend { color: #ef4444; }
+.date-holiday { color: #ef4444; font-weight: 600; }
 .cargo-details-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
