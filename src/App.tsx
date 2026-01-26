@@ -1852,7 +1852,8 @@ function AiChatProfilePage({
     accountId,
     customer,
     onOpenCargo,
-    chatId
+    chatId,
+    onOpenTelegramBot
 }: {
     onBack: () => void;
     auth: AuthData | null;
@@ -1860,8 +1861,10 @@ function AiChatProfilePage({
     customer: string | null;
     onOpenCargo: (cargoNumber: string) => void;
     chatId: string | null;
+    onOpenTelegramBot?: () => Promise<void>;
 }) {
     const [prefillMessage, setPrefillMessage] = useState<string | undefined>(undefined);
+    const [tgLinkError, setTgLinkError] = useState<string | null>(null);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -1882,7 +1885,28 @@ function AiChatProfilePage({
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>AI чат</Typography.Headline>
+                {onOpenTelegramBot && (
+                    <Button
+                        className="filter-button"
+                        style={{ marginLeft: 'auto' }}
+                        onClick={async () => {
+                            setTgLinkError(null);
+                            try {
+                                await onOpenTelegramBot();
+                            } catch (e: any) {
+                                setTgLinkError(e?.message || "Не удалось открыть Telegram-бота.");
+                            }
+                        }}
+                    >
+                        Открыть в Telegram
+                    </Button>
+                )}
             </Flex>
+            {tgLinkError && (
+                <Typography.Body style={{ color: 'var(--color-error-text)', marginBottom: '0.5rem' }}>
+                    {tgLinkError}
+                </Typography.Body>
+            )}
             <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
                 {auth ? (
                     <ChatPage
@@ -4947,6 +4971,36 @@ export default function App() {
         }
     };
 
+    const openTelegramBotWithAccount = async () => {
+        const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
+        if (!activeAccount) {
+            throw new Error("Сначала выберите компанию.");
+        }
+        const res = await fetch("/api/tg-link", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                login: activeAccount.login,
+                password: activeAccount.password,
+                customer: activeAccount.customer || null,
+                accountId: activeAccount.id,
+            }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.token) {
+            throw new Error(data?.error || "Не удалось создать ссылку для Telegram.");
+        }
+        const url = new URL(TG_SUPPORT_BOT_URL);
+        url.searchParams.set("start", `haulz_auth_${data.token}`);
+
+        const webApp = getWebApp();
+        if (webApp && typeof webApp.openTelegramLink === "function") {
+            webApp.openTelegramLink(url.toString());
+        } else {
+            openExternalLink(url.toString());
+        }
+    };
+
     const openMaxBotLink = (url: string) => {
         const webApp = getWebApp();
         // Используем метод openLink из Bridge, чтобы MAX открыл это именно как внешнюю ссылку (переход в чат)
@@ -5443,6 +5497,7 @@ export default function App() {
                             customer={activeAccount?.customer || null}
                             onOpenCargo={openCargoFromChat}
                             chatId={chatIdentity}
+                            onOpenTelegramBot={openTelegramBotWithAccount}
                         />
                     )}
                     {showDashboard && activeTab === "profile" && (
@@ -5485,6 +5540,7 @@ export default function App() {
                             customer={activeAccount?.customer || null}
                             onOpenCargo={openCargoFromChat}
                             chatId={chatIdentity}
+                            onOpenTelegramBot={openTelegramBotWithAccount}
                         />
                     )}
                     {!showDashboard && activeTab === "profile" && (

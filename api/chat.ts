@@ -5,6 +5,44 @@ import { searchSimilar, upsertDocument } from "../lib/rag.js";
 
 type ChatRole = "system" | "user" | "assistant";
 
+const HAULZ_CONTACTS = {
+  website: "https://haulz.pro",
+  email: "Info@haulz.pro",
+  offices: [
+    { city: "Калининград", address: "Железнодорожная ул., 12к4", phone: "+7 (401) 227-95-55" },
+    { city: "Москва / МО", address: "Индустриальный парк «Андреевское», вл. 14А", phone: "+7 (958) 538-42-22" },
+  ],
+};
+
+function isContactsRequest(text: string) {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("контакт") ||
+    lower.includes("адрес") ||
+    lower.includes("почт") ||
+    lower.includes("email") ||
+    lower.includes("e-mail") ||
+    lower.includes("сайт") ||
+    lower.includes("телефон") ||
+    lower.includes("номер") ||
+    lower.includes("офис")
+  );
+}
+
+function buildContactsReply() {
+  const lines = [
+    "Контакты HAULZ:",
+    `Сайт: ${HAULZ_CONTACTS.website}`,
+    `Email: ${HAULZ_CONTACTS.email}`,
+    "",
+    "Офисы:",
+    ...HAULZ_CONTACTS.offices.map(
+      (office) => `• ${office.city}: ${office.address}, тел. ${office.phone}`,
+    ),
+  ];
+  return lines.join("\n");
+}
+
 function coerceBody(req: VercelRequest): any {
   let body: any = req.body;
   if (typeof body === "string") {
@@ -213,6 +251,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        limit 20`,
       [sid],
     );
+
+    if (isContactsRequest(userMessage)) {
+      const reply = buildContactsReply();
+      await pool.query(
+        `insert into chat_messages (session_id, role, content)
+         values ($1, 'assistant', $2)`,
+        [sid, reply],
+      );
+      await pool.query(`update chat_sessions set updated_at = now() where id = $1`, [
+        sid,
+      ]);
+      return res.status(200).json({ sessionId: sid, reply });
+    }
 
     if (wantsFullInfo(userMessage)) {
       const cargoNumber =
