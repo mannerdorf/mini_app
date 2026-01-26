@@ -20,14 +20,25 @@ function parseForm(req: VercelRequest) {
     maxFileSize: 10 * 1024 * 1024,
   });
 
-  return new Promise<{ files: { audio?: UploadedFile | UploadedFile[] } }>(
+  return new Promise<{ files: Record<string, UploadedFile | UploadedFile[] | undefined> }>(
     (resolve, reject) => {
       form.parse(req, (err, _fields, files) => {
         if (err) return reject(err);
-        resolve({ files: files as { audio?: UploadedFile | UploadedFile[] } });
+        resolve({ files: files as Record<string, UploadedFile | UploadedFile[] | undefined> });
       });
     },
   );
+}
+
+function pickFirstFile(
+  files: Record<string, UploadedFile | UploadedFile[] | undefined>,
+): UploadedFile | undefined {
+  if (files.audio) {
+    return Array.isArray(files.audio) ? files.audio[0] : files.audio;
+  }
+  const first = Object.values(files).find(Boolean);
+  if (!first) return undefined;
+  return Array.isArray(first) ? first[0] : first;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -43,9 +54,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let file: UploadedFile | undefined;
   try {
     const parsed = await parseForm(req);
-    file = Array.isArray(parsed.files.audio) ? parsed.files.audio[0] : parsed.files.audio;
+    file = pickFirstFile(parsed.files);
     if (!file?.filepath) {
       return res.status(400).json({ error: "audio file is required" });
+    }
+    if (file.size !== undefined && file.size <= 0) {
+      return res.status(400).json({ error: "audio file is empty" });
     }
 
     const client = new OpenAI({ apiKey });
