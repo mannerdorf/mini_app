@@ -4371,17 +4371,7 @@ function ChatPage({
                         style={{ flex: 1, height: '44px' }}
                         disabled={isTyping || isRecording || isTranscribing}
                     />
-                    <Button
-                        type="button"
-                        disabled={isTyping || isTranscribing}
-                        className="chat-action-button chat-mic-button"
-                        onClick={() => (isRecording ? stopRecording() : startRecording())}
-                        style={{ padding: '0.5rem', minWidth: '44px', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        aria-label={isRecording ? "Остановить запись" : "Записать голосовое"}
-                        title={isRecording ? "Остановить запись" : "Записать голосовое"}
-                    >
-                        {isRecording ? <Square size={18} /> : <Mic size={18} />}
-                    </Button>
+                    {/* microphone hidden for now */}
                     <Button 
                         type="submit" 
                         disabled={!inputValue.trim() || isTyping || isRecording || isTranscribing}

@@ -46,6 +46,18 @@ function extractDocMethods(text: string) {
   return Array.from(new Set(methods));
 }
 
+function wantsFullInfo(text: string) {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("полную информацию") ||
+    lower.includes("всю информацию") ||
+    lower.includes("все данные") ||
+    lower.includes("полные данные") ||
+    lower.includes("полный отчет") ||
+    lower.includes("полный отчёт")
+  );
+}
+
 async function makeDocShortUrl(
   appDomain: string,
   method: string,
@@ -196,6 +208,86 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        limit 20`,
       [sid],
     );
+
+    if (wantsFullInfo(userMessage)) {
+      const cargoNumber =
+        extractCargoNumber(userMessage) ||
+        extractLastCargoNumberFromHistory(history.rows);
+      if (!cargoNumber) {
+        return res.status(200).json({
+          sessionId: sid,
+          reply: "Пожалуйста, укажите номер перевозки, чтобы я выдал полную информацию.",
+        });
+      }
+
+      const params: string[] = [cargoNumber];
+      let whereClause = "where source_type = 'cargo' and metadata->>'number' = $1";
+      if (customer) {
+        params.push(String(customer));
+        whereClause += " and metadata->>'customer' = $2";
+      }
+
+      const cargoDoc = await pool.query<{ content: string | null }>(
+        `select content
+         from rag_documents
+         ${whereClause}
+         order by updated_at desc
+         limit 1`,
+        params,
+      );
+
+      const appDomain = getAppDomain();
+      const methods = ["ЭР", "СЧЕТ", "УПД", "АПП"];
+      const links = await Promise.all(
+        methods.map(async (method) => {
+          const url = await makeDocShortUrl(appDomain, method, cargoNumber, auth);
+          return `• ${method}: ${url}`;
+        }),
+      );
+
+      const content = cargoDoc.rows[0]?.content?.trim();
+      const blocks: string[] = [];
+      if (content) blocks.push(content);
+      blocks.push("");
+      blocks.push("Документы:");
+      blocks.push(...links);
+
+      const reply = `Вот то, что вы просили по перевозке № ${cargoNumber}:\n${blocks.join("\n")}`;
+
+      await pool.query(
+        `insert into chat_messages (session_id, role, content)
+         values ($1, 'assistant', $2)`,
+        [sid, reply],
+      );
+      await pool.query(`update chat_sessions set updated_at = now() where id = $1`, [
+        sid,
+      ]);
+
+      const dialogLines = [
+        ...history.rows.reverse(),
+        { role: "assistant" as const, content: reply },
+      ]
+        .map((item) => {
+          const role = item.role === "user" ? "Пользователь" : "Ассистент";
+          return `${role}: ${item.content}`;
+        })
+        .join("\n");
+
+      upsertDocument({
+        sourceType: "chat",
+        sourceId: sid,
+        title: `Диалог ${sid}`,
+        content: dialogLines,
+        metadata: {
+          sessionId: sid,
+          userId: typeof userId === "string" ? userId : null,
+        },
+      }).catch((error) => {
+        console.warn("RAG chat ingest failed:", error?.message || error);
+      });
+
+      return res.status(200).json({ sessionId: sid, reply });
+    }
 
     const docMethods = extractDocMethods(userMessage);
     if (docMethods.length > 0) {
