@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
+const TG_MAX_MESSAGE_LENGTH = 4096;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -56,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ]
       };
 
-      await sendTgMessage(chatId, message, keyboard);
+      await sendTgMessageChunked(chatId, message, keyboard);
       return res.status(200).json({ ok: true });
     }
   }
@@ -93,10 +94,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (debugInfo) debugInfo.aiData = aiData;
 
     if (aiRes.ok) {
-      await sendTgMessage(chatId, aiData.reply || "Не удалось получить ответ.");
+      await sendTgMessageChunked(chatId, aiData.reply || "Не удалось получить ответ.");
     } else {
       const errorText = aiData?.error || aiData?.message || raw || "Ошибка сервера";
-      await sendTgMessage(chatId, `Ошибка: ${errorText}`);
+      await sendTgMessageChunked(chatId, `Ошибка: ${errorText}`);
     }
   } catch (e) {
     if (debugInfo) debugInfo.error = String((e as any)?.message || e);
@@ -107,6 +108,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, debug: debugInfo });
   }
   return res.status(200).json({ ok: true });
+}
+
+function normalizeText(text: unknown): string {
+  if (typeof text === "string") return text;
+  if (text === null || text === undefined) return "";
+  try {
+    return JSON.stringify(text);
+  } catch {
+    return String(text);
+  }
+}
+
+function splitTelegramMessage(text: string, maxLen = 3500): string[] {
+  if (text.length <= maxLen) return [text];
+  const lines = text.split("\n");
+  const chunks: string[] = [];
+  let current = "";
+
+  const pushCurrent = () => {
+    if (current) chunks.push(current);
+    current = "";
+  };
+
+  for (const line of lines) {
+    if (line.length > maxLen) {
+      pushCurrent();
+      for (let i = 0; i < line.length; i += maxLen) {
+        chunks.push(line.slice(i, i + maxLen));
+      }
+      continue;
+    }
+    const next = current ? `${current}\n${line}` : line;
+    if (next.length > maxLen) {
+      pushCurrent();
+      current = line;
+    } else {
+      current = next;
+    }
+  }
+  pushCurrent();
+  return chunks.length ? chunks : [text];
 }
 
 async function sendTgMessage(chatId: number, text: string, replyMarkup?: any) {
@@ -122,5 +164,14 @@ async function sendTgMessage(chatId: number, text: string, replyMarkup?: any) {
   if (!res.ok) {
     const raw = await res.text().catch(() => "");
     console.error("TG sendMessage failed:", res.status, raw);
+  }
+}
+
+async function sendTgMessageChunked(chatId: number, text: unknown, replyMarkup?: any) {
+  let safeText = normalizeText(text).trim();
+  if (!safeText) safeText = "Ответ пустой.";
+  const chunks = splitTelegramMessage(safeText, TG_MAX_MESSAGE_LENGTH - 200);
+  for (let i = 0; i < chunks.length; i += 1) {
+    await sendTgMessage(chatId, chunks[i], i === 0 ? replyMarkup : undefined);
   }
 }
