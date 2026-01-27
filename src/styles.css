@@ -363,11 +363,6 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     color: #fff !important;
     border: 1px solid rgba(37, 99, 235, 0.6) !important;
 }
-.chat-mic-button {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    color: #fff !important;
-    border: 1px solid rgba(5, 150, 105, 0.6) !important;
-}
 .chat-action-button:disabled {
     opacity: 0.6;
     box-shadow: none;
@@ -387,9 +382,6 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .light-mode .chat-send-button {
     background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
     border: 1px solid rgba(37, 99, 235, 0.6) !important;
-    color: #fff !important;
-}
-.light-mode .chat-mic-button {
     color: #fff !important;
 }
 
