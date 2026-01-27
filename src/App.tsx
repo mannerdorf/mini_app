@@ -5090,6 +5090,11 @@ export default function App() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false); 
+    const [twoFactorPending, setTwoFactorPending] = useState(false);
+    const [twoFactorCode, setTwoFactorCode] = useState("");
+    const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
+    const [twoFactorLoading, setTwoFactorLoading] = useState(false);
+    const [pendingLogin, setPendingLogin] = useState<{ login: string; password: string; customer?: string | null } | null>(null);
     
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [searchText, setSearchText] = useState('');
@@ -5462,6 +5467,7 @@ export default function App() {
     const handleLoginSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError(null);
+        setTwoFactorError(null);
         if (!login || !password) return setError("Введите логин и пароль");
         if (!agreeOffer || !agreePersonal) return setError("Подтвердите согласие с условиями");
 
@@ -5477,12 +5483,36 @@ export default function App() {
             await ensureOk(res, "Ошибка авторизации");
             const payload = await readJsonOrText(res);
             const detectedCustomer = extractCustomerFromPerevozki(payload);
-            // Проверяем, не существует ли уже такой аккаунт
+            const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(login)}`);
+            const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
+            const twoFaSettings = twoFaJson?.settings;
+            const twoFaEnabled = !!twoFaSettings?.enabled;
+            const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
+            const twoFaLinked = !!twoFaSettings?.telegramLinked;
+
+            if (twoFaEnabled && twoFaMethod === "telegram") {
+                if (!twoFaLinked) {
+                    setError("Сначала привяжите Telegram в профиле.");
+                    return;
+                }
+                const sendRes = await fetch("/api/2fa-telegram", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ login, action: "send" }),
+                });
+                if (!sendRes.ok) {
+                    const err = await readJsonOrText(sendRes);
+                    throw new Error(err?.error || "Не удалось отправить код");
+                }
+                setPendingLogin({ login, password, customer: detectedCustomer });
+                setTwoFactorPending(true);
+                setTwoFactorCode("");
+                return;
+            }
+
             const existingAccount = accounts.find(acc => acc.login === login);
             let accountId: string;
-            
             if (existingAccount) {
-                // Аккаунт уже существует, переключаемся на него
                 accountId = existingAccount.id;
                 if (detectedCustomer && existingAccount.customer !== detectedCustomer) {
                     setAccounts(prev =>
@@ -5495,19 +5525,72 @@ export default function App() {
                 }
                 setActiveAccountId(accountId);
             } else {
-                // Создаем новый аккаунт
                 accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                 const newAccount: Account = { login, password, id: accountId, customer: detectedCustomer || undefined };
                 setAccounts(prev => [...prev, newAccount]);
                 setActiveAccountId(accountId);
             }
-            
-            // при первом входе остаемся на "Грузы" или восстановленной вкладке
             setActiveTab((prev) => prev || "cargo");
         } catch (err: any) {
             setError(err?.message || "Ошибка сети.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleTwoFactorSubmit = async (e: FormEvent) => {
+        e.preventDefault();
+        setTwoFactorError(null);
+        if (!pendingLogin?.login || !twoFactorCode.trim()) {
+            setTwoFactorError("Введите код из Telegram.");
+            return;
+        }
+        try {
+            setTwoFactorLoading(true);
+            const res = await fetch("/api/2fa-telegram", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ login: pendingLogin.login, action: "verify", code: twoFactorCode.trim() }),
+            });
+            if (!res.ok) {
+                const err = await readJsonOrText(res);
+                throw new Error(err?.error || "Неверный код");
+            }
+
+            const detectedCustomer = pendingLogin.customer;
+            const existingAccount = accounts.find(acc => acc.login === pendingLogin.login);
+            let accountId: string;
+            if (existingAccount) {
+                accountId = existingAccount.id;
+                if (detectedCustomer && existingAccount.customer !== detectedCustomer) {
+                    setAccounts(prev =>
+                        prev.map(acc =>
+                            acc.id === existingAccount.id
+                                ? { ...acc, customer: detectedCustomer }
+                                : acc
+                        )
+                    );
+                }
+                setActiveAccountId(accountId);
+            } else {
+                accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const newAccount: Account = {
+                    login: pendingLogin.login,
+                    password: pendingLogin.password,
+                    id: accountId,
+                    customer: detectedCustomer || undefined
+                };
+                setAccounts(prev => [...prev, newAccount]);
+                setActiveAccountId(accountId);
+            }
+            setActiveTab((prev) => prev || "cargo");
+            setTwoFactorPending(false);
+            setPendingLogin(null);
+            setTwoFactorCode("");
+        } catch (err: any) {
+            setTwoFactorError(err?.message || "Неверный код");
+        } finally {
+            setTwoFactorLoading(false);
         }
     };
 
@@ -5619,85 +5702,152 @@ export default function App() {
                     <Typography.Body className="tagline">
                         Доставка грузов в Калининград и обратно
                     </Typography.Body>
-                    <form onSubmit={handleLoginSubmit} className="form">
-                        <div className="field">
-                            <Input
-                                className="login-input"
-                                type="text"
-                                placeholder="Логин (email)"
-                                value={login}
-                                onChange={(e) => setLogin(e.target.value)}
-                                autoComplete="username"
-                            />
-                        </div>
-                        <div className="field">
-                            <div className="password-input-container">
+                    {twoFactorPending ? (
+                        <form onSubmit={handleTwoFactorSubmit} className="form">
+                            <Typography.Body style={{ marginBottom: '0.75rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+                                Введите код из Telegram
+                            </Typography.Body>
+                            <div className="field">
                                 <Input
-                                    className="login-input password"
-                                    type={showPassword ? "text" : "password"}
-                                    placeholder="Пароль"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    autoComplete="current-password"
-                                    style={{paddingRight: '3rem'}}
+                                    className="login-input"
+                                    type="text"
+                                    placeholder="Код подтверждения"
+                                    value={twoFactorCode}
+                                    onChange={(e) => setTwoFactorCode(e.target.value)}
                                 />
-                                <Button type="button" className="toggle-password-visibility" onClick={() => setShowPassword(!showPassword)}>
-                                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                </Button>
                             </div>
-                        </div>
-                        {/* ТУМБЛЕРЫ ВОССТАНОВЛЕНЫ */}
-                        <label className="checkbox-row switch-wrapper">
-                            <Typography.Body>
-                                Согласие с{" "}
-                                <a href="#" onClick={(e) => { e.preventDefault(); setIsOfferOpen(true); }}>
-                                    публичной офертой
-                                </a>
-                            </Typography.Body>
-                            <Switch
-                                checked={agreeOffer}
-                                onCheckedChange={(value) => setAgreeOffer(resolveChecked(value))}
-                                onChange={(event) => setAgreeOffer(resolveChecked(event))}
-                            />
-                        </label>
-                        <label className="checkbox-row switch-wrapper">
-                            <Typography.Body>
-                                Согласие на{" "}
-                                <a href="#" onClick={(e) => { e.preventDefault(); setIsPersonalConsentOpen(true); }}>
-                                    обработку данных
-                                </a>
-                            </Typography.Body>
-                            <Switch
-                                checked={agreePersonal}
-                                onCheckedChange={(value) => setAgreePersonal(resolveChecked(value))}
-                                onChange={(event) => setAgreePersonal(resolveChecked(event))}
-                            />
-                        </label>
-                        <Button className="button-primary" type="submit" disabled={loading}>
-                            {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
-                        </Button>
-                        <Flex justify="center" style={{ marginTop: '1rem' }}>
-                            <Typography.Body 
-                                style={{ 
-                                    color: 'var(--color-primary-blue)', 
-                                    cursor: 'pointer',
-                                    textDecoration: 'underline',
-                                    fontSize: '0.9rem'
-                                }}
-                                onClick={() => {
-                                    const webApp = getWebApp();
-                                    const forgotPasswordUrl = 'https://lk.haulz.pro/forgot-password';
-                                    if (webApp && typeof webApp.openLink === 'function') {
-                                        webApp.openLink(forgotPasswordUrl);
-                                    } else {
-                                        window.open(forgotPasswordUrl, '_blank', 'noopener,noreferrer');
-                                    }
-                                }}
-                            >
-                                Забыли пароль?
-                            </Typography.Body>
-                        </Flex>
-                    </form>
+                            <Button className="button-primary" type="submit" disabled={twoFactorLoading}>
+                                {twoFactorLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить код"}
+                            </Button>
+                            <Flex justify="center" style={{ marginTop: '0.75rem', gap: '0.5rem' }}>
+                                <Button
+                                    type="button"
+                                    className="filter-button"
+                                    disabled={twoFactorLoading}
+                                    onClick={async () => {
+                                        if (!pendingLogin?.login) return;
+                                        try {
+                                            setTwoFactorError(null);
+                                            setTwoFactorLoading(true);
+                                            const resend = await fetch("/api/2fa-telegram", {
+                                                method: "POST",
+                                                headers: { "Content-Type": "application/json" },
+                                                body: JSON.stringify({ login: pendingLogin.login, action: "send" }),
+                                            });
+                                            if (!resend.ok) {
+                                                const err = await readJsonOrText(resend);
+                                                throw new Error(err?.error || "Не удалось отправить код");
+                                            }
+                                        } catch (err: any) {
+                                            setTwoFactorError(err?.message || "Не удалось отправить код");
+                                        } finally {
+                                            setTwoFactorLoading(false);
+                                        }
+                                    }}
+                                >
+                                    Отправить код еще раз
+                                </Button>
+                                <Button
+                                    type="button"
+                                    className="filter-button"
+                                    disabled={twoFactorLoading}
+                                    onClick={() => {
+                                        setTwoFactorPending(false);
+                                        setPendingLogin(null);
+                                        setTwoFactorCode("");
+                                    }}
+                                >
+                                    Назад
+                                </Button>
+                            </Flex>
+                            {twoFactorError && (
+                                <Flex align="center" className="login-error mt-4">
+                                    <AlertTriangle className="w-5 h-5 mr-2" />
+                                    <Typography.Body>{twoFactorError}</Typography.Body>
+                                </Flex>
+                            )}
+                        </form>
+                    ) : (
+                        <form onSubmit={handleLoginSubmit} className="form">
+                            <div className="field">
+                                <Input
+                                    className="login-input"
+                                    type="text"
+                                    placeholder="Логин (email)"
+                                    value={login}
+                                    onChange={(e) => setLogin(e.target.value)}
+                                    autoComplete="username"
+                                />
+                            </div>
+                            <div className="field">
+                                <div className="password-input-container">
+                                    <Input
+                                        className="login-input password"
+                                        type={showPassword ? "text" : "password"}
+                                        placeholder="Пароль"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        autoComplete="current-password"
+                                        style={{paddingRight: '3rem'}}
+                                    />
+                                    <Button type="button" className="toggle-password-visibility" onClick={() => setShowPassword(!showPassword)}>
+                                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                    </Button>
+                                </div>
+                            </div>
+                            {/* ТУМБЛЕРЫ ВОССТАНОВЛЕНЫ */}
+                            <label className="checkbox-row switch-wrapper">
+                                <Typography.Body>
+                                    Согласие с{" "}
+                                    <a href="#" onClick={(e) => { e.preventDefault(); setIsOfferOpen(true); }}>
+                                        публичной офертой
+                                    </a>
+                                </Typography.Body>
+                                <Switch
+                                    checked={agreeOffer}
+                                    onCheckedChange={(value) => setAgreeOffer(resolveChecked(value))}
+                                    onChange={(event) => setAgreeOffer(resolveChecked(event))}
+                                />
+                            </label>
+                            <label className="checkbox-row switch-wrapper">
+                                <Typography.Body>
+                                    Согласие на{" "}
+                                    <a href="#" onClick={(e) => { e.preventDefault(); setIsPersonalConsentOpen(true); }}>
+                                        обработку данных
+                                    </a>
+                                </Typography.Body>
+                                <Switch
+                                    checked={agreePersonal}
+                                    onCheckedChange={(value) => setAgreePersonal(resolveChecked(value))}
+                                    onChange={(event) => setAgreePersonal(resolveChecked(event))}
+                                />
+                            </label>
+                            <Button className="button-primary" type="submit" disabled={loading}>
+                                {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
+                            </Button>
+                            <Flex justify="center" style={{ marginTop: '1rem' }}>
+                                <Typography.Body 
+                                    style={{ 
+                                        color: 'var(--color-primary-blue)', 
+                                        cursor: 'pointer',
+                                        textDecoration: 'underline',
+                                        fontSize: '0.9rem'
+                                    }}
+                                    onClick={() => {
+                                        const webApp = getWebApp();
+                                        const forgotPasswordUrl = 'https://lk.haulz.pro/forgot-password';
+                                        if (webApp && typeof webApp.openLink === 'function') {
+                                            webApp.openLink(forgotPasswordUrl);
+                                        } else {
+                                            window.open(forgotPasswordUrl, '_blank', 'noopener,noreferrer');
+                                        }
+                                    }}
+                                >
+                                    Забыли пароль?
+                                </Typography.Body>
+                            </Flex>
+                        </form>
+                    )}
                     {error && (
                         <Flex align="center" className="login-error mt-4">
                             <AlertTriangle className="w-5 h-5 mr-2" />
