@@ -29,22 +29,22 @@ async function getRedisValue(key: string): Promise<string | null> {
   }
 }
 
-async function setRedisValue(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+async function setRedisValue(key: string, value: string, ttlSeconds?: number): Promise<boolean> {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return false;
 
   try {
+    const pipeline = ttlSeconds
+      ? [["SET", key, value], ["EXPIRE", key, ttlSeconds]]
+      : [["SET", key, value]];
     const response = await fetch(`${url}/pipeline`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify([
-        ["SET", key, value],
-        ["EXPIRE", key, ttlSeconds],
-      ]),
+      body: JSON.stringify(pipeline),
     });
     if (!response.ok) return false;
     const data = await response.json();
@@ -120,12 +120,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "login is required" });
   }
 
-  const chatId = await getRedisValue(`tg:by_login:${login}`);
-  if (!chatId) {
-    return res.status(400).json({ error: "Telegram is not linked for this login" });
-  }
-
   if (action === "send") {
+    const chatId = await getRedisValue(`tg:by_login:${login}`);
+    if (!chatId) {
+      return res.status(400).json({ error: "Telegram is not linked for this login" });
+    }
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const saved = await setRedisValue(`2fa:code:${login}`, code, CODE_TTL_SECONDS);
     if (!saved) {
@@ -148,6 +147,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "invalid code" });
     }
     await deleteRedisValue(`2fa:code:${login}`);
+    return res.status(200).json({ ok: true });
+  }
+
+  if (action === "unlink") {
+    await deleteRedisValue(`tg:by_login:${login}`);
+    await deleteRedisValue(`2fa:code:${login}`);
+    const settingsRaw = await getRedisValue(`2fa:login:${login}`);
+    let settings: any = {};
+    try {
+      settings = settingsRaw ? JSON.parse(settingsRaw) : {};
+    } catch {
+      settings = {};
+    }
+    const payload = JSON.stringify({
+      enabled: false,
+      method: settings?.method === "google" ? "google" : "google",
+      telegramLinked: false,
+    });
+    await setRedisValue(`2fa:login:${login}`, payload);
     return res.status(200).json({ ok: true });
   }
 

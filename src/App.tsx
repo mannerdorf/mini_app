@@ -2475,6 +2475,43 @@ function ProfilePage({
                                         {tgLinkLoading || tgLinkChecking ? <Loader2 className="animate-spin w-4 h-4" /> : "Открыть Telegram"}
                                     </Button>
                                 )}
+                                {twoFactorTelegramLinked && (
+                                    <Button
+                                        className="filter-button"
+                                        type="button"
+                                        disabled={tgLinkLoading}
+                                        onClick={async () => {
+                                            if (!activeAccount?.login || !activeAccountId) return;
+                                            try {
+                                                setTgLinkError(null);
+                                                setTgLinkLoading(true);
+                                                const res = await fetch("/api/2fa-telegram", {
+                                                    method: "POST",
+                                                    headers: { "Content-Type": "application/json" },
+                                                    body: JSON.stringify({ login: activeAccount.login, action: "unlink" }),
+                                                });
+                                                if (!res.ok) {
+                                                    const err = await readJsonOrText(res);
+                                                    throw new Error(err?.error || "Не удалось отключить Telegram");
+                                                }
+                                                setTwoFactorTelegramLinked(false);
+                                                setTwoFactorEnabled(false);
+                                                setTwoFactorMethod("google");
+                                                onUpdateAccount(activeAccountId, {
+                                                    twoFactorTelegramLinked: false,
+                                                    twoFactorEnabled: false,
+                                                    twoFactorMethod: "google",
+                                                });
+                                            } catch (e: any) {
+                                                setTgLinkError(e?.message || "Не удалось отключить Telegram");
+                                            } finally {
+                                                setTgLinkLoading(false);
+                                            }
+                                        }}
+                                    >
+                                        Отключить Telegram
+                                    </Button>
+                                )}
                             </Panel>
                         )}
                         {twoFactorMethod === "telegram" && tgLinkError && (
