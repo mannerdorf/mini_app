@@ -2201,6 +2201,10 @@ function ProfilePage({
     const [tgLinkLoading, setTgLinkLoading] = useState(false);
     const [tgLinkError, setTgLinkError] = useState<string | null>(null);
     const [tgLinkChecking, setTgLinkChecking] = useState(false);
+    const [aliceCode, setAliceCode] = useState<string | null>(null);
+    const [aliceExpiresAt, setAliceExpiresAt] = useState<number | null>(null);
+    const [aliceLoading, setAliceLoading] = useState(false);
+    const [aliceError, setAliceError] = useState<string | null>(null);
 
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
@@ -2451,6 +2455,69 @@ function ProfilePage({
                         </Panel>
                     ))}
                 </div>
+            </div>
+
+            {/* Алиса */}
+            <div style={{ marginTop: '1.5rem' }}>
+                <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Алиса</Typography.Body>
+                <Panel
+                    className="cargo-card"
+                    style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+                >
+                    <Typography.Body style={{ fontSize: '0.9rem' }}>
+                        Получите код привязки и скажите его Алисе: «Привяжи аккаунт, код …».
+                    </Typography.Body>
+                    <Button
+                        className="button-primary"
+                        type="button"
+                        disabled={!activeAccount?.login || !activeAccount?.password || aliceLoading}
+                        onClick={async () => {
+                            if (!activeAccount?.login || !activeAccount?.password) return;
+                            try {
+                                setAliceError(null);
+                                setAliceLoading(true);
+                                const res = await fetch("/api/alice-link", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        login: activeAccount.login,
+                                        password: activeAccount.password,
+                                        customer: activeAccount.customer || null,
+                                    }),
+                                });
+                                if (!res.ok) {
+                                    const err = await res.json().catch(() => ({}));
+                                    throw new Error(err?.error || "Не удалось получить код");
+                                }
+                                const data = await res.json();
+                                setAliceCode(String(data?.code || ""));
+                                setAliceExpiresAt(Date.now() + (Number(data?.ttl || 0) * 1000));
+                            } catch (e: any) {
+                                setAliceError(e?.message || "Не удалось получить код");
+                            } finally {
+                                setAliceLoading(false);
+                            }
+                        }}
+                    >
+                        {aliceLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Получить код для Алисы"}
+                    </Button>
+                    {aliceCode && (
+                        <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                            Код: {aliceCode}
+                        </Typography.Body>
+                    )}
+                    {aliceExpiresAt && (
+                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                            Код действует до {new Date(aliceExpiresAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                        </Typography.Body>
+                    )}
+                    {aliceError && (
+                        <Flex align="center" className="login-error">
+                            <AlertTriangle className="w-4 h-4 mr-2" />
+                            <Typography.Body style={{ fontSize: '0.85rem' }}>{aliceError}</Typography.Body>
+                        </Flex>
+                    )}
+                </Panel>
             </div>
 
             {/* FAQ */}
