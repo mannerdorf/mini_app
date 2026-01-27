@@ -127,6 +127,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .json(aliceResponse("Привязка повреждена. Получите новый код в мини‑приложении."));
   }
 
+  const withTimeout = async <T>(promise: Promise<T>, ms: number) => {
+    let timer: NodeJS.Timeout;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("timeout")), ms);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      clearTimeout(timer!);
+    }
+  };
+
   try {
     // Обновляем данные и записываем в RAG
     const today = new Date();
@@ -134,13 +146,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const from = new Date();
     from.setMonth(from.getMonth() - 6);
     const dateFrom = from.toISOString().split("T")[0];
-    await fetch(`${APP_DOMAIN}/api/perevozki`, {
+    await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo }),
-    });
+    }), 2500);
 
-    const chatRes = await fetch(`${APP_DOMAIN}/api/chat`, {
+    const chatRes = await withTimeout(fetch(`${APP_DOMAIN}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -152,7 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         channel: "alice",
         model: "gpt-4o",
       }),
-    });
+    }), 2500);
     if (chatRes.ok) {
       const data = await chatRes.json();
       if (data?.reply) {
@@ -167,7 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .status(200)
     .json(
       aliceResponse(
-        "Сейчас не удалось получить ответ. Попробуйте повторить запрос."
+        "Запрос обрабатывается дольше обычного. Повторите запрос через несколько секунд."
       )
     );
 }
