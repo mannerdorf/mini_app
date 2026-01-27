@@ -114,14 +114,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const login = String(body?.login || "").trim();
+  const loginRaw = String(body?.login || "").trim();
+  const login = loginRaw.toLowerCase();
   const action = String(body?.action || "").trim();
   if (!login) {
     return res.status(400).json({ error: "login is required" });
   }
 
   if (action === "send") {
-    const chatId = await getRedisValue(`tg:by_login:${login}`);
+    const chatId =
+      (await getRedisValue(`tg:by_login:${login}`)) ||
+      (loginRaw && loginRaw !== login ? await getRedisValue(`tg:by_login:${loginRaw}`) : null);
     if (!chatId) {
       return res.status(400).json({ error: "Telegram is not linked for this login" });
     }
@@ -152,6 +155,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (action === "unlink") {
     await deleteRedisValue(`tg:by_login:${login}`);
+    if (loginRaw && loginRaw !== login) {
+      await deleteRedisValue(`tg:by_login:${loginRaw}`);
+    }
     await deleteRedisValue(`2fa:code:${login}`);
     const settingsRaw = await getRedisValue(`2fa:login:${login}`);
     let settings: any = {};

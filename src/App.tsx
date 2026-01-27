@@ -2485,10 +2485,11 @@ function ProfilePage({
                                             try {
                                                 setTgLinkError(null);
                                                 setTgLinkLoading(true);
+                                                const loginKey = activeAccount.login.trim().toLowerCase();
                                                 const res = await fetch("/api/2fa-telegram", {
                                                     method: "POST",
                                                     headers: { "Content-Type": "application/json" },
-                                                    body: JSON.stringify({ login: activeAccount.login, action: "unlink" }),
+                                                    body: JSON.stringify({ login: loginKey, action: "unlink" }),
                                                 });
                                                 if (!res.ok) {
                                                     const err = await readJsonOrText(res);
@@ -5131,7 +5132,7 @@ export default function App() {
     const [twoFactorCode, setTwoFactorCode] = useState("");
     const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
     const [twoFactorLoading, setTwoFactorLoading] = useState(false);
-    const [pendingLogin, setPendingLogin] = useState<{ login: string; password: string; customer?: string | null } | null>(null);
+    const [pendingLogin, setPendingLogin] = useState<{ login: string; loginKey: string; password: string; customer?: string | null } | null>(null);
     
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [searchText, setSearchText] = useState('');
@@ -5520,7 +5521,8 @@ export default function App() {
             await ensureOk(res, "Ошибка авторизации");
             const payload = await readJsonOrText(res);
             const detectedCustomer = extractCustomerFromPerevozki(payload);
-            const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(login)}`);
+            const loginKey = login.trim().toLowerCase();
+            const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
             const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
             const twoFaSettings = twoFaJson?.settings;
             const twoFaEnabled = !!twoFaSettings?.enabled;
@@ -5535,13 +5537,13 @@ export default function App() {
                 const sendRes = await fetch("/api/2fa-telegram", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login, action: "send" }),
+                    body: JSON.stringify({ login: loginKey, action: "send" }),
                 });
                 if (!sendRes.ok) {
                     const err = await readJsonOrText(sendRes);
                     throw new Error(err?.error || "Не удалось отправить код");
                 }
-                setPendingLogin({ login, password, customer: detectedCustomer });
+                setPendingLogin({ login, password, customer: detectedCustomer, loginKey });
                 setTwoFactorPending(true);
                 setTwoFactorCode("");
                 return;
@@ -5578,7 +5580,7 @@ export default function App() {
     const handleTwoFactorSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setTwoFactorError(null);
-        if (!pendingLogin?.login || !twoFactorCode.trim()) {
+        if (!pendingLogin?.loginKey || !twoFactorCode.trim()) {
             setTwoFactorError("Введите код из Telegram.");
             return;
         }
@@ -5587,7 +5589,7 @@ export default function App() {
             const res = await fetch("/api/2fa-telegram", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login: pendingLogin.login, action: "verify", code: twoFactorCode.trim() }),
+                body: JSON.stringify({ login: pendingLogin.loginKey, action: "verify", code: twoFactorCode.trim() }),
             });
             if (!res.ok) {
                 const err = await readJsonOrText(res);
@@ -5762,14 +5764,14 @@ export default function App() {
                                     className="filter-button"
                                     disabled={twoFactorLoading}
                                     onClick={async () => {
-                                        if (!pendingLogin?.login) return;
+                                        if (!pendingLogin?.loginKey) return;
                                         try {
                                             setTwoFactorError(null);
                                             setTwoFactorLoading(true);
                                             const resend = await fetch("/api/2fa-telegram", {
                                                 method: "POST",
                                                 headers: { "Content-Type": "application/json" },
-                                                body: JSON.stringify({ login: pendingLogin.login, action: "send" }),
+                                                body: JSON.stringify({ login: pendingLogin.loginKey, action: "send" }),
                                             });
                                             if (!resend.ok) {
                                                 const err = await readJsonOrText(resend);

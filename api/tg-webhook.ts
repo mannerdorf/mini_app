@@ -138,7 +138,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ ok: true });
       }
       if (parsed?.login) {
-        await setRedisValue(`tg:by_login:${parsed.login}`, String(chatId));
+        const loginKey = String(parsed.login).trim().toLowerCase();
+        await setRedisValue(`tg:by_login:${loginKey}`, String(chatId));
+        if (loginKey !== String(parsed.login).trim()) {
+          await setRedisValue(`tg:by_login:${String(parsed.login).trim()}`, String(chatId));
+        }
       }
       if (parsed?.customer) {
         await setRedisValue(`tg:by_customer:${parsed.customer}`, String(chatId));

@@ -57,12 +57,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "GET") {
-    const login = String((req.query as any)?.login || "").trim();
+    const loginRaw = String((req.query as any)?.login || "").trim();
+    const login = loginRaw.toLowerCase();
     if (!login) {
       return res.status(400).json({ error: "login is required" });
     }
 
-    const raw = await getRedisValue(`2fa:login:${login}`);
+    let raw = await getRedisValue(`2fa:login:${login}`);
+    if (!raw && loginRaw && loginRaw !== login) {
+      raw = await getRedisValue(`2fa:login:${loginRaw}`);
+    }
     let stored: any = null;
     try {
       stored = raw ? JSON.parse(raw) : null;
@@ -70,7 +74,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       stored = null;
     }
 
-    const tgBind = await getRedisValue(`tg:by_login:${login}`);
+    const tgBind =
+      (await getRedisValue(`tg:by_login:${login}`)) ||
+      (loginRaw && loginRaw !== login ? await getRedisValue(`tg:by_login:${loginRaw}`) : null);
     const telegramLinked = !!tgBind || !!stored?.telegramLinked;
     const enabled = !!stored?.enabled;
     const method = stored?.method === "telegram" ? "telegram" : "google";
@@ -91,7 +97,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const login = String(body?.login || "").trim();
+    const loginRaw = String(body?.login || "").trim();
+    const login = loginRaw.toLowerCase();
     if (!login) {
       return res.status(400).json({ error: "login is required" });
     }
@@ -102,7 +109,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const payload = JSON.stringify({ enabled, method, telegramLinked });
 
     const saved = await setRedisValue(`2fa:login:${login}`, payload);
-    if (!saved) {
+    const savedRaw = loginRaw && loginRaw !== login
+      ? await setRedisValue(`2fa:login:${loginRaw}`, payload)
+      : true;
+    if (!saved || !savedRaw) {
       return res.status(500).json({ error: "Failed to save settings" });
     }
 
