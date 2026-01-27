@@ -1,0 +1,114 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+
+async function getRedisValue(key: string): Promise<string | null> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+
+  try {
+    const response = await fetch(`${url}/pipeline`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify([["GET", key]]),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const firstResult = Array.isArray(data) ? data[0] : data;
+    if (firstResult?.error) return null;
+    const value = firstResult?.result;
+    if (value === null || value === undefined) return null;
+    return String(value);
+  } catch {
+    return null;
+  }
+}
+
+async function setRedisValue(key: string, value: string): Promise<boolean> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return false;
+
+  try {
+    const response = await fetch(`${url}/pipeline`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify([["SET", key, value]]),
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    const firstResult = Array.isArray(data) ? data[0] : data;
+    return firstResult?.result === "OK" || firstResult?.result === true;
+  } catch {
+    return false;
+  }
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) {
+    return res.status(500).json({ error: "Redis not configured" });
+  }
+
+  if (req.method === "GET") {
+    const login = String((req.query as any)?.login || "").trim();
+    if (!login) {
+      return res.status(400).json({ error: "login is required" });
+    }
+
+    const raw = await getRedisValue(`2fa:login:${login}`);
+    let stored: any = null;
+    try {
+      stored = raw ? JSON.parse(raw) : null;
+    } catch {
+      stored = null;
+    }
+
+    const tgBind = await getRedisValue(`tg:by_login:${login}`);
+    const telegramLinked = !!tgBind || !!stored?.telegramLinked;
+    const enabled = !!stored?.enabled;
+    const method = stored?.method === "telegram" ? "telegram" : "google";
+
+    return res.status(200).json({
+      ok: true,
+      settings: { enabled, method, telegramLinked },
+    });
+  }
+
+  if (req.method === "POST") {
+    let body: any = req.body;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        return res.status(400).json({ error: "Invalid JSON body" });
+      }
+    }
+
+    const login = String(body?.login || "").trim();
+    if (!login) {
+      return res.status(400).json({ error: "login is required" });
+    }
+
+    const enabled = !!body?.enabled;
+    const method = body?.method === "telegram" ? "telegram" : "google";
+    const telegramLinked = !!body?.telegramLinked;
+    const payload = JSON.stringify({ enabled, method, telegramLinked });
+
+    const saved = await setRedisValue(`2fa:login:${login}`, payload);
+    if (!saved) {
+      return res.status(500).json({ error: "Failed to save settings" });
+    }
+
+    return res.status(200).json({ ok: true });
+  }
+
+  res.setHeader("Allow", "GET, POST");
+  return res.status(405).json({ error: "Method not allowed" });
+}

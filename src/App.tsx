@@ -127,7 +127,15 @@ const PROXY_API_SEND_DOC_URL = '/api/send-document';
 // --- TYPES ---
 type ApiError = { error?: string; [key: string]: unknown; };
 type AuthData = { login: string; password: string; id?: string; };
-type Account = { login: string; password: string; id: string; customer?: string; };
+type Account = {
+    login: string;
+    password: string;
+    id: string;
+    customer?: string;
+    twoFactorEnabled?: boolean;
+    twoFactorMethod?: "google" | "telegram";
+    twoFactorTelegramLinked?: boolean;
+};
 // УДАЛЕНО: type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 type Tab = "home" | "cargo" | "docs" | "support" | "profile" | "dashboard"; // Все разделы + секретный dashboard
 type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
@@ -2169,7 +2177,9 @@ function ProfilePage({
     onOpenOffer,
     onOpenPersonalConsent,
     onOpenNotifications,
-    onOpenCargo
+    onOpenCargo,
+    onOpenTelegramBot,
+    onUpdateAccount
 }: { 
     accounts: Account[]; 
     activeAccountId: string | null; 
@@ -2180,9 +2190,62 @@ function ProfilePage({
     onOpenPersonalConsent: () => void;
     onOpenNotifications: () => void;
     onOpenCargo: (cargoNumber: string) => void;
+    onOpenTelegramBot?: () => Promise<void>;
+    onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
+    const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+    const [twoFactorMethod, setTwoFactorMethod] = useState<"google" | "telegram">("google");
+    const [twoFactorTelegramLinked, setTwoFactorTelegramLinked] = useState(false);
+    const [tgLinkLoading, setTgLinkLoading] = useState(false);
+    const [tgLinkError, setTgLinkError] = useState<string | null>(null);
+    const [tgLinkChecking, setTgLinkChecking] = useState(false);
+
+    useEffect(() => {
+        if (!activeAccount) return;
+        setTwoFactorEnabled(!!activeAccount.twoFactorEnabled);
+        setTwoFactorMethod(activeAccount.twoFactorMethod ?? "google");
+        setTwoFactorTelegramLinked(!!activeAccount.twoFactorTelegramLinked);
+    }, [activeAccount?.id]);
+
+    useEffect(() => {
+        if (!twoFactorEnabled || twoFactorMethod !== "telegram") return;
+        if (twoFactorTelegramLinked) return;
+        void checkTelegramLinkStatus();
+    }, [twoFactorEnabled, twoFactorMethod, twoFactorTelegramLinked, checkTelegramLinkStatus]);
+
+    const checkTelegramLinkStatus = useCallback(async () => {
+        if (!activeAccount?.login || !activeAccountId) return false;
+        try {
+            const res = await fetch(`/api/2fa?login=${encodeURIComponent(activeAccount.login)}`);
+            if (!res.ok) return false;
+            const data = await res.json();
+            const linked = !!data?.settings?.telegramLinked;
+            setTwoFactorTelegramLinked(linked);
+            onUpdateAccount(activeAccountId, { twoFactorTelegramLinked: linked });
+            return linked;
+        } catch {
+            return false;
+        }
+    }, [activeAccount?.login, activeAccountId, onUpdateAccount]);
+
+    const pollTelegramLink = useCallback(async () => {
+        if (tgLinkChecking) return;
+        setTgLinkChecking(true);
+        try {
+            let attempts = 0;
+            let linked = false;
+            while (attempts < 10 && !linked) {
+                linked = await checkTelegramLinkStatus();
+                if (linked) break;
+                await new Promise((r) => setTimeout(r, 2000));
+                attempts += 1;
+            }
+        } finally {
+            setTgLinkChecking(false);
+        }
+    }, [checkTelegramLinkStatus, tgLinkChecking]);
 
     // Настройки
     const settingsItems = [
@@ -2288,6 +2351,142 @@ function ProfilePage({
                 </div>
             </div>
             
+            {/* Безопасность */}
+            <div style={{ marginBottom: '1.5rem' }}>
+                <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Безопасность</Typography.Body>
+                <Panel
+                    className="cargo-card"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '1rem',
+                        gap: '0.75rem'
+                    }}
+                >
+                    <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                        <div style={{ color: 'var(--color-primary)' }}>
+                            <Shield className="w-5 h-5" />
+                        </div>
+                        <Typography.Body style={{ fontSize: '0.9rem' }}>
+                            Двухфакторная аутентификация
+                        </Typography.Body>
+                    </Flex>
+                    <Switch
+                        checked={twoFactorEnabled}
+                        onCheckedChange={(value) => {
+                            const next = resolveChecked(value);
+                            setTwoFactorEnabled(next);
+                            if (activeAccountId) {
+                                onUpdateAccount(activeAccountId, { twoFactorEnabled: next });
+                            }
+                        }}
+                        onChange={(event) => {
+                            const next = resolveChecked(event);
+                            setTwoFactorEnabled(next);
+                            if (activeAccountId) {
+                                onUpdateAccount(activeAccountId, { twoFactorEnabled: next });
+                            }
+                        }}
+                    />
+                </Panel>
+                {twoFactorEnabled && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.75rem' }}>
+                        <Panel
+                            className="cargo-card"
+                            onClick={() => {
+                                setTwoFactorMethod("google");
+                                if (activeAccountId) {
+                                    onUpdateAccount(activeAccountId, { twoFactorMethod: "google" });
+                                }
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '0.85rem 1rem',
+                                cursor: 'pointer',
+                                border: twoFactorMethod === "google" ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+                                boxShadow: twoFactorMethod === "google" ? '0 0 0 2px rgba(37, 99, 235, 0.15)' : undefined
+                            }}
+                        >
+                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                <Typography.Body style={{ fontSize: '0.9rem' }}>Google Аутентификация</Typography.Body>
+                            </Flex>
+                            {twoFactorMethod === "google" && <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />}
+                        </Panel>
+                        <Panel
+                            className="cargo-card"
+                            onClick={() => {
+                                setTwoFactorMethod("telegram");
+                                if (activeAccountId) {
+                                    onUpdateAccount(activeAccountId, { twoFactorMethod: "telegram" });
+                                }
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                padding: '0.85rem 1rem',
+                                cursor: 'pointer',
+                                border: twoFactorMethod === "telegram" ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+                                boxShadow: twoFactorMethod === "telegram" ? '0 0 0 2px rgba(37, 99, 235, 0.15)' : undefined
+                            }}
+                        >
+                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                <Typography.Body style={{ fontSize: '0.9rem' }}>Телеграм Аутентификация</Typography.Body>
+                            </Flex>
+                            {twoFactorMethod === "telegram" && <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />}
+                        </Panel>
+                        {twoFactorMethod === "telegram" && (
+                            <Panel
+                                className="cargo-card"
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '0.85rem 1rem',
+                                    gap: '0.75rem'
+                                }}
+                            >
+                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                    {twoFactorTelegramLinked
+                                        ? "Telegram привязан."
+                                        : tgLinkChecking
+                                            ? "Ожидаем подтверждение привязки..."
+                                            : "Привяжите Telegram, чтобы включить 2FA."}
+                                </Typography.Body>
+                                {!twoFactorTelegramLinked && (
+                                    <Button
+                                        className="button-primary"
+                                        type="button"
+                                        disabled={!onOpenTelegramBot || tgLinkLoading || tgLinkChecking}
+                                        onClick={async () => {
+                                            if (!onOpenTelegramBot) return;
+                                            try {
+                                                setTgLinkError(null);
+                                                setTgLinkLoading(true);
+                                                await onOpenTelegramBot();
+                                                await pollTelegramLink();
+                                            } catch (e: any) {
+                                                setTgLinkError(e?.message || "Не удалось открыть Telegram.");
+                                            } finally {
+                                                setTgLinkLoading(false);
+                                            }
+                                        }}
+                                    >
+                                        {tgLinkLoading || tgLinkChecking ? <Loader2 className="animate-spin w-4 h-4" /> : "Открыть Telegram"}
+                                    </Button>
+                                )}
+                            </Panel>
+                        )}
+                        {twoFactorMethod === "telegram" && tgLinkError && (
+                            <Flex align="center" className="login-error" style={{ marginTop: '0.5rem' }}>
+                                <AlertTriangle className="w-4 h-4 mr-2" />
+                                <Typography.Body style={{ fontSize: '0.85rem' }}>{tgLinkError}</Typography.Body>
+                            </Flex>
+                        )}
+                    </div>
+                )}
+            </div>
+
             {/* Информация */}
             <div>
                 <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Информация</Typography.Body>
@@ -4761,6 +4960,54 @@ export default function App() {
         if (!activeAccountId) return null;
         return accounts.find(acc => acc.id === activeAccountId) || null;
     }, [accounts, activeAccountId]);
+    const persistTwoFactorSettings = useCallback(async (account: Account, patch: Partial<Account>) => {
+        const login = account.login;
+        if (!login) return;
+        const enabled = patch.twoFactorEnabled ?? account.twoFactorEnabled ?? false;
+        const method = patch.twoFactorMethod ?? account.twoFactorMethod ?? "google";
+        const telegramLinked = patch.twoFactorTelegramLinked ?? account.twoFactorTelegramLinked ?? false;
+        try {
+            await fetch("/api/2fa", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ login, enabled, method, telegramLinked })
+            });
+        } catch {
+            // silent: server storage is best-effort
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!activeAccount?.login) return;
+        let cancelled = false;
+        const load = async () => {
+            try {
+                const res = await fetch(`/api/2fa?login=${encodeURIComponent(activeAccount.login)}`);
+                if (!res.ok) return;
+                const data = await res.json();
+                const settings = data?.settings;
+                if (!settings || cancelled) return;
+                setAccounts(prev =>
+                    prev.map(acc =>
+                        acc.id === activeAccount.id
+                            ? {
+                                ...acc,
+                                twoFactorEnabled: !!settings.enabled,
+                                twoFactorMethod: settings.method === "telegram" ? "telegram" : "google",
+                                twoFactorTelegramLinked: !!settings.telegramLinked
+                            }
+                            : acc
+                    )
+                );
+            } catch {
+                // ignore load errors
+            }
+        };
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, [activeAccount?.id, activeAccount?.login]);
     const [activeTab, setActiveTab] = useState<Tab>(() => {
         // "Страница" для поддержки, чтобы можно было ограничить Bitrix по URL: ?tab=support
         if (typeof window === "undefined") return "cargo";
@@ -5301,6 +5548,19 @@ export default function App() {
     const handleSwitchAccount = (accountId: string) => {
         setActiveAccountId(accountId);
     };
+
+    // Обновление полей аккаунта (например, 2FA настройки)
+    const handleUpdateAccount = (accountId: string, patch: Partial<Account>) => {
+        let target: Account | null = null;
+        setAccounts(prev => {
+            const next = prev.map(acc => acc.id === accountId ? { ...acc, ...patch } : acc);
+            target = next.find(acc => acc.id === accountId) || null;
+            return next;
+        });
+        if (target && ("twoFactorEnabled" in patch || "twoFactorMethod" in patch || "twoFactorTelegramLinked" in patch)) {
+            void persistTwoFactorSettings(target, patch);
+        }
+    };
     
     // Добавление нового аккаунта (для страницы профиля)
     const handleAddAccount = async (login: string, password: string) => {
@@ -5562,6 +5822,8 @@ export default function App() {
                             onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
                             onOpenNotifications={openSecretPinModal}
                             onOpenCargo={openCargoFromChat}
+                            onOpenTelegramBot={openTelegramBotWithAccount}
+                            onUpdateAccount={handleUpdateAccount}
                         />
                     )}
                     {!showDashboard && activeTab === "cargo" && auth && (
@@ -5605,6 +5867,8 @@ export default function App() {
                             onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
                             onOpenNotifications={openSecretPinModal}
                             onOpenCargo={openCargoFromChat}
+                            onOpenTelegramBot={openTelegramBotWithAccount}
+                            onUpdateAccount={handleUpdateAccount}
                         />
                     )}
             </div>

@@ -34,22 +34,22 @@ async function getRedisValue(key: string): Promise<string | null> {
   }
 }
 
-async function setRedisValue(key: string, value: string, ttl: number): Promise<boolean> {
+async function setRedisValue(key: string, value: string, ttl?: number): Promise<boolean> {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return false;
 
   try {
+    const pipeline = ttl
+      ? [["SET", key, value], ["EXPIRE", key, ttl]]
+      : [["SET", key, value]];
     const response = await fetch(`${url}/pipeline`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify([
-        ["SET", key, value],
-        ["EXPIRE", key, ttl],
-      ]),
+      body: JSON.stringify(pipeline),
     });
     if (!response.ok) return false;
     const data = await response.json();
@@ -136,6 +136,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!saved) {
         await sendTgMessageChunked(chatId, "Не удалось сохранить привязку. Попробуйте позже.");
         return res.status(200).json({ ok: true });
+      }
+      if (parsed?.login) {
+        await setRedisValue(`tg:by_login:${parsed.login}`, String(chatId));
+      }
+      if (parsed?.customer) {
+        await setRedisValue(`tg:by_customer:${parsed.customer}`, String(chatId));
       }
       const customerLabel = parsed?.customer || parsed?.login || "не указан";
       await sendTgMessageChunked(
