@@ -2202,19 +2202,6 @@ function ProfilePage({
     const [tgLinkError, setTgLinkError] = useState<string | null>(null);
     const [tgLinkChecking, setTgLinkChecking] = useState(false);
 
-    useEffect(() => {
-        if (!activeAccount) return;
-        setTwoFactorEnabled(!!activeAccount.twoFactorEnabled);
-        setTwoFactorMethod(activeAccount.twoFactorMethod ?? "google");
-        setTwoFactorTelegramLinked(!!activeAccount.twoFactorTelegramLinked);
-    }, [activeAccount?.id]);
-
-    useEffect(() => {
-        if (!twoFactorEnabled || twoFactorMethod !== "telegram") return;
-        if (twoFactorTelegramLinked) return;
-        void checkTelegramLinkStatus();
-    }, [twoFactorEnabled, twoFactorMethod, twoFactorTelegramLinked, checkTelegramLinkStatus]);
-
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
         try {
@@ -2246,6 +2233,19 @@ function ProfilePage({
             setTgLinkChecking(false);
         }
     }, [checkTelegramLinkStatus, tgLinkChecking]);
+
+    useEffect(() => {
+        if (!activeAccount) return;
+        setTwoFactorEnabled(!!activeAccount.twoFactorEnabled);
+        setTwoFactorMethod(activeAccount.twoFactorMethod ?? "google");
+        setTwoFactorTelegramLinked(!!activeAccount.twoFactorTelegramLinked);
+    }, [activeAccount?.id]);
+
+    useEffect(() => {
+        if (!twoFactorEnabled || twoFactorMethod !== "telegram") return;
+        if (twoFactorTelegramLinked) return;
+        void checkTelegramLinkStatus();
+    }, [twoFactorEnabled, twoFactorMethod, twoFactorTelegramLinked, checkTelegramLinkStatus]);
 
     // Настройки
     const settingsItems = [
