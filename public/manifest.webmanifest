@@ -1,0 +1,15 @@
+{
+  "name": "HAULZ",
+  "short_name": "HAULZ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#3655ff",
+  "theme_color": "#3655ff",
+  "icons": [
+    {
+      "src": "/haulz-logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
