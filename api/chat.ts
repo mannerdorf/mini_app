@@ -214,7 +214,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = coerceBody(req);
-    const { sessionId, userId, message, messages, context, customer, action, auth, channel } = body;
+    const { sessionId, userId, message, messages, context, customer, action, auth, channel, model } = body;
 
     const sid =
       typeof sessionId === "string" && sessionId.trim()
@@ -457,8 +457,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.warn("RAG search failed:", error?.message || error);
     }
 
+    const aliceRules = channel === "alice"
+      ? `
+ДОПОЛНИТЕЛЬНЫЕ ПРАВИЛА ДЛЯ АЛИСЫ:
+1. Если вопрос про список (перевозки, счета и т.п.), сначала дай количество и спроси «Хотите подробней?».
+2. Если пользователь отвечает «да/подробнее», дай до 3 пунктов списка.
+3. Отвечай коротко и по делу, без ссылок.`
+      : "";
+
     // Формируем системный промпт с контекстом
-    const systemPrompt = `Ты — умный AI-помощник логистической компании HAULZ.
+    const basePrompt = `Ты — умный AI-помощник логистической компании HAULZ.
 Твоя задача — помогать клиентам отслеживать их грузы и отвечать на вопросы по логистике.
 Отвечай вежливо, профессионально, кратко и только на русском языке.
 
@@ -484,6 +492,7 @@ ${ragContext || "Нет дополнительных данных."}
 4. Если не знаешь ответа, предложи связаться с оператором.
 5. Не проси пароли и не повторяй их.
 6. Если вопрос на другом языке, всё равно отвечай по‑русски.`;
+    const systemPrompt = aliceRules ? `${basePrompt}\n${aliceRules}` : basePrompt;
 
     // Используем историю из БД или переданные сообщения
     const chatMessages: { role: ChatRole; content: string }[] = [
@@ -492,8 +501,17 @@ ${ragContext || "Нет дополнительных данных."}
     ];
 
     const client = new OpenAI({ apiKey });
+    const allowedModels = new Set(["gpt-4o-mini", "gpt-4o"]);
+    const requestedModel = typeof model === "string" ? model : null;
+    const chosenModel =
+      channel === "alice"
+        ? "gpt-4o"
+        : requestedModel && allowedModels.has(requestedModel)
+          ? requestedModel
+          : "gpt-4o-mini";
+
     const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: chosenModel,
       messages: chatMessages,
       temperature: 0.7,
       max_tokens: 500,

@@ -56,68 +56,9 @@ async function setRedisValue(key: string, value: string, ttlSeconds?: number): P
   }
 }
 
-function getDateRangeAll() {
-  const today = new Date();
-  const dateTo = today.toISOString().split("T")[0];
-  const from = new Date();
-  from.setMonth(from.getMonth() - 6);
-  const dateFrom = from.toISOString().split("T")[0];
-  return { dateFrom, dateTo };
-}
-
-function normalizeStatus(status: string | undefined): string {
-  if (!status) return "-";
-  const lower = status.toLowerCase();
-  if (lower.includes("поставлена на доставку")) return "На доставке";
-  return status;
-}
-
-function getFilterKeyByStatus(status: string | undefined) {
-  const normalized = normalizeStatus(status);
-  const lower = (normalized || "").toLowerCase();
-  if (lower.includes("доставлен") || lower.includes("заверш")) return "delivered";
-  if (lower.includes("пути") || lower.includes("отправлен")) return "in_transit";
-  if (lower.includes("готов")) return "ready";
-  if (lower.includes("доставке")) return "delivering";
-  return "all";
-}
-
-function getPaymentFilterKey(stateBill: string | undefined) {
-  if (!stateBill) return "unknown";
-  const lower = stateBill.toLowerCase().trim();
-  if (
-    lower.includes("не оплачен") ||
-    lower.includes("неоплачен") ||
-    lower.includes("не оплачён") ||
-    lower.includes("неоплачён") ||
-    lower.includes("unpaid") ||
-    lower.includes("ожидает") ||
-    lower.includes("pending")
-  ) {
-    return "unpaid";
-  }
-  if (lower.includes("оплачен") || lower.includes("paid") || lower.includes("оплачён")) return "paid";
-  if (lower.includes("частично") || lower.includes("partial") || lower.includes("частичн")) return "partial";
-  return "unknown";
-}
-
-function formatList(items: any[], limit = 3) {
-  return items.slice(0, limit).map((item) => {
-    const number = item?.Number || item?.number || "-";
-    const status = item?.State ? normalizeStatus(item.State) : "";
-    const sum = item?.Sum ? `, сумма ${item.Sum} ₽` : "";
-    const statusPart = status ? `, статус ${status}` : "";
-    return `№ ${number}${statusPart}${sum}`;
-  });
-}
-
 function getCommandText(reqBody: any): string {
   const raw = reqBody?.request?.command || reqBody?.request?.original_utterance || "";
   return String(raw || "").toLowerCase().trim();
-}
-
-function isYes(text: string) {
-  return ["да", "конечно", "ага", "хочу", "подробнее", "давай", "покажи"].some((w) => text.includes(w));
 }
 
 function extractCode(text: string) {
@@ -145,8 +86,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = req.body;
   const userId = String(body?.session?.user?.user_id || body?.session?.user_id || "anon");
   const text = getCommandText(body);
-  const sessionState = body?.state?.session || {};
-
   // Привязка по коду
   const code = extractCode(text);
   if (code) {
@@ -188,76 +127,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .json(aliceResponse("Привязка повреждена. Получите новый код в мини‑приложении."));
   }
 
-  if (sessionState?.awaiting_details && isYes(text)) {
-    const intent = sessionState?.last_intent || "";
-    const data = Array.isArray(sessionState?.last_data) ? sessionState.last_data : [];
-    const lines = formatList(data, 3);
-    if (intent === "in_transit") {
-      return res.status(200).json(aliceResponse(lines.length ? `Вот детали: ${lines.join("; ")}` : "Подробностей нет.", { awaiting_details: false }));
-    }
-    if (intent === "unpaid_bills") {
-      return res.status(200).json(aliceResponse(lines.length ? `Вот детали: ${lines.join("; ")}` : "Подробностей нет.", { awaiting_details: false }));
-    }
-  }
-
-  if (text.includes("перевозк") && (text.includes("пути") || text.includes("в дороге") || text.includes("в пути"))) {
-    const { dateFrom, dateTo } = getDateRangeAll();
-    const resData = await fetch(`${APP_DOMAIN}/api/perevozki`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo }),
-    });
-    const payload = await resData.json();
-    const items = Array.isArray(payload) ? payload : payload?.items || [];
-    const inTransit = items.filter((i: any) => getFilterKeyByStatus(i.State) === "in_transit");
-    const count = inTransit.length;
-    const summary = inTransit.slice(0, 3).map((i: any) => ({
-      Number: i?.Number,
-      State: i?.State,
-      Sum: i?.Sum,
-    }));
-    return res
-      .status(200)
-      .json(
-        aliceResponse(
-          count === 0
-            ? "Сейчас нет перевозок в пути."
-            : `У вас ${count} перевозок в пути. Хотите подробней?`,
-          { awaiting_details: count > 0, last_intent: "in_transit", last_data: summary }
-        )
-      );
-  }
-
-  if (text.includes("счет") || text.includes("счёт") || text.includes("оплат")) {
-    const { dateFrom, dateTo } = getDateRangeAll();
-    const resData = await fetch(`${APP_DOMAIN}/api/perevozki`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo }),
-    });
-    const payload = await resData.json();
-    const items = Array.isArray(payload) ? payload : payload?.items || [];
-    const unpaid = items.filter((i: any) => getPaymentFilterKey(i.StateBill) === "unpaid");
-    const count = unpaid.length;
-    const summary = unpaid.slice(0, 3).map((i: any) => ({
-      Number: i?.Number,
-      State: i?.State,
-      Sum: i?.Sum,
-      StateBill: i?.StateBill,
-    }));
-    return res
-      .status(200)
-      .json(
-        aliceResponse(
-          count === 0
-            ? "Счетов к оплате нет."
-            : `У вас ${count} счетов на оплату. Хотите подробней?`,
-          { awaiting_details: count > 0, last_intent: "unpaid_bills", last_data: summary }
-        )
-      );
-  }
-
   try {
+    // Обновляем данные и записываем в RAG
+    const today = new Date();
+    const dateTo = today.toISOString().split("T")[0];
+    const from = new Date();
+    from.setMonth(from.getMonth() - 6);
+    const dateFrom = from.toISOString().split("T")[0];
+    await fetch(`${APP_DOMAIN}/api/perevozki`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo }),
+    });
+
     const chatRes = await fetch(`${APP_DOMAIN}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -268,6 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         customer: bind?.customer || undefined,
         auth: { login: bind.login, password: bind.password },
         channel: "alice",
+        model: "gpt-4o",
       }),
     });
     if (chatRes.ok) {
@@ -284,7 +167,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .status(200)
     .json(
       aliceResponse(
-        "Могу подсказать перевозки в пути или счета на оплату. Спросите: «какие перевозки в пути» или «какие счета на оплату»."
+        "Сейчас не удалось получить ответ. Попробуйте повторить запрос."
       )
     );
 }
