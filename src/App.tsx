@@ -5076,6 +5076,59 @@ export default function App() {
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [pullVisible, setPullVisible] = useState(false);
+    const [pullProgress, setPullProgress] = useState(0);
+    const [pullReady, setPullReady] = useState(false);
+
+    useEffect(() => {
+        let startY: number | null = null;
+        let pullDistance = 0;
+        let triggered = false;
+
+        const getScrollTop = () =>
+            document.documentElement.scrollTop || document.body.scrollTop || 0;
+
+        const onTouchStart = (e: TouchEvent) => {
+            if (e.touches.length !== 1) return;
+            if (getScrollTop() > 0) return;
+            startY = e.touches[0].clientY;
+            pullDistance = 0;
+            triggered = false;
+        };
+
+        const onTouchMove = (e: TouchEvent) => {
+            if (startY === null) return;
+            const currentY = e.touches[0].clientY;
+            pullDistance = Math.max(0, currentY - startY);
+            const progress = Math.min(pullDistance / 90, 1);
+            setPullVisible(progress > 0);
+            setPullProgress(progress);
+            setPullReady(progress >= 1);
+        };
+
+        const onTouchEnd = () => {
+            if (startY === null) return;
+            if (!triggered && pullDistance > 90) {
+                triggered = true;
+                window.location.reload();
+            }
+            setPullVisible(false);
+            setPullProgress(0);
+            setPullReady(false);
+            startY = null;
+            pullDistance = 0;
+        };
+
+        document.addEventListener("touchstart", onTouchStart, { passive: true });
+        document.addEventListener("touchmove", onTouchMove, { passive: true });
+        document.addEventListener("touchend", onTouchEnd);
+
+        return () => {
+            document.removeEventListener("touchstart", onTouchStart);
+            document.removeEventListener("touchmove", onTouchMove);
+            document.removeEventListener("touchend", onTouchEnd);
+        };
+    }, []);
 
     useEffect(() => { 
         document.body.className = `${theme}-mode`; 
@@ -5655,9 +5708,52 @@ export default function App() {
         setActiveAccountId(accountId);
     };
 
+    const pullIndicator = (
+        <div
+            style={{
+                position: "fixed",
+                top: 8,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 2000,
+                opacity: pullVisible ? 1 : 0,
+                pointerEvents: "none",
+                transition: "opacity 120ms ease",
+            }}
+        >
+            <div
+                style={{
+                    padding: "6px 12px",
+                    borderRadius: 999,
+                    background: "rgba(15, 23, 42, 0.8)",
+                    color: "#fff",
+                    fontSize: "0.8rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                }}
+            >
+                <div
+                    style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        border: "2px solid rgba(255,255,255,0.3)",
+                        borderTopColor: "#fff",
+                        transform: `rotate(${Math.round(pullProgress * 360)}deg)`,
+                        transition: "transform 60ms linear",
+                    }}
+                />
+                {pullReady ? "Отпустите, чтобы обновить" : "Потяните вниз для обновления"}
+            </div>
+        </div>
+    );
+
     if (!auth) {
         return (
-            <Container className={`app-container login-form-wrapper`}>
+            <>
+                {pullIndicator}
+                <Container className={`app-container login-form-wrapper`}>
                 <Panel mode="secondary" className="login-card">
                     <div className="absolute top-4 right-4">
                         <Button
@@ -5859,12 +5955,15 @@ export default function App() {
                         </div>
                     )}
                 </Panel>
-            </Container>
+                </Container>
+            </>
         );
     }
 
     return (
-        <Container className={`app-container`}>
+        <>
+            {pullIndicator}
+            <Container className={`app-container`}>
             <header className="app-header">
                 <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative' }}>
@@ -6103,6 +6202,7 @@ export default function App() {
                 onClose={() => setIsChatOpen(false)}
                 userId={auth?.login || "anon"}
             />
-        </Container>
+            </Container>
+        </>
     );
 }
