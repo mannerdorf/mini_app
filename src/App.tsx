@@ -250,17 +250,20 @@ const parseDateOnly = (dateString: string | undefined): Date | null => {
     return isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const DAY_SHORT: Record<number, string> = { 0: "вс", 1: "пн", 2: "вт", 3: "ср", 4: "чт", 5: "пт", 6: "сб" };
+
 const getDateInfo = (dateString: string | undefined) => {
     const text = formatDate(dateString);
     const date = parseDateOnly(dateString);
-    if (!date) return { text, isWeekend: false, isHoliday: false };
+    if (!date) return { text, dayShort: "", isWeekend: false, isHoliday: false };
     const day = date.getDay();
     const mm = String(date.getMonth() + 1).padStart(2, "0");
     const dd = String(date.getDate()).padStart(2, "0");
     const key = `${mm}-${dd}`;
     const isWeekend = day === 0 || day === 6;
     const isHoliday = HOLIDAYS_MM_DD.has(key);
-    return { text, isWeekend, isHoliday };
+    const dayShort = DAY_SHORT[day] ?? "";
+    return { text, dayShort, isWeekend, isHoliday };
 };
 
 const getDateTextColor = (dateString: string | undefined) => {
@@ -270,15 +273,18 @@ const getDateTextColor = (dateString: string | undefined) => {
 
 const DateText = ({ value, className, style }: { value?: string; className?: string; style?: React.CSSProperties }) => {
     const info = getDateInfo(value);
-    const classes = [
-        className,
-        info.isHoliday ? "date-holiday" : info.isWeekend ? "date-weekend" : null,
-    ]
-        .filter(Boolean)
-        .join(" ");
+    const isRedDay = info.isWeekend || info.isHoliday;
     return (
-        <span className={classes} style={style}>
-            {info.text}
+        <span className={className || undefined} style={style}>
+            {info.dayShort ? (
+                <>
+                    <span style={isRedDay ? { color: "#ef4444" } : undefined}>{info.dayShort}</span>
+                    {" "}
+                    {info.text}
+                </>
+            ) : (
+                info.text
+            )}
         </span>
     );
 };
@@ -776,7 +782,6 @@ function HomePage({ auth }: { auth: AuthData }) {
                     onClick={() => setIsPeriodModalOpen(true)}
                 >
                     <Typography.Body className="home-period-title">
-                        Период:{" "}
                         <Typography.Label className="home-period-value">
                             {periodLabel.charAt(0).toUpperCase() + periodLabel.slice(1)}
                         </Typography.Label>
@@ -1467,7 +1472,7 @@ function DashboardPage({
             </div>
             
             <Typography.Body className="text-sm text-theme-secondary mb-4 text-center">
-                Период: <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
+                <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
             </Typography.Body>
             
             {loading && (
@@ -3649,7 +3654,7 @@ function CargoPage({
             </div>
 
             <Typography.Body className="text-sm text-theme-secondary mb-4 text-center">
-                Период: <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
+                <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
             </Typography.Body>
 
             {/* Суммирующая строка */}
@@ -4196,21 +4201,19 @@ function CargoDetailsModal({
                 <div className="modal-header">
                     <Flex align="center" justify="space-between">
                         <Flex align="center" gap="0.5rem">
-                        <Button
-                            style={{
-                                padding: '0.25rem',
-                                minWidth: 'auto',
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
+                        {/* Иконка типа перевозки — в 1.5 раза больше остальных (24px при 16px у остальных) */}
+                        {(() => {
+                            const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
+                            return isFerry ? <Ship className="modal-header-transport-icon" style={{ flexShrink: 0, color: 'var(--color-primary-blue)', width: 24, height: 24 }} title="Паром" /> : <Truck className="modal-header-transport-icon" style={{ flexShrink: 0, color: 'var(--color-primary-blue)', width: 24, height: 24 }} title="Авто" />;
+                        })()}
+                        {/* Отступ 3 см между иконкой типа перевозки и шерингом */}
+                        <span style={{ width: '3cm', flexShrink: 0 }} aria-hidden />
+                        <button
+                            type="button"
+                            className="modal-header-icon-btn"
                             onClick={async () => {
                                 if (!item.Number) return;
                                 setDownloading("share");
-                                
                                 try {
                                     const baseOrigin = typeof window !== "undefined" ? window.location.origin : "";
                                     const docTypes: Array<{ label: "ЭР" | "СЧЕТ" | "УПД" | "АПП"; metod: string }> = [
@@ -4219,10 +4222,8 @@ function CargoDetailsModal({
                                         { label: "УПД", metod: DOCUMENT_METHODS["УПД"] },
                                         { label: "АПП", metod: DOCUMENT_METHODS["АПП"] },
                                     ];
-                                    
                                     const shortUrls: Record<string, string> = {};
                                     const longUrls: Record<string, string> = {};
-                                    
                                     const shortenPromises = docTypes.map(async ({ label, metod }) => {
                                         const params = new URLSearchParams({
                                             login: auth.login,
@@ -4232,7 +4233,6 @@ function CargoDetailsModal({
                                         });
                                         const longUrl = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
                                         longUrls[label] = longUrl;
-
                                         try {
                                             const res = await fetch('/api/shorten-doc', {
                                                 method: 'POST',
@@ -4244,7 +4244,6 @@ function CargoDetailsModal({
                                                     number: item.Number,
                                                 }),
                                             });
-                                            
                                             if (res.ok) {
                                                 const data = await res.json();
                                                 shortUrls[label] = data.shortUrl || data.short_url;
@@ -4255,9 +4254,7 @@ function CargoDetailsModal({
                                             shortUrls[label] = longUrl;
                                         }
                                     });
-                                    
                                     await Promise.all(shortenPromises);
-
                                     const lines: string[] = [];
                                     lines.push(`Перевозка: ${item.Number}`);
                                     if (item.State) lines.push(`Статус: ${normalizeStatus(item.State)}`);
@@ -4275,16 +4272,13 @@ function CargoDetailsModal({
                                     if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                     if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
                                     if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
-                                    
                                     lines.push("");
                                     lines.push("Документы:");
                                     lines.push(`ЭР: ${shortUrls["ЭР"]}`);
                                     lines.push(`Счет: ${shortUrls["СЧЕТ"]}`);
                                     lines.push(`УПД: ${shortUrls["УПД"]}`);
                                     lines.push(`АПП: ${shortUrls["АПП"]}`);
-                                    
                                     const text = lines.join("\n");
-
                                     if (typeof navigator !== "undefined" && (navigator as any).share) {
                                         await (navigator as any).share({
                                             title: `HAULZ — перевозка ${item.Number}`,
@@ -4306,13 +4300,15 @@ function CargoDetailsModal({
                             title="Поделиться"
                         >
                             {downloading === "share" ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
-                        </Button>
+                        </button>
                         <Button
                             style={{
                                 padding: '0.25rem',
                                 minWidth: 'auto',
                                 background: 'transparent',
                                 border: 'none',
+                                boxShadow: 'none',
+                                outline: 'none',
                                 cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -4329,6 +4325,8 @@ function CargoDetailsModal({
                                 minWidth: 'auto',
                                 background: 'transparent',
                                 border: 'none',
+                                boxShadow: 'none',
+                                outline: 'none',
                                 cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -4346,12 +4344,8 @@ function CargoDetailsModal({
                                 }}
                             />
                         </Button>
-                        {(() => {
-                            const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
-                            return isFerry ? <Ship className="w-5 h-5" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Паром" /> : <Truck className="w-5 h-5" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Авто" />;
-                        })()}
+                        <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть" style={{ background: 'transparent', border: 'none', boxShadow: 'none', outline: 'none', marginLeft: 'auto' }}><X size={20} style={{ color: 'var(--color-text-secondary)' }} /></Button>
                         </Flex>
-                        <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть" style={{ background: 'transparent', border: 'none' }}><X size={20} style={{ color: 'var(--color-text-secondary)' }} /></Button>
                     </Flex>
                 </div>
                 {downloadError && <Typography.Body className="login-error mb-2">{downloadError}</Typography.Body>}
@@ -5197,8 +5191,11 @@ export default function App() {
                 if (typeof webApp.expand === "function") {
                     webApp.expand();
                 }
-                // Для MAX не используем автоматическую тему из colorScheme
-                if (!isMaxWebApp() && typeof webApp.colorScheme === "string") {
+                // Для MAX не используем автоматическую тему из colorScheme; приоритет — сохранённая тема
+                const savedTheme = typeof window !== "undefined" ? window.localStorage.getItem("haulz.theme") : null;
+                if (savedTheme === "dark" || savedTheme === "light") {
+                    setTheme(savedTheme);
+                } else if (!isMaxWebApp() && typeof webApp.colorScheme === "string") {
                     setTheme(webApp.colorScheme);
                 }
             } catch {
@@ -5206,8 +5203,10 @@ export default function App() {
             }
 
             const themeHandler = () => {
-                // Для MAX не используем автоматическую тему
-                if (!isMaxWebApp() && typeof webApp.colorScheme === "string") {
+                const savedTheme = typeof window !== "undefined" ? window.localStorage.getItem("haulz.theme") : null;
+                if (savedTheme === "dark" || savedTheme === "light") {
+                    setTheme(savedTheme);
+                } else if (!isMaxWebApp() && typeof webApp.colorScheme === "string") {
                     setTheme(webApp.colorScheme);
                 }
                 // Для MAX всегда белый фон
@@ -5332,7 +5331,11 @@ export default function App() {
         status?: StatusFilter;
         search?: string;
     } | null>(null);
-    const [theme, setTheme] = useState('dark'); 
+    const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+        if (typeof window === 'undefined') return 'dark';
+        const saved = window.localStorage.getItem('haulz.theme');
+        return (saved === 'dark' || saved === 'light') ? saved : 'dark';
+    }); 
     const [showDashboard, setShowDashboard] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
     const [pinCode, setPinCode] = useState('');
@@ -5458,8 +5461,13 @@ export default function App() {
         };
     }, []);
 
-    useEffect(() => { 
-        document.body.className = `${theme}-mode`; 
+    useEffect(() => {
+        document.body.className = `${theme}-mode`;
+        try {
+            window.localStorage.setItem('haulz.theme', theme);
+        } catch {
+            // ignore
+        }
         // Для MAX всегда белый фон при изменении темы
         if (isMaxWebApp()) {
             const webApp = getWebApp();
