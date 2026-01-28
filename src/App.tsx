@@ -1117,7 +1117,7 @@ function DashboardPage({
             setLoading(false);
         }
     }, [auth]);
-    
+
     useEffect(() => {
         loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo);
     }, [apiDateRange, loadCargo]);
@@ -3245,6 +3245,16 @@ function CargoPage({
         } catch (e: any) { setError(e.message); } finally { setLoading(false); }
     }, [auth]);
 
+    const pickField = (item: any, keys: string[]): string | null => {
+        for (const key of keys) {
+            const value = item?.[key];
+            if (value === undefined || value === null) continue;
+            const text = String(value).trim();
+            if (text) return text;
+        }
+        return null;
+    };
+
     useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo]);
 
     useEffect(() => {
@@ -3550,7 +3560,7 @@ function CargoPage({
                         >
                             <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem' }}>
                                 <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
-                                    {item.Number}
+                                    {item.Number || '-'}
                                 </Typography.Body>
                                 <Flex align="center" gap="0.5rem">
                                     <Button
@@ -3743,28 +3753,81 @@ function CargoPage({
                                             }} 
                                         />
                                     </Button>
-                                    <Calendar className="w-4 h-4 text-theme-secondary" />
-                                    <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
-                                        <DateText value={item.DatePrih} />
-                                    </Typography.Label>
                             </Flex>
                         </Flex>
-                            <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
-                                <StatusBadge status={item.State} />
-                                <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: getSumColorByPaymentStatus(item.StateBill) }}>
-                                    {formatCurrency(item.Sum)}
-                                </Typography.Body>
-                            </Flex>
-                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>
-                                Заказчик: {item.Customer || '-'}
-                            </Typography.Label>
-                            <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                <Flex gap="1rem">
-                                    <Typography.Label>Мест: {item.Mest || '-'}</Typography.Label>
-                                    <Typography.Label>Вес: {item.PW ? `${item.PW} кг` : '-'}</Typography.Label>
-                                </Flex>
-                                <StatusBillBadge status={item.StateBill} />
-                        </Flex>
+                            {(() => {
+                                const cityFrom = pickField(item, ["CityFrom", "CityFromName", "FromCity", "CityS", "CityStart", "CityDeparture", "CityOrigin"]);
+                                const cityTo = pickField(item, ["CityTo", "CityToName", "ToCity", "CityP", "CityDest", "CityArrival", "CityDestination"]);
+                                const transportType = pickField(item, ["TransportType", "Type", "TypeName", "DeliveryType", "CargoType"]);
+                                const receiver = pickField(item, ["Receiver", "Consignee", "Recipient", "ReceiverName"]);
+                                const order = pickField(item, ["Order", "OrderId", "OrderNumber", "RequestNumber", "Application"]);
+                                const isFerry =
+                                    item?.AK === true ||
+                                    item?.AK === "true" ||
+                                    item?.AK === "1" ||
+                                    item?.AK === 1;
+                                const transportLabel = isFerry ? "Паром" : transportType;
+
+                                return (
+                                    <Flex gap="1rem" style={{ flexWrap: 'wrap' }}>
+                                        <div style={{ flex: 1, minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Дата прихода: <DateText value={item.DatePrih} />
+                                            </Typography.Label>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Отправитель: {item.Sender || '-'}
+                                            </Typography.Label>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Мест: {item.Mest ?? '-'}
+                                            </Typography.Label>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Вес: {item.W ? `${item.W} кг` : '-'}
+                                            </Typography.Label>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Стоимость: <span style={{ color: getSumColorByPaymentStatus(item.StateBill) }}>{formatCurrency(item.Sum)}</span>
+                                            </Typography.Label>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Город отправления: {cityFrom || '-'}
+                                            </Typography.Label>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Тип перевозки: {transportLabel || '-'}
+                                            </Typography.Label>
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                            <Flex align="center" style={{ gap: '0.4rem' }}>
+                                                <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                    Статус:
+                                                </Typography.Label>
+                                                <StatusBadge status={item.State} />
+                                            </Flex>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Доставка: <DateText value={item.DateVr} />
+                                            </Typography.Label>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Получатель: {receiver || '-'}
+                                            </Typography.Label>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Плат. вес: {item.PW ? `${item.PW} кг` : '-'}
+                                            </Typography.Label>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Объем: {item.Value ? `${item.Value} м³` : '-'}
+                                            </Typography.Label>
+                                            <Flex align="center" style={{ gap: '0.4rem' }}>
+                                                <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                    Статус счета:
+                                                </Typography.Label>
+                                                <StatusBillBadge status={item.StateBill} />
+                                            </Flex>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Город назначения: {cityTo || '-'}
+                                            </Typography.Label>
+                                            <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                Номер заявки: {order || '-'}
+                                            </Typography.Label>
+                                        </div>
+                                    </Flex>
+                                );
+                            })()}
                     </Panel>
                 ))}
             </div>
