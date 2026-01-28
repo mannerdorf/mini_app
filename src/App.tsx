@@ -3756,9 +3756,9 @@ function CargoPage({
                             </Flex>
                         </Flex>
                             {(() => {
-                                const cityFrom = pickField(item, ["CityFrom", "CityFromName", "FromCity", "CityS", "CityStart", "CityDeparture", "CityOrigin"]);
-                                const cityTo = pickField(item, ["CityTo", "CityToName", "ToCity", "CityP", "CityDest", "CityArrival", "CityDestination"]);
-                                const transportType = pickField(item, ["TransportType", "Type", "TypeName", "DeliveryType", "CargoType"]);
+                                const cityFrom = pickField(item, ["CitySender", "CityFrom", "CityFromName", "FromCity", "CityS", "CityStart", "CityDeparture", "CityOrigin"]);
+                                const cityTo = pickField(item, ["CityReceiver", "CityTo", "CityToName", "ToCity", "CityP", "CityDest", "CityArrival", "CityDestination"]);
+                                const transportType = pickField(item, ["TypeOfTranzit", "TypeOfTransit", "TransportType", "Type", "TypeName", "DeliveryType", "CargoType"]);
                                 const receiver = pickField(item, ["Receiver", "Consignee", "Recipient", "ReceiverName"]);
                                 const order = pickField(item, ["Order", "OrderId", "OrderNumber", "RequestNumber", "Application"]);
                                 const isFerry =
