@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React, { useRef, useLayoutEffect, useState } from "react";
@@ -165,15 +165,21 @@ const getSixMonthsAgoDate = () => {
 const DEFAULT_DATE_FROM = getSixMonthsAgoDate();
 const DEFAULT_DATE_TO = getTodayDate();
 
-/** Плановые сроки доставки (дней): авто 9, паром 21 */
-const AUTO_PLAN_DAYS = 9;
+/** Плановые сроки доставки (дней): MSK-KGD авто 8 / паром 21; KGD-MSK авто и паром 60 */
+const AUTO_PLAN_DAYS = 8;
 const FERRY_PLAN_DAYS = 21;
+const KGD_MSK_PLAN_DAYS = 60;
 
 function isFerry(item: CargoItem): boolean {
     return item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
 }
 
+function isRouteKgdMsk(item: CargoItem): boolean {
+    return cityToCode(item.CitySender) === 'KGD' && cityToCode(item.CityReceiver) === 'MSK';
+}
+
 function getPlanDays(item: CargoItem): number {
+    if (isRouteKgdMsk(item)) return KGD_MSK_PLAN_DAYS;
     return isFerry(item) ? FERRY_PLAN_DAYS : AUTO_PLAN_DAYS;
 }
 
@@ -1124,6 +1130,7 @@ function DashboardPage({
     const receiverButtonRef = useRef<HTMLDivElement>(null);
     const typeButtonRef = useRef<HTMLDivElement>(null);
     const routeButtonRef = useRef<HTMLDivElement>(null);
+    const [slaDetailsOpen, setSlaDetailsOpen] = useState(false);
     
     // Chart type selector: деньги / вес / объём
     const [chartType, setChartType] = useState<'money' | 'weight' | 'volume'>('money');
@@ -1330,6 +1337,36 @@ function DashboardPage({
             ? Math.round(delayed.reduce((sum, s) => sum + s.delayDays, 0) / delayed.length)
             : 0;
         return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay };
+    }, [filteredItems]);
+
+    const slaStatsByType = useMemo(() => {
+        const autoItems = filteredItems.filter(i => !isFerry(i));
+        const ferryItems = filteredItems.filter(i => isFerry(i));
+        const calc = (arr: CargoItem[]) => {
+            const withSla = arr.map(i => getSlaInfo(i)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
+            const total = withSla.length;
+            const onTime = withSla.filter(s => s.onTime).length;
+            const delayed = withSla.filter(s => !s.onTime);
+            const avgDelay = delayed.length > 0 ? Math.round(delayed.reduce((sum, s) => sum + s.delayDays, 0) / delayed.length) : 0;
+            return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay };
+        };
+        return { auto: calc(autoItems), ferry: calc(ferryItems) };
+    }, [filteredItems]);
+
+    const slaTrend = useMemo(() => {
+        const withSla = filteredItems
+            .map(i => ({ item: i, sla: getSlaInfo(i) }))
+            .filter((x): x is { item: CargoItem; sla: NonNullable<ReturnType<typeof getSlaInfo>> } => x.sla != null);
+        if (withSla.length < 4) return null;
+        const sorted = [...withSla].sort((a, b) => (new Date(a.item.DateVr || 0).getTime()) - (new Date(b.item.DateVr || 0).getTime()));
+        const mid = Math.floor(sorted.length / 2);
+        const first = sorted.slice(0, mid);
+        const second = sorted.slice(mid);
+        const p1 = first.length ? Math.round((first.filter(x => x.sla.onTime).length / first.length) * 100) : 0;
+        const p2 = second.length ? Math.round((second.filter(x => x.sla.onTime).length / second.length) * 100) : 0;
+        if (p2 > p1) return 'up';
+        if (p2 < p1) return 'down';
+        return null;
     }, [filteredItems]);
 
     const stripDiagramBySender = useMemo(() => {
@@ -1553,9 +1590,19 @@ function DashboardPage({
                         minWidth: 0,
                     }}
                 >
-                    <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
-                    </Typography.Body>
+                    <span
+                        onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            setDateFilter('период');
+                            setIsCustomModalOpen(true);
+                        }}
+                        style={{ cursor: 'pointer', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        title="Выбрать период"
+                    >
+                        <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600 }}>
+                            {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
+                        </Typography.Body>
+                    </span>
                     <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                         <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Деньги"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                         <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'weight' ? '#10b981' : 'transparent', border: 'none' }} onClick={() => setChartType('weight')} title="Вес"><Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
@@ -1757,29 +1804,72 @@ function DashboardPage({
                 </Panel>
             )}
 
-            {/* Монитор SLA: плановые сроки авто 9 дн., паром 21 дн. */}
+            {/* Монитор SLA: плановые сроки авто 8 дн., паром 21 дн. */}
             {!loading && !error && slaStats.total > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
-                    <Typography.Headline style={{ marginBottom: '0.75rem', fontSize: '0.95rem', fontWeight: 600 }}>
-                        Монитор SLA
-                    </Typography.Headline>
-                    <Flex gap="1rem" wrap="wrap" align="center">
-                        <div>
-                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>В срок</Typography.Body>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.percentOnTime >= 90 ? 'var(--color-success-status)' : slaStats.percentOnTime >= 70 ? '#f59e0b' : '#ef4444' }}>
+                    <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem' }}>
+                        <Typography.Headline style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+                            Монитор SLA
+                        </Typography.Headline>
+                        {slaTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} title="Динамика SLA улучшается" />}
+                        {slaTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} title="Динамика SLA ухудшается" />}
+                    </Flex>
+                    <Flex gap="1.5rem" wrap="wrap" align="flex-start" style={{ marginBottom: '1rem' }}>
+                        <div style={{ minWidth: 0 }}>
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>В срок</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.percentOnTime >= 90 ? 'var(--color-success-status)' : slaStats.percentOnTime >= 70 ? '#f59e0b' : '#ef4444', marginBottom: '0.25rem' }}>
                                 {slaStats.percentOnTime}%
                             </Typography.Body>
                             <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
                                 {slaStats.onTime} из {slaStats.total} перевозок
                             </Typography.Body>
                         </div>
-                        <div>
-                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Средняя просрочка</Typography.Body>
+                        <div style={{ minWidth: 0 }}>
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Средняя просрочка</Typography.Body>
                             <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.avgDelay > 0 ? '#ef4444' : 'var(--color-text-primary)' }}>
                                 {slaStats.avgDelay} дн.
                             </Typography.Body>
                         </div>
                     </Flex>
+                    <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSlaDetailsOpen(!slaDetailsOpen)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSlaDetailsOpen(!slaDetailsOpen); } }}
+                        style={{ cursor: 'pointer', marginBottom: slaDetailsOpen ? '0.75rem' : 0 }}
+                        title={slaDetailsOpen ? 'Свернуть' : 'Подробности по типу перевозки'}
+                    >
+                        <div style={{ height: 12, borderRadius: 6, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                            <div
+                                style={{
+                                    width: `${slaStats.percentOnTime}%`,
+                                    height: '100%',
+                                    borderRadius: 6,
+                                    background: `linear-gradient(90deg, var(--color-success-status) 0%, #f59e0b 50%, #ef4444 100%)`,
+                                    transition: 'width 0.3s ease',
+                                }}
+                            />
+                        </div>
+                        <Typography.Body style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+                            {slaDetailsOpen ? '▼ Подробности' : '▶ Нажмите для разбивки по типу перевозки'}
+                        </Typography.Body>
+                    </div>
+                    {slaDetailsOpen && (
+                        <div style={{ paddingTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
+                            <div style={{ marginBottom: '0.5rem' }}>
+                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.2rem' }}>Авто</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                    В срок: {slaStatsByType.auto.percentOnTime}% ({slaStatsByType.auto.onTime} из {slaStatsByType.auto.total}), ср. просрочка: {slaStatsByType.auto.avgDelay} дн.
+                                </Typography.Body>
+                            </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.2rem' }}>Паром</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                    В срок: {slaStatsByType.ferry.percentOnTime}% ({slaStatsByType.ferry.onTime} из {slaStatsByType.ferry.total}), ср. просрочка: {slaStatsByType.ferry.avgDelay} дн.
+                                </Typography.Body>
+                            </div>
+                        </div>
+                    )}
                 </Panel>
             )}
             
@@ -4354,7 +4444,14 @@ function CargoDetailsModal({
                     const displayLabel = mapTimelineStageLabel(labelStr, item);
                     return { label: displayLabel, date, completed: true };
                 });
-                setPerevozkaTimeline(steps.length ? steps : null);
+                // Порядок: сначала «Получена в месте отправления», затем «Измерена», остальные — как в API
+                const fromCity = cityToCode(item.CitySender) || '—';
+                const senderLabel = `Получена в ${fromCity}`;
+                const orderOf = (l: string, i: number) => l === senderLabel ? 0 : l === 'Измерена' ? 1 : 2 + i;
+                const sorted = steps.map((s, i) => ({ s, key: orderOf(s.label, i) }))
+                    .sort((a, b) => a.key - b.key)
+                    .map(x => x.s);
+                setPerevozkaTimeline(sorted.length ? sorted : null);
             })
             .catch((e: any) => {
                 if (!cancelled) setPerevozkaError(e?.message || 'Не удалось загрузить статусы');
@@ -4411,7 +4508,20 @@ function CargoDetailsModal({
         
         return `${val}${unit ? ' ' + unit : ''}`;
     };
-    
+
+    // Время в пути и SLA по таймлайну: от «получена в месте получения» (Прибыла в [город]) до текущего времени по МСК / до «Доставлена»
+    const receivedAtDest = perevozkaTimeline?.find(s => s.label.startsWith('Прибыла в '));
+    const deliveredStep = perevozkaTimeline?.find(s => s.label === 'Доставлена');
+    const slaFromTimeline = (receivedAtDest?.date && deliveredStep?.date)
+        ? (() => {
+            const startMs = new Date(receivedAtDest.date).getTime();
+            const endMs = new Date(deliveredStep.date).getTime();
+            const actualDays = Math.round((endMs - startMs) / (24 * 60 * 60 * 1000));
+            const planDays = getPlanDays(item);
+            return { planDays, actualDays, onTime: actualDays <= planDays, delayDays: Math.max(0, actualDays - planDays) };
+        })()
+        : null;
+
     const downloadFile = (blob: Blob, fileName: string) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -4761,11 +4871,9 @@ function CargoDetailsModal({
                             <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>{perevozkaError}</Typography.Body>
                         )}
                         {!perevozkaLoading && perevozkaTimeline && perevozkaTimeline.length > 0 && (() => {
-                            const datesWithMs = perevozkaTimeline
-                                .map(s => s.date ? new Date(s.date).getTime() : NaN)
-                                .filter(t => !isNaN(t));
-                            const totalHours = datesWithMs.length >= 2
-                                ? Math.round((Math.max(...datesWithMs) - Math.min(...datesWithMs)) / (1000 * 60 * 60))
+                            // Итого время в пути: от «получена в месте получения» до текущего времени по Москве
+                            const totalHours = receivedAtDest?.date
+                                ? Math.max(0, Math.round((Date.now() - new Date(receivedAtDest.date).getTime()) / (1000 * 60 * 60))
                                 : null;
                             return (
                             <div>
@@ -4802,17 +4910,16 @@ function CargoDetailsModal({
                     </div>
                 )}
 
-                {/* Плановый срок доставки: авто 9 дн., паром 21 дн. */}
+                {/* SLA: только статус В срок / Опоздание, без указания дней */}
                 {(() => {
-                    const sla = getSlaInfo(item);
+                    const sla = slaFromTimeline;
                     if (!sla) return null;
                     return (
                         <div style={{ marginTop: '0.5rem', marginBottom: '1rem' }}>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                План: {sla.planDays} дн. Факт: {sla.actualDays} дн.{' '}
                                 {sla.onTime
                                     ? <span style={{ color: 'var(--color-success-status)' }}>В срок</span>
-                                    : <span style={{ color: '#ef4444' }}>Просрочка {sla.delayDays} дн.</span>
+                                    : <span style={{ color: '#ef4444' }}>Опоздание</span>
                                 }
                             </Typography.Body>
                         </div>
