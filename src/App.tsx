@@ -304,6 +304,28 @@ const stripOoo = (name: string | undefined | null): string => {
     return name.replace(/\s*ООО\s*«?/gi, ' ').replace(/»?\s*ООО\s*/gi, ' ').replace(/\s+/g, ' ').trim() || name;
 };
 
+/** Транслитерация кириллицы в латиницу для имени файла при скачивании */
+const TRANSLIT_MAP: Record<string, string> = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e', 'ж': 'zh', 'з': 'z',
+    'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r',
+    'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
+    'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
+};
+const transliterateFilename = (fileName: string): string => {
+    if (!fileName || typeof fileName !== 'string') return fileName || '';
+    let out = '';
+    for (let i = 0; i < fileName.length; i++) {
+        const c = fileName[i];
+        const lower = c.toLowerCase();
+        if (TRANSLIT_MAP[lower] !== undefined) {
+            out += c === c.toUpperCase() && c !== c.toLowerCase() ? TRANSLIT_MAP[lower].charAt(0).toUpperCase() + TRANSLIT_MAP[lower].slice(1) : TRANSLIT_MAP[lower];
+        } else {
+            out += c;
+        }
+    }
+    return out;
+};
+
 // Функция для нормализации статуса
 const normalizeStatus = (status: string | undefined): string => {
     if (!status) return '-';
@@ -3195,7 +3217,7 @@ function CargoPage({
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [showSummary, setShowSummary] = useState(true);
     // Sort State
-    const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>(null);
+    const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>('datePrih');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     
     // Favorites State
@@ -3487,17 +3509,7 @@ function CargoPage({
             {/* Filters */}
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
-                    <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
-                        Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
-                    </Button>
-                    {isDateDropdownOpen && <div className="filter-dropdown">
-                        {['сегодня', 'неделя', 'месяц', 'период'].map(key => (
-                            <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key==='период') setIsCustomModalOpen(true); }}>
-                                <Typography.Body>{key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
-                            </div>
-                        ))}
-                    </div>}
-                    {/* Кнопка сортировки по датам */}
+                    {/* Кнопка сортировки по датам — первая */}
                     <Button 
                         className="filter-button" 
                         style={{ padding: '0.5rem', minWidth: 'auto' }}
@@ -3538,8 +3550,18 @@ function CargoPage({
                             <ArrowDown className="w-4 h-4" />
                         )}
                     </Button>
+                    <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                        Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                    </Button>
+                    {isDateDropdownOpen && <div className="filter-dropdown">
+                        {['сегодня', 'неделя', 'месяц', 'период'].map(key => (
+                            <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key==='период') setIsCustomModalOpen(true); }}>
+                                <Typography.Body>{key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
+                            </div>
+                        ))}
+                    </div>}
                 </div>
-                <div className="filter-group">
+                <div className="filter-group" style={{ flexShrink: 0 }}>
                     <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                         Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
                     </Button>
@@ -3659,10 +3681,6 @@ function CargoPage({
                                     {item.Number || '-'}
                                 </Typography.Body>
                                 <Flex align="center" gap="0.5rem">
-                                    {(() => {
-                                        const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
-                                        return isFerry ? <Ship className="w-4 h-4 text-theme-secondary" style={{ flexShrink: 0 }} title="Паром" /> : <Truck className="w-4 h-4 text-theme-secondary" style={{ flexShrink: 0 }} title="Авто" />;
-                                    })()}
                                     <Button
                                         style={{ 
                                             padding: '0.25rem', 
@@ -3746,9 +3764,14 @@ function CargoPage({
                                             lines.push(`Перевозка: ${item.Number}`);
                                             if (item.State) lines.push(`Статус: ${normalizeStatus(item.State)}`);
                                             if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
-                                            if (item.DateVr) lines.push(`Доставка: ${formatDate(item.DateVr)}`);
+                                            lines.push(`Доставка: ${getFilterKeyByStatus(item.State) === 'delivered' && item.DateVr ? formatDate(item.DateVr) : '-'}`);
                                             if (item.Sender) lines.push(`Отправитель: ${stripOoo(item.Sender)}`);
                                             if (item.Customer) lines.push(`Заказчик: ${stripOoo(item.Customer)}`);
+                                            lines.push(`Тип перевозки: ${item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1 ? 'Паром' : 'Авто'}`);
+                                            const fromCity = cityToCode(item.CitySender);
+                                            const toCity = cityToCode(item.CityReceiver);
+                                            lines.push(`Место отправления: ${fromCity || '-'}`);
+                                            lines.push(`Место получения: ${toCity || '-'}`);
                                             if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
                                             if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                             if (item.W !== undefined) lines.push(`Вес: ${item.W} кг`);
@@ -3880,7 +3903,7 @@ function CargoPage({
                                     const route = [from, to].filter(Boolean).join(' – ') || '-';
                                     return (
                                         <>
-                                            {isFerry ? <Ship className="w-4 h-4 text-theme-secondary" style={{ flexShrink: 0 }} title="Паром" /> : <Truck className="w-4 h-4 text-theme-secondary" style={{ flexShrink: 0 }} title="Авто" />}
+                                            {isFerry ? <Ship className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Паром" /> : <Truck className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Авто" />}
                                             <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>{route}</Typography.Label>
                                         </>
                                     );
@@ -4055,15 +4078,16 @@ function CargoDetailsModal({
             const byteArray = new Uint8Array(byteNumbers);
             const blob = new Blob([byteArray], { type: "application/pdf" });
             const fileName = data.name || `${docType}_${item.Number}.pdf`;
+            const fileNameTranslit = transliterateFilename(fileName);
 
             // Метод 4: object/embed - показываем встроенным просмотрщиком
             const url = URL.createObjectURL(blob);
             setPdfViewer({
                 url,
-                name: fileName,
+                name: fileNameTranslit,
                 docType,
                 blob, // Сохраняем blob для скачивания
-                downloadFileName: fileName
+                downloadFileName: fileNameTranslit
             });
             
             // Если скачали УПД в MAX - закрываем мини-апп после скачивания
@@ -4189,9 +4213,15 @@ function CargoDetailsModal({
                                     lines.push(`Перевозка: ${item.Number}`);
                                     if (item.State) lines.push(`Статус: ${normalizeStatus(item.State)}`);
                                     if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
-                                    if (item.DateVr) lines.push(`Доставка: ${formatDate(item.DateVr)}`);
+                                    lines.push(`Доставка: ${getFilterKeyByStatus(item.State) === 'delivered' && item.DateVr ? formatDate(item.DateVr) : '-'}`);
                                     if (item.Sender) lines.push(`Отправитель: ${stripOoo(item.Sender)}`);
+                                    if (item.Customer) lines.push(`Заказчик: ${stripOoo(item.Customer)}`);
                                     if (item.Receiver ?? item.receiver) lines.push(`Получатель: ${stripOoo(item.Receiver ?? item.receiver)}`);
+                                    lines.push(`Тип перевозки: ${item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1 ? 'Паром' : 'Авто'}`);
+                                    const fromCity = cityToCode(item.CitySender);
+                                    const toCity = cityToCode(item.CityReceiver);
+                                    lines.push(`Место отправления: ${fromCity || '-'}`);
+                                    lines.push(`Место получения: ${toCity || '-'}`);
                                     if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
                                     if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                     if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
@@ -4268,7 +4298,13 @@ function CargoDetailsModal({
                             />
                         </Button>
                         </Flex>
-                        <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></Button>
+                        <Flex align="center" gap="0.5rem">
+                            {(() => {
+                                const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
+                                return isFerry ? <Ship className="w-5 h-5" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Паром" /> : <Truck className="w-5 h-5" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Авто" />;
+                            })()}
+                            <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></Button>
+                        </Flex>
                     </Flex>
                 </div>
                 {downloadError && <Typography.Body className="login-error mb-2">{downloadError}</Typography.Body>}
@@ -4370,11 +4406,18 @@ function CargoDetailsModal({
                 {/* Встроенный просмотрщик PDF (метод 4: object/embed) */}
                 {pdfViewer && (
                     <div style={{ marginTop: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-                        <div style={{ padding: '0.5rem', background: 'var(--color-bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography.Label style={{ fontSize: '0.8rem' }}>{pdfViewer.name}</Typography.Label>
-                            <Button size="small" onClick={() => { URL.revokeObjectURL(pdfViewer.url); setPdfViewer(null); }}>
-                                <X size={16} />
+                        <div style={{ padding: '0.5rem', background: 'var(--color-bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                            <Typography.Label style={{ fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pdfViewer.name}</Typography.Label>
+                            <Flex align="center" gap="0.25rem">
+                                {pdfViewer.blob && (
+                                    <Button size="small" onClick={() => downloadFile(pdfViewer.blob!, pdfViewer.downloadFileName || pdfViewer.name)} title="Скачать">
+                                        <Download className="w-4 h-4" />
+                                    </Button>
+                                )}
+                                <Button size="small" onClick={() => { URL.revokeObjectURL(pdfViewer.url); setPdfViewer(null); }}>
+                                    <X size={16} />
                                 </Button>
+                            </Flex>
                         </div>
                         <object 
                             data={pdfViewer.url} 

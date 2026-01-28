@@ -8,6 +8,25 @@ const EXTERNAL_API_BASE_URL =
 // Authorization: Basic YWRtaW46anVlYmZueWU=
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
+const TRANSLIT: Record<string, string> = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z",
+  и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r",
+  с: "s", т: "t", у: "u", ф: "f", х: "kh", ц: "ts", ч: "ch", ш: "sh", щ: "shch",
+  ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
+};
+function transliterateFilename(s: string): string {
+  if (!s || typeof s !== "string") return s || "";
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    const lower = c.toLowerCase();
+    const t = TRANSLIT[lower];
+    if (t !== undefined) out += c === c.toUpperCase() && c !== lower ? (t.charAt(0).toUpperCase() + t.slice(1)) : t;
+    else out += c;
+  }
+  return out;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST" && req.method !== "GET") {
     res.setHeader("Allow", "POST, GET");
@@ -171,9 +190,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         const upstreamDisposition = upstreamRes.headers["content-disposition"];
         const defaultFileName = `${metod}_${number}.pdf`;
-        const fileName = extractFileName(upstreamDisposition, defaultFileName);
+        const fileNameRaw = extractFileName(upstreamDisposition, defaultFileName);
+        const fileName = transliterateFilename(fileNameRaw);
         
-        console.log("📝 Extracted filename:", fileName, "from header:", upstreamDisposition);
+        console.log("📝 Extracted filename:", fileNameRaw, "-> translit:", fileName);
         
         // Проверяем, что это действительно PDF
         const firstBytes = fullBuffer.slice(0, 4).toString();
