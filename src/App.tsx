@@ -165,9 +165,9 @@ const getSixMonthsAgoDate = () => {
 const DEFAULT_DATE_FROM = getSixMonthsAgoDate();
 const DEFAULT_DATE_TO = getTodayDate();
 
-/** Плановые сроки доставки (дней): MSK-KGD авто 8 / паром 21; KGD-MSK авто и паром 60 */
-const AUTO_PLAN_DAYS = 8;
-const FERRY_PLAN_DAYS = 21;
+/** Плановые сроки доставки (дней): MSK-KGD авто 6 / паром 20; KGD-MSK авто и паром 60 */
+const AUTO_PLAN_DAYS = 6;
+const FERRY_PLAN_DAYS = 20;
 const KGD_MSK_PLAN_DAYS = 60;
 
 function isFerry(item: CargoItem): boolean {
@@ -1804,7 +1804,7 @@ function DashboardPage({
                 </Panel>
             )}
 
-            {/* Монитор SLA: плановые сроки авто 8 дн., паром 21 дн. */}
+            {/* Монитор SLA: плановые сроки авто 6 дн., паром 20 дн. (MSK-KGD); KGD-MSK 60 дн. */}
             {!loading && !error && slaStats.total > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
                     <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem' }}>
@@ -1814,10 +1814,10 @@ function DashboardPage({
                         {slaTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} title="Динамика SLA улучшается" />}
                         {slaTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} title="Динамика SLA ухудшается" />}
                     </Flex>
-                    <Flex gap="1.5rem" wrap="wrap" align="flex-start" style={{ marginBottom: '1rem' }}>
+                    <Flex gap="2rem" wrap="wrap" align="flex-start" style={{ marginBottom: '1rem' }}>
                         <div style={{ minWidth: 0 }}>
-                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>В срок</Typography.Body>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.percentOnTime >= 90 ? 'var(--color-success-status)' : slaStats.percentOnTime >= 70 ? '#f59e0b' : '#ef4444', marginBottom: '0.25rem' }}>
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.4rem' }}>В срок</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.percentOnTime >= 90 ? 'var(--color-success-status)' : slaStats.percentOnTime >= 70 ? '#f59e0b' : '#ef4444', marginBottom: '0.4rem' }}>
                                 {slaStats.percentOnTime}%
                             </Typography.Body>
                             <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
@@ -1825,7 +1825,7 @@ function DashboardPage({
                             </Typography.Body>
                         </div>
                         <div style={{ minWidth: 0 }}>
-                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Средняя просрочка</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.4rem' }}>Средняя просрочка</Typography.Body>
                             <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.avgDelay > 0 ? '#ef4444' : 'var(--color-text-primary)' }}>
                                 {slaStats.avgDelay} дн.
                             </Typography.Body>
@@ -1856,16 +1856,16 @@ function DashboardPage({
                     </div>
                     {slaDetailsOpen && (
                         <div style={{ paddingTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
-                            <div style={{ marginBottom: '0.5rem' }}>
-                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.2rem' }}>Авто</Typography.Body>
+                            <div style={{ marginBottom: '0.6rem' }}>
+                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>Авто</Typography.Body>
                                 <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                    В срок: {slaStatsByType.auto.percentOnTime}% ({slaStatsByType.auto.onTime} из {slaStatsByType.auto.total}), ср. просрочка: {slaStatsByType.auto.avgDelay} дн.
+                                    {slaStatsByType.auto.percentOnTime}% ({slaStatsByType.auto.onTime}/{slaStatsByType.auto.total}), ср. {slaStatsByType.auto.avgDelay} дн.
                                 </Typography.Body>
                             </div>
                             <div>
-                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.2rem' }}>Паром</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>Паром</Typography.Body>
                                 <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                    В срок: {slaStatsByType.ferry.percentOnTime}% ({slaStatsByType.ferry.onTime} из {slaStatsByType.ferry.total}), ср. просрочка: {slaStatsByType.ferry.avgDelay} дн.
+                                    {slaStatsByType.ferry.percentOnTime}% ({slaStatsByType.ferry.onTime}/{slaStatsByType.ferry.total}), ср. {slaStatsByType.ferry.avgDelay} дн.
                                 </Typography.Body>
                             </div>
                         </div>
@@ -4444,10 +4444,23 @@ function CargoDetailsModal({
                     const displayLabel = mapTimelineStageLabel(labelStr, item);
                     return { label: displayLabel, date, completed: true };
                 });
-                // Порядок: сначала «Получена в месте отправления», затем «Измерена», остальные — как в API
+                // Порядок статусов: Получена информация → Получена в месте отправления → Измерена → Консолидация → Загружена в ТС → Отправлена → Прибыла в место получения → Запланирована доставка → Доставлена
                 const fromCity = cityToCode(item.CitySender) || '—';
+                const toCity = cityToCode(item.CityReceiver) || '—';
                 const senderLabel = `Получена в ${fromCity}`;
-                const orderOf = (l: string, i: number) => l === senderLabel ? 0 : l === 'Измерена' ? 1 : 2 + i;
+                const arrivedAtDestLabel = `Прибыла в ${toCity}`;
+                const orderOf = (l: string, i: number): number => {
+                    if (l === 'Получена информация') return 1;
+                    if (l === senderLabel) return 2;
+                    if (l === 'Измерена') return 3;
+                    if (l === 'Консолидация') return 4;
+                    if (l === 'Загружена в ТС') return 5;
+                    if (l === 'Отправлена') return 6;
+                    if (l === arrivedAtDestLabel) return 7;
+                    if (l === 'Запланирована доставка') return 8;
+                    if (l === 'Доставлена') return 9;
+                    return 10 + i;
+                };
                 const sorted = steps.map((s, i) => ({ s, key: orderOf(s.label, i) }))
                     .sort((a, b) => a.key - b.key)
                     .map(x => x.s);
@@ -4509,12 +4522,13 @@ function CargoDetailsModal({
         return `${val}${unit ? ' ' + unit : ''}`;
     };
 
-    // Время в пути и SLA по таймлайну: от «получена в месте получения» (Прибыла в [город]) до текущего времени по МСК / до «Доставлена»
-    const receivedAtDest = perevozkaTimeline?.find(s => s.label.startsWith('Прибыла в '));
+    // SLA и итого время в пути: от «получена в месте отправления» (Получена в [город отправления]) до текущего МСК / до «Доставлена»
+    const fromCity = cityToCode(item.CitySender) || '—';
+    const receivedAtSender = perevozkaTimeline?.find(s => s.label === `Получена в ${fromCity}`);
     const deliveredStep = perevozkaTimeline?.find(s => s.label === 'Доставлена');
-    const slaFromTimeline = (receivedAtDest?.date && deliveredStep?.date)
+    const slaFromTimeline = (receivedAtSender?.date && deliveredStep?.date)
         ? (() => {
-            const startMs = new Date(receivedAtDest.date).getTime();
+            const startMs = new Date(receivedAtSender.date).getTime();
             const endMs = new Date(deliveredStep.date).getTime();
             const actualDays = Math.round((endMs - startMs) / (24 * 60 * 60 * 1000));
             const planDays = getPlanDays(item);
@@ -4872,8 +4886,8 @@ function CargoDetailsModal({
                         )}
                         {!perevozkaLoading && perevozkaTimeline && perevozkaTimeline.length > 0 && (() => {
                             // Итого время в пути: от «получена в месте получения» до текущего времени по Москве
-                            const totalHours = receivedAtDest?.date
-                                ? Math.max(0, Math.round((Date.now() - new Date(receivedAtDest.date).getTime()) / (1000 * 60 * 60)))
+                            const totalHours = receivedAtSender?.date
+                                ? Math.max(0, Math.round((Date.now() - new Date(receivedAtSender.date).getTime()) / (1000 * 60 * 60)))
                                 : null;
                             return (
                             <div>
