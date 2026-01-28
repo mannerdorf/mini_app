@@ -1477,7 +1477,7 @@ function DashboardPage({
 
     return (
         <div className="w-full">
-            {/* Раскрывающаяся полоска: период + переключатель деньги/вес/объём + диаграммы по типу/отправителю/получателю */}
+            {/* Раскрывающаяся полоска: в свёрнутом виде — только период; в развёрнутом — переключатель деньги/вес/объём и диаграммы */}
             <div
                 className="home-strip"
                 style={{
@@ -1507,61 +1507,38 @@ function DashboardPage({
                     <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600 }}>
                         {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
                     </Typography.Body>
-                    <Flex align="center" gap="0.5rem">
-                        <Flex
-                            gap="0.25rem"
-                            align="center"
-                            style={{ padding: '0.25rem 0.5rem', background: 'var(--color-bg-hover)', borderRadius: '8px', border: '1px solid var(--color-border)' }}
-                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                        >
-                            <Button
-                                className="filter-button"
-                                style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }}
-                                onClick={() => setChartType('money')}
-                                title="Деньги"
-                            >
-                                <RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} />
-                            </Button>
-                            <Button
-                                className="filter-button"
-                                style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'weight' ? '#10b981' : 'transparent', border: 'none' }}
-                                onClick={() => setChartType('weight')}
-                                title="Вес"
-                            >
-                                <Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} />
-                            </Button>
-                            <Button
-                                className="filter-button"
-                                style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'volume' ? '#f59e0b' : 'transparent', border: 'none' }}
-                                onClick={() => setChartType('volume')}
-                                title="Объём"
-                            >
-                                <List className="w-4 h-4" style={{ color: chartType === 'volume' ? 'white' : 'var(--color-text-secondary)' }} />
-                            </Button>
-                        </Flex>
-                        <Typography.Body style={{ fontWeight: 600, minWidth: '80px' }}>{formatStripValue()}</Typography.Body>
-                        <ChevronDown className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', transform: stripExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                    </Flex>
+                    <ChevronDown className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', transform: stripExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                 </button>
                 {stripExpanded && (
                     <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
-                        <Flex gap="0.5rem" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                            {(['type', 'sender', 'receiver'] as const).map((tab) => (
-                                <Button
-                                    key={tab}
-                                    className="filter-button"
-                                    style={{
-                                        padding: '0.5rem 0.75rem',
-                                        background: stripTab === tab ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
-                                        color: stripTab === tab ? 'white' : 'var(--color-text-primary)',
-                                        border: stripTab === tab ? '1px solid var(--color-primary-blue)' : '1px solid var(--color-border)',
-                                    }}
-                                    onClick={() => setStripTab(tab)}
-                                >
-                                    {tab === 'type' ? 'Тип транспорта' : tab === 'sender' ? 'Отправитель' : 'Получатель'}
-                                </Button>
-                            ))}
+                        <Flex gap="0.5rem" align="center" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                            <Flex gap="0.25rem" align="center" style={{ padding: '0.25rem 0.5rem', background: 'var(--color-bg-hover)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+                                <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Деньги"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                                <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'weight' ? '#10b981' : 'transparent', border: 'none' }} onClick={() => setChartType('weight')} title="Вес"><Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                                <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'volume' ? '#f59e0b' : 'transparent', border: 'none' }} onClick={() => setChartType('volume')} title="Объём"><List className="w-4 h-4" style={{ color: chartType === 'volume' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                            </Flex>
+                            <Typography.Body style={{ fontWeight: 600 }}>{formatStripValue()}</Typography.Body>
                         </Flex>
+                        <div style={{ marginBottom: '0.75rem', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch' }}>
+                            <Flex gap="0.5rem" style={{ flexWrap: 'nowrap', minWidth: 'min-content' }}>
+                                {(['type', 'sender', 'receiver'] as const).map((tab) => (
+                                    <Button
+                                        key={tab}
+                                        className="filter-button"
+                                        style={{
+                                            flexShrink: 0,
+                                            padding: '0.5rem 0.75rem',
+                                            background: stripTab === tab ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
+                                            color: stripTab === tab ? 'white' : 'var(--color-text-primary)',
+                                            border: stripTab === tab ? '1px solid var(--color-primary-blue)' : '1px solid var(--color-border)',
+                                        }}
+                                        onClick={() => setStripTab(tab)}
+                                    >
+                                        {tab === 'type' ? 'Тип' : tab === 'sender' ? 'Отправитель' : 'Получатель'}
+                                    </Button>
+                                ))}
+                            </Flex>
+                        </div>
                         <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
                             {stripTab === 'type' && stripDiagramByType.map((row, i) => (
                                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
@@ -1674,7 +1651,7 @@ function DashboardPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                             Маршрут: {routeFilter === 'all' ? 'Все' : routeFilter} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -1685,10 +1662,6 @@ function DashboardPage({
                     </FilterDropdownPortal>
                 </div>
             </div>
-            
-            <Typography.Body className="text-sm text-theme-secondary mb-4 text-center">
-                {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
-            </Typography.Body>
             
             {loading && (
                 <Flex justify="center" className="text-center py-8">
@@ -1876,7 +1849,7 @@ function AccountSwitcher({
 }
 
 // Типы для навигации профиля
-type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about' | 'faq' | 'tinyurl-test';
+type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about' | 'faq' | 'voiceAssistants' | 'tinyurl-test';
 
 function truncateForLog(u: string, max = 80) {
     return u.length <= max ? u : u.slice(0, max) + '...';
@@ -2588,6 +2561,12 @@ function ProfilePage({
             icon: <Building2 className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('companies')
         },
+        { 
+            id: 'voiceAssistants', 
+            label: 'Голосовые помощники', 
+            icon: <Mic className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => setCurrentView('voiceAssistants')
+        },
         // temporarily hidden: notifications and dashboards
     ];
 
@@ -2738,6 +2717,78 @@ function ProfilePage({
         return <AboutCompanyPage onBack={() => setCurrentView('main')} />;
     }
 
+    if (currentView === 'voiceAssistants') {
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Голосовые помощники</Typography.Headline>
+                </Flex>
+                <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Алиса</Typography.Body>
+                <Panel
+                    className="cargo-card"
+                    style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+                >
+                    <Typography.Body style={{ fontSize: '0.9rem' }}>
+                        Получите код привязки и скажите его Алисе: «Привяжи аккаунт, код …».
+                    </Typography.Body>
+                    <Button
+                        className="button-primary"
+                        type="button"
+                        disabled={!activeAccount?.login || !activeAccount?.password || aliceLoading}
+                        onClick={async () => {
+                            if (!activeAccount?.login || !activeAccount?.password) return;
+                            try {
+                                setAliceError(null);
+                                setAliceLoading(true);
+                                const res = await fetch("/api/alice-link", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        login: activeAccount.login,
+                                        password: activeAccount.password,
+                                        customer: activeAccount.customer || null,
+                                    }),
+                                });
+                                if (!res.ok) {
+                                    const err = await res.json().catch(() => ({}));
+                                    throw new Error(err?.error || "Не удалось получить код");
+                                }
+                                const data = await res.json();
+                                setAliceCode(String(data?.code || ""));
+                                setAliceExpiresAt(Date.now() + (Number(data?.ttl || 0) * 1000));
+                            } catch (e: any) {
+                                setAliceError(e?.message || "Не удалось получить код");
+                            } finally {
+                                setAliceLoading(false);
+                            }
+                        }}
+                    >
+                        {aliceLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Получить код для Алисы"}
+                    </Button>
+                    {aliceCode && (
+                        <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                            Код: {aliceCode}
+                        </Typography.Body>
+                    )}
+                    {aliceExpiresAt && (
+                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                            Код действует до {new Date(aliceExpiresAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                        </Typography.Body>
+                    )}
+                    {aliceError && (
+                        <Flex align="center" className="login-error">
+                            <AlertTriangle className="w-4 h-4 mr-2" />
+                            <Typography.Body style={{ fontSize: '0.85rem' }}>{aliceError}</Typography.Body>
+                        </Flex>
+                    )}
+                </Panel>
+            </div>
+        );
+    }
+
     if (currentView === 'faq') {
         return (
             <div className="w-full">
@@ -2804,69 +2855,6 @@ function ProfilePage({
                             </Flex>
                         </Panel>
                     ))}
-                </div>
-                {/* Голосовые помощники */}
-                <Typography.Body style={{ marginTop: '1.25rem', marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Голосовые помощники</Typography.Body>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <Typography.Body style={{ marginBottom: '0.25rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Алиса</Typography.Body>
-                    <Panel
-                        className="cargo-card"
-                        style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
-                    >
-                        <Typography.Body style={{ fontSize: '0.9rem' }}>
-                            Получите код привязки и скажите его Алисе: «Привяжи аккаунт, код …».
-                        </Typography.Body>
-                        <Button
-                            className="button-primary"
-                            type="button"
-                            disabled={!activeAccount?.login || !activeAccount?.password || aliceLoading}
-                            onClick={async () => {
-                                if (!activeAccount?.login || !activeAccount?.password) return;
-                                try {
-                                    setAliceError(null);
-                                    setAliceLoading(true);
-                                    const res = await fetch("/api/alice-link", {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({
-                                            login: activeAccount.login,
-                                            password: activeAccount.password,
-                                            customer: activeAccount.customer || null,
-                                        }),
-                                    });
-                                    if (!res.ok) {
-                                        const err = await res.json().catch(() => ({}));
-                                        throw new Error(err?.error || "Не удалось получить код");
-                                    }
-                                    const data = await res.json();
-                                    setAliceCode(String(data?.code || ""));
-                                    setAliceExpiresAt(Date.now() + (Number(data?.ttl || 0) * 1000));
-                                } catch (e: any) {
-                                    setAliceError(e?.message || "Не удалось получить код");
-                                } finally {
-                                    setAliceLoading(false);
-                                }
-                            }}
-                        >
-                            {aliceLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Получить код для Алисы"}
-                        </Button>
-                        {aliceCode && (
-                            <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                                Код: {aliceCode}
-                            </Typography.Body>
-                        )}
-                        {aliceExpiresAt && (
-                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                Код действует до {new Date(aliceExpiresAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                            </Typography.Body>
-                        )}
-                        {aliceError && (
-                            <Flex align="center" className="login-error">
-                                <AlertTriangle className="w-4 h-4 mr-2" />
-                                <Typography.Body style={{ fontSize: '0.85rem' }}>{aliceError}</Typography.Body>
-                            </Flex>
-                        )}
-                    </Panel>
                 </div>
             </div>
             
@@ -3887,7 +3875,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                             Маршрут: {routeFilter === 'all' ? 'Все' : routeFilter} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -3898,10 +3886,6 @@ function CargoPage({
                     </FilterDropdownPortal>
                 </div>
             </div>
-
-            <Typography.Body className="text-sm text-theme-secondary mb-4 text-center">
-                {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
-            </Typography.Body>
 
             {/* Суммирующая строка */}
             <div className="cargo-card mb-4" style={{ padding: '0.75rem' }}>
