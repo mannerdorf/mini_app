@@ -288,6 +288,15 @@ const formatCurrency = (value: number | string | undefined): string => {
     return isNaN(num) ? String(value) : new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2 }).format(num);
 };
 
+/** Калининград/производные → KGD; Москва/Андреевское/производные → MSK */
+const cityToCode = (city: string | number | undefined | null): string => {
+    if (city === undefined || city === null) return '';
+    const s = String(city).trim().toLowerCase();
+    if (/калининград/.test(s)) return 'KGD';
+    if (/москва|андреевск/.test(s)) return 'MSK';
+    return String(city).trim();
+};
+
 // Функция для нормализации статуса
 const normalizeStatus = (status: string | undefined): string => {
     if (!status) return '-';
@@ -3762,6 +3771,19 @@ function CargoPage({
                                 </Flex>
                                 <StatusBillBadge status={item.StateBill} />
                             </Flex>
+                            {(() => {
+                                const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
+                                const type = isFerry ? 'Паром' : (item.TypeOfTranzit ?? item.TypeOfTransit ?? 'Авто');
+                                const from = cityToCode(item.CitySender);
+                                const to = cityToCode(item.CityReceiver);
+                                const route = [from, to].filter(Boolean).join('-');
+                                const line = route ? `${type} ${route}` : type;
+                                return line ? (
+                                    <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                                        {line}
+                                    </Typography.Label>
+                                ) : null;
+                            })()}
                     </Panel>
                 ))}
             </div>
@@ -4069,7 +4091,7 @@ function CargoDetailsModal({
                                     if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
                                     if (item.DateVr) lines.push(`Доставка: ${formatDate(item.DateVr)}`);
                                     if (item.Sender) lines.push(`Отправитель: ${item.Sender}`);
-                                    if (item.Receiver ?? item.receiver) lines.push(`Отправитель (Receiver): ${item.Receiver ?? item.receiver}`);
+                                    if (item.Receiver ?? item.receiver) lines.push(`Получатель: ${item.Receiver ?? item.receiver}`);
                                     if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
                                     if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                     if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
@@ -4166,7 +4188,7 @@ function CargoDetailsModal({
                         return '-';
                     })()} /> {/* Используем DateVr */}
                     <DetailItem label="Отправитель" value={item.Sender || '-'} />
-                    <DetailItem label="Отправитель (Receiver)" value={item.Receiver ?? item.receiver ?? '-'} />
+                    <DetailItem label="Получатель" value={item.Receiver ?? item.receiver ?? '-'} />
                     <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary"/>} />
                     <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary"/>} highlighted /> {/* Используем PW */}
                     <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем W */}
@@ -4194,7 +4216,9 @@ function CargoDetailsModal({
                             const value =
                                 (key === 'TypeOfTranzit' || key === 'TypeOfTransit') && isFerry
                                     ? 'Паром'
-                                    : renderValue(val);
+                                    : (key === 'CitySender' || key === 'CityReceiver')
+                                        ? (cityToCode(val) || renderValue(val))
+                                        : renderValue(val);
 
                             return <DetailItem key={key} label={label} value={value} />;
                         })}
