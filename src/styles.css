@@ -322,6 +322,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 }
 .chat-messages {
     background: linear-gradient(180deg, rgba(15, 23, 42, 0.06) 0%, rgba(15, 23, 42, 0) 100%);
+    min-height: 0;
 }
 .chat-bubble {
     border-radius: 18px;
@@ -339,6 +340,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     background: var(--color-bg-secondary);
     width: 100%;
     box-sizing: border-box;
+    flex-shrink: 0;
 }
 .chat-input-bar form {
     align-items: stretch;
@@ -624,4 +626,82 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 }
 .dark-mode .max-badge-default {
     border: 1px solid var(--color-border);
+}
+
+/* Вертикальный таймлайн статусов перевозки (объёмный, в стиле бейджей) */
+.perevozka-timeline-wrap {
+    width: 100%;
+}
+.perevozka-timeline {
+    position: relative;
+    padding-left: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.perevozka-timeline::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--color-bg-hover);
+    border-radius: 4px;
+    z-index: 0;
+}
+.perevozka-timeline-track-fill {
+    position: absolute;
+    left: 5px;
+    top: 0;
+    width: 4px;
+    border-radius: 4px;
+    background: linear-gradient(180deg, var(--color-primary-blue) 0%, #10b981 50%, #34d399 100%);
+    z-index: 1;
+    transition: height 0.4s ease;
+    min-height: 4px;
+}
+.perevozka-timeline-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 14px;
+    position: relative;
+    z-index: 2;
+}
+.perevozka-timeline-item:last-child {
+    margin-bottom: 0;
+}
+.perevozka-timeline-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-left: -24px;
+    margin-top: 3px;
+    border: 2px solid var(--color-bg-card);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+.perevozka-timeline-dot-success {
+    background: #34d399;
+}
+.perevozka-timeline-dot-warning {
+    background: #facc15;
+}
+.perevozka-timeline-dot-danger {
+    background: #ef4444;
+}
+.perevozka-timeline-dot-purple {
+    background: #a855f7;
+}
+.perevozka-timeline-dot-default {
+    background: var(--color-text-secondary);
+}
+.perevozka-timeline-content {
+    flex: 1;
+    min-width: 0;
+}
+.dark-mode .perevozka-timeline-dot {
+    border-color: var(--color-bg-card);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }

@@ -23,6 +23,8 @@ const DOC_METHODS_MAP: Record<string, string> = {
 
 function isContactsRequest(text: string) {
   const lower = text.toLowerCase();
+  // Вопрос по перевозке с номером (например «по перевозке номер 123») — не запрос контактов
+  if ((lower.includes("перевозк") || lower.includes("груз")) && /\d{4,}/.test(text)) return false;
   return (
     lower.includes("контакт") ||
     lower.includes("адрес") ||

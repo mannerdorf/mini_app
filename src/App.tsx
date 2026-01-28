@@ -123,7 +123,8 @@ import { DOCUMENT_METHODS } from "./documentMethods";
 // --- CONFIGURATION ---
 const PROXY_API_BASE_URL = '/api/perevozki'; 
 const PROXY_API_DOWNLOAD_URL = '/api/download'; 
-const PROXY_API_SEND_DOC_URL = '/api/send-document'; 
+const PROXY_API_SEND_DOC_URL = '/api/send-document';
+const PROXY_API_GETPEREVOZKA_URL = '/api/getperevozka'; 
 
 // --- TYPES ---
 type ApiError = { error?: string; [key: string]: unknown; };
@@ -4211,6 +4212,16 @@ function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: { isOpen: 
     );
 }
 
+type PerevozkaTimelineStep = { label: string; date?: string; completed?: boolean };
+function getTimelineStepColor(label: string): 'success' | 'warning' | 'danger' | 'purple' | 'default' {
+    const lower = (label || '').toLowerCase();
+    if (lower.includes('доставлен') || lower.includes('заверш')) return 'success';
+    if (lower.includes('доставке')) return 'purple';
+    if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('готов')) return 'warning';
+    if (lower.includes('отменен') || lower.includes('аннулирован')) return 'danger';
+    return 'default';
+}
+
 function CargoDetailsModal({
     item,
     isOpen,
@@ -4231,7 +4242,53 @@ function CargoDetailsModal({
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
     const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string; docType: string; blob?: Blob; downloadFileName?: string } | null>(null);
-    
+    const [perevozkaTimeline, setPerevozkaTimeline] = useState<PerevozkaTimelineStep[] | null>(null);
+    const [perevozkaLoading, setPerevozkaLoading] = useState(false);
+    const [perevozkaError, setPerevozkaError] = useState<string | null>(null);
+
+    // Загрузка таймлайна перевозки при открытии карточки
+    useEffect(() => {
+        if (!isOpen || !item?.Number || !auth?.login || !auth?.password) {
+            setPerevozkaTimeline(null);
+            setPerevozkaError(null);
+            return;
+        }
+        let cancelled = false;
+        setPerevozkaLoading(true);
+        setPerevozkaError(null);
+        fetch(PROXY_API_GETPEREVOZKA_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: auth.login, password: auth.password, number: item.Number }),
+        })
+            .then(async (res) => {
+                if (cancelled) return;
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err?.error || err?.details || `Ошибка ${res.status}`);
+                }
+                const data = await res.json();
+                const raw = Array.isArray(data) ? data : (data?.items ?? data?.Steps ?? data?.stages ?? data?.Statuses ?? []);
+                if (!Array.isArray(raw)) {
+                    setPerevozkaTimeline(null);
+                    return;
+                }
+                const steps: PerevozkaTimelineStep[] = raw.map((el: any, i: number) => {
+                    const label = el?.Stage ?? el?.Name ?? el?.Status ?? el?.label ?? String(el);
+                    const date = el?.Date ?? el?.date ?? el?.DatePrih ?? el?.DateVr;
+                    return { label: typeof label === 'string' ? label : String(label), date, completed: true };
+                });
+                setPerevozkaTimeline(steps.length ? steps : null);
+            })
+            .catch((e: any) => {
+                if (!cancelled) setPerevozkaError(e?.message || 'Не удалось загрузить статусы');
+            })
+            .finally(() => {
+                if (!cancelled) setPerevozkaLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [isOpen, item?.Number, auth?.login, auth?.password]);
+
     // Очистка blob URL при закрытии
     useEffect(() => {
         if (!isOpen && pdfViewer) {
@@ -4611,7 +4668,49 @@ function CargoDetailsModal({
                             return <DetailItem key={key} label={label} value={value} />;
                         })}
                 </div>
-                
+
+                {/* Вертикальный таймлайн статусов перевозки */}
+                {(perevozkaLoading || perevozkaTimeline || perevozkaError) && (
+                    <div className="perevozka-timeline-wrap" style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                        <Typography.Headline style={{ marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: 600 }}>
+                            Статусы перевозки
+                        </Typography.Headline>
+                        {perevozkaLoading && (
+                            <Flex align="center" gap="0.5rem" style={{ padding: '0.5rem 0' }}>
+                                <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-primary-blue)' }} />
+                                <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Загрузка...</Typography.Body>
+                            </Flex>
+                        )}
+                        {perevozkaError && (
+                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>{perevozkaError}</Typography.Body>
+                        )}
+                        {!perevozkaLoading && perevozkaTimeline && perevozkaTimeline.length > 0 && (
+                            <div className="perevozka-timeline">
+                                <div
+                                    className="perevozka-timeline-track-fill"
+                                    style={{ height: `${(perevozkaTimeline.length / Math.max(perevozkaTimeline.length, 1)) * 100}%` }}
+                                />
+                                {perevozkaTimeline.map((step, index) => {
+                                    const colorKey = getTimelineStepColor(step.label);
+                                    return (
+                                        <div key={index} className="perevozka-timeline-item">
+                                            <div className={`perevozka-timeline-dot perevozka-timeline-dot-${colorKey}`} />
+                                            <div className="perevozka-timeline-content">
+                                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{step.label}</Typography.Body>
+                                                {step.date && (
+                                                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                        {formatDate(step.date)}
+                                                    </Typography.Body>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <Typography.Headline style={{marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
                     Документы
                 </Typography.Headline>
@@ -5294,13 +5393,15 @@ function ChatPage({
 
     return (
         <div className="chat-shell" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, width: '100%' }}>
-            {/* Окно сообщений */}
+            {/* Окно сообщений — скролл сверху вниз */}
             <div 
                 ref={scrollRef}
                 className="chat-messages"
                 style={{ 
                     flex: 1, 
+                    minHeight: 0,
                     overflowY: 'auto', 
+                    overflowX: 'hidden',
                     padding: '1rem', 
                     display: 'flex', 
                     flexDirection: 'column', 
@@ -5340,8 +5441,8 @@ function ChatPage({
                 )}
             </div>
 
-            {/* Поле ввода */}
-            <div className="chat-input-bar" style={{ padding: '0.75rem', background: 'var(--color-bg-primary)', borderTop: '1px solid var(--color-border)', width: '100%', boxSizing: 'border-box' }}>
+            {/* Поле ввода — прижато к низу, без линии сверху */}
+            <div className="chat-input-bar" style={{ padding: '0.75rem', background: 'var(--color-bg-primary)', width: '100%', boxSizing: 'border-box', flexShrink: 0 }}>
                 <form 
                     onSubmit={(e) => { e.preventDefault(); handleSend(inputValue); }}
                     style={{ display: 'flex', gap: '0.5rem', height: '44px', width: '100%', minWidth: 0 }}
