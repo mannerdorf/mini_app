@@ -305,10 +305,16 @@ const cityToCode = (city: string | number | undefined | null): string => {
     return String(city).trim();
 };
 
-/** Убирает «ООО» из названия компании для отображения */
+/** Убирает «ООО», «ИП», «(ИП)» из названия компании для отображения */
 const stripOoo = (name: string | undefined | null): string => {
     if (!name || typeof name !== 'string') return name ?? '';
-    return name.replace(/\s*ООО\s*«?/gi, ' ').replace(/»?\s*ООО\s*/gi, ' ').replace(/\s+/g, ' ').trim() || name;
+    return name
+        .replace(/\s*ООО\s*«?/gi, ' ')
+        .replace(/»?\s*ООО\s*/gi, ' ')
+        .replace(/\s*\(\s*ИП\s*\)\s*/gi, ' ')
+        .replace(/(^|\s)ИП(\s|$)/gi, '$1$2')
+        .replace(/\s+/g, ' ')
+        .trim() || name;
 };
 
 /** Транслитерация кириллицы в латиницу для имени файла при скачивании */
@@ -1472,7 +1478,7 @@ function DashboardPage({
             </div>
             
             <Typography.Body className="text-sm text-theme-secondary mb-4 text-center">
-                <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
+                {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
             </Typography.Body>
             
             {loading && (
@@ -3654,7 +3660,7 @@ function CargoPage({
             </div>
 
             <Typography.Body className="text-sm text-theme-secondary mb-4 text-center">
-                <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
+                {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
             </Typography.Body>
 
             {/* Суммирующая строка */}
@@ -4199,7 +4205,7 @@ function CargoDetailsModal({
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <Flex align="center" justify="space-between">
+                    <Flex align="center" justify="flex-end" style={{ width: '100%' }}>
                         <Flex align="center" gap="0.5rem">
                         {/* Иконка типа перевозки — в 1.5 раза больше остальных (24px при 16px у остальных) */}
                         {(() => {
@@ -4344,7 +4350,7 @@ function CargoDetailsModal({
                                 }}
                             />
                         </Button>
-                        <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть" style={{ background: 'transparent', border: 'none', boxShadow: 'none', outline: 'none', marginLeft: 'auto' }}><X size={20} style={{ color: 'var(--color-text-secondary)' }} /></Button>
+                        <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть" style={{ background: 'transparent', border: 'none', boxShadow: 'none', outline: 'none' }}><X size={20} style={{ color: 'var(--color-text-secondary)' }} /></Button>
                         </Flex>
                     </Flex>
                 </div>
@@ -5407,59 +5413,6 @@ export default function App() {
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
-    const [pullVisible, setPullVisible] = useState(false);
-    const [pullProgress, setPullProgress] = useState(0);
-    const [pullReady, setPullReady] = useState(false);
-
-    useEffect(() => {
-        let startY: number | null = null;
-        let pullDistance = 0;
-        let triggered = false;
-
-        const getScrollTop = () =>
-            document.documentElement.scrollTop || document.body.scrollTop || 0;
-
-        const onTouchStart = (e: TouchEvent) => {
-            if (e.touches.length !== 1) return;
-            if (getScrollTop() > 0) return;
-            startY = e.touches[0].clientY;
-            pullDistance = 0;
-            triggered = false;
-        };
-
-        const onTouchMove = (e: TouchEvent) => {
-            if (startY === null) return;
-            const currentY = e.touches[0].clientY;
-            pullDistance = Math.max(0, currentY - startY);
-            const progress = Math.min(pullDistance / 90, 1);
-            setPullVisible(progress > 0);
-            setPullProgress(progress);
-            setPullReady(progress >= 1);
-        };
-
-        const onTouchEnd = () => {
-            if (startY === null) return;
-            if (!triggered && pullDistance > 90) {
-                triggered = true;
-                window.location.reload();
-            }
-            setPullVisible(false);
-            setPullProgress(0);
-            setPullReady(false);
-            startY = null;
-            pullDistance = 0;
-        };
-
-        document.addEventListener("touchstart", onTouchStart, { passive: true });
-        document.addEventListener("touchmove", onTouchMove, { passive: true });
-        document.addEventListener("touchend", onTouchEnd);
-
-        return () => {
-            document.removeEventListener("touchstart", onTouchStart);
-            document.removeEventListener("touchmove", onTouchMove);
-            document.removeEventListener("touchend", onTouchEnd);
-        };
-    }, []);
 
     useEffect(() => {
         document.body.className = `${theme}-mode`;
@@ -6044,51 +5997,9 @@ export default function App() {
         setActiveAccountId(accountId);
     };
 
-    const pullIndicator = (
-        <div
-            style={{
-                position: "fixed",
-                top: 8,
-                left: "50%",
-                transform: "translateX(-50%)",
-                zIndex: 2000,
-                opacity: pullVisible ? 1 : 0,
-                pointerEvents: "none",
-                transition: "opacity 120ms ease",
-            }}
-        >
-            <div
-                style={{
-                    padding: "6px 12px",
-                    borderRadius: 999,
-                    background: "rgba(15, 23, 42, 0.8)",
-                    color: "#fff",
-                    fontSize: "0.8rem",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                }}
-            >
-                <div
-                    style={{
-                        width: 20,
-                        height: 20,
-                        borderRadius: "50%",
-                        border: "2px solid rgba(255,255,255,0.3)",
-                        borderTopColor: "#fff",
-                        transform: `rotate(${Math.round(pullProgress * 360)}deg)`,
-                        transition: "transform 60ms linear",
-                    }}
-                />
-                {pullReady ? "Отпустите, чтобы обновить" : "Потяните вниз для обновления"}
-            </div>
-        </div>
-    );
-
     if (!auth) {
         return (
             <>
-                {pullIndicator}
                 <Container className={`app-container login-form-wrapper`}>
                 <Panel mode="secondary" className="login-card">
                     <div className="absolute top-4 right-4">
@@ -6298,7 +6209,6 @@ export default function App() {
 
     return (
         <>
-            {pullIndicator}
             <Container className={`app-container`}>
             <header className="app-header">
                 <Flex align="center" justify="space-between" className="header-top-row">
