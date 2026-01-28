@@ -3872,6 +3872,20 @@ function CargoPage({
                                 </Flex>
                                 <StatusBillBadge status={item.StateBill} />
                             </Flex>
+                            <Flex align="center" gap="0.5rem" style={{ marginTop: '0.5rem' }}>
+                                {(() => {
+                                    const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
+                                    const from = cityToCode(item.CitySender);
+                                    const to = cityToCode(item.CityReceiver);
+                                    const route = [from, to].filter(Boolean).join(' – ') || '-';
+                                    return (
+                                        <>
+                                            {isFerry ? <Ship className="w-4 h-4 text-theme-secondary" style={{ flexShrink: 0 }} title="Паром" /> : <Truck className="w-4 h-4 text-theme-secondary" style={{ flexShrink: 0 }} title="Авто" />}
+                                            <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>{route}</Typography.Label>
+                                        </>
+                                    );
+                                })()}
+                            </Flex>
                     </Panel>
                 ))}
             </div>
@@ -4105,12 +4119,10 @@ function CargoDetailsModal({
     };
 
     // Список явно отображаемых полей (из API примера)
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit'];
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
-        TypeOfTranzit: 'Тип перевозки',
-        TypeOfTransit: 'Тип перевозки',
     };
 
     return (
@@ -6200,9 +6212,9 @@ export default function App() {
                                 onSwitchAccount={handleSwitchAccount}
                             />
                         ) : (
-                            <Flex align="center" style={{ minWidth: 0, maxWidth: '50vw' }}>
-                                <UserIcon className="w-4 h-4 mr-2" style={{ flexShrink: 0 }} />
-                                <Typography.Body className="header-customer-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stripOoo(activeAccount?.customer || activeAccount?.login || '') || 'Не выбран'}</Typography.Body>
+                            <Flex align="center">
+                                <UserIcon className="w-4 h-4 mr-2" />
+                                <Typography.Body>{activeAccount?.customer || activeAccount?.login || 'Не выбран'}</Typography.Body>
                             </Flex>
                         )}
                     </Flex>

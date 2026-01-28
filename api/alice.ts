@@ -195,6 +195,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   };
 
+  // Таймауты: Алиса ждёт ответ ~7–10 с. perevozki (1С) и chat (OpenAI) часто 3–6 с.
+  const PEREVOZKI_MS = 6000;
+  const CHAT_MS = 8000;
+
   try {
     if (sessionState?.awaiting_details && isYes(text)) {
       const intent = sessionState?.last_intent || "";
@@ -218,7 +222,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo }),
-      }), 2500);
+      }), PEREVOZKI_MS);
       const payload = await resData.json();
       const items = Array.isArray(payload) ? payload : payload?.items || [];
       const inTransit = items.filter((i: any) => getFilterKeyByStatus(i.State) === "in_transit");
@@ -250,7 +254,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo }),
-      }), 2500);
+      }), PEREVOZKI_MS);
       const payload = await resData.json();
       const items = Array.isArray(payload) ? payload : payload?.items || [];
       const unpaid = items.filter((i: any) => getPaymentFilterKey(i.StateBill) === "unpaid");
@@ -273,17 +277,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
     }
 
-    // Обновляем данные и записываем в RAG
+    // Обновляем данные в RAG в фоне (не ждём), чтобы не съедать таймаут ответа Алисе
     const today = new Date();
     const dateTo = today.toISOString().split("T")[0];
     const from = new Date();
     from.setMonth(from.getMonth() - 6);
     const dateFrom = from.toISOString().split("T")[0];
-    await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
+    fetch(`${APP_DOMAIN}/api/perevozki`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo }),
-    }), 2500);
+    }).catch(() => {});
 
     const chatRes = await withTimeout(fetch(`${APP_DOMAIN}/api/chat`, {
       method: "POST",
@@ -297,7 +301,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         channel: "alice",
         model: "gpt-4o",
       }),
-    }), 2500);
+    }), CHAT_MS);
     if (chatRes.ok) {
       const data = await chatRes.json();
       if (data?.reply) {

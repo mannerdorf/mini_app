@@ -96,8 +96,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     z-index: 45;
 }
 .header-top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-.header-auth-info { display: flex; align-items: center; font-size: 0.9rem; color: var(--color-text-secondary); max-width: 50%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.header-auth-info .header-customer-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.header-auth-info { display: flex; align-items: center; font-size: 0.9rem; color: var(--color-text-secondary); }
 
 /* --- SEARCH --- */
 .search-container {
