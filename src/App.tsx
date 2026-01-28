@@ -3995,7 +3995,7 @@ function CargoDetailsModal({
     };
 
     // Список явно отображаемых полей (из API примера)
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'DateDoc', 'OG'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG'];
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
@@ -4069,7 +4069,7 @@ function CargoDetailsModal({
                                     if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
                                     if (item.DateVr) lines.push(`Доставка: ${formatDate(item.DateVr)}`);
                                     if (item.Sender) lines.push(`Отправитель: ${item.Sender}`);
-                                    if (item.Customer) lines.push(`Заказчик: ${item.Customer}`);
+                                    if (item.Receiver ?? item.receiver) lines.push(`Отправитель (Receiver): ${item.Receiver ?? item.receiver}`);
                                     if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
                                     if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                     if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
@@ -4165,8 +4165,8 @@ function CargoDetailsModal({
                         }
                         return '-';
                     })()} /> {/* Используем DateVr */}
-                    <DetailItem label="Отправитель" value={item.Sender || '-'} /> {/* Добавляем Sender */}
-                    <DetailItem label="Заказчик" value={item.Customer || '-'} />
+                    <DetailItem label="Отправитель" value={item.Sender || '-'} />
+                    <DetailItem label="Отправитель (Receiver)" value={item.Receiver ?? item.receiver ?? '-'} />
                     <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary"/>} />
                     <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary"/>} highlighted /> {/* Используем PW */}
                     <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем W */}
