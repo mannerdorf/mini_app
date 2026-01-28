@@ -4873,7 +4873,7 @@ function CargoDetailsModal({
                         {!perevozkaLoading && perevozkaTimeline && perevozkaTimeline.length > 0 && (() => {
                             // Итого время в пути: от «получена в месте получения» до текущего времени по Москве
                             const totalHours = receivedAtDest?.date
-                                ? Math.max(0, Math.round((Date.now() - new Date(receivedAtDest.date).getTime()) / (1000 * 60 * 60))
+                                ? Math.max(0, Math.round((Date.now() - new Date(receivedAtDest.date).getTime()) / (1000 * 60 * 60)))
                                 : null;
                             return (
                             <div>
