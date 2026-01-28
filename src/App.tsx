@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
 // Импортируем все необходимые иконки
 import { 
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship
     // Все остальные импорты сохранены на случай использования в Cargo/Details
 } from 'lucide-react';
 import React from "react";
@@ -288,13 +288,20 @@ const formatCurrency = (value: number | string | undefined): string => {
     return isNaN(num) ? String(value) : new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2 }).format(num);
 };
 
-/** Калининград/производные → KGD; Москва/Андреевское/производные → MSK */
+/** Калининград/Калининградская область → KGD; Москва/Московская область/Андреевское → MSK */
 const cityToCode = (city: string | number | undefined | null): string => {
     if (city === undefined || city === null) return '';
     const s = String(city).trim().toLowerCase();
-    if (/калининград/.test(s)) return 'KGD';
-    if (/москва|андреевск/.test(s)) return 'MSK';
+    if (/калининград/.test(s) || s === 'kgd') return 'KGD';
+    if (/москва|андреевск|московская область|msk/.test(s)) return 'MSK';
+    if (/калининградская область/.test(s)) return 'KGD';
     return String(city).trim();
+};
+
+/** Убирает «ООО» из названия компании для отображения */
+const stripOoo = (name: string | undefined | null): string => {
+    if (!name || typeof name !== 'string') return name ?? '';
+    return name.replace(/\s*ООО\s*«?/gi, ' ').replace(/»?\s*ООО\s*/gi, ' ').replace(/\s+/g, ' ').trim() || name;
 };
 
 // Функция для нормализации статуса
@@ -1019,6 +1026,12 @@ function DashboardPage({
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    const [senderFilter, setSenderFilter] = useState<string>('');
+    const [receiverFilter, setReceiverFilter] = useState<string>('');
+    const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
+    const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
+    const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
+    const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     
     // Chart type selector
     const [chartType, setChartType] = useState<'money' | 'weight' | 'places'>('money');
@@ -1130,6 +1143,9 @@ function DashboardPage({
     useEffect(() => {
         loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo);
     }, [apiDateRange, loadCargo]);
+
+    const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
+    const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
     
     // Фильтрация
     const filteredItems = useMemo(() => {
@@ -1141,8 +1157,12 @@ function DashboardPage({
         } else if (statusFilter !== 'all') {
             res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
         }
+        if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
+        if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
+        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
+        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
         return res;
-    }, [items, statusFilter]);
+    }, [items, statusFilter, senderFilter, receiverFilter, typeFilter]);
     
     // Подготовка данных для графиков (группировка по датам)
     const chartData = useMemo(() => {
@@ -1328,9 +1348,9 @@ function DashboardPage({
     return (
         <div className="w-full">
             {/* Filters (такие же как на странице грузов) */}
-            <div className="filters-container">
-                <div className="filter-group">
-                    <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); }}>
+            <div className="filters-container filters-row-scroll">
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                         Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                     </Button>
                     {isDateDropdownOpen && (
@@ -1347,8 +1367,8 @@ function DashboardPage({
                         </div>
                     )}
                 </div>
-                <div className="filter-group">
-                    <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); }}>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                         Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
                     </Button>
                     {isStatusDropdownOpen && (
@@ -1363,6 +1383,38 @@ function DashboardPage({
                             ))}
                         </div>
                     )}
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                        Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                    </Button>
+                    {isSenderDropdownOpen && <div className="filter-dropdown">
+                        <div className="dropdown-item" onClick={() => { setSenderFilter(''); setIsSenderDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        {uniqueSenders.map(s => (
+                            <div key={s} className="dropdown-item" onClick={() => { setSenderFilter(s); setIsSenderDropdownOpen(false); }}><Typography.Body>{stripOoo(s)}</Typography.Body></div>
+                        ))}
+                    </div>}
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                        Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                    </Button>
+                    {isReceiverDropdownOpen && <div className="filter-dropdown">
+                        <div className="dropdown-item" onClick={() => { setReceiverFilter(''); setIsReceiverDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        {uniqueReceivers.map(r => (
+                            <div key={r} className="dropdown-item" onClick={() => { setReceiverFilter(r); setIsReceiverDropdownOpen(false); }}><Typography.Body>{stripOoo(r)}</Typography.Body></div>
+                        ))}
+                    </div>}
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); }}>
+                        Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
+                    </Button>
+                    {isTypeDropdownOpen && <div className="filter-dropdown">
+                        <div className="dropdown-item" onClick={() => { setTypeFilter('all'); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setTypeFilter('ferry'); setIsTypeDropdownOpen(false); }}><Typography.Body>Паром</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setTypeFilter('auto'); setIsTypeDropdownOpen(false); }}><Typography.Body>Авто</Typography.Body></div>
+                    </div>}
                 </div>
             </div>
             
@@ -1488,7 +1540,7 @@ function AccountSwitcher({
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const activeAccount = accounts.find(acc => acc.id === activeAccountId);
-    const activeLabel = activeAccount?.customer || activeAccount?.login || 'Не выбран';
+    const activeLabel = stripOoo(activeAccount?.customer || activeAccount?.login || '') || 'Не выбран';
     
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -1541,7 +1593,7 @@ function AccountSwitcher({
                             <Flex align="center" style={{ flex: 1, gap: '0.5rem' }}>
                                 <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
                                 <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeAccountId === account.id ? 'bold' : 'normal' }}>
-                                    {account.customer || account.login}
+                                    {stripOoo(account.customer || account.login)}
                                 </Typography.Body>
                             </Flex>
                             {activeAccountId === account.id && (
@@ -3061,7 +3113,7 @@ function CompaniesListPage({
                                             textOverflow: 'ellipsis',
                                         }}
                                     >
-                                        {account.customer || account.login}
+                                        {stripOoo(account.customer || account.login)}
                                     </Typography.Body>
                                 </Flex>
 
@@ -3135,6 +3187,12 @@ function CargoPage({
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    const [senderFilter, setSenderFilter] = useState<string>('');
+    const [receiverFilter, setReceiverFilter] = useState<string>('');
+    const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
+    const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
+    const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
+    const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [showSummary, setShowSummary] = useState(true);
     // Sort State
     const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>(null);
@@ -3277,6 +3335,9 @@ function CargoPage({
         }
     }, [contextCargoNumber, items, loading, onClearContextCargo]);
 
+    const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
+    const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
+
     // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
         let res = items;
@@ -3291,6 +3352,10 @@ function CargoPage({
             // Обновлены поля поиска: PW вместо PV, добавлен Sender
             res = res.filter(i => [i.Number, i.State, i.Sender, i.Customer, formatDate(i.DatePrih), formatCurrency(i.Sum), String(i.PW), String(i.Mest)].join(' ').toLowerCase().includes(lower));
         }
+        if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
+        if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
+        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
+        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
         
         // Применяем сортировку ТОЛЬКО по датам
         if (sortBy) {
@@ -3390,7 +3455,7 @@ function CargoPage({
         }
         
         return res;
-    }, [items, statusFilter, searchText, sortBy, sortOrder, favorites]);
+    }, [items, statusFilter, searchText, senderFilter, receiverFilter, typeFilter, sortBy, sortOrder, favorites]);
 
     // Подсчет сумм из отфильтрованных элементов
     const summary = useMemo(() => {
@@ -3420,9 +3485,9 @@ function CargoPage({
     return (
         <div className="w-full">
             {/* Filters */}
-            <div className="filters-container">
-                <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); }}>
+            <div className="filters-container filters-row-scroll">
+                <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
+                    <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                         Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                     </Button>
                     {isDateDropdownOpen && <div className="filter-dropdown">
@@ -3475,7 +3540,7 @@ function CargoPage({
                     </Button>
                 </div>
                 <div className="filter-group">
-                    <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); }}>
+                    <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                         Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
                     </Button>
                     {isStatusDropdownOpen && <div className="filter-dropdown">
@@ -3484,6 +3549,38 @@ function CargoPage({
                                 <Typography.Body>{STATUS_MAP[key as StatusFilter]}</Typography.Body>
                             </div>
                         ))}
+                    </div>}
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                        Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                    </Button>
+                    {isSenderDropdownOpen && <div className="filter-dropdown">
+                        <div className="dropdown-item" onClick={() => { setSenderFilter(''); setIsSenderDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        {uniqueSenders.map(s => (
+                            <div key={s} className="dropdown-item" onClick={() => { setSenderFilter(s); setIsSenderDropdownOpen(false); }}><Typography.Body>{stripOoo(s)}</Typography.Body></div>
+                        ))}
+                    </div>}
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                        Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                    </Button>
+                    {isReceiverDropdownOpen && <div className="filter-dropdown">
+                        <div className="dropdown-item" onClick={() => { setReceiverFilter(''); setIsReceiverDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        {uniqueReceivers.map(r => (
+                            <div key={r} className="dropdown-item" onClick={() => { setReceiverFilter(r); setIsReceiverDropdownOpen(false); }}><Typography.Body>{stripOoo(r)}</Typography.Body></div>
+                        ))}
+                    </div>}
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); }}>
+                        Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
+                    </Button>
+                    {isTypeDropdownOpen && <div className="filter-dropdown">
+                        <div className="dropdown-item" onClick={() => { setTypeFilter('all'); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setTypeFilter('ferry'); setIsTypeDropdownOpen(false); }}><Typography.Body>Паром</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setTypeFilter('auto'); setIsTypeDropdownOpen(false); }}><Typography.Body>Авто</Typography.Body></div>
                     </div>}
                 </div>
             </div>
@@ -3562,6 +3659,10 @@ function CargoPage({
                                     {item.Number || '-'}
                                 </Typography.Body>
                                 <Flex align="center" gap="0.5rem">
+                                    {(() => {
+                                        const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
+                                        return isFerry ? <Ship className="w-4 h-4 text-theme-secondary" style={{ flexShrink: 0 }} title="Паром" /> : <Truck className="w-4 h-4 text-theme-secondary" style={{ flexShrink: 0 }} title="Авто" />;
+                                    })()}
                                     <Button
                                         style={{ 
                                             padding: '0.25rem', 
@@ -3646,8 +3747,8 @@ function CargoPage({
                                             if (item.State) lines.push(`Статус: ${normalizeStatus(item.State)}`);
                                             if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
                                             if (item.DateVr) lines.push(`Доставка: ${formatDate(item.DateVr)}`);
-                                            if (item.Sender) lines.push(`Отправитель: ${item.Sender}`);
-                                            if (item.Customer) lines.push(`Заказчик: ${item.Customer}`);
+                                            if (item.Sender) lines.push(`Отправитель: ${stripOoo(item.Sender)}`);
+                                            if (item.Customer) lines.push(`Заказчик: ${stripOoo(item.Customer)}`);
                                             if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
                                             if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                             if (item.W !== undefined) lines.push(`Вес: ${item.W} кг`);
@@ -3771,19 +3872,6 @@ function CargoPage({
                                 </Flex>
                                 <StatusBillBadge status={item.StateBill} />
                             </Flex>
-                            {(() => {
-                                const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
-                                const type = isFerry ? 'Паром' : (item.TypeOfTranzit ?? item.TypeOfTransit ?? 'Авто');
-                                const from = cityToCode(item.CitySender);
-                                const to = cityToCode(item.CityReceiver);
-                                const route = [from, to].filter(Boolean).join('-');
-                                const line = route ? `${type} ${route}` : type;
-                                return line ? (
-                                    <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                                        {line}
-                                    </Typography.Label>
-                                ) : null;
-                            })()}
                     </Panel>
                 ))}
             </div>
@@ -4090,8 +4178,8 @@ function CargoDetailsModal({
                                     if (item.State) lines.push(`Статус: ${normalizeStatus(item.State)}`);
                                     if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
                                     if (item.DateVr) lines.push(`Доставка: ${formatDate(item.DateVr)}`);
-                                    if (item.Sender) lines.push(`Отправитель: ${item.Sender}`);
-                                    if (item.Receiver ?? item.receiver) lines.push(`Получатель: ${item.Receiver ?? item.receiver}`);
+                                    if (item.Sender) lines.push(`Отправитель: ${stripOoo(item.Sender)}`);
+                                    if (item.Receiver ?? item.receiver) lines.push(`Получатель: ${stripOoo(item.Receiver ?? item.receiver)}`);
                                     if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
                                     if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
                                     if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
@@ -4187,8 +4275,8 @@ function CargoDetailsModal({
                         }
                         return '-';
                     })()} /> {/* Используем DateVr */}
-                    <DetailItem label="Отправитель" value={item.Sender || '-'} />
-                    <DetailItem label="Получатель" value={item.Receiver ?? item.receiver ?? '-'} />
+                    <DetailItem label="Отправитель" value={stripOoo(item.Sender) || '-'} />
+                    <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? item.receiver) || '-'} />
                     <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary"/>} />
                     <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary"/>} highlighted /> {/* Используем PW */}
                     <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем W */}
@@ -6112,9 +6200,9 @@ export default function App() {
                                 onSwitchAccount={handleSwitchAccount}
                             />
                         ) : (
-                            <Flex align="center">
-                        <UserIcon className="w-4 h-4 mr-2" />
-                                <Typography.Body>{activeAccount?.customer || activeAccount?.login || 'Не выбран'}</Typography.Body>
+                            <Flex align="center" style={{ minWidth: 0, maxWidth: '50vw' }}>
+                                <UserIcon className="w-4 h-4 mr-2" style={{ flexShrink: 0 }} />
+                                <Typography.Body className="header-customer-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stripOoo(activeAccount?.customer || activeAccount?.login || '') || 'Не выбран'}</Typography.Body>
                             </Flex>
                         )}
                     </Flex>
