@@ -165,6 +165,29 @@ const getSixMonthsAgoDate = () => {
 const DEFAULT_DATE_FROM = getSixMonthsAgoDate();
 const DEFAULT_DATE_TO = getTodayDate();
 
+/** Плановые сроки доставки (дней): авто 9, паром 21 */
+const AUTO_PLAN_DAYS = 9;
+const FERRY_PLAN_DAYS = 21;
+
+function isFerry(item: CargoItem): boolean {
+    return item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
+}
+
+function getPlanDays(item: CargoItem): number {
+    return isFerry(item) ? FERRY_PLAN_DAYS : AUTO_PLAN_DAYS;
+}
+
+function getSlaInfo(item: CargoItem): { planDays: number; actualDays: number; onTime: boolean; delayDays: number } | null {
+    const from = item?.DatePrih ? new Date(item.DatePrih).getTime() : NaN;
+    const to = item?.DateVr ? new Date(item.DateVr).getTime() : NaN;
+    if (isNaN(from) || isNaN(to)) return null;
+    const actualDays = Math.round((to - from) / (24 * 60 * 60 * 1000));
+    const planDays = getPlanDays(item);
+    const onTime = actualDays <= planDays;
+    const delayDays = Math.max(0, actualDays - planDays);
+    return { planDays, actualDays, onTime, delayDays };
+}
+
 // Статистика (заглушка) - оставлено, так как компонент HomePage остается, но не используется
 const STATS_LEVEL_1: CargoStat[] = [
     { key: 'total', label: 'Всего перевозок', icon: LayoutGrid, value: 125, unit: 'шт', bgColor: 'bg-indigo-500' },
@@ -1298,6 +1321,17 @@ function DashboardPage({
             { label: 'Паром', value: ferryVal, percent: Math.round((ferryVal / total) * 100), color: DIAGRAM_COLORS[1] },
         ];
     }, [filteredItems, chartType]);
+    const slaStats = useMemo(() => {
+        const withSla = filteredItems.map(i => getSlaInfo(i)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
+        const total = withSla.length;
+        const onTime = withSla.filter(s => s.onTime).length;
+        const delayed = withSla.filter(s => !s.onTime);
+        const avgDelay = delayed.length > 0
+            ? Math.round(delayed.reduce((sum, s) => sum + s.delayDays, 0) / delayed.length)
+            : 0;
+        return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay };
+    }, [filteredItems]);
+
     const stripDiagramBySender = useMemo(() => {
         const map = new Map<string, number>();
         const getVal = (item: CargoItem) => {
@@ -1720,6 +1754,32 @@ function DashboardPage({
                         
                         return renderChart(chartDataForType, title, color, formatValue);
                     })()}
+                </Panel>
+            )}
+
+            {/* Монитор SLA: плановые сроки авто 9 дн., паром 21 дн. */}
+            {!loading && !error && slaStats.total > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
+                    <Typography.Headline style={{ marginBottom: '0.75rem', fontSize: '0.95rem', fontWeight: 600 }}>
+                        Монитор SLA
+                    </Typography.Headline>
+                    <Flex gap="1rem" wrap="wrap" align="center">
+                        <div>
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>В срок</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.percentOnTime >= 90 ? 'var(--color-success-status)' : slaStats.percentOnTime >= 70 ? '#f59e0b' : '#ef4444' }}>
+                                {slaStats.percentOnTime}%
+                            </Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                {slaStats.onTime} из {slaStats.total} перевозок
+                            </Typography.Body>
+                        </div>
+                        <div>
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Средняя просрочка</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.avgDelay > 0 ? '#ef4444' : 'var(--color-text-primary)' }}>
+                                {slaStats.avgDelay} дн.
+                            </Typography.Body>
+                        </div>
+                    </Flex>
                 </Panel>
             )}
             
@@ -4223,7 +4283,7 @@ function mapTimelineStageLabel(raw: string, item: CargoItem): string {
     if (/улетела/.test(key)) return 'Отправлена';
     if (/квручению|к\s*вручению/.test(key)) return `Прибыла в ${to}`;
     if (/поставленанадоставку|поставлена\s*на\s*доставку|в\s*месте\s*прибытия/.test(key)) return 'Запланирована доставка';
-    if (/доставлена/.test(key)) return 'Доставлено';
+    if (/доставлена/.test(key)) return 'Доставлена';
     return raw;
 }
 
@@ -4706,9 +4766,7 @@ function CargoDetailsModal({
                                 .filter(t => !isNaN(t));
                             const totalHours = datesWithMs.length >= 2
                                 ? Math.round((Math.max(...datesWithMs) - Math.min(...datesWithMs)) / (1000 * 60 * 60))
-                                : (item.DatePrih && item.DateVr
-                                    ? Math.round((new Date(item.DateVr).getTime() - new Date(item.DatePrih).getTime()) / (1000 * 60 * 60))
-                                    : null);
+                                : null;
                             return (
                             <div>
                                 <div className="perevozka-timeline">
@@ -4721,7 +4779,7 @@ function CargoDetailsModal({
                                         return (
                                             <div key={index} className="perevozka-timeline-item">
                                                 <div className={`perevozka-timeline-dot perevozka-timeline-dot-${colorKey}`} />
-                                                <div className="perevozka-timeline-content">
+                                                <div className="perevozka-timeline-content" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                                                     <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{step.label}</Typography.Body>
                                                     {step.date && (
                                                         <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
@@ -4743,6 +4801,23 @@ function CargoDetailsModal({
                         })()}
                     </div>
                 )}
+
+                {/* Плановый срок доставки: авто 9 дн., паром 21 дн. */}
+                {(() => {
+                    const sla = getSlaInfo(item);
+                    if (!sla) return null;
+                    return (
+                        <div style={{ marginTop: '0.5rem', marginBottom: '1rem' }}>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                План: {sla.planDays} дн. Факт: {sla.actualDays} дн.{' '}
+                                {sla.onTime
+                                    ? <span style={{ color: 'var(--color-success-status)' }}>В срок</span>
+                                    : <span style={{ color: '#ef4444' }}>Просрочка {sla.delayDays} дн.</span>
+                                }
+                            </Typography.Body>
+                        </div>
+                    );
+                })()}
 
                 <Typography.Headline style={{marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
                     Документы
