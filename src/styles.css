@@ -21,7 +21,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     --color-success-status: #34d399; /* emerald-400 */
     --color-pending-status: #facc15; /* yellow-400 */
     --color-modal-bg: rgba(31, 41, 55, 0.9);
-    --color-transit-status: #f97316; /* orange-600 */
+    --color-transit-status: #facc15; /* yellow-400, как на карточке в списке */
     --color-accepted-status: #3b82f6; /* blue-500 */
 }
 .light-mode {
@@ -244,7 +244,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 /* --- STATUS BADGES --- */
 .status-value { padding: 0.2rem 0.4rem; border-radius: 0.5rem; font-size: 0.8rem; font-weight: 700; color: var(--color-text-primary); background-color: var(--color-bg-hover); }
 .status-value.success { background-color: rgba(52, 211, 153, 0.2); color: var(--color-success-status); } /* delivered, completed */
-.status-value.transit { background-color: rgba(249, 115, 22, 0.2); color: var(--color-transit-status); } /* in_transit */
+.status-value.transit { background-color: rgba(250, 204, 21, 0.2); color: var(--color-transit-status); border: 1px solid rgba(250, 204, 21, 0.5); } /* В пути — жёлтый как на карточке */
 .status-value.accepted { background-color: rgba(59, 130, 246, 0.2); color: var(--color-accepted-status); } /* accepted */
 .status-value.ready { background-color: rgba(250, 204, 21, 0.2); color: var(--color-pending-status); } /* ready */
 
@@ -337,11 +337,18 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 }
 .chat-input-bar {
     background: var(--color-bg-secondary);
+    width: 100%;
+    box-sizing: border-box;
 }
 .chat-input-bar form {
     align-items: stretch;
+    display: flex;
+    width: 100%;
+    min-width: 0;
 }
 .chat-input {
+    flex: 1;
+    min-width: 0;
     background-color: var(--color-bg-input) !important;
     color: var(--color-text-primary) !important;
     border: 1px solid var(--color-border) !important;
