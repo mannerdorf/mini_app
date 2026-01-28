@@ -1531,14 +1531,7 @@ function DashboardPage({
                 </button>
                 {stripExpanded && (
                     <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
-                        <Flex gap="0.5rem" align="center" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                            <Flex gap="0.25rem" align="center" style={{ padding: '0.25rem 0.5rem', background: 'var(--color-bg-hover)', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
-                                <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Деньги"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
-                                <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'weight' ? '#10b981' : 'transparent', border: 'none' }} onClick={() => setChartType('weight')} title="Вес"><Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
-                                <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'volume' ? '#f59e0b' : 'transparent', border: 'none' }} onClick={() => setChartType('volume')} title="Объём"><List className="w-4 h-4" style={{ color: chartType === 'volume' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
-                            </Flex>
-                            <Typography.Body style={{ fontWeight: 600 }}>{formatStripValue()}</Typography.Body>
-                        </Flex>
+                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.75rem' }}>{formatStripValue()}</Typography.Body>
                         <div style={{ marginBottom: '0.75rem', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch' }}>
                             <Flex gap="0.5rem" style={{ flexWrap: 'nowrap', minWidth: 'min-content' }}>
                                 {(['type', 'sender', 'receiver'] as const).map((tab) => (
@@ -4213,6 +4206,27 @@ function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: { isOpen: 
 }
 
 type PerevozkaTimelineStep = { label: string; date?: string; completed?: boolean };
+
+/** Нормализация названия этапа из API для сопоставления */
+const normalizeStageKey = (s: string) => s.replace(/\s+/g, '').toLowerCase();
+
+/** Маппинг этапов хронологии на отображаемые подписи (места подставляются из item) */
+function mapTimelineStageLabel(raw: string, item: CargoItem): string {
+    const key = normalizeStageKey(raw);
+    const from = cityToCode(item.CitySender) || '—';
+    const to = cityToCode(item.CityReceiver) || '—';
+    if (/полученаинформация|получена\s*информация/.test(key)) return 'Получена информация';
+    if (/полученаотзаказчика|получена\s*от\s*заказчика/.test(key)) return `Получена в ${from}`;
+    if (/упакована/.test(key)) return 'Измерена';
+    if (/консолидация/.test(key)) return 'Консолидация';
+    if (/отправленаваэропорт|отправлена\s*в\s*аэропорт|загружена/.test(key)) return 'Загружена в ТС';
+    if (/улетела/.test(key)) return 'Отправлена';
+    if (/квручению|к\s*вручению/.test(key)) return `Прибыла в ${to}`;
+    if (/поставленанадоставку|поставлена\s*на\s*доставку|в\s*месте\s*прибытия/.test(key)) return 'Запланирована доставка';
+    if (/доставлена/.test(key)) return 'Доставлено';
+    return raw;
+}
+
 function getTimelineStepColor(label: string): 'success' | 'warning' | 'danger' | 'purple' | 'default' {
     const lower = (label || '').toLowerCase();
     if (lower.includes('доставлен') || lower.includes('заверш')) return 'success';
@@ -4273,10 +4287,12 @@ function CargoDetailsModal({
                     setPerevozkaTimeline(null);
                     return;
                 }
-                const steps: PerevozkaTimelineStep[] = raw.map((el: any, i: number) => {
-                    const label = el?.Stage ?? el?.Name ?? el?.Status ?? el?.label ?? String(el);
+                const steps: PerevozkaTimelineStep[] = raw.map((el: any) => {
+                    const rawLabel = el?.Stage ?? el?.Name ?? el?.Status ?? el?.label ?? String(el);
+                    const labelStr = typeof rawLabel === 'string' ? rawLabel : String(rawLabel);
                     const date = el?.Date ?? el?.date ?? el?.DatePrih ?? el?.DateVr;
-                    return { label: typeof label === 'string' ? label : String(label), date, completed: true };
+                    const displayLabel = mapTimelineStageLabel(labelStr, item);
+                    return { label: displayLabel, date, completed: true };
                 });
                 setPerevozkaTimeline(steps.length ? steps : null);
             })
@@ -4684,30 +4700,47 @@ function CargoDetailsModal({
                         {perevozkaError && (
                             <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>{perevozkaError}</Typography.Body>
                         )}
-                        {!perevozkaLoading && perevozkaTimeline && perevozkaTimeline.length > 0 && (
-                            <div className="perevozka-timeline">
-                                <div
-                                    className="perevozka-timeline-track-fill"
-                                    style={{ height: `${(perevozkaTimeline.length / Math.max(perevozkaTimeline.length, 1)) * 100}%` }}
-                                />
-                                {perevozkaTimeline.map((step, index) => {
-                                    const colorKey = getTimelineStepColor(step.label);
-                                    return (
-                                        <div key={index} className="perevozka-timeline-item">
-                                            <div className={`perevozka-timeline-dot perevozka-timeline-dot-${colorKey}`} />
-                                            <div className="perevozka-timeline-content">
-                                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{step.label}</Typography.Body>
-                                                {step.date && (
-                                                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                        {formatDate(step.date)}
-                                                    </Typography.Body>
-                                                )}
+                        {!perevozkaLoading && perevozkaTimeline && perevozkaTimeline.length > 0 && (() => {
+                            const datesWithMs = perevozkaTimeline
+                                .map(s => s.date ? new Date(s.date).getTime() : NaN)
+                                .filter(t => !isNaN(t));
+                            const totalHours = datesWithMs.length >= 2
+                                ? Math.round((Math.max(...datesWithMs) - Math.min(...datesWithMs)) / (1000 * 60 * 60))
+                                : (item.DatePrih && item.DateVr
+                                    ? Math.round((new Date(item.DateVr).getTime() - new Date(item.DatePrih).getTime()) / (1000 * 60 * 60))
+                                    : null);
+                            return (
+                            <div>
+                                <div className="perevozka-timeline">
+                                    <div
+                                        className="perevozka-timeline-track-fill"
+                                        style={{ height: `${(perevozkaTimeline.length / Math.max(perevozkaTimeline.length, 1)) * 100}%` }}
+                                    />
+                                    {perevozkaTimeline.map((step, index) => {
+                                        const colorKey = getTimelineStepColor(step.label);
+                                        return (
+                                            <div key={index} className="perevozka-timeline-item">
+                                                <div className={`perevozka-timeline-dot perevozka-timeline-dot-${colorKey}`} />
+                                                <div className="perevozka-timeline-content">
+                                                    <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{step.label}</Typography.Body>
+                                                    {step.date && (
+                                                        <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                            {formatDate(step.date)}
+                                                        </Typography.Body>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })}
+                                </div>
+                                {totalHours != null && (
+                                    <Typography.Body style={{ marginTop: '0.75rem', fontWeight: 600, fontSize: '0.9rem' }}>
+                                        Итого время в пути — {totalHours} ч
+                                    </Typography.Body>
+                                )}
                             </div>
-                        )}
+                            );
+                        })()}
                     </div>
                 )}
 
