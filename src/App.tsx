@@ -3202,7 +3202,41 @@ function CargoPage({
                 Sender: item.Sender, // Отправитель
                 Customer: item.Customer ?? item.customer, // Заказчик
             }));
-            setItems(mapped);
+            const parseDateValue = (value: any): number => {
+                if (!value) return 0;
+                const d = new Date(String(value));
+                return isNaN(d.getTime()) ? 0 : d.getTime();
+            };
+            const chooseLatest = (a: CargoItem, b: CargoItem) => {
+                const aDate = parseDateValue(a.DatePrih) || parseDateValue(a.DateVr);
+                const bDate = parseDateValue(b.DatePrih) || parseDateValue(b.DateVr);
+                if (!aDate && !bDate) return a;
+                return aDate >= bDate ? a : b;
+            };
+
+            const byNumber = new Map<string, CargoItem>();
+            mapped.forEach((item) => {
+                const key = String(item.Number || "").trim();
+                if (!key) return;
+                const existing = byNumber.get(key);
+                byNumber.set(key, existing ? chooseLatest(existing, item) : item);
+            });
+
+            const deduped: CargoItem[] = [];
+            const seen = new Set<string>();
+            mapped.forEach((item) => {
+                const key = String(item.Number || "").trim();
+                if (!key) {
+                    deduped.push(item);
+                    return;
+                }
+                if (seen.has(key)) return;
+                const chosen = byNumber.get(key);
+                if (chosen) deduped.push(chosen);
+                seen.add(key);
+            });
+
+            setItems(deduped);
 
             const customer = mapped.find((item: CargoItem) => item.Customer)?.Customer;
             if (customer && onCustomerDetected) {
