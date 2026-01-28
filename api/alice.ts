@@ -3,6 +3,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 const APP_DOMAIN =
   process.env.NEXT_PUBLIC_APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
+const ALICE_VERIFICATION_CODE = process.env.ALICE_VERIFICATION_CODE || "589570";
 
 async function getRedisValue(key: string): Promise<string | null> {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -86,6 +87,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = req.body;
   const userId = String(body?.session?.user?.user_id || body?.session?.user_id || "anon");
   const text = getCommandText(body);
+
+  if (text.includes("код проверки") || text.includes("проверка навыка") || text.includes("verification")) {
+    return res.status(200).json(aliceResponse(`Код проверки: ${ALICE_VERIFICATION_CODE}`));
+  }
   // Привязка по коду
   const code = extractCode(text);
   if (code) {
