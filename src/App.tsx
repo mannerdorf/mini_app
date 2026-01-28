@@ -679,7 +679,11 @@ function HomePage({ auth }: { auth: AuthData }) {
     }, [periodFilter, customFrom, customTo]);
 
     const loadStats = useCallback(async (dateFrom: string, dateTo: string) => {
-        if (!auth) return;
+        if (!auth?.login || !auth?.password) {
+            setItems([]);
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         setError(null);
         try {
@@ -726,9 +730,10 @@ function HomePage({ auth }: { auth: AuthData }) {
         }
     }, [auth]);
 
+    // При смене аккаунта — перезапрос данных под выбранным аккаунтом
     useEffect(() => {
         loadStats(apiDateRange.dateFrom, apiDateRange.dateTo);
-    }, [apiDateRange, loadStats]);
+    }, [apiDateRange, loadStats, auth]);
 
     const totalShipments = items.length;
     const totalPaidWeight = useMemo(
@@ -1167,6 +1172,12 @@ function DashboardPage({
     );
     
     const loadCargo = useCallback(async (dateFrom: string, dateTo: string) => {
+        if (!auth?.login || !auth?.password) {
+            setItems([]);
+            setLoading(false);
+            setError(null);
+            return;
+        }
         setLoading(true);
         setError(null);
         try {
@@ -1205,9 +1216,10 @@ function DashboardPage({
         }
     }, [auth]);
 
+    // Всегда грузим данные по текущему выбранному аккаунту; при смене аккаунта — перезапрос
     useEffect(() => {
         loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo);
-    }, [apiDateRange, loadCargo]);
+    }, [apiDateRange, loadCargo, auth]);
 
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
@@ -1477,7 +1489,7 @@ function DashboardPage({
 
     return (
         <div className="w-full">
-            {/* Раскрывающаяся полоска: в свёрнутом виде — только период; в развёрнутом — переключатель деньги/вес/объём и диаграммы */}
+            {/* Раскрывающаяся полоска: в свёрнутом виде — период + переключатели; в развёрнутом — переключатель и диаграммы */}
             <div
                 className="home-strip"
                 style={{
@@ -1496,18 +1508,25 @@ function DashboardPage({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
+                        gap: '0.5rem',
                         padding: '0.75rem 1rem',
                         background: 'transparent',
                         border: 'none',
                         cursor: 'pointer',
                         color: 'var(--color-text-primary)',
                         textAlign: 'left',
+                        minWidth: 0,
                     }}
                 >
-                    <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600 }}>
+                    <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
                     </Typography.Body>
-                    <ChevronDown className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', transform: stripExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                    <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Деньги"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'weight' ? '#10b981' : 'transparent', border: 'none' }} onClick={() => setChartType('weight')} title="Вес"><Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'volume' ? '#f59e0b' : 'transparent', border: 'none' }} onClick={() => setChartType('volume')} title="Объём"><List className="w-4 h-4" style={{ color: chartType === 'volume' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                    </Flex>
+                    <ChevronDown className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', transform: stripExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
                 </button>
                 {stripExpanded && (
                     <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
@@ -1677,52 +1696,7 @@ function DashboardPage({
             )}
             
             {!loading && !error && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem', position: 'relative' }}>
-                    {/* Переключатель типа данных в правом верхнем углу */}
-                    <Flex justify="flex-end" style={{ position: 'absolute', top: '1rem', right: '1rem', zIndex: 10 }}>
-                        <Flex gap="0.5rem" align="center" style={{ background: 'var(--color-bg-hover)', padding: '0.25rem', borderRadius: '8px' }}>
-                            <Button
-                                className="filter-button"
-                                style={{ 
-                                    padding: '0.5rem', 
-                                    minWidth: 'auto',
-                                    background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent',
-                                    border: chartType === 'money' ? '1px solid var(--color-primary-blue)' : '1px solid transparent'
-                                }}
-                                onClick={() => setChartType('money')}
-                                title="Деньги"
-                            >
-                                <RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} />
-                            </Button>
-                            <Button
-                                className="filter-button"
-                                style={{ 
-                                    padding: '0.5rem', 
-                                    minWidth: 'auto',
-                                    background: chartType === 'weight' ? '#10b981' : 'transparent',
-                                    border: chartType === 'weight' ? '1px solid #10b981' : '1px solid transparent'
-                                }}
-                                onClick={() => setChartType('weight')}
-                                title="Вес"
-                            >
-                                <Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} />
-                            </Button>
-                            <Button
-                                className="filter-button"
-                                style={{ 
-                                    padding: '0.5rem', 
-                                    minWidth: 'auto',
-                                    background: chartType === 'volume' ? '#f59e0b' : 'transparent',
-                                    border: chartType === 'volume' ? '1px solid #f59e0b' : '1px solid transparent'
-                                }}
-                                onClick={() => setChartType('volume')}
-                                title="Объём"
-                            >
-                                <List className="w-4 h-4" style={{ color: chartType === 'volume' ? 'white' : 'var(--color-text-secondary)' }} />
-                            </Button>
-                        </Flex>
-                    </Flex>
-                    
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
                     {(() => {
                         let chartDataForType: { date: string; value: number }[];
                         let title: string;
@@ -3524,6 +3498,12 @@ function CargoPage({
     // Удалена функция findDeliveryDate, используем DateVr напрямую.
 
     const loadCargo = useCallback(async (dateFrom: string, dateTo: string) => {
+        if (!auth?.login || !auth?.password) {
+            setItems([]);
+            setLoading(false);
+            setError(null);
+            return;
+        }
         setLoading(true); setError(null);
         try {
             const res = await fetch(PROXY_API_BASE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, dateFrom, dateTo }) });
@@ -3590,7 +3570,8 @@ function CargoPage({
         } catch (e: any) { setError(e.message); } finally { setLoading(false); }
     }, [auth]);
 
-    useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo]);
+    // При смене аккаунта — перезапрос грузов под выбранным аккаунтом
+    useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo, auth]);
 
     useEffect(() => {
         if (initialStatusFilter) setStatusFilter(initialStatusFilter);
