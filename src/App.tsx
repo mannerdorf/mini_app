@@ -165,8 +165,8 @@ const getSixMonthsAgoDate = () => {
 const DEFAULT_DATE_FROM = getSixMonthsAgoDate();
 const DEFAULT_DATE_TO = getTodayDate();
 
-/** Плановые сроки доставки (дней): MSK-KGD авто 6 / паром 20; KGD-MSK авто и паром 60 */
-const AUTO_PLAN_DAYS = 6;
+/** Плановые сроки доставки (дней): MSK-KGD авто 7 / паром 20; KGD-MSK авто и паром 60 */
+const AUTO_PLAN_DAYS = 7;
 const FERRY_PLAN_DAYS = 20;
 const KGD_MSK_PLAN_DAYS = 60;
 
@@ -1804,7 +1804,7 @@ function DashboardPage({
                 </Panel>
             )}
 
-            {/* Монитор SLA: плановые сроки авто 6 дн., паром 20 дн. (MSK-KGD); KGD-MSK 60 дн. */}
+            {/* Монитор SLA: плановые сроки авто 7 дн., паром 20 дн. (MSK-KGD); KGD-MSK 60 дн. */}
             {!loading && !error && slaStats.total > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
                     <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem' }}>
