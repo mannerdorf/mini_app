@@ -4061,7 +4061,13 @@ function CargoDetailsModal({
     };
 
     // Список явно отображаемых полей (из API примера)
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'DateDoc', 'OG'];
+    const FIELD_LABELS: Record<string, string> = {
+        CitySender: 'Место отправления',
+        CityReceiver: 'Место получения',
+        TypeOfTranzit: 'Тип перевозки',
+        TypeOfTransit: 'Тип перевозки',
+    };
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -4245,8 +4251,18 @@ function CargoDetailsModal({
                             if (val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "") || (typeof val === 'object' && val !== null && Object.keys(val).length === 0)) return null; 
                             // Пропускаем, если значение - 0
                             if (val === 0 && key.toLowerCase().includes('date') === false) return null;
-                            
-                            return <DetailItem key={key} label={key} value={renderValue(val)} />;
+                            const isFerry =
+                                item?.AK === true ||
+                                item?.AK === "true" ||
+                                item?.AK === "1" ||
+                                item?.AK === 1;
+                            const label = FIELD_LABELS[key] || key;
+                            const value =
+                                (key === 'TypeOfTranzit' || key === 'TypeOfTransit') && isFerry
+                                    ? 'Паром'
+                                    : renderValue(val);
+
+                            return <DetailItem key={key} label={label} value={value} />;
                         })}
                 </div>
                 
