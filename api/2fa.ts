@@ -81,9 +81,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const enabled = !!stored?.enabled;
     const method = stored?.method === "telegram" ? "telegram" : "google";
 
+    const googleSecret =
+      await getRedisValue(`2fa:google_secret:${login}`) ||
+      (loginRaw && loginRaw !== login ? await getRedisValue(`2fa:google_secret:${loginRaw}`) : null);
+    const googleSecretSet = !!googleSecret;
+
     return res.status(200).json({
       ok: true,
-      settings: { enabled, method, telegramLinked },
+      settings: { enabled, method, telegramLinked, googleSecretSet },
     });
   }
 

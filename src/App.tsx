@@ -168,6 +168,8 @@ type Account = {
     twoFactorEnabled?: boolean;
     twoFactorMethod?: "google" | "telegram";
     twoFactorTelegramLinked?: boolean;
+    /** Секрет Google Authenticator сохранён (2FA по приложению настроен) */
+    twoFactorGoogleSecretSet?: boolean;
 };
 // УДАЛЕНО: type Tab = "home" | "cargo" | "docs" | "support" | "profile";
 type Tab = "home" | "cargo" | "docs" | "support" | "profile" | "dashboard"; // Все разделы + секретный dashboard
@@ -2801,6 +2803,11 @@ function ProfilePage({
     const [aliceLoading, setAliceLoading] = useState(false);
     const [aliceError, setAliceError] = useState<string | null>(null);
     const [aliceSuccess, setAliceSuccess] = useState<string | null>(null);
+    const [googleSetupData, setGoogleSetupData] = useState<{ otpauthUrl: string; secret: string } | null>(null);
+    const [googleSetupStep, setGoogleSetupStep] = useState<'idle' | 'qr' | 'verify'>('idle');
+    const [googleSetupLoading, setGoogleSetupLoading] = useState(false);
+    const [googleSetupError, setGoogleSetupError] = useState<string | null>(null);
+    const [googleVerifyCode, setGoogleVerifyCode] = useState('');
 
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
@@ -3202,6 +3209,8 @@ function ProfilePage({
     );
 
     if (currentView === '2fa' && activeAccountId && activeAccount) {
+        const googleSecretSet = !!activeAccount.twoFactorGoogleSecretSet;
+        const showGoogleSetup = twoFactorEnabled && twoFactorMethod === 'google' && !googleSecretSet;
         return (
             <div className="w-full">
                 <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
@@ -3220,6 +3229,8 @@ function ProfilePage({
                                     if (twoFactorEnabled && twoFactorMethod === 'google') {
                                         setTwoFactorEnabled(false);
                                         setTwoFactorMethod('telegram');
+                                        setGoogleSetupData(null);
+                                        setGoogleSetupStep('idle');
                                         onUpdateAccount(activeAccountId, { twoFactorMethod: 'telegram', twoFactorEnabled: false });
                                     } else {
                                         setTwoFactorMethod('google');
@@ -3229,6 +3240,123 @@ function ProfilePage({
                                 }}
                             />
                         </Flex>
+                        {showGoogleSetup && (
+                            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {googleSetupStep === 'idle' && !googleSetupData && (
+                                    <>
+                                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                            Отсканируйте QR-код в приложении Google Authenticator или введите ключ вручную.
+                                        </Typography.Body>
+                                        <Button
+                                            className="filter-button"
+                                            size="small"
+                                            disabled={googleSetupLoading}
+                                            onClick={async () => {
+                                                if (!activeAccount?.login) return;
+                                                setGoogleSetupError(null);
+                                                setGoogleSetupLoading(true);
+                                                try {
+                                                    const res = await fetch('/api/2fa-google', {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ login: activeAccount.login, action: 'setup' }),
+                                                    });
+                                                    const data = await res.json();
+                                                    if (!res.ok) throw new Error(data?.error || 'Ошибка настройки');
+                                                    setGoogleSetupData({ otpauthUrl: data.otpauthUrl, secret: data.secret });
+                                                    setGoogleSetupStep('qr');
+                                                } catch (e: any) {
+                                                    setGoogleSetupError(e?.message || 'Не удалось начать настройку');
+                                                } finally {
+                                                    setGoogleSetupLoading(false);
+                                                }
+                                            }}
+                                            style={{ fontSize: '0.85rem', alignSelf: 'flex-start' }}
+                                        >
+                                            {googleSetupLoading ? 'Загрузка…' : 'Настроить Google Authenticator'}
+                                        </Button>
+                                    </>
+                                )}
+                                {(googleSetupStep === 'qr' || googleSetupData) && googleSetupData && googleSetupStep !== 'verify' && (
+                                    <>
+                                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                            <img
+                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(googleSetupData.otpauthUrl)}`}
+                                                alt="QR для Google Authenticator"
+                                                style={{ width: 200, height: 200 }}
+                                            />
+                                        </div>
+                                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                            Ключ для ручного ввода: <code style={{ wordBreak: 'break-all', fontSize: '0.8rem' }}>{googleSetupData.secret}</code>
+                                        </Typography.Body>
+                                        <Button
+                                            className="filter-button"
+                                            size="small"
+                                            onClick={() => { setGoogleSetupStep('verify'); setGoogleVerifyCode(''); setGoogleSetupError(null); }}
+                                            style={{ fontSize: '0.85rem', alignSelf: 'flex-start' }}
+                                        >
+                                            Добавил в приложение
+                                        </Button>
+                                    </>
+                                )}
+                                {googleSetupStep === 'verify' && googleSetupData && (
+                                    <form
+                                        onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            if (!activeAccount?.login || !googleVerifyCode.trim()) return;
+                                            setGoogleSetupError(null);
+                                            setGoogleSetupLoading(true);
+                                            try {
+                                                const res = await fetch('/api/2fa-google', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ login: activeAccount.login, action: 'verify', code: googleVerifyCode.trim() }),
+                                                });
+                                                const data = await res.json();
+                                                if (!res.ok) throw new Error(data?.error || 'Неверный код');
+                                                await fetch('/api/2fa', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ login: activeAccount.login, enabled: true, method: 'google', telegramLinked: false }),
+                                                });
+                                                onUpdateAccount(activeAccountId, { twoFactorEnabled: true, twoFactorMethod: 'google', twoFactorGoogleSecretSet: true });
+                                                setGoogleSetupData(null);
+                                                setGoogleSetupStep('idle');
+                                                setGoogleVerifyCode('');
+                                            } catch (err: any) {
+                                                setGoogleSetupError(err?.message || 'Неверный код');
+                                            } finally {
+                                                setGoogleSetupLoading(false);
+                                            }
+                                        }}
+                                        style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}
+                                    >
+                                        <Typography.Body style={{ fontSize: '0.85rem' }}>Введите 6-значный код из приложения</Typography.Body>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            autoComplete="one-time-code"
+                                            maxLength={6}
+                                            placeholder="000000"
+                                            value={googleVerifyCode}
+                                            onChange={(e) => setGoogleVerifyCode(e.target.value.replace(/\D/g, ''))}
+                                            style={{ padding: '0.5rem', fontSize: '1rem', textAlign: 'center', letterSpacing: '0.25em' }}
+                                        />
+                                        <Button type="submit" className="button-primary" disabled={googleVerifyCode.length !== 6 || googleSetupLoading} style={{ alignSelf: 'flex-start' }}>
+                                            {googleSetupLoading ? 'Проверка…' : 'Подтвердить'}
+                                        </Button>
+                                        {googleSetupError && (
+                                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-error-status)' }}>{googleSetupError}</Typography.Body>
+                                        )}
+                                    </form>
+                                )}
+                            </div>
+                        )}
+                        {twoFactorEnabled && twoFactorMethod === 'google' && googleSecretSet && (
+                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-success-status)', marginTop: '0.5rem' }}>
+                                Google Authenticator настроен
+                            </Typography.Body>
+                        )}
                     </Panel>
                     <Panel className="cargo-card" style={{ padding: '1rem' }}>
                         <Flex align="center" justify="space-between" style={{ marginBottom: twoFactorMethod === 'telegram' && !twoFactorTelegramLinked && onOpenTelegramBot ? '0.5rem' : 0 }}>
@@ -6262,12 +6390,13 @@ export default function App() {
                 if (!settings || cancelled) return;
                 setAccounts(prev =>
                     prev.map(acc =>
-                        acc.id === activeAccount.id
+                                acc.id === activeAccount.id
                             ? {
                                 ...acc,
                                 twoFactorEnabled: !!settings.enabled,
                                 twoFactorMethod: settings.method === "telegram" ? "telegram" : "google",
-                                twoFactorTelegramLinked: !!settings.telegramLinked
+                                twoFactorTelegramLinked: !!settings.telegramLinked,
+                                twoFactorGoogleSecretSet: !!settings.googleSecretSet
                             }
                             : acc
                     )
@@ -6785,6 +6914,7 @@ export default function App() {
                     const twoFaEnabled = !!twoFaSettings?.enabled;
                     const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
                     const twoFaLinked = !!twoFaSettings?.telegramLinked;
+                    const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
                     if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
                         const sendRes = await fetch("/api/2fa-telegram", {
                             method: "POST",
@@ -6795,7 +6925,13 @@ export default function App() {
                             const err = await readJsonOrText(sendRes);
                             throw new Error(err?.error || "Не удалось отправить код");
                         }
-                        setPendingLogin({ login, password, customer: undefined, loginKey, customers });
+                        setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "telegram" });
+                        setTwoFactorPending(true);
+                        setTwoFactorCode("");
+                        return;
+                    }
+                    if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
+                        setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "google" });
                         setTwoFactorPending(true);
                         setTwoFactorCode("");
                         return;
@@ -6853,6 +6989,7 @@ export default function App() {
             const twoFaEnabled = !!twoFaSettings?.enabled;
             const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
             const twoFaLinked = !!twoFaSettings?.telegramLinked;
+            const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
 
             if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
                 const sendRes = await fetch("/api/2fa-telegram", {
@@ -6864,7 +7001,13 @@ export default function App() {
                     const err = await readJsonOrText(sendRes);
                     throw new Error(err?.error || "Не удалось отправить код");
                 }
-                setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined });
+                setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined, twoFaMethod: "telegram" });
+                setTwoFactorPending(true);
+                setTwoFactorCode("");
+                return;
+            }
+            if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
+                setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined, twoFaMethod: "google" });
                 setTwoFactorPending(true);
                 setTwoFactorCode("");
                 return;
@@ -6916,15 +7059,20 @@ export default function App() {
         e.preventDefault();
         setTwoFactorError(null);
         if (!pendingLogin?.loginKey || !twoFactorCode.trim()) {
-            setTwoFactorError("Введите код из Telegram.");
+            setTwoFactorError(pendingLogin?.twoFaMethod === "google" ? "Введите код из приложения." : "Введите код из Telegram.");
             return;
         }
         try {
             setTwoFactorLoading(true);
-            const res = await fetch("/api/2fa-telegram", {
+            const isGoogle = pendingLogin.twoFaMethod === "google";
+            const res = await fetch(isGoogle ? "/api/2fa-google" : "/api/2fa-telegram", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login: pendingLogin.loginKey, action: "verify", code: twoFactorCode.trim() }),
+                body: JSON.stringify(
+                    isGoogle
+                        ? { login: pendingLogin.loginKey, action: "verify", code: twoFactorCode.trim() }
+                        : { login: pendingLogin.loginKey, action: "verify", code: twoFactorCode.trim() }
+                ),
             });
             if (!res.ok) {
                 const err = await readJsonOrText(res);
@@ -7161,21 +7309,24 @@ export default function App() {
                     {twoFactorPending ? (
                         <form onSubmit={handleTwoFactorSubmit} className="form">
                             <Typography.Body style={{ marginBottom: '0.75rem', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
-                                Введите код из Telegram
+                                {pendingLogin?.twoFaMethod === "google" ? "Введите 6-значный код из приложения" : "Введите код из Telegram"}
                             </Typography.Body>
                             <div className="field">
                                 <Input
                                     className="login-input"
                                     type="text"
-                                    placeholder="Код подтверждения"
+                                    inputMode="numeric"
+                                    autoComplete="one-time-code"
+                                    placeholder={pendingLogin?.twoFaMethod === "google" ? "000000" : "Код подтверждения"}
                                     value={twoFactorCode}
-                                    onChange={(e) => setTwoFactorCode(e.target.value)}
+                                    onChange={(e) => setTwoFactorCode(pendingLogin?.twoFaMethod === "google" ? e.target.value.replace(/\D/g, "").slice(0, 6) : e.target.value)}
                                 />
                             </div>
                             <Button className="button-primary" type="submit" disabled={twoFactorLoading}>
                                 {twoFactorLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить код"}
                             </Button>
                             <Flex justify="center" style={{ marginTop: '0.75rem', gap: '0.5rem' }}>
+                                {pendingLogin?.twoFaMethod === "telegram" && (
                                 <Button
                                     type="button"
                                     className="filter-button"
@@ -7203,6 +7354,7 @@ export default function App() {
                                 >
                                     Отправить код еще раз
                                 </Button>
+                                )}
                                 <Button
                                     type="button"
                                     className="filter-button"
