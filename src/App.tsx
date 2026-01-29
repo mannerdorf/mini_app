@@ -1965,7 +1965,6 @@ function CustomerSwitcher({
                 style={{ padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}
                 title="Выбрать компанию"
             >
-                <Building2 className="w-4 h-4" />
                 <Typography.Body style={{ fontSize: '0.9rem' }}>
                     {displayName}
                 </Typography.Body>
@@ -3106,8 +3105,25 @@ function ProfilePage({
                     ))}
                 </div>
             </div>
-            
-            {/* Безопасность (скрыто временно) */}
+
+            {/* Безопасность */}
+            <div style={{ marginBottom: '1.5rem' }}>
+                <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Безопасность</Typography.Body>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <Panel
+                        className="cargo-card"
+                        onClick={onOpenNotifications}
+                        style={{ display: 'flex', alignItems: 'center', padding: '1rem', cursor: 'pointer' }}
+                    >
+                        <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                            <div style={{ color: 'var(--color-primary)' }}>
+                                <Bell className="w-5 h-5" />
+                            </div>
+                            <Typography.Body style={{ fontSize: '0.9rem' }}>Уведомления</Typography.Body>
+                        </Flex>
+                    </Panel>
+                </div>
+            </div>
 
             {/* Информация */}
             <div>
