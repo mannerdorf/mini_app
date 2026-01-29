@@ -1922,7 +1922,7 @@ function CustomerSwitcher({
     if (customers.length === 0 || !activeAccountId) return null;
 
     return (
-        <div className="customer-switcher filter-group" style={{ position: 'relative' }}>
+        <div className="customer-switcher filter-group" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Button
                 className="filter-button"
                 onClick={() => setIsOpen(!isOpen)}
@@ -1935,6 +1935,7 @@ function CustomerSwitcher({
                 </Typography.Body>
                 <ChevronDown className="w-4 h-4" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </Button>
+            <span className="status-value success">Активна</span>
             {isOpen && (
                 <div className="filter-dropdown" style={{ minWidth: '220px' }}>
                     {customers.map((c) => (
@@ -6966,23 +6967,19 @@ export default function App() {
             <header className="app-header">
                     <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {accounts.length > 1 ? (
-                            <AccountSwitcher 
-                                accounts={accounts}
-                                activeAccountId={activeAccountId}
-                                onSwitchAccount={handleSwitchAccount}
-                            />
-                        ) : (
-                            <Flex align="center">
-                                <UserIcon className="w-4 h-4 mr-2" />
-                                <Typography.Body>{activeAccount?.customer || activeAccount?.login || 'Не выбран'}</Typography.Body>
-                            </Flex>
-                        )}
                         <CustomerSwitcher
                             activeAccount={activeAccount}
                             activeAccountId={activeAccountId}
                             onUpdateAccount={handleUpdateAccount}
                         />
+                        {(!activeAccount?.customers?.length || !activeAccountId) && activeAccount && (
+                            <>
+                                <Typography.Body style={{ fontSize: '0.9rem' }}>
+                                    {stripOoo(activeAccount.customer || activeAccount.login || 'Компания')}
+                                </Typography.Body>
+                                <span className="status-value success">Активна</span>
+                            </>
+                        )}
                     </Flex>
                     <Flex align="center" className="space-x-3">
                         <Button className="search-toggle-button" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'} aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}>
