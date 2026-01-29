@@ -2764,24 +2764,26 @@ function AboutCompanyPage({ onBack }: { onBack: () => void }) {
     );
 }
 
-// --- NOTIFICATION EVENTS (для разделов Telegram / Web Push) ---
-const NOTIFICATION_EVENTS: { id: string; label: string }[] = [
-  { id: "accepted", label: "Ответ принято" },
+// --- NOTIFICATION EVENTS: Перевозки + Документы (шаблоны для Telegram: Принята, В пути, Доставлено; Счёт оплачен) ---
+const NOTIF_PEREVOZKI: { id: string; label: string }[] = [
+  { id: "accepted", label: "Принята" },
   { id: "in_transit", label: "В пути" },
-  { id: "delivering", label: "На доставке" },
   { id: "delivered", label: "Доставлено" },
-  { id: "unpaid_bill", label: "Счёт на оплату" },
-  { id: "status_changed", label: "Изменение статуса" },
+];
+const NOTIF_DOCS: { id: string; label: string }[] = [
+  { id: "bill_paid", label: "Счёт оплачен" },
 ];
 
 function NotificationsPage({
   activeAccount,
   onBack,
   onOpenDeveloper,
+  onOpenTelegramBot,
 }: {
   activeAccount: Account | null;
   onBack: () => void;
   onOpenDeveloper: () => void;
+  onOpenTelegramBot?: () => Promise<void>;
 }) {
   const [prefs, setPrefs] = useState<{ telegram: Record<string, boolean>; webpush: Record<string, boolean> }>({
     telegram: {},
@@ -2792,8 +2794,11 @@ function NotificationsPage({
   const [webPushLoading, setWebPushLoading] = useState(false);
   const [webPushError, setWebPushError] = useState<string | null>(null);
   const [webPushSubscribed, setWebPushSubscribed] = useState(false);
+  const [tgLinkLoading, setTgLinkLoading] = useState(false);
+  const [tgLinkError, setTgLinkError] = useState<string | null>(null);
 
   const login = activeAccount?.login?.trim().toLowerCase() || "";
+  const telegramLinked = !!activeAccount?.twoFactorTelegramLinked;
 
   useEffect(() => {
     if (!login) {
@@ -2891,6 +2896,50 @@ function NotificationsPage({
   const webPushSupported =
     typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
 
+  // Переключатель как в 2FA (включить двухфакторную аутентификацию)
+  const TapSwitch = ({ checked, onToggle }: { checked: boolean; onToggle: () => void }) => (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-checked={checked}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      style={{
+        width: 44,
+        height: 24,
+        borderRadius: 12,
+        background: checked ? "var(--color-theme-primary, #2563eb)" : "var(--color-border, #ccc)",
+        position: "relative",
+        cursor: "pointer",
+        flexShrink: 0,
+        transition: "background 0.2s",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 2,
+          left: checked ? 22 : 2,
+          width: 20,
+          height: 20,
+          borderRadius: "50%",
+          background: "#fff",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+          transition: "left 0.2s",
+        }}
+      />
+    </div>
+  );
+
   return (
     <div className="w-full">
       <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
@@ -2920,16 +2969,65 @@ function NotificationsPage({
             Telegram
           </Typography.Body>
           <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {NOTIFICATION_EVENTS.map((ev) => (
-              <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
-                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
-                <Switch
-                  checked={!!prefs.telegram[ev.id]}
-                  onCheckedChange={(checked) => savePrefs("telegram", ev.id, !!checked)}
-                  disabled={prefsSaving}
-                />
-              </Flex>
-            ))}
+            {!telegramLinked ? (
+              <>
+                <Typography.Body style={{ fontSize: "0.9rem" }}>
+                  Привяжите Telegram, чтобы получать уведомления в боте по образцу: «Создана Перевозка №…», «В пути», «Доставлено», «Счёт по перевозке № … оплачен».
+                </Typography.Body>
+                {onOpenTelegramBot && (
+                  <Button
+                    type="button"
+                    className="button-primary"
+                    disabled={tgLinkLoading}
+                    onClick={async () => {
+                      setTgLinkError(null);
+                      setTgLinkLoading(true);
+                      try {
+                        await onOpenTelegramBot();
+                      } catch (e: any) {
+                        setTgLinkError(e?.message || "Не удалось открыть Telegram.");
+                      } finally {
+                        setTgLinkLoading(false);
+                      }
+                    }}
+                  >
+                    {tgLinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Привязать Telegram"}
+                  </Button>
+                )}
+                {tgLinkError && (
+                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
+                    {tgLinkError}
+                  </Typography.Body>
+                )}
+              </>
+            ) : (
+              <>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>
+                  Раздел «Перевозки»
+                </Typography.Body>
+                {NOTIF_PEREVOZKI.map((ev) => (
+                  <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                    <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                    <TapSwitch
+                      checked={!!prefs.telegram[ev.id]}
+                      onToggle={() => savePrefs("telegram", ev.id, !prefs.telegram[ev.id])}
+                    />
+                  </Flex>
+                ))}
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
+                  Раздел «Документы»
+                </Typography.Body>
+                {NOTIF_DOCS.map((ev) => (
+                  <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                    <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                    <TapSwitch
+                      checked={!!prefs.telegram[ev.id]}
+                      onToggle={() => savePrefs("telegram", ev.id, !prefs.telegram[ev.id])}
+                    />
+                  </Flex>
+                ))}
+              </>
+            )}
           </Panel>
 
           {/* Web Push */}
@@ -2939,11 +3037,9 @@ function NotificationsPage({
           <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {webPushSupported && (
               <>
-                <Flex align="center" justify="space-between" style={{ gap: "0.5rem" }}>
-                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                    Уведомления в браузере (Chrome, Edge, Firefox; на iOS — после добавления на экран «Домой»).
-                  </Typography.Body>
-                </Flex>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                  Уведомления в браузере (Chrome, Edge, Firefox; на iOS — после добавления на экран «Домой»).
+                </Typography.Body>
                 {!webPushSubscribed && (
                   <Button
                     type="button"
@@ -2964,13 +3060,27 @@ function NotificationsPage({
                     {webPushError}
                   </Typography.Body>
                 )}
-                {NOTIFICATION_EVENTS.map((ev) => (
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.25rem", marginBottom: "0.25rem" }}>
+                  Раздел «Перевозки»
+                </Typography.Body>
+                {NOTIF_PEREVOZKI.map((ev) => (
                   <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                     <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
-                    <Switch
+                    <TapSwitch
                       checked={!!prefs.webpush[ev.id]}
-                      onCheckedChange={(checked) => savePrefs("webpush", ev.id, !!checked)}
-                      disabled={prefsSaving}
+                      onToggle={() => savePrefs("webpush", ev.id, !prefs.webpush[ev.id])}
+                    />
+                  </Flex>
+                ))}
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
+                  Раздел «Документы»
+                </Typography.Body>
+                {NOTIF_DOCS.map((ev) => (
+                  <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                    <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                    <TapSwitch
+                      checked={!!prefs.webpush[ev.id]}
+                      onToggle={() => savePrefs("webpush", ev.id, !prefs.webpush[ev.id])}
                     />
                   </Flex>
                 ))}
@@ -3401,6 +3511,7 @@ function ProfilePage({
                 activeAccount={activeAccount}
                 onBack={() => setCurrentView('main')}
                 onOpenDeveloper={onOpenNotifications}
+                onOpenTelegramBot={onOpenTelegramBot}
             />
         );
     }
