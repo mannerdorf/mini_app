@@ -1893,20 +1893,27 @@ function DashboardPage({
     );
 }
 
-// --- CUSTOMER SWITCHER (выбор компании в хедере, без ИНН) ---
+// --- CUSTOMER SWITCHER (тот же список, что в «Мои компании», из БД; с прокруткой) ---
+type HeaderCompanyRow = { login: string; inn: string; name: string };
+
 function CustomerSwitcher({
-    activeAccount,
+    accounts,
     activeAccountId,
+    onSwitchAccount,
     onUpdateAccount,
 }: {
-    activeAccount: Account | null;
+    accounts: Account[];
     activeAccountId: string | null;
+    onSwitchAccount: (accountId: string) => void;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
 }) {
     const [isOpen, setIsOpen] = useState(false);
-    const customers = activeAccount?.customers ?? [];
-    const activeInn = activeAccount?.activeCustomerInn ?? null;
-    const activeCustomer = customers.find(c => c.inn === activeInn) ?? customers[0];
+    const [companies, setCompanies] = useState<HeaderCompanyRow[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    const activeAccount = accounts.find((acc) => acc.id === activeAccountId) || null;
+    const activeLogin = activeAccount?.login?.trim().toLowerCase() ?? "";
+    const activeInn = activeAccount?.activeCustomerInn ?? activeAccount?.customers?.[0]?.inn ?? "";
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -1919,7 +1926,36 @@ function CustomerSwitcher({
         }
     }, [isOpen]);
 
-    if (customers.length === 0 || !activeAccountId) return null;
+    useEffect(() => {
+        if (!isOpen || accounts.length === 0) return;
+        const logins = [...new Set(accounts.map((a) => a.login.trim().toLowerCase()))];
+        const query = logins.map((l) => `login=${encodeURIComponent(l)}`).join('&');
+        setLoading(true);
+        fetch(`/api/companies?${query}`)
+            .then((r) => r.json())
+            .then((data) => {
+                setCompanies(Array.isArray(data?.companies) ? data.companies : []);
+            })
+            .catch(() => setCompanies([]))
+            .finally(() => setLoading(false));
+    }, [isOpen, accounts.map((a) => a.login).join(',')]);
+
+    const activeCompany = companies.find(
+        (c) => c.login === activeLogin && (c.inn === '' || c.inn === activeInn)
+    );
+    const displayName = activeCompany ? stripOoo(activeCompany.name) : stripOoo(activeAccount?.customer || activeAccount?.login || 'Компания');
+
+    const handleSelect = (c: HeaderCompanyRow) => {
+        const acc = accounts.find((a) => a.login.trim().toLowerCase() === c.login);
+        if (!acc) return;
+        onSwitchAccount(acc.id);
+        if (c.inn !== undefined && c.inn !== null) {
+            onUpdateAccount(acc.id, { activeCustomerInn: c.inn });
+        }
+        setIsOpen(false);
+    };
+
+    if (!activeAccountId || !activeAccount) return null;
 
     return (
         <div className="customer-switcher filter-group" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1931,34 +1967,51 @@ function CustomerSwitcher({
             >
                 <Building2 className="w-4 h-4" />
                 <Typography.Body style={{ fontSize: '0.9rem' }}>
-                    {activeCustomer ? stripOoo(activeCustomer.name) : 'Компания'}
+                    {displayName}
                 </Typography.Body>
                 <ChevronDown className="w-4 h-4" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </Button>
             <span className="status-value success">Активна</span>
             {isOpen && (
-                <div className="filter-dropdown" style={{ minWidth: '220px' }}>
-                    {customers.map((c) => (
-                        <div
-                            key={c.inn}
-                            className={`dropdown-item ${activeInn === c.inn ? 'active' : ''}`}
-                            onClick={() => {
-                                onUpdateAccount(activeAccountId, { activeCustomerInn: c.inn });
-                                setIsOpen(false);
-                            }}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                backgroundColor: activeInn === c.inn ? 'var(--color-bg-hover)' : 'transparent',
-                            }}
-                        >
-                            <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeInn === c.inn ? 'bold' : 'normal' }}>
-                                {stripOoo(c.name)}
-                            </Typography.Body>
-                            {activeInn === c.inn && <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />}
+                <div
+                    className="filter-dropdown"
+                    style={{
+                        minWidth: '220px',
+                        maxHeight: 'min(60vh, 320px)',
+                        overflowY: 'auto',
+                    }}
+                >
+                    {loading ? (
+                        <div style={{ padding: '0.75rem 1rem' }}>
+                            <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Загрузка…</Typography.Body>
                         </div>
-                    ))}
+                    ) : companies.length === 0 ? (
+                        <div style={{ padding: '0.75rem 1rem' }}>
+                            <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Нет компаний</Typography.Body>
+                        </div>
+                    ) : (
+                        companies.map((c) => {
+                            const isActive = activeLogin === c.login && (c.inn === '' || c.inn === activeInn);
+                            return (
+                                <div
+                                    key={`${c.login}-${c.inn}`}
+                                    className={`dropdown-item ${isActive ? 'active' : ''}`}
+                                    onClick={() => handleSelect(c)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        backgroundColor: isActive ? 'var(--color-bg-hover)' : 'transparent',
+                                    }}
+                                >
+                                    <Typography.Body style={{ fontSize: '0.9rem', fontWeight: isActive ? 'bold' : 'normal' }}>
+                                        {stripOoo(c.name)}
+                                    </Typography.Body>
+                                    {isActive && <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />}
+                                </div>
+                            );
+                        })
+                    )}
                 </div>
             )}
         </div>
@@ -3599,23 +3652,26 @@ function CompaniesListPage({
                                     >
                                         {stripOoo(c.name)}
                                     </Typography.Body>
-                                    {accounts.length > 1 && (
-                                        <Button
-                                            className="filter-button"
-                                            onClick={(e) => handleRemoveByLogin(c.login, e)}
-                                            style={{
-                                                padding: "0.25rem 0.5rem",
-                                                minWidth: "auto",
-                                                display: "inline-flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                            }}
-                                            title="Удалить учётную запись"
-                                            aria-label="Удалить учётную запись"
-                                        >
-                                            <Trash2 className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
-                                        </Button>
-                                    )}
+                                    <Flex align="center" style={{ gap: "0.5rem", flexShrink: 0 }}>
+                                        {isActive && <span className="status-value success">Активна</span>}
+                                        {accounts.length > 1 && (
+                                            <Button
+                                                className="filter-button"
+                                                onClick={(e) => handleRemoveByLogin(c.login, e)}
+                                                style={{
+                                                    padding: "0.25rem 0.5rem",
+                                                    minWidth: "auto",
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                }}
+                                                title="Удалить учётную запись"
+                                                aria-label="Удалить учётную запись"
+                                            >
+                                                <Trash2 className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+                                            </Button>
+                                        )}
+                                    </Flex>
                                 </Flex>
                             </Panel>
                         );
@@ -6968,18 +7024,11 @@ export default function App() {
                     <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
                         <CustomerSwitcher
-                            activeAccount={activeAccount}
+                            accounts={accounts}
                             activeAccountId={activeAccountId}
+                            onSwitchAccount={handleSwitchAccount}
                             onUpdateAccount={handleUpdateAccount}
                         />
-                        {(!activeAccount?.customers?.length || !activeAccountId) && activeAccount && (
-                            <>
-                                <Typography.Body style={{ fontSize: '0.9rem' }}>
-                                    {stripOoo(activeAccount.customer || activeAccount.login || 'Компания')}
-                                </Typography.Body>
-                                <span className="status-value success">Активна</span>
-                            </>
-                        )}
                     </Flex>
                     <Flex align="center" className="space-x-3">
                         <Button className="search-toggle-button" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'} aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}>
