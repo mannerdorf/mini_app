@@ -6651,7 +6651,7 @@ export default function App() {
                 fetch("/api/companies-save", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login: loginKeyToSave, customers: [{ name: detectedCustomer ?? loginDisplay || "Компания", inn: "" }] }),
+                    body: JSON.stringify({ login: loginKeyToSave, customers: [{ name: (detectedCustomer ?? loginDisplay) || "Компания", inn: "" }] }),
                 }).catch(() => {});
             }
         } catch (err: any) {
