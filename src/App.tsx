@@ -136,7 +136,7 @@ type Account = {
     password: string;
     id: string;
     customer?: string;
-    /** Список заказчиков (ИНН) при входе через Getcustomers */
+    /** Список заказчиков при способе 2 авторизации (Getcustomers) */
     customers?: CustomerOption[];
     /** Выбранный заказчик для загрузки перевозок по ИНН */
     activeCustomerInn?: string | null;
@@ -1893,7 +1893,7 @@ function DashboardPage({
     );
 }
 
-// --- CUSTOMER SWITCHER (для учёток с входом по Getcustomers) ---
+// --- CUSTOMER SWITCHER (выбор компании в хедере, без ИНН) ---
 function CustomerSwitcher({
     activeAccount,
     activeAccountId,
@@ -1927,11 +1927,11 @@ function CustomerSwitcher({
                 className="filter-button"
                 onClick={() => setIsOpen(!isOpen)}
                 style={{ padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}
-                title="Выбрать заказчика (ИНН)"
+                title="Выбрать компанию"
             >
                 <Building2 className="w-4 h-4" />
                 <Typography.Body style={{ fontSize: '0.9rem' }}>
-                    {activeCustomer ? `${stripOoo(activeCustomer.name)} (${activeCustomer.inn})` : 'Заказчик'}
+                    {activeCustomer ? stripOoo(activeCustomer.name) : 'Компания'}
                 </Typography.Body>
                 <ChevronDown className="w-4 h-4" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </Button>
@@ -1953,7 +1953,7 @@ function CustomerSwitcher({
                             }}
                         >
                             <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeInn === c.inn ? 'bold' : 'normal' }}>
-                                {stripOoo(c.name)} — {c.inn}
+                                {stripOoo(c.name)}
                             </Typography.Body>
                             {activeInn === c.inn && <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />}
                         </div>
@@ -3490,7 +3490,9 @@ function AddCompanyByLoginPage({
     );
 }
 
-// --- COMPANIES LIST PAGE ---
+// --- COMPANIES LIST PAGE (данные из БД, единый список по названию) ---
+type CompanyRow = { login: string; inn: string; name: string };
+
 function CompaniesListPage({
     accounts,
     activeAccountId,
@@ -3508,155 +3510,130 @@ function CompaniesListPage({
     onBack: () => void;
     onAddCompany: () => void;
 }) {
-    const holdTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-    const isHoldingRef = React.useRef(false);
-    
+    const [companies, setCompanies] = React.useState<CompanyRow[]>([]);
+    const [loading, setLoading] = React.useState(true);
+
     useEffect(() => {
-        return () => {
-            if (holdTimeoutRef.current) {
-                clearTimeout(holdTimeoutRef.current);
-            }
-        };
-    }, []);
-    
-    const handlePressStart = (accountId: string) => {
-        if (activeAccountId === accountId) return; // Не переключаем, если уже активен
-        
-        isHoldingRef.current = true;
-        holdTimeoutRef.current = setTimeout(() => {
-            if (isHoldingRef.current) {
-                onSwitchAccount(accountId);
-            }
-        }, 2000); // 2 секунды
-    };
-    
-    const handlePressEnd = () => {
-        isHoldingRef.current = false;
-        if (holdTimeoutRef.current) {
-            clearTimeout(holdTimeoutRef.current);
-            holdTimeoutRef.current = null;
+        if (accounts.length === 0) {
+            setCompanies([]);
+            setLoading(false);
+            return;
+        }
+        const logins = [...new Set(accounts.map((a) => a.login.trim().toLowerCase()))];
+        const query = logins.map((l) => `login=${encodeURIComponent(l)}`).join("&");
+        setLoading(true);
+        fetch(`/api/companies?${query}`)
+            .then((r) => r.json())
+            .then((data) => {
+                const list = Array.isArray(data?.companies) ? data.companies : [];
+                setCompanies(list);
+            })
+            .catch(() => setCompanies([]))
+            .finally(() => setLoading(false));
+    }, [accounts.map((a) => a.login).join(",")]);
+
+    const activeAccount = accounts.find((acc) => acc.id === activeAccountId) || null;
+    const activeLogin = activeAccount?.login?.trim().toLowerCase() ?? "";
+    const activeInn = activeAccount?.activeCustomerInn ?? activeAccount?.customers?.[0]?.inn ?? "";
+
+    const handleSelectCompany = (c: CompanyRow) => {
+        const acc = accounts.find((a) => a.login.trim().toLowerCase() === c.login);
+        if (!acc) return;
+        onSwitchAccount(acc.id);
+        if (c.inn !== undefined && c.inn !== null) {
+            onUpdateAccount(acc.id, { activeCustomerInn: c.inn });
         }
     };
-    
+
+    const handleRemoveByLogin = (login: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const acc = accounts.find((a) => a.login.trim().toLowerCase() === login);
+        if (acc) onRemoveAccount(acc.id);
+    };
+
     return (
         <div className="w-full">
-            <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
+            <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
+                <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <Typography.Headline style={{ fontSize: '1.25rem' }}>Мои компании</Typography.Headline>
+                <Typography.Headline style={{ fontSize: "1.25rem" }}>Мои компании</Typography.Headline>
             </Flex>
-            
-            {(() => {
-                const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
-                const companiesFromCustomers = activeAccount?.customers ?? [];
-                return (
-                    <>
-            {accounts.length === 0 && companiesFromCustomers.length === 0 ? (
-                <Panel className="cargo-card" style={{ padding: '1rem', textAlign: 'center' }}>
-                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+
+            {loading ? (
+                <Panel className="cargo-card" style={{ padding: "1rem", textAlign: "center" }}>
+                    <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+                        Загрузка…
+                    </Typography.Body>
+                </Panel>
+            ) : companies.length === 0 ? (
+                <Panel className="cargo-card" style={{ padding: "1rem", textAlign: "center" }}>
+                    <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
                         Нет добавленных компаний
                     </Typography.Body>
                 </Panel>
             ) : (
-                <>
-                {companiesFromCustomers.length > 0 && activeAccountId && (
-                    <div style={{ marginBottom: '1rem' }}>
-                        <Typography.Headline style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                            Компании по заказчикам (ИНН)
-                        </Typography.Headline>
-                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                            Учётная запись с доступом по списку заказчиков. Выберите компанию для загрузки перевозок по ИНН.
-                        </Typography.Body>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {companiesFromCustomers.map((c) => (
-                                <Panel
-                                    key={c.inn}
-                                    className="cargo-card"
-                                    style={{
-                                        padding: '0.75rem 1rem',
-                                        cursor: 'pointer',
-                                        borderLeft: activeAccount?.activeCustomerInn === c.inn ? '3px solid var(--color-primary)' : undefined,
-                                    }}
-                                    onClick={() => onUpdateAccount(activeAccountId, { activeCustomerInn: c.inn })}
-                                >
-                                    <Flex align="center" justify="space-between">
-                                        <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeAccount?.activeCustomerInn === c.inn ? 600 : 'normal' }}>
-                                            {stripOoo(c.name)}
-                                        </Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                            ИНН {c.inn}
-                                        </Typography.Body>
-                                    </Flex>
-                                </Panel>
-                            ))}
-                        </div>
-                    </div>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
-                    {accounts.map((account) => (
-                        <Panel
-                            key={account.id}
-                            className="cargo-card"
-                            onMouseDown={() => handlePressStart(account.id)}
-                            onMouseUp={handlePressEnd}
-                            onMouseLeave={handlePressEnd}
-                            onTouchStart={() => handlePressStart(account.id)}
-                            onTouchEnd={handlePressEnd}
-                            style={{
-                                padding: '1rem',
-                                cursor: activeAccountId === account.id ? 'default' : 'pointer'
-                            }}
-                        >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.75rem' }}>
-                                <Flex align="center" style={{ flex: 1, gap: '0.5rem', minWidth: 0 }}>
-                                    <Building2 className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}>
+                    {companies.map((c) => {
+                        const isActive = activeLogin === c.login && (c.inn === "" || c.inn === activeInn);
+                        return (
+                            <Panel
+                                key={`${c.login}-${c.inn}`}
+                                className="cargo-card"
+                                style={{
+                                    padding: "0.75rem 1rem",
+                                    cursor: "pointer",
+                                    borderLeft: isActive ? "3px solid var(--color-primary)" : undefined,
+                                }}
+                                onClick={() => handleSelectCompany(c)}
+                            >
+                                <Flex align="center" justify="space-between">
                                     <Typography.Body
                                         style={{
-                                            fontSize: '0.9rem',
-                                            fontWeight: activeAccountId === account.id ? '600' : 'normal',
-                                            whiteSpace: 'nowrap',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
+                                            fontSize: "0.9rem",
+                                            fontWeight: isActive ? 600 : "normal",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
                                         }}
                                     >
-                                        {stripOoo(account.customer || account.login)}
+                                        {stripOoo(c.name)}
                                     </Typography.Body>
-                                </Flex>
-
-                                <Flex align="center" style={{ gap: '0.5rem', flexShrink: 0 }}>
-                                    {activeAccountId === account.id && (
-                                        <span className="status-value success">Активна</span>
-                                    )}
                                     {accounts.length > 1 && (
-                                        <Button 
-                                            className="filter-button" 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onRemoveAccount(account.id);
+                                        <Button
+                                            className="filter-button"
+                                            onClick={(e) => handleRemoveByLogin(c.login, e)}
+                                            style={{
+                                                padding: "0.25rem 0.5rem",
+                                                minWidth: "auto",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
                                             }}
-                                            style={{ padding: '0.25rem 0.5rem', minWidth: 'auto', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                                            title="Удалить компанию"
-                                            aria-label="Удалить компанию"
+                                            title="Удалить учётную запись"
+                                            aria-label="Удалить учётную запись"
                                         >
-                                            <Trash2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                                            <Trash2 className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
                                         </Button>
                                     )}
                                 </Flex>
-                            </div>
-                        </Panel>
-                    ))}
+                            </Panel>
+                        );
+                    })}
                 </div>
-                </>
             )}
-            </>
-                );
-            })()}
-            
-            <Button 
-                className="button-primary" 
+
+            <Button
+                className="button-primary"
                 onClick={onAddCompany}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.9rem', padding: '0.75rem' }}
+                style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.5rem",
+                    fontSize: "0.9rem",
+                    padding: "0.75rem",
+                }}
             >
                 <Plus className="w-4 h-4" />
                 Добавить компанию
@@ -6457,7 +6434,7 @@ export default function App() {
             setLoading(true);
             const loginKey = login.trim().toLowerCase();
 
-            // Сначала пробуем вход по списку заказчиков (Getcustomers)
+            // Способ 2 авторизации: Getcustomers (GETAPI?metod=Getcustomers)
             const customersRes = await fetch(PROXY_API_GETCUSTOMERS_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -6514,7 +6491,7 @@ export default function App() {
                         setActiveAccountId(accountId);
                     }
                     setActiveTab((prev) => prev || "cargo");
-                    // Сохраняем все компании (заказчики по ИНН) в базу для раздела «Мои компании»
+                    // Сначала заполняем БД, потом данные берём из БД (раздел «Мои компании»)
                     fetch("/api/companies-save", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -6527,7 +6504,7 @@ export default function App() {
                 }
             }
 
-            // Иначе — обычный вход по перевозкам (GetPerevozki)
+            // Способ 1 авторизации: GetPerevozki (перевозки)
             const { dateFrom, dateTo } = getDateRange("все");
             const res = await fetch(PROXY_API_BASE_URL, {
                 method: "POST",
@@ -6584,6 +6561,14 @@ export default function App() {
                 setAccounts(prev => [...prev, newAccount]);
                 setActiveAccountId(accountId);
             }
+            // Сначала заполняем БД (способ 1: одна компания без ИНН)
+            const companyName = detectedCustomer || login.trim() || "Компания";
+            fetch("/api/companies-save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: "" }] }),
+            }).catch(() => {});
+
             setActiveTab((prev) => prev || "cargo");
         } catch (err: any) {
             setError(err?.message || "Ошибка сети.");
@@ -6642,19 +6627,32 @@ export default function App() {
                 setAccounts(prev => [...prev, newAccount]);
                 setActiveAccountId(accountId);
             }
+            const loginKeyToSave = pendingLogin.loginKey;
+            const customersToSave = pendingLogin.customers;
+            const loginDisplay = pendingLogin.login?.trim() || "";
+
             setActiveTab((prev) => prev || "cargo");
             setTwoFactorPending(false);
             setPendingLogin(null);
             setTwoFactorCode("");
-            if (customers?.length) {
+
+            if (customersToSave?.length) {
+                // Способ 2 (Getcustomers): сохраняем список заказчиков в БД
                 fetch("/api/companies-save", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login: pendingLogin.loginKey, customers }),
+                    body: JSON.stringify({ login: loginKeyToSave, customers: customersToSave }),
                 })
                     .then((r) => r.json())
                     .then((data) => { if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning); })
                     .catch((err) => console.warn("companies-save error:", err));
+            } else {
+                // Способ 1 (GetPerevozki): одна компания без ИНН — сохраняем в БД
+                fetch("/api/companies-save", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ login: loginKeyToSave, customers: [{ name: detectedCustomer ?? loginDisplay || "Компания", inn: "" }] }),
+                }).catch(() => {});
             }
         } catch (err: any) {
             setTwoFactorError(err?.message || "Неверный код");
@@ -6740,12 +6738,16 @@ export default function App() {
 
         const payload = await readJsonOrText(res);
         const detectedCustomer = extractCustomerFromPerevozki(payload);
-        
-        // Создаем новый аккаунт
         const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const newAccount: Account = { login, password, id: accountId, customer: detectedCustomer || undefined };
         setAccounts(prev => [...prev, newAccount]);
         setActiveAccountId(accountId);
+        const companyName = detectedCustomer || login.trim() || "Компания";
+        fetch("/api/companies-save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ login: login.trim().toLowerCase(), customers: [{ name: companyName, inn: "" }] }),
+        }).catch(() => {});
     };
 
     if (!auth) {

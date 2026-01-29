@@ -31,7 +31,7 @@ export default async function handler(
       name: String(c?.name ?? c?.Name ?? "").trim() || "",
       inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
     }))
-    .filter((c: { name: string; inn: string }) => c.inn.length > 0);
+    .filter((c: { name: string; inn: string }) => c.name.length > 0 || c.inn.length > 0);
 
   if (normalized.length === 0) {
     return res.status(200).json({ ok: true, saved: 0 });
