@@ -2874,6 +2874,7 @@ function ProfilePage({
             activeAccountId={activeAccountId}
             onSwitchAccount={onSwitchAccount}
             onRemoveAccount={onRemoveAccount}
+            onUpdateAccount={onUpdateAccount}
             onBack={() => setCurrentView('main')}
             onAddCompany={() => setCurrentView('addCompanyMethod')}
         />;
@@ -3495,6 +3496,7 @@ function CompaniesListPage({
     activeAccountId,
     onSwitchAccount,
     onRemoveAccount,
+    onUpdateAccount,
     onBack,
     onAddCompany
 }: {
@@ -3502,6 +3504,7 @@ function CompaniesListPage({
     activeAccountId: string | null;
     onSwitchAccount: (accountId: string) => void;
     onRemoveAccount: (accountId: string) => void;
+    onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
     onBack: () => void;
     onAddCompany: () => void;
 }) {
@@ -3544,13 +3547,52 @@ function CompaniesListPage({
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>Мои компании</Typography.Headline>
             </Flex>
             
-            {accounts.length === 0 ? (
+            {(() => {
+                const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
+                const companiesFromCustomers = activeAccount?.customers ?? [];
+                return (
+                    <>
+            {accounts.length === 0 && companiesFromCustomers.length === 0 ? (
                 <Panel className="cargo-card" style={{ padding: '1rem', textAlign: 'center' }}>
                     <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                         Нет добавленных компаний
                     </Typography.Body>
                 </Panel>
             ) : (
+                <>
+                {companiesFromCustomers.length > 0 && activeAccountId && (
+                    <div style={{ marginBottom: '1rem' }}>
+                        <Typography.Headline style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                            Компании по заказчикам (ИНН)
+                        </Typography.Headline>
+                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                            Учётная запись с доступом по списку заказчиков. Выберите компанию для загрузки перевозок по ИНН.
+                        </Typography.Body>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {companiesFromCustomers.map((c) => (
+                                <Panel
+                                    key={c.inn}
+                                    className="cargo-card"
+                                    style={{
+                                        padding: '0.75rem 1rem',
+                                        cursor: 'pointer',
+                                        borderLeft: activeAccount?.activeCustomerInn === c.inn ? '3px solid var(--color-primary)' : undefined,
+                                    }}
+                                    onClick={() => onUpdateAccount(activeAccountId, { activeCustomerInn: c.inn })}
+                                >
+                                    <Flex align="center" justify="space-between">
+                                        <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeAccount?.activeCustomerInn === c.inn ? 600 : 'normal' }}>
+                                            {stripOoo(c.name)}
+                                        </Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                            ИНН {c.inn}
+                                        </Typography.Body>
+                                    </Flex>
+                                </Panel>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
                     {accounts.map((account) => (
                         <Panel
@@ -3605,7 +3647,11 @@ function CompaniesListPage({
                         </Panel>
                     ))}
                 </div>
+                </>
             )}
+            </>
+                );
+            })()}
             
             <Button 
                 className="button-primary" 
@@ -6464,6 +6510,12 @@ export default function App() {
                         setActiveAccountId(accountId);
                     }
                     setActiveTab((prev) => prev || "cargo");
+                    // Сохраняем компании (заказчики по ИНН) в базу для раздела «Мои компании»
+                    fetch("/api/companies-save", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ login: loginKey, customers }),
+                    }).catch(() => {});
                     return;
                 }
             }
@@ -6587,6 +6639,13 @@ export default function App() {
             setTwoFactorPending(false);
             setPendingLogin(null);
             setTwoFactorCode("");
+            if (customers?.length) {
+                fetch("/api/companies-save", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ login: pendingLogin.loginKey, customers }),
+                }).catch(() => {});
+            }
         } catch (err: any) {
             setTwoFactorError(err?.message || "Неверный код");
         } finally {
