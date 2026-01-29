@@ -1,0 +1,95 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+
+const GETAPI_BASE =
+  "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
+
+const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
+
+export type CustomerItem = { name: string; inn: string };
+
+function normalizeCustomers(raw: unknown): CustomerItem[] {
+  if (!raw || typeof raw !== "object") return [];
+  const arr = Array.isArray(raw)
+    ? raw
+    : (raw as any).items ?? (raw as any).Customers ?? (raw as any).customers ?? [];
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map((el: any) => {
+      const name =
+        el?.Name ?? el?.Customer ?? el?.customer ?? el?.name ?? "";
+      const inn = String(el?.INN ?? el?.Inn ?? el?.inn ?? "").trim();
+      if (!inn) return null;
+      return { name: String(name).trim() || inn, inn };
+    })
+    .filter((x): x is CustomerItem => x != null && x.inn.length > 0);
+}
+
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  let body: any = req.body;
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return res.status(400).json({ error: "Invalid JSON body" });
+    }
+  }
+
+  const { login, password } = body || {};
+  if (!login || !password) {
+    return res
+      .status(400)
+      .json({ error: "login and password are required" });
+  }
+
+  const url = new URL(GETAPI_BASE);
+  url.searchParams.set("metod", "Getcustomers");
+
+  try {
+    const upstream = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Auth: `Basic ${login}:${password}`,
+        Authorization: SERVICE_AUTH,
+      },
+    });
+
+    const text = await upstream.text();
+
+    if (!upstream.ok) {
+      try {
+        const errJson = JSON.parse(text);
+        return res
+          .status(upstream.status)
+          .json(errJson?.error ? { error: errJson.error } : errJson);
+      } catch {
+        return res.status(upstream.status).send(text || upstream.statusText);
+      }
+    }
+
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return res.status(200).json({ customers: [] });
+    }
+
+    const customers = normalizeCustomers(
+      Array.isArray(data) ? data : (data as any).items ?? (data as any).Customers ?? (data as any).customers ?? data
+    );
+
+    return res.status(200).json({ customers });
+  } catch (e: any) {
+    console.error("Getcustomers proxy error:", e);
+    return res
+      .status(500)
+      .json({ error: "Proxy error", details: e?.message || String(e) });
+  }
+}

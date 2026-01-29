@@ -121,19 +121,25 @@ import { DOCUMENT_METHODS } from "./documentMethods";
 
 
 // --- CONFIGURATION ---
-const PROXY_API_BASE_URL = '/api/perevozki'; 
-const PROXY_API_DOWNLOAD_URL = '/api/download'; 
+const PROXY_API_BASE_URL = '/api/perevozki';
+const PROXY_API_GETCUSTOMERS_URL = '/api/getcustomers';
+const PROXY_API_DOWNLOAD_URL = '/api/download';
 const PROXY_API_SEND_DOC_URL = '/api/send-document';
 const PROXY_API_GETPEREVOZKA_URL = '/api/getperevozka'; 
 
 // --- TYPES ---
 type ApiError = { error?: string; [key: string]: unknown; };
-type AuthData = { login: string; password: string; id?: string; };
+type AuthData = { login: string; password: string; id?: string; inn?: string; };
+type CustomerOption = { name: string; inn: string };
 type Account = {
     login: string;
     password: string;
     id: string;
     customer?: string;
+    /** Список заказчиков (ИНН) при входе через Getcustomers */
+    customers?: CustomerOption[];
+    /** Выбранный заказчик для загрузки перевозок по ИНН */
+    activeCustomerInn?: string | null;
     twoFactorEnabled?: boolean;
     twoFactorMethod?: "google" | "telegram";
     twoFactorTelegramLinked?: boolean;
@@ -725,6 +731,7 @@ function HomePage({ auth }: { auth: AuthData }) {
                     password: auth.password,
                     dateFrom,
                     dateTo,
+                    ...(auth.inn ? { inn: auth.inn } : {}),
                 }),
             });
             await ensureOk(res, "Ошибка загрузки данных");
@@ -1219,8 +1226,9 @@ function DashboardPage({
                     login: auth.login,
                     password: auth.password,
                     dateFrom,
-                    dateTo
-                })
+                    dateTo,
+                    ...(auth.inn ? { inn: auth.inn } : {}),
+                }),
             });
             await ensureOk(res, "Ошибка загрузки данных");
             const data = await res.json();
@@ -1881,6 +1889,77 @@ function DashboardPage({
                     setCustomDateTo(t); 
                 }} 
             />
+        </div>
+    );
+}
+
+// --- CUSTOMER SWITCHER (для учёток с входом по Getcustomers) ---
+function CustomerSwitcher({
+    activeAccount,
+    activeAccountId,
+    onUpdateAccount,
+}: {
+    activeAccount: Account | null;
+    activeAccountId: string | null;
+    onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const customers = activeAccount?.customers ?? [];
+    const activeInn = activeAccount?.activeCustomerInn ?? null;
+    const activeCustomer = customers.find(c => c.inn === activeInn) ?? customers[0];
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest('.customer-switcher')) setIsOpen(false);
+        };
+        if (isOpen) {
+            document.addEventListener('click', handleClickOutside);
+            return () => document.removeEventListener('click', handleClickOutside);
+        }
+    }, [isOpen]);
+
+    if (customers.length === 0 || !activeAccountId) return null;
+
+    return (
+        <div className="customer-switcher filter-group" style={{ position: 'relative' }}>
+            <Button
+                className="filter-button"
+                onClick={() => setIsOpen(!isOpen)}
+                style={{ padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}
+                title="Выбрать заказчика (ИНН)"
+            >
+                <Building2 className="w-4 h-4" />
+                <Typography.Body style={{ fontSize: '0.9rem' }}>
+                    {activeCustomer ? `${stripOoo(activeCustomer.name)} (${activeCustomer.inn})` : 'Заказчик'}
+                </Typography.Body>
+                <ChevronDown className="w-4 h-4" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+            </Button>
+            {isOpen && (
+                <div className="filter-dropdown" style={{ minWidth: '220px' }}>
+                    {customers.map((c) => (
+                        <div
+                            key={c.inn}
+                            className={`dropdown-item ${activeInn === c.inn ? 'active' : ''}`}
+                            onClick={() => {
+                                onUpdateAccount(activeAccountId, { activeCustomerInn: c.inn });
+                                setIsOpen(false);
+                            }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                backgroundColor: activeInn === c.inn ? 'var(--color-bg-hover)' : 'transparent',
+                            }}
+                        >
+                            <Typography.Body style={{ fontSize: '0.9rem', fontWeight: activeInn === c.inn ? 'bold' : 'normal' }}>
+                                {stripOoo(c.name)} — {c.inn}
+                            </Typography.Body>
+                            {activeInn === c.inn && <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />}
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -3648,7 +3727,7 @@ function CargoPage({
         }
         setLoading(true); setError(null);
         try {
-            const res = await fetch(PROXY_API_BASE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, dateFrom, dateTo }) });
+            const res = await fetch(PROXY_API_BASE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, dateFrom, dateTo, ...(auth.inn ? { inn: auth.inn } : {}) }) });
             await ensureOk(res, "Ошибка загрузки данных");
             const data = await res.json();
             const list = Array.isArray(data) ? data : data.items || [];
@@ -5566,6 +5645,7 @@ function ChatPage({
                         dateFrom: "2024-01-01",
                         dateTo: today,
                         customer: customerOverride,
+                        ...(auth.inn ? { inn: auth.inn } : {}),
                     }),
                 }).catch(() => {});
             }
@@ -5795,7 +5875,13 @@ export default function App() {
     const auth = useMemo(() => {
         if (!activeAccountId) return null;
         const account = accounts.find(acc => acc.id === activeAccountId);
-        return account ? { login: account.login, password: account.password } : null;
+        return account
+            ? {
+                login: account.login,
+                password: account.password,
+                ...(account.activeCustomerInn ? { inn: account.activeCustomerInn } : {}),
+            }
+            : null;
     }, [accounts, activeAccountId]);
     const activeAccount = useMemo(() => {
         if (!activeAccountId) return null;
@@ -5939,7 +6025,7 @@ export default function App() {
     const [twoFactorCode, setTwoFactorCode] = useState("");
     const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
     const [twoFactorLoading, setTwoFactorLoading] = useState(false);
-    const [pendingLogin, setPendingLogin] = useState<{ login: string; loginKey: string; password: string; customer?: string | null } | null>(null);
+    const [pendingLogin, setPendingLogin] = useState<{ login: string; loginKey: string; password: string; customer?: string | null; customers?: CustomerOption[] } | null>(null);
     
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [searchText, setSearchText] = useState('');
@@ -6323,17 +6409,75 @@ export default function App() {
 
         try {
             setLoading(true);
-            // ИСПРАВЛЕНО: 'all' на 'все'
+            const loginKey = login.trim().toLowerCase();
+
+            // Сначала пробуем вход по списку заказчиков (Getcustomers)
+            const customersRes = await fetch(PROXY_API_GETCUSTOMERS_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ login, password }),
+            });
+            if (customersRes.ok) {
+                const customersData = await customersRes.json().catch(() => ({}));
+                const customers: CustomerOption[] = Array.isArray(customersData?.customers) ? customersData.customers : [];
+                if (customers.length > 0) {
+                    const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
+                    const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
+                    const twoFaSettings = twoFaJson?.settings;
+                    const twoFaEnabled = !!twoFaSettings?.enabled;
+                    const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
+                    const twoFaLinked = !!twoFaSettings?.telegramLinked;
+                    if (twoFaEnabled && twoFaMethod === "telegram") {
+                        if (!twoFaLinked) {
+                            setError("Сначала привяжите Telegram в профиле.");
+                            return;
+                        }
+                        const sendRes = await fetch("/api/2fa-telegram", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ login: loginKey, action: "send" }),
+                        });
+                        if (!sendRes.ok) {
+                            const err = await readJsonOrText(sendRes);
+                            throw new Error(err?.error || "Не удалось отправить код");
+                        }
+                        setPendingLogin({ login, password, customer: undefined, loginKey, customers });
+                        setTwoFactorPending(true);
+                        setTwoFactorCode("");
+                        return;
+                    }
+                    const existingAccount = accounts.find(acc => acc.login === login);
+                    const firstInn = customers[0].inn;
+                    if (existingAccount) {
+                        setAccounts(prev =>
+                            prev.map(acc =>
+                                acc.id === existingAccount.id
+                                    ? { ...acc, customers, activeCustomerInn: firstInn }
+                                    : acc
+                            )
+                        );
+                        setActiveAccountId(existingAccount.id);
+                    } else {
+                        const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                        const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: firstInn };
+                        setAccounts(prev => [...prev, newAccount]);
+                        setActiveAccountId(accountId);
+                    }
+                    setActiveTab((prev) => prev || "cargo");
+                    return;
+                }
+            }
+
+            // Иначе — обычный вход по перевозкам (GetPerevozki)
             const { dateFrom, dateTo } = getDateRange("все");
             const res = await fetch(PROXY_API_BASE_URL, {
-                method: "POST", 
+                method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ login, password, dateFrom, dateTo }),
             });
             await ensureOk(res, "Ошибка авторизации");
             const payload = await readJsonOrText(res);
             const detectedCustomer = extractCustomerFromPerevozki(payload);
-            const loginKey = login.trim().toLowerCase();
             const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
             const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
             const twoFaSettings = twoFaJson?.settings;
@@ -6409,19 +6553,23 @@ export default function App() {
             }
 
             const detectedCustomer = pendingLogin.customer;
+            const customers = pendingLogin.customers;
+            const firstInn = customers?.length ? customers[0].inn : undefined;
             const existingAccount = accounts.find(acc => acc.login === pendingLogin.login);
             let accountId: string;
             if (existingAccount) {
                 accountId = existingAccount.id;
-                if (detectedCustomer && existingAccount.customer !== detectedCustomer) {
-                    setAccounts(prev =>
-                        prev.map(acc =>
-                            acc.id === existingAccount.id
-                                ? { ...acc, customer: detectedCustomer }
-                                : acc
-                        )
-                    );
-                }
+                setAccounts(prev =>
+                    prev.map(acc =>
+                        acc.id === existingAccount.id
+                            ? {
+                                ...acc,
+                                ...(detectedCustomer && acc.customer !== detectedCustomer ? { customer: detectedCustomer } : {}),
+                                ...(customers?.length ? { customers, activeCustomerInn: firstInn } : {}),
+                            }
+                            : acc
+                    )
+                );
                 setActiveAccountId(accountId);
             } else {
                 accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -6429,7 +6577,8 @@ export default function App() {
                     login: pendingLogin.login,
                     password: pendingLogin.password,
                     id: accountId,
-                    customer: detectedCustomer || undefined
+                    customer: detectedCustomer || undefined,
+                    ...(customers?.length ? { customers, activeCustomerInn: firstInn } : {}),
                 };
                 setAccounts(prev => [...prev, newAccount]);
                 setActiveAccountId(accountId);
@@ -6744,8 +6893,8 @@ export default function App() {
         <>
             <Container className={`app-container`}>
             <header className="app-header">
-                <Flex align="center" justify="space-between" className="header-top-row">
-                    <Flex align="center" className="header-auth-info" style={{ position: 'relative' }}>
+                    <Flex align="center" justify="space-between" className="header-top-row">
+                    <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
                         {accounts.length > 1 ? (
                             <AccountSwitcher 
                                 accounts={accounts}
@@ -6758,6 +6907,11 @@ export default function App() {
                                 <Typography.Body>{activeAccount?.customer || activeAccount?.login || 'Не выбран'}</Typography.Body>
                             </Flex>
                         )}
+                        <CustomerSwitcher
+                            activeAccount={activeAccount}
+                            activeAccountId={activeAccountId}
+                            onUpdateAccount={handleUpdateAccount}
+                        />
                     </Flex>
                     <Flex align="center" className="space-x-3">
                         <Button className="search-toggle-button" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'} aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}>

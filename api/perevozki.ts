@@ -29,6 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     dateFrom = "2024-01-01",
     dateTo = new Date().toISOString().split("T")[0],
     customer,
+    inn,
   } = body || {};
 
   if (!login || !password) {
@@ -47,6 +48,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   url.searchParams.set("DateE", dateTo);
   if (customer) {
     url.searchParams.set("Customer", String(customer));
+  }
+  if (inn) {
+    url.searchParams.set("INN", String(inn).trim());
   }
 
   try {
