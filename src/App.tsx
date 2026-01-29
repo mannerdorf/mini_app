@@ -2776,14 +2776,18 @@ const NOTIF_DOCS: { id: string; label: string }[] = [
 
 function NotificationsPage({
   activeAccount,
+  activeAccountId,
   onBack,
   onOpenDeveloper,
   onOpenTelegramBot,
+  onUpdateAccount,
 }: {
   activeAccount: Account | null;
+  activeAccountId: string | null;
   onBack: () => void;
   onOpenDeveloper: () => void;
   onOpenTelegramBot?: () => Promise<void>;
+  onUpdateAccount?: (accountId: string, patch: Partial<Account>) => void;
 }) {
   const [prefs, setPrefs] = useState<{ telegram: Record<string, boolean>; webpush: Record<string, boolean> }>({
     telegram: {},
@@ -2796,26 +2800,47 @@ function NotificationsPage({
   const [webPushSubscribed, setWebPushSubscribed] = useState(false);
   const [tgLinkLoading, setTgLinkLoading] = useState(false);
   const [tgLinkError, setTgLinkError] = useState<string | null>(null);
+  /** Статус привязки Telegram с сервера (при открытии экрана и по «Проверить привязку»). */
+  const [telegramLinkedFromApi, setTelegramLinkedFromApi] = useState<boolean | null>(null);
 
   const login = activeAccount?.login?.trim().toLowerCase() || "";
-  const telegramLinked = !!activeAccount?.twoFactorTelegramLinked;
+  /** Telegram считается подключённым, если API вернул telegramLinked или в аккаунте уже есть флаг. */
+  const telegramLinked = telegramLinkedFromApi ?? activeAccount?.twoFactorTelegramLinked ?? false;
+
+  /** Запросить статус привязки Telegram (GET /api/2fa) — так понимаем, что Telegram подключён. */
+  const checkTelegramLinked = useCallback(async () => {
+    if (!login) return false;
+    try {
+      const res = await fetch(`/api/2fa?login=${encodeURIComponent(login)}`);
+      if (!res.ok) return false;
+      const data = await res.json();
+      const linked = !!data?.settings?.telegramLinked;
+      setTelegramLinkedFromApi(linked);
+      if (linked && activeAccountId && onUpdateAccount) onUpdateAccount(activeAccountId, { twoFactorTelegramLinked: true });
+      return linked;
+    } catch {
+      return false;
+    }
+  }, [login, activeAccountId, onUpdateAccount]);
 
   useEffect(() => {
     if (!login) {
       setPrefsLoading(false);
+      setTelegramLinkedFromApi(null);
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/webpush-preferences?login=${encodeURIComponent(login)}`);
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
+        const [prefsRes, _] = await Promise.all([
+          fetch(`/api/webpush-preferences?login=${encodeURIComponent(login)}`),
+          checkTelegramLinked().then(() => {}),
+        ]);
         if (cancelled) return;
-        setPrefs({
-          telegram: data.telegram || {},
-          webpush: data.webpush || {},
-        });
+        if (prefsRes.ok) {
+          const data = await prefsRes.json();
+          if (!cancelled) setPrefs({ telegram: data.telegram || {}, webpush: data.webpush || {} });
+        }
       } catch {
         if (!cancelled) setPrefs({ telegram: {}, webpush: {} });
       } finally {
@@ -2825,7 +2850,7 @@ function NotificationsPage({
     return () => {
       cancelled = true;
     };
-  }, [login]);
+  }, [login, checkTelegramLinked]);
 
   const savePrefs = useCallback(
     async (channel: "telegram" | "webpush", eventId: string, value: boolean) => {
@@ -2999,6 +3024,12 @@ function NotificationsPage({
                     {tgLinkError}
                   </Typography.Body>
                 )}
+                <Typography.Body
+                  style={{ fontSize: "0.8rem", color: "var(--color-primary)", cursor: "pointer", textDecoration: "underline" }}
+                  onClick={() => checkTelegramLinked()}
+                >
+                  Проверить привязку
+                </Typography.Body>
               </>
             ) : (
               <>
@@ -3509,9 +3540,11 @@ function ProfilePage({
         return (
             <NotificationsPage
                 activeAccount={activeAccount}
+                activeAccountId={activeAccountId}
                 onBack={() => setCurrentView('main')}
                 onOpenDeveloper={onOpenNotifications}
                 onOpenTelegramBot={onOpenTelegramBot}
+                onUpdateAccount={onUpdateAccount}
             />
         );
     }
