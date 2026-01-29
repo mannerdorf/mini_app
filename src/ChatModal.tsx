@@ -125,18 +125,36 @@ export function ChatModal({
     }
   };
 
+  const handleClose = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    onClose();
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="modal-overlay"
+      onClick={handleClose}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) handleClose(e); }}
+      role="presentation"
+      style={{ cursor: "pointer" }}
+    >
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ cursor: "default" }}>
         <div className="modal-header">
           <Typography.Headline>Чат с HAULZ</Typography.Headline>
           <Flex align="center" style={{ gap: 8 }}>
-            <Button onClick={reset} className="filter-button">
+            <Button type="button" onClick={reset} className="filter-button">
               Новый диалог
             </Button>
-            <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть">
+            <button
+              type="button"
+              className="modal-close-button"
+              onClick={handleClose}
+              aria-label="Закрыть чат"
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "0.25rem", cursor: "pointer" }}
+            >
               <X size={20} />
-            </Button>
+            </button>
           </Flex>
         </div>
 

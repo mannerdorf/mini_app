@@ -2757,6 +2757,7 @@ function ProfilePage({
     const [aliceExpiresAt, setAliceExpiresAt] = useState<number | null>(null);
     const [aliceLoading, setAliceLoading] = useState(false);
     const [aliceError, setAliceError] = useState<string | null>(null);
+    const [aliceSuccess, setAliceSuccess] = useState<string | null>(null);
 
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
@@ -2993,6 +2994,7 @@ function ProfilePage({
                             if (!activeAccount?.login || !activeAccount?.password) return;
                             try {
                                 setAliceError(null);
+                                setAliceSuccess(null);
                                 setAliceLoading(true);
                                 const res = await fetch("/api/alice-link", {
                                     method: "POST",
@@ -3036,6 +3038,11 @@ function ProfilePage({
                             <Typography.Body style={{ fontSize: '0.85rem' }}>{aliceError}</Typography.Body>
                         </Flex>
                     )}
+                    {aliceSuccess && (
+                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-success, #22c55e)' }}>
+                            {aliceSuccess}
+                        </Typography.Body>
+                    )}
                     <Typography.Body style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                         Чтобы отключить навык от аккаунта, нажмите кнопку ниже.
                     </Typography.Body>
@@ -3047,6 +3054,7 @@ function ProfilePage({
                             if (!activeAccount?.login) return;
                             try {
                                 setAliceError(null);
+                                setAliceSuccess(null);
                                 const res = await fetch("/api/alice-unlink", {
                                     method: "POST",
                                     headers: { "Content-Type": "application/json" },
@@ -3056,6 +3064,7 @@ function ProfilePage({
                                 if (res.ok && data?.ok) {
                                     setAliceCode(null);
                                     setAliceExpiresAt(null);
+                                    setAliceSuccess(data?.message || "Алиса отвязана от аккаунта.");
                                 } else {
                                     setAliceError(data?.error || "Не удалось отвязать.");
                                 }
