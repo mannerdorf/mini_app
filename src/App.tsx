@@ -6465,7 +6465,11 @@ export default function App() {
             });
             if (customersRes.ok) {
                 const customersData = await customersRes.json().catch(() => ({}));
-                const customers: CustomerOption[] = Array.isArray(customersData?.customers) ? customersData.customers : [];
+                const rawList = Array.isArray(customersData?.customers) ? customersData.customers : Array.isArray(customersData?.Customers) ? customersData.Customers : [];
+                const customers: CustomerOption[] = rawList.map((c: any) => ({
+                    name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
+                    inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
+                })).filter((c: CustomerOption) => c.inn.length > 0);
                 if (customers.length > 0) {
                     const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
                     const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
@@ -6510,12 +6514,15 @@ export default function App() {
                         setActiveAccountId(accountId);
                     }
                     setActiveTab((prev) => prev || "cargo");
-                    // Сохраняем компании (заказчики по ИНН) в базу для раздела «Мои компании»
+                    // Сохраняем все компании (заказчики по ИНН) в базу для раздела «Мои компании»
                     fetch("/api/companies-save", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ login: loginKey, customers }),
-                    }).catch(() => {});
+                    })
+                        .then((r) => r.json())
+                        .then((data) => { if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning); })
+                        .catch((err) => console.warn("companies-save error:", err));
                     return;
                 }
             }
@@ -6644,7 +6651,10 @@ export default function App() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ login: pendingLogin.loginKey, customers }),
-                }).catch(() => {});
+                })
+                    .then((r) => r.json())
+                    .then((data) => { if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning); })
+                    .catch((err) => console.warn("companies-save error:", err));
             }
         } catch (err: any) {
             setTwoFactorError(err?.message || "Неверный код");

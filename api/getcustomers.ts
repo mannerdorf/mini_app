@@ -32,8 +32,8 @@ function normalizeCustomers(raw: unknown): CustomerItem[] {
   return arr
     .map((el: any) => {
       const name =
-        el?.Name ?? el?.Customer ?? el?.customer ?? el?.name ?? "";
-      const inn = String(el?.INN ?? el?.Inn ?? el?.inn ?? "").trim();
+        el?.name ?? el?.Name ?? el?.Customer ?? el?.customer ?? "";
+      const inn = String(el?.Inn ?? el?.INN ?? el?.inn ?? "").trim();
       if (!inn) return null;
       return { name: String(name).trim() || inn, inn };
     })
@@ -97,11 +97,11 @@ export default async function handler(
       return res.status(200).json({ customers: [] });
     }
 
-    // Поддержка разных форматов ответа 1С: массив, { items }, { Customers }, { data }, вложенный массив
+    // Формат 1С: { Success, Error, Customers: [ { name, Inn }, ... ] } или массив / items / data
     let payload: unknown = data;
     if (data && typeof data === "object" && !Array.isArray(data)) {
       const o = data as Record<string, unknown>;
-      payload = o.items ?? o.Items ?? o.Customers ?? o.customers ?? o.data ?? o.Data ?? o.result ?? o.Result ?? data;
+      payload = o.Customers ?? o.customers ?? o.items ?? o.Items ?? o.data ?? o.Data ?? o.result ?? o.Result ?? data;
     }
     const customers = normalizeCustomers(payload);
 
