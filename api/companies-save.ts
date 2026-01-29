@@ -33,7 +33,22 @@ export default async function handler(
     }))
     .filter((c: { name: string; inn: string }) => c.name.length > 0 || c.inn.length > 0);
 
-  if (normalized.length === 0) {
+  // Контроль дублирования по ИНН: один заказчик на один ИНН для данного login
+  const byInn = new Map<string, { name: string; inn: string }>();
+  for (const c of normalized) {
+    const key = c.inn.length > 0 ? c.inn : `__empty_${c.name}`;
+    if (!byInn.has(key)) {
+      byInn.set(key, c);
+    } else {
+      const existing = byInn.get(key)!;
+      if (c.name.length > (existing.name?.length ?? 0)) {
+        byInn.set(key, c);
+      }
+    }
+  }
+  const deduped = Array.from(byInn.values());
+
+  if (deduped.length === 0) {
     return res.status(200).json({ ok: true, saved: 0 });
   }
 
@@ -52,7 +67,7 @@ export default async function handler(
         "DELETE FROM account_companies WHERE login = $1",
         [login.trim().toLowerCase()]
       );
-      for (const c of normalized) {
+      for (const c of deduped) {
         await client.query(
           `INSERT INTO account_companies (login, inn, name) VALUES ($1, $2, $3)
            ON CONFLICT (login, inn) DO UPDATE SET name = EXCLUDED.name`,
@@ -60,7 +75,7 @@ export default async function handler(
         );
       }
       await client.query("COMMIT");
-      return res.status(200).json({ ok: true, saved: normalized.length });
+      return res.status(200).json({ ok: true, saved: deduped.length });
     } finally {
       client.release();
     }

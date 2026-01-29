@@ -150,6 +150,23 @@ type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | 
 type StatusFilter = "all" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
 type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom"; // Оставлено, так как это может использоваться в Home, который пока остается в коде ниже
 
+/** Контроль дублирования заказчиков по ИНН: один заказчик на один ИНН */
+function dedupeCustomersByInn(list: CustomerOption[]): CustomerOption[] {
+  const byInn = new Map<string, CustomerOption>();
+  for (const c of list) {
+    const key = c.inn.length > 0 ? c.inn : `__empty_${c.name}`;
+    if (!byInn.has(key)) {
+      byInn.set(key, c);
+    } else {
+      const existing = byInn.get(key)!;
+      if ((c.name?.length ?? 0) > (existing.name?.length ?? 0)) {
+        byInn.set(key, c);
+      }
+    }
+  }
+  return Array.from(byInn.values());
+}
+
 // --- ИСПОЛЬЗУЕМ ТОЛЬКО ПЕРЕМЕННЫЕ ИЗ API ---
 type CargoItem = {
     Number?: string; DatePrih?: string; DateVr?: string; State?: string; Mest?: number | string;
@@ -3137,8 +3154,10 @@ function ProfilePage({
                         <Flex align="center" justify="space-between">
                             <Typography.Body style={{ fontSize: '0.9rem' }}>Google Authenticator</Typography.Body>
                             <Switch
+                                type="checkbox"
                                 checked={twoFactorEnabled && twoFactorMethod === 'google'}
-                                onCheckedChange={(checked) => {
+                                onChange={(e) => {
+                                    const checked = (e.target as HTMLInputElement).checked;
                                     if (checked) {
                                         setTwoFactorMethod('google');
                                         setTwoFactorEnabled(true);
@@ -3156,8 +3175,10 @@ function ProfilePage({
                         <Flex align="center" justify="space-between" style={{ marginBottom: twoFactorMethod === 'telegram' && !twoFactorTelegramLinked && onOpenTelegramBot ? '0.5rem' : 0 }}>
                             <Typography.Body style={{ fontSize: '0.9rem' }}>Telegram</Typography.Body>
                             <Switch
+                                type="checkbox"
                                 checked={twoFactorEnabled && twoFactorMethod === 'telegram'}
-                                onCheckedChange={(checked) => {
+                                onChange={(e) => {
+                                    const checked = (e.target as HTMLInputElement).checked;
                                     if (checked) {
                                         setTwoFactorMethod('telegram');
                                         setTwoFactorEnabled(true);
@@ -6668,10 +6689,12 @@ export default function App() {
             if (customersRes.ok) {
                 const customersData = await customersRes.json().catch(() => ({}));
                 const rawList = Array.isArray(customersData?.customers) ? customersData.customers : Array.isArray(customersData?.Customers) ? customersData.Customers : [];
-                const customers: CustomerOption[] = rawList.map((c: any) => ({
-                    name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
-                    inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
-                })).filter((c: CustomerOption) => c.inn.length > 0);
+                const customers: CustomerOption[] = dedupeCustomersByInn(
+                    rawList.map((c: any) => ({
+                        name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
+                        inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
+                    })).filter((c: CustomerOption) => c.inn.length > 0)
+                );
                 if (customers.length > 0) {
                     const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
                     const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
@@ -6954,10 +6977,12 @@ export default function App() {
         if (customersRes.ok) {
             const customersData = await customersRes.json().catch(() => ({}));
             const rawList = Array.isArray(customersData?.customers) ? customersData.customers : Array.isArray(customersData?.Customers) ? customersData.Customers : [];
-            const customers: CustomerOption[] = rawList.map((c: any) => ({
-                name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
-                inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
-            })).filter((c: CustomerOption) => c.inn.length > 0);
+            const customers: CustomerOption[] = dedupeCustomersByInn(
+                rawList.map((c: any) => ({
+                    name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
+                    inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
+                })).filter((c: CustomerOption) => c.inn.length > 0)
+            );
             if (customers.length > 0) {
                 const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                 const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: customers[0].inn };
