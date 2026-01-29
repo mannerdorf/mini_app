@@ -1,11 +1,8 @@
-import { FormEvent, useEffect, useState, useCallback, useMemo } from "react";
-// Импортируем все необходимые иконки
-import { 
+import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect } from "react";
+import {
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, TestTube, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship
-    // Все остальные импорты сохранены на случай использования в Cargo/Details
-} from 'lucide-react';
-import React, { useRef, useLayoutEffect, useState } from "react";
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship
+} from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import { ChatModal } from "./ChatModal";
@@ -2774,6 +2771,52 @@ const NOTIF_DOCS: { id: string; label: string }[] = [
   { id: "bill_paid", label: "Счёт оплачен" },
 ];
 
+/** Общий переключатель (как в 2FA) — один компонент для Уведомлений и 2FA. */
+function TapSwitch({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-checked={checked}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      style={{
+        width: 44,
+        height: 24,
+        borderRadius: 12,
+        background: checked ? "var(--color-theme-primary, #2563eb)" : "var(--color-border, #ccc)",
+        position: "relative",
+        cursor: "pointer",
+        flexShrink: 0,
+        transition: "background 0.2s",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: 2,
+          left: checked ? 22 : 2,
+          width: 20,
+          height: 20,
+          borderRadius: "50%",
+          background: "#fff",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+          transition: "left 0.2s",
+        }}
+      />
+    </div>
+  );
+}
+
 function NotificationsPage({
   activeAccount,
   activeAccountId,
@@ -2920,50 +2963,6 @@ function NotificationsPage({
 
   const webPushSupported =
     typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
-
-  // Переключатель как в 2FA (включить двухфакторную аутентификацию)
-  const TapSwitch = ({ checked, onToggle }: { checked: boolean; onToggle: () => void }) => (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-checked={checked}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onToggle();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
-      style={{
-        width: 44,
-        height: 24,
-        borderRadius: 12,
-        background: checked ? "var(--color-theme-primary, #2563eb)" : "var(--color-border, #ccc)",
-        position: "relative",
-        cursor: "pointer",
-        flexShrink: 0,
-        transition: "background 0.2s",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          top: 2,
-          left: checked ? 22 : 2,
-          width: 20,
-          height: 20,
-          borderRadius: "50%",
-          background: "#fff",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-          transition: "left 0.2s",
-        }}
-      />
-    </div>
-  );
 
   return (
     <div className="w-full">
@@ -3593,41 +3592,6 @@ function ProfilePage({
             </div>
         );
     }
-
-    // Переключатель по касанию/клику (без сдвига)
-    const TapSwitch = ({ checked, onToggle }: { checked: boolean; onToggle: () => void }) => (
-        <div
-            role="button"
-            tabIndex={0}
-            aria-checked={checked}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(); }}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}
-            style={{
-                width: 44,
-                height: 24,
-                borderRadius: 12,
-                background: checked ? 'var(--color-theme-primary, #2563eb)' : 'var(--color-border, #ccc)',
-                position: 'relative',
-                cursor: 'pointer',
-                flexShrink: 0,
-                transition: 'background 0.2s',
-            }}
-        >
-            <div
-                style={{
-                    position: 'absolute',
-                    top: 2,
-                    left: checked ? 22 : 2,
-                    width: 20,
-                    height: 20,
-                    borderRadius: '50%',
-                    background: '#fff',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                    transition: 'left 0.2s',
-                }}
-            />
-        </div>
-    );
 
     if (currentView === '2fa' && activeAccountId && activeAccount) {
         const googleSecretSet = !!activeAccount.twoFactorGoogleSecretSet;

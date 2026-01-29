@@ -1,27 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import webpush from "web-push";
-
-async function getRedisValue(key: string): Promise<string | null> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  try {
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify([["GET", key]]),
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    const firstResult = Array.isArray(data) ? data[0] : data;
-    if (firstResult?.error) return null;
-    const value = firstResult?.result;
-    if (value == null) return null;
-    return String(value);
-  } catch {
-    return null;
-  }
-}
+import { getRedisValue } from "./redis";
 
 /** POST: отправить Web Push одному или нескольким пользователям. Body: { logins: string[], title, body?, url? } */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
