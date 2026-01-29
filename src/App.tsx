@@ -2983,7 +2983,7 @@ function ProfilePage({
                     style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
                 >
                     <Typography.Body style={{ fontSize: '0.9rem' }}>
-                        Получите код привязки и скажите его Алисе: «Привяжи аккаунт, код …».
+                        Скажите Алисе: «Запусти навык Холз». Алиса попросит ввести код авторизации — назовите код ниже. После авторизации Алиса скажет, под какой компанией вы вошли, и вы сможете спрашивать про перевозки в пути или требующие оплаты.
                     </Typography.Body>
                     <Button
                         className="button-primary"
@@ -3001,6 +3001,7 @@ function ProfilePage({
                                         login: activeAccount.login,
                                         password: activeAccount.password,
                                         customer: activeAccount.customer || null,
+                                        inn: activeAccount.activeCustomerInn ?? undefined,
                                     }),
                                 });
                                 if (!res.ok) {
@@ -3035,6 +3036,37 @@ function ProfilePage({
                             <Typography.Body style={{ fontSize: '0.85rem' }}>{aliceError}</Typography.Body>
                         </Flex>
                     )}
+                    <Typography.Body style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                        Чтобы отключить навык от аккаунта, нажмите кнопку ниже.
+                    </Typography.Body>
+                    <Button
+                        className="filter-button"
+                        type="button"
+                        disabled={!activeAccount?.login}
+                        onClick={async () => {
+                            if (!activeAccount?.login) return;
+                            try {
+                                setAliceError(null);
+                                const res = await fetch("/api/alice-unlink", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ login: activeAccount.login.trim().toLowerCase() }),
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                if (res.ok && data?.ok) {
+                                    setAliceCode(null);
+                                    setAliceExpiresAt(null);
+                                } else {
+                                    setAliceError(data?.error || "Не удалось отвязать.");
+                                }
+                            } catch (e: any) {
+                                setAliceError(e?.message || "Ошибка сети.");
+                            }
+                        }}
+                        style={{ marginTop: '0.25rem' }}
+                    >
+                        Отвязать от Алисы
+                    </Button>
                 </Panel>
             </div>
         );

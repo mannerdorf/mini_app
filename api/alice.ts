@@ -102,6 +102,29 @@ function getPaymentFilterKey(stateBill: string | undefined) {
   return "unknown";
 }
 
+/** Краткий список: только номера (для первого ответа) */
+function formatBriefNumbers(items: any[], limit = 7) {
+  return items.slice(0, limit).map((item) => {
+    const number = item?.Number || item?.number || "-";
+    return `номер ${number}`;
+  });
+}
+
+/** Подробный список: номер, статус, сумма, маршрут, оплата */
+function formatDetailedList(items: any[], limit = 10) {
+  return items.slice(0, limit).map((item) => {
+    const number = item?.Number || item?.number || "-";
+    const status = item?.State ? normalizeStatus(item.State) : "";
+    const sum = item?.Sum != null ? `, сумма ${item.Sum} ₽` : "";
+    const route =
+      item?.CitySender || item?.CityReceiver
+        ? `, маршрут ${item.CitySender || "?"} — ${item.CityReceiver || "?"}`
+        : "";
+    const bill = item?.StateBill ? `, оплата: ${item.StateBill}` : "";
+    return `№ ${number}${status ? `, статус ${status}` : ""}${sum}${route}${bill}`;
+  });
+}
+
 function formatList(items: any[], limit = 3) {
   return items.slice(0, limit).map((item) => {
     const number = item?.Number || item?.number || "-";
@@ -159,16 +182,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(aliceResponse("Не удалось прочитать данные привязки. Получите новый код."));
     }
     await setRedisValue(`alice:bind:${userId}`, JSON.stringify(parsed));
+    const loginKey = String(parsed.login || "").trim().toLowerCase();
+    if (loginKey) {
+      await setRedisValue(`alice:login:${loginKey}`, userId, 60 * 60 * 24 * 365);
+    }
+    const companyName = parsed?.customer || "Заказчик";
     return res
       .status(200)
-      .json(aliceResponse("Готово! Аккаунт привязан. Спросите: «какие перевозки в пути» или «какие счета на оплату»."));
+      .json(aliceResponse(`Вы авторизованы под компанией ${companyName}. Чем я могу вам помочь?`));
   }
 
   const bindRaw = await getRedisValue(`alice:bind:${userId}`);
   if (!bindRaw) {
     return res
       .status(200)
-      .json(aliceResponse("Сначала привяжите аккаунт. Откройте мини‑приложение, получите код и скажите его мне."));
+      .json(aliceResponse("Авторизуйтесь, пожалуйста. Введите код авторизации из мини‑приложения Холз."));
   }
 
   let bind: any = null;
@@ -203,12 +231,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (sessionState?.awaiting_details && isYes(text)) {
       const intent = sessionState?.last_intent || "";
       const data = Array.isArray(sessionState?.last_data) ? sessionState.last_data : [];
-      const lines = formatList(data, 3);
+      const lines = formatDetailedList(data, 10);
       if (intent === "in_transit") {
-        return res.status(200).json(aliceResponse(lines.length ? `Вот детали: ${lines.join("; ")}` : "Подробностей нет.", { awaiting_details: false }));
+        return res.status(200).json(aliceResponse(lines.length ? `Подробности по перевозкам в пути: ${lines.join(". ")}` : "Подробностей нет.", { awaiting_details: false }));
       }
       if (intent === "unpaid_bills") {
-        return res.status(200).json(aliceResponse(lines.length ? `Вот детали: ${lines.join("; ")}` : "Подробностей нет.", { awaiting_details: false }));
+        return res.status(200).json(aliceResponse(lines.length ? `Подробности по перевозкам, требующим оплаты: ${lines.join(". ")}` : "Подробностей нет.", { awaiting_details: false }));
       }
     }
 
@@ -221,27 +249,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const resData = await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo }),
+        body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo, ...(bind.inn ? { inn: bind.inn } : {}) }),
       }), PEREVOZKI_MS);
       const payload = await resData.json();
       const items = Array.isArray(payload) ? payload : payload?.items || [];
       const inTransit = items.filter((i: any) => getFilterKeyByStatus(i.State) === "in_transit");
       const count = inTransit.length;
-      const summary = inTransit.slice(0, 3).map((i: any) => ({
+      const briefNums = formatBriefNumbers(inTransit, 7);
+      const summary = inTransit.slice(0, 10).map((i: any) => ({
         Number: i?.Number,
         State: i?.State,
         Sum: i?.Sum,
+        CitySender: i?.CitySender,
+        CityReceiver: i?.CityReceiver,
+        StateBill: i?.StateBill,
       }));
+      const briefText =
+        count === 0
+          ? "Сейчас нет перевозок в пути."
+          : briefNums.length
+            ? `В пути ${count} перевозок: ${briefNums.join(", ")}. Хотите подробнее?`
+            : `В пути ${count} перевозок. Хотите подробнее?`;
       return res
         .status(200)
-        .json(
-          aliceResponse(
-            count === 0
-              ? "Сейчас нет перевозок в пути."
-              : `У вас ${count} перевозок в пути. Хотите подробней?`,
-            { awaiting_details: count > 0, last_intent: "in_transit", last_data: summary }
-          )
-        );
+        .json(aliceResponse(briefText, { awaiting_details: count > 0, last_intent: "in_transit", last_data: summary }));
     }
 
     if (text.includes("счет") || text.includes("счёт") || text.includes("оплат")) {
@@ -253,28 +284,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const resData = await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo }),
+        body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo, ...(bind.inn ? { inn: bind.inn } : {}) }),
       }), PEREVOZKI_MS);
       const payload = await resData.json();
       const items = Array.isArray(payload) ? payload : payload?.items || [];
       const unpaid = items.filter((i: any) => getPaymentFilterKey(i.StateBill) === "unpaid");
       const count = unpaid.length;
-      const summary = unpaid.slice(0, 3).map((i: any) => ({
+      const briefNums = formatBriefNumbers(unpaid, 7);
+      const summary = unpaid.slice(0, 10).map((i: any) => ({
         Number: i?.Number,
         State: i?.State,
         Sum: i?.Sum,
+        CitySender: i?.CitySender,
+        CityReceiver: i?.CityReceiver,
         StateBill: i?.StateBill,
       }));
+      const briefText =
+        count === 0
+          ? "Перевозок, требующих оплаты, нет."
+          : briefNums.length
+            ? `Требуют оплаты ${count} перевозок: ${briefNums.join(", ")}. Хотите подробнее?`
+            : `Требуют оплаты ${count} перевозок. Хотите подробнее?`;
       return res
         .status(200)
-        .json(
-          aliceResponse(
-            count === 0
-              ? "Счетов к оплате нет."
-              : `У вас ${count} счетов на оплату. Хотите подробней?`,
-            { awaiting_details: count > 0, last_intent: "unpaid_bills", last_data: summary }
-          )
-        );
+        .json(aliceResponse(briefText, { awaiting_details: count > 0, last_intent: "unpaid_bills", last_data: summary }));
     }
 
     // Обновляем данные в RAG в фоне (не ждём), чтобы не съедать таймаут ответа Алисе
@@ -286,7 +319,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     fetch(`${APP_DOMAIN}/api/perevozki`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo }),
+      body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo, ...(bind.inn ? { inn: bind.inn } : {}) }),
     }).catch(() => {});
 
     const chatRes = await withTimeout(fetch(`${APP_DOMAIN}/api/chat`, {

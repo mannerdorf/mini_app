@@ -46,6 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const login = String(body?.login || "").trim();
   const password = String(body?.password || "").trim();
   const customer = body?.customer ? String(body.customer) : null;
+  const inn = body?.inn != null ? String(body.inn).trim() : undefined;
   if (!login || !password) {
     return res.status(400).json({ error: "login and password are required" });
   }
@@ -55,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     code = String(Math.floor(100000 + Math.random() * 900000));
     const saved = await setRedisValue(
       `alice:link:${code}`,
-      JSON.stringify({ login, password, customer, createdAt: Date.now() }),
+      JSON.stringify({ login, password, customer, inn: inn || undefined, createdAt: Date.now() }),
       CODE_TTL_SECONDS
     );
     if (saved) {
