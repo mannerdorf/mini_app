@@ -3033,6 +3033,9 @@ function NotificationsPage({
               </>
             ) : (
               <>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
+                  Telegram подключён.
+                </Typography.Body>
                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>
                   Раздел «Перевозки»
                 </Typography.Body>
