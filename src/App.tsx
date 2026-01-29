@@ -6768,21 +6768,51 @@ export default function App() {
         }
     };
     
-    // Добавление нового аккаунта (для страницы профиля)
+    // Добавление нового аккаунта (для страницы профиля) — сначала способ 2 (Getcustomers), иначе способ 1 (GetPerevozki)
     const handleAddAccount = async (login: string, password: string) => {
-        // Проверяем, не существует ли уже такой аккаунт
         if (accounts.find(acc => acc.login === login)) {
             throw new Error("Аккаунт с таким логином уже добавлен");
         }
-        
-        // Проверяем авторизацию
+
+        const loginKey = login.trim().toLowerCase();
+
+        // Сначала пробуем способ 2 (Getcustomers)
+        const customersRes = await fetch(PROXY_API_GETCUSTOMERS_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ login, password }),
+        });
+        if (customersRes.ok) {
+            const customersData = await customersRes.json().catch(() => ({}));
+            const rawList = Array.isArray(customersData?.customers) ? customersData.customers : Array.isArray(customersData?.Customers) ? customersData.Customers : [];
+            const customers: CustomerOption[] = rawList.map((c: any) => ({
+                name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
+                inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
+            })).filter((c: CustomerOption) => c.inn.length > 0);
+            if (customers.length > 0) {
+                const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: customers[0].inn };
+                setAccounts(prev => [...prev, newAccount]);
+                setActiveAccountId(accountId);
+                fetch("/api/companies-save", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ login: loginKey, customers }),
+                })
+                    .then((r) => r.json())
+                    .then((data) => { if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning); })
+                    .catch((err) => console.warn("companies-save error:", err));
+                return;
+            }
+        }
+
+        // Способ 1 (GetPerevozki)
         const { dateFrom, dateTo } = getDateRange("все");
         const res = await fetch(PROXY_API_BASE_URL, {
-            method: "POST", 
+            method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ login, password, dateFrom, dateTo }),
         });
-
         if (!res.ok) {
             let message = `Ошибка авторизации`;
             try {
@@ -6791,7 +6821,6 @@ export default function App() {
             } catch { }
             throw new Error(message);
         }
-
         const payload = await readJsonOrText(res);
         const detectedCustomer = extractCustomerFromPerevozki(payload);
         const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -6802,7 +6831,7 @@ export default function App() {
         fetch("/api/companies-save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login: login.trim().toLowerCase(), customers: [{ name: companyName, inn: "" }] }),
+            body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: "" }] }),
         }).catch(() => {});
     };
 
