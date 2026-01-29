@@ -88,6 +88,44 @@ function speechNumber(n: any): string {
   return String(num);
 }
 
+/** Одна группа 0–999 словами (для произношения по три цифры) */
+function group999ToWords(g: number): string {
+  if (g < 0 || g > 999) return "ноль";
+  if (g === 0) return "ноль";
+  const ones = ["", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять"];
+  const teens = ["десять", "одиннадцать", "двенадцать", "тринадцать", "четырнадцать", "пятнадцать", "шестнадцать", "семнадцать", "восемнадцать", "девятнадцать"];
+  const tens = ["", "", "двадцать", "тридцать", "сорок", "пятьдесят", "шестьдесят", "семьдесят", "восемьдесят", "девяносто"];
+  const hundreds = ["", "сто", "двести", "триста", "четыреста", "пятьсот", "шестьсот", "семьсот", "восемьсот", "девятьсот"];
+  const h = Math.floor(g / 100);
+  const t = Math.floor((g % 100) / 10);
+  const o = g % 10;
+  const parts: string[] = [];
+  if (h > 0) parts.push(hundreds[h]);
+  if (t === 1) {
+    parts.push(teens[o]);
+  } else {
+    if (t > 0) parts.push(tens[t]);
+    if (o > 0) parts.push(ones[o]);
+  }
+  return parts.length ? parts.join(" ") : "ноль";
+}
+
+/** Номер для произношения Алисой: по три цифры, например 135200 → «сто тридцать пять двести» */
+function speechNumberPhrase(n: any): string {
+  if (n == null || n === "") return "";
+  const s = String(n).trim().replace(/^0+/, "") || "0";
+  const num = parseInt(s, 10);
+  if (Number.isNaN(num)) return s;
+  if (num === 0) return "ноль";
+  const str = String(num);
+  const groups: number[] = [];
+  for (let i = str.length; i > 0; i -= 3) {
+    const start = Math.max(0, i - 3);
+    groups.unshift(parseInt(str.slice(start, i), 10));
+  }
+  return groups.map(group999ToWords).join(" ");
+}
+
 function getCommandText(reqBody: any): string {
   const raw = reqBody?.request?.command || reqBody?.request?.original_utterance || "";
   return String(raw || "").toLowerCase().trim();
@@ -109,9 +147,23 @@ function getFilterKeyByStatus(status: string | undefined) {
   const lower = (normalized || "").toLowerCase();
   if (lower.includes("доставлен") || lower.includes("заверш")) return "delivered";
   if (lower.includes("пути") || lower.includes("отправлен")) return "in_transit";
-  if (lower.includes("готов")) return "ready";
+  if (lower.includes("готов") || lower.includes("принят") || lower.includes("ответ")) return "accepted"; // ответ принято / готов к отправке
   if (lower.includes("доставке")) return "delivering";
   return "all";
+}
+
+/** Склонение: 1 перевозка, 2–4 перевозки, 5+ перевозок */
+function wordПеревозки(n: number): string {
+  if (n === 1) return "перевозка";
+  if (n >= 2 && n <= 4) return "перевозки";
+  return "перевозок";
+}
+
+/** Склонение: 1 счет, 2–4 счета, 5+ счетов */
+function wordСчета(n: number): string {
+  if (n === 1) return "счет";
+  if (n >= 2 && n <= 4) return "счета";
+  return "счетов";
 }
 
 function getPaymentFilterKey(stateBill: string | undefined) {
@@ -133,27 +185,27 @@ function getPaymentFilterKey(stateBill: string | undefined) {
   return "unknown";
 }
 
-/** Краткий список: только номера для голоса (без ведущих нулей) */
+/** Краткий список: номера для произношения Алисой (по три цифры: «номер сто тридцать пять двести») */
 function formatBriefNumbers(items: any[], limit = 7) {
   return items.slice(0, limit).map((item) => {
-    const num = speechNumber(item?.Number ?? item?.number);
-    return `номер ${num}`;
+    const phrase = speechNumberPhrase(item?.Number ?? item?.number);
+    return phrase ? `номер ${phrase}` : "номер —";
   });
 }
 
-/** Список номеров для фразы «у вас N перевозок номера X и Y» */
+/** Список номеров для фразы «у вас N перевозок номера X и Y» — произношение по три цифры */
 function joinSpeechNumbers(items: any[], limit = 7): string {
-  const nums = items.slice(0, limit).map((item) => speechNumber(item?.Number ?? item?.number));
-  if (nums.length === 0) return "";
-  if (nums.length === 1) return nums[0];
-  if (nums.length === 2) return `${nums[0]} и ${nums[1]}`;
-  return `${nums.slice(0, -1).join(", ")} и ${nums[nums.length - 1]}`;
+  const phrases = items.slice(0, limit).map((item) => speechNumberPhrase(item?.Number ?? item?.number)).filter(Boolean);
+  if (phrases.length === 0) return "";
+  if (phrases.length === 1) return phrases[0];
+  if (phrases.length === 2) return `${phrases[0]} и ${phrases[1]}`;
+  return `${phrases.slice(0, -1).join(", ")} и ${phrases[phrases.length - 1]}`;
 }
 
-/** Подробный список: номер, статус, сумма, маршрут, оплата (номера без ведущих нулей) */
+/** Подробный список: номер словами (по три цифры), статус, сумма, маршрут, оплата */
 function formatDetailedList(items: any[], limit = 10) {
   return items.slice(0, limit).map((item) => {
-    const number = speechNumber(item?.Number ?? item?.number);
+    const numberPhrase = speechNumberPhrase(item?.Number ?? item?.number) || "—";
     const status = item?.State ? normalizeStatus(item.State) : "";
     const sum = item?.Sum != null ? `, сумма ${item.Sum} ₽` : "";
     const route =
@@ -161,18 +213,32 @@ function formatDetailedList(items: any[], limit = 10) {
         ? `, маршрут ${item.CitySender || "?"} — ${item.CityReceiver || "?"}`
         : "";
     const bill = item?.StateBill ? `, оплата: ${item.StateBill}` : "";
-    return `№ ${number}${status ? `, статус ${status}` : ""}${sum}${route}${bill}`;
+    return `№ ${numberPhrase}${status ? `, статус ${status}` : ""}${sum}${route}${bill}`;
   });
 }
 
 function formatList(items: any[], limit = 3) {
   return items.slice(0, limit).map((item) => {
-    const number = speechNumber(item?.Number ?? item?.number);
+    const numberPhrase = speechNumberPhrase(item?.Number ?? item?.number) || "—";
     const status = item?.State ? normalizeStatus(item.State) : "";
     const sum = item?.Sum ? `, сумма ${item.Sum} ₽` : "";
     const statusPart = status ? `, статус ${status}` : "";
-    return `№ ${number}${statusPart}${sum}`;
+    return `№ ${numberPhrase}${statusPart}${sum}`;
   });
+}
+
+/** Формат для «подробнее» / «написал в чат»: номер / дата / кол-во / плат вес / сумма */
+function formatLineForChat(item: any): string {
+  const num = speechNumber(item?.Number ?? item?.number) || "—";
+  const dateRaw = item?.DatePrih ?? item?.DateVr ?? item?.date ?? "";
+  const dateStr =
+    typeof dateRaw === "string" && dateRaw
+      ? dateRaw.split("T")[0].split("-").reverse().join(".")
+      : "—";
+  const mest = item?.Mest != null && item?.Mest !== "" ? String(item.Mest) : "—";
+  const pw = item?.PW != null && item?.PW !== "" ? String(item.PW) : "—";
+  const sum = item?.Sum != null && item?.Sum !== "" ? `${item.Sum} ₽` : "—";
+  return `${num} / ${dateStr} / ${mest} / ${pw} / ${sum}`;
 }
 
 function extractCode(text: string) {
@@ -286,12 +352,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (sessionState?.awaiting_details && isYes(text)) {
       const intent = sessionState?.last_intent || "";
       const data = Array.isArray(sessionState?.last_data) ? sessionState.last_data : [];
-      const lines = formatDetailedList(data, 10);
+      const chatLines = data.slice(0, 10).map((i: any) => formatLineForChat(i));
+      const header = "Написал в чат.\nНомер / дата / кол-во / плат вес / сумма\n";
+      const body = chatLines.length ? chatLines.join("\n") : "Нет данных.";
+      const fullText = header + body;
       if (intent === "in_transit") {
-        return res.status(200).json(aliceResponse(lines.length ? `Подробности по перевозкам в пути: ${lines.join(". ")}` : "Подробностей нет.", { awaiting_details: false }));
+        return res.status(200).json(aliceResponse(chatLines.length ? fullText : "Написал в чат. Перевозок в пути нет.", { awaiting_details: false }));
       }
       if (intent === "unpaid_bills") {
-        return res.status(200).json(aliceResponse(lines.length ? `Подробности по перевозкам, требующим оплаты: ${lines.join(". ")}` : "Подробностей нет.", { awaiting_details: false }));
+        return res.status(200).json(aliceResponse(chatLines.length ? fullText : "Написал в чат. Перевозок, требующих оплаты, нет.", { awaiting_details: false }));
       }
     }
 
@@ -318,6 +387,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         CitySender: i?.CitySender,
         CityReceiver: i?.CityReceiver,
         StateBill: i?.StateBill,
+        DatePrih: i?.DatePrih,
+        DateVr: i?.DateVr,
+        Mest: i?.Mest,
+        PW: i?.PW,
       }));
       const briefText =
         count === 0
@@ -355,6 +428,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         CitySender: i?.CitySender,
         CityReceiver: i?.CityReceiver,
         StateBill: i?.StateBill,
+        DatePrih: i?.DatePrih,
+        DateVr: i?.DateVr,
+        Mest: i?.Mest,
+        PW: i?.PW,
       }));
       const briefText =
         count === 0
@@ -432,6 +509,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json(aliceResponse(msg));
     }
 
+    // Сводка за день: ответ принято, в пути, на доставке, доставлено, счета на оплату
+    if (
+      text.includes("сводка за день") ||
+      text.includes("сводка за сегодня") ||
+      text.includes("сводка на сегодня") ||
+      text.includes("что за день") ||
+      text.includes("сводка дня")
+    ) {
+      const today = new Date();
+      const dateFrom = today.toISOString().split("T")[0];
+      const dateTo = dateFrom;
+      const resData = await withTimeout(fetch(`${APP_DOMAIN}/api/perevozki`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login: bind.login, password: bind.password, dateFrom, dateTo, ...(bind.inn ? { inn: bind.inn } : {}) }),
+      }), PEREVOZKI_MS);
+      const payload = await resData.json();
+      const items = Array.isArray(payload) ? payload : payload?.items || [];
+      const accepted = items.filter((i: any) => getFilterKeyByStatus(i.State) === "accepted");
+      const inTransit = items.filter((i: any) => getFilterKeyByStatus(i.State) === "in_transit");
+      const delivering = items.filter((i: any) => getFilterKeyByStatus(i.State) === "delivering");
+      const delivered = items.filter((i: any) => getFilterKeyByStatus(i.State) === "delivered");
+      const unpaid = items.filter((i: any) => getPaymentFilterKey(i.StateBill) === "unpaid");
+      const unpaidSum = unpaid.reduce((s: number, i: any) => s + (Number(i?.Sum) || 0), 0);
+      const parts: string[] = [];
+      parts.push(`Ответ принято ${accepted.length} ${wordПеревозки(accepted.length)}`);
+      parts.push(`В пути ${inTransit.length} ${wordПеревозки(inTransit.length)}`);
+      parts.push(`На доставке ${delivering.length} ${wordПеревозки(delivering.length)}`);
+      parts.push(`Доставлено ${delivered.length} ${wordПеревозки(delivered.length)}`);
+      if (unpaid.length > 0) {
+        const sumStr = Math.round(unpaidSum).toLocaleString("ru-RU");
+        parts.push(`${unpaid.length} ${wordСчета(unpaid.length)} на оплату на сумму ${sumStr} рублей`);
+      }
+      const msg = parts.join(". ");
+      return res.status(200).json(aliceResponse(msg));
+    }
+
     // Сводка за период: сегодня / неделя
     if (
       text.includes("сколько перевозок") ||
@@ -497,7 +611,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const lines = formatDetailedList([found], 1);
         return res.status(200).json(aliceResponse(lines[0] || "Данные по перевозке не найдены."));
       }
-      return res.status(200).json(aliceResponse(`Перевозку номер ${speechNumber(requestedNum)} не нашла. Проверьте номер или период.`));
+      return res.status(200).json(aliceResponse(`Перевозку номер ${speechNumberPhrase(requestedNum)} не нашла. Проверьте номер или период.`));
     }
 
     // Выбор компании: «работай от имени компании X», «переключись на компанию X»

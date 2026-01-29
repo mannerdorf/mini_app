@@ -3034,7 +3034,7 @@ function ProfilePage({
                     style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
                 >
                     <Typography.Body style={{ fontSize: '0.9rem' }}>
-                        Скажите Алисе: «Запусти навык Холз». Алиса попросит ввести код авторизации — назовите код ниже. После авторизации Алиса скажет, под какой компанией вы вошли, и вы сможете спрашивать про перевозки в пути или требующие оплаты.
+                        Скажите Алисе: «Запусти навык Холз» и назовите код ниже. После привязки Алиса подтвердит компанию. Голосом можно узнавать перевозки в пути, счета на оплату, краткий статус «что в работе», сводку за день или за период, статус по номеру перевозки; при ответе «подробнее» Алиса скажет «Написал в чат» и отправит таблицу в чат мини‑приложения (номер / дата / кол-во / плат вес / сумма). Номера перевозок произносятся по три цифры (135200 — «сто тридцать пять двести»). Если привязано несколько компаний — можно переключиться голосом или отвязать навык фразой «Отвяжи компанию».
                     </Typography.Body>
                     <Button
                         className="button-primary"
@@ -3128,26 +3128,27 @@ function ProfilePage({
                     </Button>
                 </Panel>
 
-                <Typography.Body style={{ marginTop: '1.25rem', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Как пользоваться</Typography.Body>
+                <Typography.Body style={{ marginTop: '1.25rem', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Описание навыков</Typography.Body>
                 <Panel className="cargo-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                        Скажите Алисе: «Запусти навык Холз», затем назовите код из приложения. После этого можно использовать фразы ниже.
+                        «Запусти навык Холз» → назовите код из приложения → Алиса подтвердит компанию. Ниже — фразы и сценарии.
                     </Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Перевозки и оплаты</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Какие перевозки в пути?» — список в пути, затем «Подробнее» для деталей</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Какие счета на оплату?» — что нужно оплатить</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Что у меня в работе?» — кратко: в пути N, к оплате M</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Сколько перевозок за сегодня?» / «на этой неделе?» — сводка за период</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Статус перевозки 135702» — детали по номеру (номера без нулей впереди)</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Какие перевозки в пути?» — кратко номера (по три цифры). «Подробнее» — Алиса скажет «Написал в чат» и отправит таблицу в чат (номер / дата / кол-во / плат вес / сумма).</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Какие счета на оплату?» — то же: кратко, по «подробнее» — таблица в чат.</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Что в работе?» / «Что у меня в работе?» — одна фраза: в пути N перевозок, к оплате M.</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Сводка за день» / «Сводка за сегодня» / «Сводка на сегодня» — ответ принято, в пути, на доставке, доставлено, счета на оплату (кол-во и сумма).</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Сколько перевозок за сегодня?» / «на этой неделе?» / «за неделю?» — число перевозок за период.</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Статус перевозки 135702» / «Перевозка 135702» / «Груз 135702» — детали по одной перевозке.</Typography.Body>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Управление</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Работай от имени компании [название]» — переключить компанию (если привязано несколько)</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Отвяжи компанию» — отвязать навык, потом можно ввести новый код</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Работай от имени компании [название]» / «Переключись на компанию [название]» — переключить компанию (если привязано несколько).</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Отвяжи компанию» / «Отвяжи заказчика» / «Отвяжи» — отвязать навык; новый код — в приложении.</Typography.Body>
                     </div>
                     <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                        Любой другой вопрос (контакты, статус по грузу) Алиса передаёт в чат поддержки с контекстом вашей компании.
+                        Другие вопросы (контакты, груз по номеру) Алиса передаёт в чат поддержки с контекстом вашей компании.
                     </Typography.Body>
                 </Panel>
             </div>
