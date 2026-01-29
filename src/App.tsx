@@ -3166,6 +3166,41 @@ function ProfilePage({
         );
     }
 
+    // Переключатель по касанию/клику (без сдвига)
+    const TapSwitch = ({ checked, onToggle }: { checked: boolean; onToggle: () => void }) => (
+        <div
+            role="button"
+            tabIndex={0}
+            aria-checked={checked}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}
+            style={{
+                width: 44,
+                height: 24,
+                borderRadius: 12,
+                background: checked ? 'var(--color-theme-primary, #2563eb)' : 'var(--color-border, #ccc)',
+                position: 'relative',
+                cursor: 'pointer',
+                flexShrink: 0,
+                transition: 'background 0.2s',
+            }}
+        >
+            <div
+                style={{
+                    position: 'absolute',
+                    top: 2,
+                    left: checked ? 22 : 2,
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    background: '#fff',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                    transition: 'left 0.2s',
+                }}
+            />
+        </div>
+    );
+
     if (currentView === '2fa' && activeAccountId && activeAccount) {
         return (
             <div className="w-full">
@@ -3179,19 +3214,17 @@ function ProfilePage({
                     <Panel className="cargo-card" style={{ padding: '1rem' }}>
                         <Flex align="center" justify="space-between">
                             <Typography.Body style={{ fontSize: '0.9rem' }}>Google Authenticator</Typography.Body>
-                            <Switch
-                                type="checkbox"
+                            <TapSwitch
                                 checked={twoFactorEnabled && twoFactorMethod === 'google'}
-                                onChange={(e) => {
-                                    const checked = (e.target as HTMLInputElement).checked;
-                                    if (checked) {
-                                        setTwoFactorMethod('google');
-                                        setTwoFactorEnabled(true);
-                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'google', twoFactorEnabled: true });
-                                    } else {
+                                onToggle={() => {
+                                    if (twoFactorEnabled && twoFactorMethod === 'google') {
                                         setTwoFactorEnabled(false);
                                         setTwoFactorMethod('telegram');
                                         onUpdateAccount(activeAccountId, { twoFactorMethod: 'telegram', twoFactorEnabled: false });
+                                    } else {
+                                        setTwoFactorMethod('google');
+                                        setTwoFactorEnabled(true);
+                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'google', twoFactorEnabled: true });
                                     }
                                 }}
                             />
@@ -3200,19 +3233,17 @@ function ProfilePage({
                     <Panel className="cargo-card" style={{ padding: '1rem' }}>
                         <Flex align="center" justify="space-between" style={{ marginBottom: twoFactorMethod === 'telegram' && !twoFactorTelegramLinked && onOpenTelegramBot ? '0.5rem' : 0 }}>
                             <Typography.Body style={{ fontSize: '0.9rem' }}>Telegram</Typography.Body>
-                            <Switch
-                                type="checkbox"
+                            <TapSwitch
                                 checked={twoFactorEnabled && twoFactorMethod === 'telegram'}
-                                onChange={(e) => {
-                                    const checked = (e.target as HTMLInputElement).checked;
-                                    if (checked) {
-                                        setTwoFactorMethod('telegram');
-                                        setTwoFactorEnabled(true);
-                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'telegram', twoFactorEnabled: true });
-                                    } else {
+                                onToggle={() => {
+                                    if (twoFactorEnabled && twoFactorMethod === 'telegram') {
                                         setTwoFactorEnabled(false);
                                         setTwoFactorMethod('google');
                                         onUpdateAccount(activeAccountId, { twoFactorMethod: 'google', twoFactorEnabled: false });
+                                    } else {
+                                        setTwoFactorMethod('telegram');
+                                        setTwoFactorEnabled(true);
+                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'telegram', twoFactorEnabled: true });
                                     }
                                 }}
                             />
@@ -6754,11 +6785,7 @@ export default function App() {
                     const twoFaEnabled = !!twoFaSettings?.enabled;
                     const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
                     const twoFaLinked = !!twoFaSettings?.telegramLinked;
-                    if (twoFaEnabled && twoFaMethod === "telegram") {
-                        if (!twoFaLinked) {
-                            setError("Сначала привяжите Telegram в профиле.");
-                            return;
-                        }
+                    if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
                         const sendRes = await fetch("/api/2fa-telegram", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -6827,11 +6854,7 @@ export default function App() {
             const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
             const twoFaLinked = !!twoFaSettings?.telegramLinked;
 
-            if (twoFaEnabled && twoFaMethod === "telegram") {
-                if (!twoFaLinked) {
-                    setError("Сначала привяжите Telegram в профиле.");
-                    return;
-                }
+            if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
                 const sendRes = await fetch("/api/2fa-telegram", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
