@@ -3127,6 +3127,29 @@ function ProfilePage({
                         Отвязать от Алисы
                     </Button>
                 </Panel>
+
+                <Typography.Body style={{ marginTop: '1.25rem', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Как пользоваться</Typography.Body>
+                <Panel className="cargo-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                        Скажите Алисе: «Запусти навык Холз», затем назовите код из приложения. После этого можно использовать фразы ниже.
+                    </Typography.Body>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Перевозки и оплаты</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Какие перевозки в пути?» — список в пути, затем «Подробнее» для деталей</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Какие счета на оплату?» — что нужно оплатить</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Что у меня в работе?» — кратко: в пути N, к оплате M</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Сколько перевозок за сегодня?» / «на этой неделе?» — сводка за период</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Статус перевозки 135702» — детали по номеру (номера без нулей впереди)</Typography.Body>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Управление</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Работай от имени компании [название]» — переключить компанию (если привязано несколько)</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Отвяжи компанию» — отвязать навык, потом можно ввести новый код</Typography.Body>
+                    </div>
+                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                        Любой другой вопрос (контакты, статус по грузу) Алиса передаёт в чат поддержки с контекстом вашей компании.
+                    </Typography.Body>
+                </Panel>
             </div>
         );
     }
