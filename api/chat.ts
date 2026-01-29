@@ -134,6 +134,18 @@ function wantsNoLinks(text: string) {
   return lower.includes("без ссылок");
 }
 
+/** Запрос на отвязку компании/заказчика в чате */
+function isUnlinkRequest(text: string) {
+  const lower = text.toLowerCase().trim();
+  return (
+    lower.includes("отвяжи компанию") ||
+    lower.includes("отвяжи заказчик") ||
+    lower.includes("отвяжи заказчика") ||
+    (lower.includes("отвяжи") && (lower.includes("компани") || lower.includes("заказчик"))) ||
+    lower === "отвяжи"
+  );
+}
+
 async function makeDocShortUrl(
   appDomain: string,
   method: string,
@@ -285,6 +297,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [sid],
     );
 
+    // Запрос «отвяжи компанию» / «отвяжи заказчика» — очищаем привязку сессии в БД
+    if (isUnlinkRequest(userMessage)) {
+      await pool.query(
+        `insert into chat_session_bindings (session_id, login, inn, customer_name, updated_at)
+         values ($1, null, null, null, now())
+         on conflict (session_id) do update
+           set login = null, inn = null, customer_name = null, updated_at = now()`,
+        [sid],
+      );
+      const unlinkReply =
+        "Компания отвязана. Активный заказчик в этом чате сброшен. Выберите компанию в приложении, если нужно снова работать от её имени.";
+      await pool.query(
+        `insert into chat_messages (session_id, role, content)
+         values ($1, 'assistant', $2)`,
+        [sid, unlinkReply],
+      );
+      await pool.query(`update chat_sessions set updated_at = now() where id = $1`, [sid]);
+      return res.status(200).json({ sessionId: sid, reply: unlinkReply, unlinked: true });
+    }
+
+    // Регистрируем/обновляем привязку сессии к логину и заказчику (чего нет в БД — не авторизован)
+    const login = typeof auth?.login === "string" ? auth.login.trim() : null;
+    const inn = typeof auth?.inn === "string" ? auth.inn.trim() : null;
+    const customerName = typeof customer === "string" ? customer.trim() || null : null;
+    if (login && (customerName || inn)) {
+      await pool.query(
+        `insert into chat_session_bindings (session_id, login, inn, customer_name, updated_at)
+         values ($1, $2, $3, $4, now())
+         on conflict (session_id) do update
+           set login = excluded.login, inn = excluded.inn, customer_name = excluded.customer_name, updated_at = now()`,
+        [sid, login, inn || null, customerName],
+      );
+    }
+
+    // Эффективный заказчик для сессии — из БД (если нет записи или customer_name null — не авторизован)
+    const bindingResult = await pool.query<{ customer_name: string | null }>(
+      `select customer_name from chat_session_bindings where session_id = $1`,
+      [sid],
+    );
+    const effectiveCustomer = bindingResult.rows[0]?.customer_name ?? null;
+
     if (isContactsRequest(userMessage)) {
       const reply = buildContactsReply();
       await pool.query(
@@ -311,8 +364,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const params: string[] = [cargoNumber];
       let whereClause = "where source_type = 'cargo' and metadata->>'number' = $1";
-      if (customer) {
-        params.push(String(customer));
+      if (effectiveCustomer) {
+        params.push(String(effectiveCustomer));
         whereClause += " and metadata->>'customer' = $2";
       }
 
@@ -446,7 +499,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const topK = Number(process.env.RAG_TOP_K || 5);
       const minScore = Number(process.env.RAG_MIN_SCORE || 0);
-      const ragResults = await searchSimilar(userMessage, { topK, minScore, customer });
+      const ragResults = await searchSimilar(userMessage, { topK, minScore, customer: effectiveCustomer });
       if (ragResults.length > 0) {
         ragContext = ragResults
           .map((item, idx) => {
@@ -482,7 +535,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 ${context ? JSON.stringify(context, null, 2) : "Пользователь пока не авторизован или данных о перевозках нет."}
 
 АКТИВНЫЙ ЗАКАЗЧИК:
-${customer || "Не указан."}
+${effectiveCustomer || "Не указан. В этой сессии компания не привязана — выберите компанию в приложении или попросите отвязать текущую."}
 
 ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ (из базы знаний):
 ${ragContext || "Нет дополнительных данных."}

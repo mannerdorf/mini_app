@@ -5458,7 +5458,13 @@ function ChatPage({
         window.localStorage.setItem(key, sid);
         return sid;
     });
+    const [sessionUnlinked, setSessionUnlinked] = useState(false);
     const scrollRef = React.useRef<HTMLDivElement>(null);
+
+    // После отвязки в чате не отправляем заказчика, пока пользователь снова не выберет компанию
+    useEffect(() => {
+        if (customerOverride) setSessionUnlinked(false);
+    }, [customerOverride]);
     const recorderRef = React.useRef<MediaRecorder | null>(null);
     const chunksRef = React.useRef<Blob[]>([]);
     const streamRef = React.useRef<MediaStream | null>(null);
@@ -5901,6 +5907,7 @@ function ChatPage({
                 }))
             };
 
+            const effectiveCustomer = sessionUnlinked ? null : customerOverride;
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -5908,15 +5915,18 @@ function ChatPage({
                     sessionId,
                     userId: userIdOverride || auth?.login,
                     message: messageText,
-                    context,
-                    customer: customerOverride,
-                    auth: auth?.login && auth?.password ? { login: auth.login, password: auth.password } : undefined
+                    context: { ...context, customer: effectiveCustomer },
+                    customer: effectiveCustomer,
+                    auth: auth?.login && auth?.password ? { login: auth.login, password: auth.password, ...(auth.inn ? { inn: auth.inn } : {}) } : undefined
                 })
             });
 
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 throw new Error(data?.error || data?.message || `Ошибка ${res.status}`);
+            }
+            if (data?.unlinked === true) {
+                setSessionUnlinked(true);
             }
             if (!sessionOverride && data?.sessionId && typeof data.sessionId === "string" && data.sessionId !== sessionId) {
                 setSessionId(data.sessionId);
