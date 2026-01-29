@@ -38,7 +38,13 @@ export default async function handler(
   }
 
   try {
-    const pool = getPool();
+    let pool;
+    try {
+      pool = getPool();
+    } catch (dbInitErr: any) {
+      console.error("companies-save: DB not configured", dbInitErr?.message);
+      return res.status(200).json({ ok: true, saved: 0, warning: "DATABASE_URL not set" });
+    }
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -65,3 +71,4 @@ export default async function handler(
       .json({ error: "Database error", details: e?.message || String(e) });
   }
 }
+

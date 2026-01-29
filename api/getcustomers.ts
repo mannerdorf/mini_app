@@ -9,9 +9,25 @@ export type CustomerItem = { name: string; inn: string };
 
 function normalizeCustomers(raw: unknown): CustomerItem[] {
   if (!raw || typeof raw !== "object") return [];
-  const arr = Array.isArray(raw)
-    ? raw
-    : (raw as any).items ?? (raw as any).Customers ?? (raw as any).customers ?? [];
+  let arr: any[] = [];
+  if (Array.isArray(raw)) {
+    arr = raw;
+  } else {
+    const o = raw as Record<string, unknown>;
+    const items = o.items ?? o.Items ?? o.Customers ?? o.customers;
+    if (Array.isArray(items)) {
+      arr = items;
+    } else if (o.INN != null || o.Inn != null || o.inn != null) {
+      // Один объект-компания в корне
+      arr = [o];
+    } else {
+      // Возможно массив под другими ключами или объект с числовыми ключами
+      const values = Object.values(o);
+      if (values.some((v) => v && typeof v === "object" && ("INN" in (v as any) || "Inn" in (v as any) || "inn" in (v as any)))) {
+        arr = values.filter((v) => v && typeof v === "object") as any[];
+      }
+    }
+  }
   if (!Array.isArray(arr)) return [];
   return arr
     .map((el: any) => {
@@ -81,9 +97,13 @@ export default async function handler(
       return res.status(200).json({ customers: [] });
     }
 
-    const customers = normalizeCustomers(
-      Array.isArray(data) ? data : (data as any).items ?? (data as any).Customers ?? (data as any).customers ?? data
-    );
+    // Поддержка разных форматов ответа 1С: массив, { items }, { Customers }, { data }, вложенный массив
+    let payload: unknown = data;
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const o = data as Record<string, unknown>;
+      payload = o.items ?? o.Items ?? o.Customers ?? o.customers ?? o.data ?? o.Data ?? o.result ?? o.Result ?? data;
+    }
+    const customers = normalizeCustomers(payload);
 
     return res.status(200).json({ customers });
   } catch (e: any) {
