@@ -331,13 +331,16 @@ const formatCurrency = (value: number | string | undefined): string => {
     return isNaN(num) ? String(value) : new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2 }).format(num);
 };
 
-/** Калининград/Калининградская область → KGD; Москва/Московская область/Андреевское → MSK */
+/** Все города Калининградской области → KGD; все города Московской области → MSK */
 const cityToCode = (city: string | number | undefined | null): string => {
     if (city === undefined || city === null) return '';
     const s = String(city).trim().toLowerCase();
-    if (/калининград/.test(s) || s === 'kgd') return 'KGD';
-    if (/москва|андреевск|московская область|msk/.test(s)) return 'MSK';
-    if (/калининградская область/.test(s)) return 'KGD';
+    // Калининградская область: область, Калининград и города области
+    if (/калининградская\s*область|калининград|кгд/.test(s)) return 'KGD';
+    if (/советск|черняховск|балтийск|гусев|светлый|гурьевск|зеленоградск|светлогорск|пионерский|багратионовск|нестеров|озёрск|правдинск|полесск|лаврово|мамоново|янтарный/.test(s)) return 'KGD';
+    // Московская область: область, Москва и города области
+    if (/московская\s*область|москва|мск|msk/.test(s)) return 'MSK';
+    if (/подольск|балашиха|химки|королёв|мытищи|люберцы|электросталь|коломна|одинцово|серпухов|орехово-зуево|раменское|жуковский|пушкино|сергиев\s*посад|воскресенск|лобня|клин|дубна|егорьевск|чехов|дмитров|ступино|ногинск|долгопрудный|реутов|андреевск|фрязино|троицк|ивантеевка|дзержинский|видное|красногорск|домодедово|железнодорожный|котельники/.test(s)) return 'MSK';
     return String(city).trim();
 };
 
@@ -2096,7 +2099,7 @@ function AccountSwitcher({
 }
 
 // Типы для навигации профиля
-type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about' | 'faq' | 'voiceAssistants' | 'tinyurl-test';
+type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about' | 'faq' | 'voiceAssistants' | '2fa' | 'tinyurl-test';
 
 function truncateForLog(u: string, max = 80) {
     return u.length <= max ? u : u.slice(0, max) + '...';
@@ -3078,6 +3081,90 @@ function ProfilePage({
             </div>
         );
     }
+
+    if (currentView === '2fa' && activeAccountId && activeAccount) {
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Двухфакторная аутентификация (2FA)</Typography.Headline>
+                </Flex>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Flex align="center" justify="space-between">
+                            <Typography.Body style={{ fontSize: '0.9rem' }}>Google Authenticator</Typography.Body>
+                            <Switch
+                                checked={twoFactorEnabled && twoFactorMethod === 'google'}
+                                onCheckedChange={(checked) => {
+                                    if (checked) {
+                                        setTwoFactorMethod('google');
+                                        setTwoFactorEnabled(true);
+                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'google', twoFactorEnabled: true });
+                                    } else {
+                                        setTwoFactorEnabled(false);
+                                        setTwoFactorMethod('telegram');
+                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'telegram', twoFactorEnabled: false });
+                                    }
+                                }}
+                            />
+                        </Flex>
+                    </Panel>
+                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Flex align="center" justify="space-between" style={{ marginBottom: twoFactorMethod === 'telegram' && !twoFactorTelegramLinked && onOpenTelegramBot ? '0.5rem' : 0 }}>
+                            <Typography.Body style={{ fontSize: '0.9rem' }}>Telegram</Typography.Body>
+                            <Switch
+                                checked={twoFactorEnabled && twoFactorMethod === 'telegram'}
+                                onCheckedChange={(checked) => {
+                                    if (checked) {
+                                        setTwoFactorMethod('telegram');
+                                        setTwoFactorEnabled(true);
+                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'telegram', twoFactorEnabled: true });
+                                    } else {
+                                        setTwoFactorEnabled(false);
+                                        setTwoFactorMethod('google');
+                                        onUpdateAccount(activeAccountId, { twoFactorMethod: 'google', twoFactorEnabled: false });
+                                    }
+                                }}
+                            />
+                        </Flex>
+                        {twoFactorEnabled && twoFactorMethod === 'telegram' && (
+                            <>
+                                {twoFactorTelegramLinked ? (
+                                    <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-success-status)' }}>
+                                        Telegram привязан
+                                    </Typography.Body>
+                                ) : onOpenTelegramBot ? (
+                                    <Button
+                                        className="filter-button"
+                                        size="small"
+                                        disabled={tgLinkChecking}
+                                        onClick={async () => {
+                                            setTgLinkError(null);
+                                            try {
+                                                await onOpenTelegramBot();
+                                                void pollTelegramLink();
+                                            } catch (e: any) {
+                                                setTgLinkError(e?.message || 'Не удалось открыть бота.');
+                                            }
+                                        }}
+                                        style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}
+                                    >
+                                        {tgLinkChecking ? 'Проверка…' : 'Привязать Telegram'}
+                                    </Button>
+                                ) : (
+                                    <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                        Откройте бота для привязки
+                                    </Typography.Body>
+                                )}
+                            </>
+                        )}
+                    </Panel>
+                </div>
+            </div>
+        );
+    }
     
     return (
         <div className="w-full">
@@ -3110,84 +3197,19 @@ function ProfilePage({
             <div style={{ marginBottom: '1.5rem' }}>
                 <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Безопасность</Typography.Body>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {/* 2FA */}
+                    {/* 2FA — переход на отдельную страницу */}
                     {activeAccountId && activeAccount && (
-                        <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                            <Flex align="center" justify="space-between" style={{ marginBottom: twoFactorEnabled ? '0.75rem' : 0 }}>
-                                <Flex align="center" style={{ gap: '0.75rem' }}>
-                                    <div style={{ color: 'var(--color-primary)' }}>
-                                        <Shield className="w-5 h-5" />
-                                    </div>
-                                    <Typography.Body style={{ fontSize: '0.9rem' }}>Двухфакторная аутентификация (2FA)</Typography.Body>
-                                </Flex>
-                                <Switch
-                                    checked={twoFactorEnabled}
-                                    onCheckedChange={(checked) => {
-                                        setTwoFactorEnabled(!!checked);
-                                        onUpdateAccount(activeAccountId, { twoFactorEnabled: !!checked });
-                                    }}
-                                />
-                            </Flex>
-                            {twoFactorEnabled && (
-                                <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
-                                    <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>Способ:</Typography.Body>
-                                    <Flex style={{ gap: '0.5rem', marginBottom: twoFactorMethod === 'telegram' ? '0.75rem' : 0 }}>
-                                        <Button
-                                            className={twoFactorMethod === 'google' ? 'button-primary' : 'filter-button'}
-                                            size="small"
-                                            onClick={() => {
-                                                setTwoFactorMethod('google');
-                                                onUpdateAccount(activeAccountId, { twoFactorMethod: 'google' });
-                                            }}
-                                            style={{ fontSize: '0.85rem', padding: '0.35rem 0.6rem' }}
-                                        >
-                                            Google Authenticator
-                                        </Button>
-                                        <Button
-                                            className={twoFactorMethod === 'telegram' ? 'button-primary' : 'filter-button'}
-                                            size="small"
-                                            onClick={() => {
-                                                setTwoFactorMethod('telegram');
-                                                onUpdateAccount(activeAccountId, { twoFactorMethod: 'telegram' });
-                                            }}
-                                            style={{ fontSize: '0.85rem', padding: '0.35rem 0.6rem' }}
-                                        >
-                                            Telegram
-                                        </Button>
-                                    </Flex>
-                                    {twoFactorMethod === 'telegram' && (
-                                        <>
-                                            {twoFactorTelegramLinked ? (
-                                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-success-status)' }}>
-                                                    Telegram привязан
-                                                </Typography.Body>
-                                            ) : onOpenTelegramBot ? (
-                                                <Button
-                                                    className="filter-button"
-                                                    size="small"
-                                                    disabled={tgLinkChecking}
-                                                    onClick={async () => {
-                                                        setTgLinkError(null);
-                                                        try {
-                                                            await onOpenTelegramBot();
-                                                            void pollTelegramLink();
-                                                        } catch (e: any) {
-                                                            setTgLinkError(e?.message || 'Не удалось открыть бота.');
-                                                        }
-                                                    }}
-                                                    style={{ fontSize: '0.85rem' }}
-                                                >
-                                                    {tgLinkChecking ? 'Проверка…' : 'Привязать Telegram'}
-                                                </Button>
-                                            ) : (
-                                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                                    Откройте бота для привязки
-                                                </Typography.Body>
-                                            )}
-                                        </>
-                                    )}
+                        <Panel
+                            className="cargo-card"
+                            onClick={() => setCurrentView('2fa')}
+                            style={{ display: 'flex', alignItems: 'center', padding: '1rem', cursor: 'pointer' }}
+                        >
+                            <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
+                                <div style={{ color: 'var(--color-primary)' }}>
+                                    <Shield className="w-5 h-5" />
                                 </div>
-                            )}
+                                <Typography.Body style={{ fontSize: '0.9rem' }}>Двухфакторная аутентификация (2FA)</Typography.Body>
+                            </Flex>
                         </Panel>
                     )}
                     <Panel
