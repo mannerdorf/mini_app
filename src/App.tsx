@@ -2144,7 +2144,7 @@ function AccountSwitcher({
 }
 
 // Типы для навигации профиля
-type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about' | 'faq' | 'voiceAssistants' | '2fa' | 'tinyurl-test';
+type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about' | 'faq' | 'voiceAssistants' | '2fa' | 'notifications' | 'tinyurl-test';
 
 function truncateForLog(u: string, max = 80) {
     return u.length <= max ? u : u.slice(0, max) + '...';
@@ -2764,6 +2764,246 @@ function AboutCompanyPage({ onBack }: { onBack: () => void }) {
     );
 }
 
+// --- NOTIFICATION EVENTS (для разделов Telegram / Web Push) ---
+const NOTIFICATION_EVENTS: { id: string; label: string }[] = [
+  { id: "accepted", label: "Ответ принято" },
+  { id: "in_transit", label: "В пути" },
+  { id: "delivering", label: "На доставке" },
+  { id: "delivered", label: "Доставлено" },
+  { id: "unpaid_bill", label: "Счёт на оплату" },
+  { id: "status_changed", label: "Изменение статуса" },
+];
+
+function NotificationsPage({
+  activeAccount,
+  onBack,
+  onOpenDeveloper,
+}: {
+  activeAccount: Account | null;
+  onBack: () => void;
+  onOpenDeveloper: () => void;
+}) {
+  const [prefs, setPrefs] = useState<{ telegram: Record<string, boolean>; webpush: Record<string, boolean> }>({
+    telegram: {},
+    webpush: {},
+  });
+  const [prefsLoading, setPrefsLoading] = useState(true);
+  const [prefsSaving, setPrefsSaving] = useState(false);
+  const [webPushLoading, setWebPushLoading] = useState(false);
+  const [webPushError, setWebPushError] = useState<string | null>(null);
+  const [webPushSubscribed, setWebPushSubscribed] = useState(false);
+
+  const login = activeAccount?.login?.trim().toLowerCase() || "";
+
+  useEffect(() => {
+    if (!login) {
+      setPrefsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/webpush-preferences?login=${encodeURIComponent(login)}`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setPrefs({
+          telegram: data.telegram || {},
+          webpush: data.webpush || {},
+        });
+      } catch {
+        if (!cancelled) setPrefs({ telegram: {}, webpush: {} });
+      } finally {
+        if (!cancelled) setPrefsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [login]);
+
+  const savePrefs = useCallback(
+    async (channel: "telegram" | "webpush", eventId: string, value: boolean) => {
+      const next = {
+        ...prefs,
+        [channel]: { ...prefs[channel], [eventId]: value },
+      };
+      setPrefs(next);
+      if (!login) return;
+      setPrefsSaving(true);
+      try {
+        await fetch("/api/webpush-preferences", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ login, preferences: next }),
+        });
+      } catch {
+        // revert on error?
+      } finally {
+        setPrefsSaving(false);
+      }
+    },
+    [login, prefs]
+  );
+
+  const enableWebPush = useCallback(async () => {
+    if (!login) return;
+    if (typeof window === "undefined" || !("Notification" in window) || !("serviceWorker" in navigator)) {
+      setWebPushError("Уведомления в браузере не поддерживаются.");
+      return;
+    }
+    setWebPushError(null);
+    setWebPushLoading(true);
+    try {
+      let permission = Notification.permission;
+      if (permission === "default") {
+        permission = await Notification.requestPermission();
+      }
+      if (permission !== "granted") {
+        setWebPushError("Разрешение на уведомления отклонено.");
+        setWebPushLoading(false);
+        return;
+      }
+      const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      await reg.update();
+      const res = await fetch("/api/webpush-vapid");
+      if (!res.ok) throw new Error("VAPID not configured");
+      const { publicKey } = await res.json();
+      if (!publicKey) throw new Error("No public key");
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+      const subRes = await fetch("/api/webpush-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login, subscription: sub.toJSON() }),
+      });
+      if (!subRes.ok) throw new Error("Failed to save subscription");
+      setWebPushSubscribed(true);
+    } catch (e: any) {
+      setWebPushError(e?.message || "Не удалось включить уведомления.");
+    } finally {
+      setWebPushLoading(false);
+    }
+  }, [login]);
+
+  const webPushSupported =
+    typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
+
+  return (
+    <div className="w-full">
+      <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
+        <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <Typography.Headline style={{ fontSize: "1.25rem" }}>Уведомления</Typography.Headline>
+      </Flex>
+
+      {!login ? (
+        <Panel className="cargo-card" style={{ padding: "1rem" }}>
+          <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+            Войдите в аккаунт, чтобы настроить уведомления.
+          </Typography.Body>
+        </Panel>
+      ) : prefsLoading ? (
+        <Panel className="cargo-card" style={{ padding: "1rem" }}>
+          <Flex align="center" gap="0.5rem">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <Typography.Body style={{ fontSize: "0.9rem" }}>Загрузка…</Typography.Body>
+          </Flex>
+        </Panel>
+      ) : (
+        <>
+          {/* Telegram */}
+          <Typography.Body style={{ marginBottom: "0.5rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+            Telegram
+          </Typography.Body>
+          <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {NOTIFICATION_EVENTS.map((ev) => (
+              <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                <Switch
+                  checked={!!prefs.telegram[ev.id]}
+                  onCheckedChange={(checked) => savePrefs("telegram", ev.id, !!checked)}
+                  disabled={prefsSaving}
+                />
+              </Flex>
+            ))}
+          </Panel>
+
+          {/* Web Push */}
+          <Typography.Body style={{ marginTop: "1.25rem", marginBottom: "0.5rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+            Web Push (браузер)
+          </Typography.Body>
+          <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {webPushSupported && (
+              <>
+                <Flex align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                    Уведомления в браузере (Chrome, Edge, Firefox; на iOS — после добавления на экран «Домой»).
+                  </Typography.Body>
+                </Flex>
+                {!webPushSubscribed && (
+                  <Button
+                    type="button"
+                    className="button-primary"
+                    disabled={webPushLoading}
+                    onClick={enableWebPush}
+                  >
+                    {webPushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Включить уведомления в браузере"}
+                  </Button>
+                )}
+                {webPushSubscribed && (
+                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
+                    Уведомления в браузере включены.
+                  </Typography.Body>
+                )}
+                {webPushError && (
+                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
+                    {webPushError}
+                  </Typography.Body>
+                )}
+                {NOTIFICATION_EVENTS.map((ev) => (
+                  <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                    <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                    <Switch
+                      checked={!!prefs.webpush[ev.id]}
+                      onCheckedChange={(checked) => savePrefs("webpush", ev.id, !!checked)}
+                      disabled={prefsSaving}
+                    />
+                  </Flex>
+                ))}
+              </>
+            )}
+            {!webPushSupported && (
+              <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                Web Push доступен в браузерах (Chrome, Edge, Firefox). В мини‑приложении внутри соцсетей может быть недоступен.
+              </Typography.Body>
+            )}
+          </Panel>
+
+          <Typography.Body
+            style={{ marginTop: "1.5rem", fontSize: "0.8rem", color: "var(--color-text-secondary)", cursor: "pointer", textDecoration: "underline" }}
+            onClick={onOpenDeveloper}
+          >
+            Для разработчиков
+          </Typography.Body>
+        </>
+      )}
+    </div>
+  );
+}
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
 // --- PROFILE PAGE ---
 function ProfilePage({ 
     accounts, 
@@ -3155,6 +3395,16 @@ function ProfilePage({
         );
     }
 
+    if (currentView === 'notifications') {
+        return (
+            <NotificationsPage
+                activeAccount={activeAccount}
+                onBack={() => setCurrentView('main')}
+                onOpenDeveloper={onOpenNotifications}
+            />
+        );
+    }
+
     if (currentView === 'faq') {
         return (
             <div className="w-full">
@@ -3485,7 +3735,7 @@ function ProfilePage({
                     )}
                     <Panel
                         className="cargo-card"
-                        onClick={onOpenNotifications}
+                        onClick={() => setCurrentView('notifications')}
                         style={{ display: 'flex', alignItems: 'center', padding: '1rem', cursor: 'pointer' }}
                     >
                         <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
