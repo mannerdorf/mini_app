@@ -60,6 +60,30 @@ function extractCustomerFromPerevozki(payload: any): string | null {
     const customer = item?.Customer ?? item?.customer;
     return customer ? String(customer) : null;
 }
+
+/** ИНН из ответа GetPerevozki (из той же записи, что и Customer) */
+function extractInnFromPerevozki(payload: any): string | null {
+    const list = Array.isArray(payload) ? payload : payload?.items || [];
+    if (!Array.isArray(list)) return null;
+    const item = list.find((entry: any) => entry?.Customer || entry?.customer);
+    const inn = (item?.INN ?? item?.Inn ?? "").toString().trim();
+    return inn.length > 0 ? inn : null;
+}
+
+/** Список ИНН, уже добавленных в «Мои компании» для данных логинов */
+async function getExistingInns(logins: string[]): Promise<Set<string>> {
+    if (logins.length === 0) return new Set();
+    const query = logins.map((l) => `login=${encodeURIComponent(l.trim().toLowerCase())}`).join("&");
+    const r = await fetch(`/api/companies?${query}`);
+    const data = await r.json().catch(() => ({}));
+    const list = Array.isArray(data?.companies) ? data.companies : [];
+    const inns = new Set<string>();
+    for (const c of list) {
+        const inn = (c?.inn ?? "").toString().trim();
+        if (inn.length > 0) inns.add(inn);
+    }
+    return inns;
+}
 // --- TELEGRAM MINI APP SUPPORT ---
 const getWebApp = () => {
     if (typeof window === "undefined") return undefined;
@@ -123,6 +147,7 @@ import { DOCUMENT_METHODS } from "./documentMethods";
 // --- CONFIGURATION ---
 const PROXY_API_BASE_URL = '/api/perevozki';
 const PROXY_API_GETCUSTOMERS_URL = '/api/getcustomers';
+// GetPerevozki и Getcustomers — только для авторизации. Запрос данных перевозок — только GetPerevozki с DateB, DateE, INN (через PROXY_API_BASE_URL с auth.inn).
 const PROXY_API_DOWNLOAD_URL = '/api/download';
 const PROXY_API_SEND_DOC_URL = '/api/send-document';
 const PROXY_API_GETPEREVOZKA_URL = '/api/getperevozka'; 
@@ -1954,7 +1979,8 @@ function CustomerSwitcher({
         fetch(`/api/companies?${query}`)
             .then((r) => r.json())
             .then((data) => {
-                setCompanies(Array.isArray(data?.companies) ? data.companies : []);
+                const list = Array.isArray(data?.companies) ? data.companies : [];
+                setCompanies(dedupeCompaniesByName(list));
             })
             .catch(() => setCompanies([]))
             .finally(() => setLoading(false));
@@ -3726,6 +3752,25 @@ function AddCompanyByLoginPage({
 // --- COMPANIES LIST PAGE (данные из БД, единый список по названию) ---
 type CompanyRow = { login: string; inn: string; name: string };
 
+/** Одна компания на одно название: убираем дубли от разных способов авторизации (Способ 1 — без ИНН, Способ 2 — с ИНН). Приоритет — строка с непустым ИНН. */
+function dedupeCompaniesByName(rows: CompanyRow[]): CompanyRow[] {
+  const byName = new Map<string, CompanyRow>();
+  const normalize = (s: string) => (s || "").trim().toLowerCase();
+  for (const c of rows) {
+    const key = normalize(c.name);
+    if (!key) continue;
+    const existing = byName.get(key);
+    if (!existing) {
+      byName.set(key, c);
+    } else {
+      const hasInn = (c.inn || "").trim().length > 0;
+      const existingHasInn = (existing.inn || "").trim().length > 0;
+      if (hasInn && !existingHasInn) byName.set(key, c);
+    }
+  }
+  return Array.from(byName.values());
+}
+
 function CompaniesListPage({
     accounts,
     activeAccountId,
@@ -3759,7 +3804,7 @@ function CompaniesListPage({
             .then((r) => r.json())
             .then((data) => {
                 const list = Array.isArray(data?.companies) ? data.companies : [];
-                setCompanies(list);
+                setCompanies(dedupeCompaniesByName(list));
             })
             .catch(() => setCompanies([]))
             .finally(() => setLoading(false));
@@ -3986,6 +4031,7 @@ function CargoPage({
         }
         setLoading(true); setError(null);
         try {
+            // Данные перевозок — только GetPerevozki с DateB, DateE, INN (ИНН из аккаунта/БД)
             const res = await fetch(PROXY_API_BASE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, dateFrom, dateTo, ...(auth.inn ? { inn: auth.inn } : {}) }) });
             await ensureOk(res, "Ошибка загрузки данных");
             const data = await res.json();
@@ -6294,7 +6340,7 @@ export default function App() {
     const [twoFactorCode, setTwoFactorCode] = useState("");
     const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
     const [twoFactorLoading, setTwoFactorLoading] = useState(false);
-    const [pendingLogin, setPendingLogin] = useState<{ login: string; loginKey: string; password: string; customer?: string | null; customers?: CustomerOption[] } | null>(null);
+    const [pendingLogin, setPendingLogin] = useState<{ login: string; loginKey: string; password: string; customer?: string | null; customers?: CustomerOption[]; perevozkiInn?: string } | null>(null);
     
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [searchText, setSearchText] = useState('');
@@ -6696,6 +6742,12 @@ export default function App() {
                     })).filter((c: CustomerOption) => c.inn.length > 0)
                 );
                 if (customers.length > 0) {
+                    const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
+                    const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
+                    if (alreadyAdded) {
+                        setError("Компания уже в списке");
+                        return;
+                    }
                     const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
                     const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
                     const twoFaSettings = twoFaJson?.settings;
@@ -6762,6 +6814,12 @@ export default function App() {
             await ensureOk(res, "Ошибка авторизации");
             const payload = await readJsonOrText(res);
             const detectedCustomer = extractCustomerFromPerevozki(payload);
+            const detectedInn = extractInnFromPerevozki(payload);
+            const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
+            if (detectedInn && existingInns.has(detectedInn)) {
+                setError("Компания уже в списке");
+                return;
+            }
             const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
             const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
             const twoFaSettings = twoFaJson?.settings;
@@ -6783,7 +6841,7 @@ export default function App() {
                     const err = await readJsonOrText(sendRes);
                     throw new Error(err?.error || "Не удалось отправить код");
                 }
-                setPendingLogin({ login, password, customer: detectedCustomer, loginKey });
+                setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined });
                 setTwoFactorPending(true);
                 setTwoFactorCode("");
                 return;
@@ -6805,16 +6863,22 @@ export default function App() {
                 setActiveAccountId(accountId);
             } else {
                 accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                const newAccount: Account = { login, password, id: accountId, customer: detectedCustomer || undefined };
+                const newAccount: Account = {
+                    login,
+                    password,
+                    id: accountId,
+                    customer: detectedCustomer || undefined,
+                    ...(detectedInn ? { activeCustomerInn: detectedInn } : {}),
+                };
                 setAccounts(prev => [...prev, newAccount]);
                 setActiveAccountId(accountId);
             }
-            // Сначала заполняем БД (способ 1: одна компания без ИНН)
+            const companyInn = detectedInn ?? "";
             const companyName = detectedCustomer || login.trim() || "Компания";
             fetch("/api/companies-save", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: "" }] }),
+                body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }),
             }).catch(() => {});
 
             setActiveTab((prev) => prev || "cargo");
@@ -6895,11 +6959,12 @@ export default function App() {
                     .then((data) => { if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning); })
                     .catch((err) => console.warn("companies-save error:", err));
             } else {
-                // Способ 1 (GetPerevozki): одна компания без ИНН — сохраняем в БД
+                // Способ 1 (GetPerevozki): одна компания с ИНН из ответа API
+                const perevozkiInn = pendingLogin.perevozkiInn ?? "";
                 fetch("/api/companies-save", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login: loginKeyToSave, customers: [{ name: (detectedCustomer ?? loginDisplay) || "Компания", inn: "" }] }),
+                    body: JSON.stringify({ login: loginKeyToSave, customers: [{ name: (detectedCustomer ?? loginDisplay) || "Компания", inn: perevozkiInn }] }),
                 }).catch(() => {});
             }
         } catch (err: any) {
@@ -6984,6 +7049,11 @@ export default function App() {
                 })).filter((c: CustomerOption) => c.inn.length > 0)
             );
             if (customers.length > 0) {
+                const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
+                const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
+                if (alreadyAdded) {
+                    throw new Error("Компания уже в списке");
+                }
                 const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                 const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: customers[0].inn };
                 setAccounts(prev => [...prev, newAccount]);
@@ -7017,15 +7087,27 @@ export default function App() {
         }
         const payload = await readJsonOrText(res);
         const detectedCustomer = extractCustomerFromPerevozki(payload);
+        const detectedInn = extractInnFromPerevozki(payload);
+        const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
+        if (detectedInn && existingInns.has(detectedInn)) {
+            throw new Error("Компания уже в списке");
+        }
         const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const newAccount: Account = { login, password, id: accountId, customer: detectedCustomer || undefined };
+        const newAccount: Account = {
+            login,
+            password,
+            id: accountId,
+            customer: detectedCustomer || undefined,
+            ...(detectedInn ? { activeCustomerInn: detectedInn } : {}),
+        };
         setAccounts(prev => [...prev, newAccount]);
         setActiveAccountId(accountId);
+        const companyInn = detectedInn ?? "";
         const companyName = detectedCustomer || login.trim() || "Компания";
         fetch("/api/companies-save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: "" }] }),
+            body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }),
         }).catch(() => {});
     };
 

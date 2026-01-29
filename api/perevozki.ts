@@ -1,10 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { upsertDocument } from "../lib/rag.js";
 
+/**
+ * Запрос данных перевозок — только этот метод:
+ * GetPerevozki?DateB=...&DateE=...&INN=...
+ * GetPerevozki и Getcustomers на фронте используются только для авторизации (добавление компаний с ИНН).
+ */
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 
-// сервисный Basic-auth: admin:juebfnye
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -13,7 +17,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // читаем JSON из body
   let body: any = req.body;
   if (typeof body === "string") {
     try {
@@ -28,7 +31,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     password,
     dateFrom = "2024-01-01",
     dateTo = new Date().toISOString().split("T")[0],
-    customer,
     inn,
   } = body || {};
 
@@ -36,19 +38,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "login and password are required" });
   }
 
-  // validate dates to reduce abuse/noise
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)" });
   }
 
-  // URL: DateB, DateE, при наличии — INN (из аккаунта/БД при авторизации; используется для запроса и проверки дублей)
+  // Запрос данных перевозок — только DateB, DateE, INN (ИНН из аккаунта/БД при авторизации)
   const url = new URL(BASE_URL);
   url.searchParams.set("DateB", dateFrom);
   url.searchParams.set("DateE", dateTo);
-  if (customer) {
-    url.searchParams.set("Customer", String(customer));
-  }
   if (inn) {
     url.searchParams.set("INN", String(inn).trim());
   }
