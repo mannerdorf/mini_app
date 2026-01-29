@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)" });
   }
 
-  // URL как в Postman (с датами)
+  // URL: DateB, DateE, при наличии — INN (из аккаунта/БД при авторизации; используется для запроса и проверки дублей)
   const url = new URL(BASE_URL);
   url.searchParams.set("DateB", dateFrom);
   url.searchParams.set("DateE", dateTo);
