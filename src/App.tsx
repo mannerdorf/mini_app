@@ -3110,6 +3110,86 @@ function ProfilePage({
             <div style={{ marginBottom: '1.5rem' }}>
                 <Typography.Body style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Безопасность</Typography.Body>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {/* 2FA */}
+                    {activeAccountId && activeAccount && (
+                        <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                            <Flex align="center" justify="space-between" style={{ marginBottom: twoFactorEnabled ? '0.75rem' : 0 }}>
+                                <Flex align="center" style={{ gap: '0.75rem' }}>
+                                    <div style={{ color: 'var(--color-primary)' }}>
+                                        <Shield className="w-5 h-5" />
+                                    </div>
+                                    <Typography.Body style={{ fontSize: '0.9rem' }}>Двухфакторная аутентификация (2FA)</Typography.Body>
+                                </Flex>
+                                <Switch
+                                    checked={twoFactorEnabled}
+                                    onCheckedChange={(checked) => {
+                                        setTwoFactorEnabled(!!checked);
+                                        onUpdateAccount(activeAccountId, { twoFactorEnabled: !!checked });
+                                    }}
+                                />
+                            </Flex>
+                            {twoFactorEnabled && (
+                                <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
+                                    <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>Способ:</Typography.Body>
+                                    <Flex style={{ gap: '0.5rem', marginBottom: twoFactorMethod === 'telegram' ? '0.75rem' : 0 }}>
+                                        <Button
+                                            className={twoFactorMethod === 'google' ? 'button-primary' : 'filter-button'}
+                                            size="small"
+                                            onClick={() => {
+                                                setTwoFactorMethod('google');
+                                                onUpdateAccount(activeAccountId, { twoFactorMethod: 'google' });
+                                            }}
+                                            style={{ fontSize: '0.85rem', padding: '0.35rem 0.6rem' }}
+                                        >
+                                            Google Authenticator
+                                        </Button>
+                                        <Button
+                                            className={twoFactorMethod === 'telegram' ? 'button-primary' : 'filter-button'}
+                                            size="small"
+                                            onClick={() => {
+                                                setTwoFactorMethod('telegram');
+                                                onUpdateAccount(activeAccountId, { twoFactorMethod: 'telegram' });
+                                            }}
+                                            style={{ fontSize: '0.85rem', padding: '0.35rem 0.6rem' }}
+                                        >
+                                            Telegram
+                                        </Button>
+                                    </Flex>
+                                    {twoFactorMethod === 'telegram' && (
+                                        <>
+                                            {twoFactorTelegramLinked ? (
+                                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-success-status)' }}>
+                                                    Telegram привязан
+                                                </Typography.Body>
+                                            ) : onOpenTelegramBot ? (
+                                                <Button
+                                                    className="filter-button"
+                                                    size="small"
+                                                    disabled={tgLinkChecking}
+                                                    onClick={async () => {
+                                                        setTgLinkError(null);
+                                                        try {
+                                                            await onOpenTelegramBot();
+                                                            void pollTelegramLink();
+                                                        } catch (e: any) {
+                                                            setTgLinkError(e?.message || 'Не удалось открыть бота.');
+                                                        }
+                                                    }}
+                                                    style={{ fontSize: '0.85rem' }}
+                                                >
+                                                    {tgLinkChecking ? 'Проверка…' : 'Привязать Telegram'}
+                                                </Button>
+                                            ) : (
+                                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                    Откройте бота для привязки
+                                                </Typography.Body>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </Panel>
+                    )}
                     <Panel
                         className="cargo-card"
                         onClick={onOpenNotifications}
