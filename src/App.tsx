@@ -1816,17 +1816,15 @@ function DashboardPage({
                     </Flex>
                     <Flex gap="2rem" wrap="wrap" align="flex-start" style={{ marginBottom: '1rem' }}>
                         <div style={{ minWidth: 0 }}>
-                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.4rem' }}>В срок</Typography.Body>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.percentOnTime >= 90 ? 'var(--color-success-status)' : slaStats.percentOnTime >= 70 ? '#f59e0b' : '#ef4444', marginBottom: '0.4rem' }}>
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>В срок{'   '}</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.percentOnTime >= 90 ? 'var(--color-success-status)' : slaStats.percentOnTime >= 70 ? '#f59e0b' : '#ef4444', display: 'inline' }}>
                                 {slaStats.percentOnTime}%
                             </Typography.Body>
-                            <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                                {slaStats.onTime} из {slaStats.total} перевозок
-                            </Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', display: 'inline' }}>{'   '}{slaStats.onTime} из {slaStats.total} перевозок</Typography.Body>
                         </div>
                         <div style={{ minWidth: 0 }}>
-                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.4rem' }}>Средняя просрочка</Typography.Body>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.avgDelay > 0 ? '#ef4444' : 'var(--color-text-primary)' }}>
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Средняя просрочка{'   '}</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.avgDelay > 0 ? '#ef4444' : 'var(--color-text-primary)', display: 'inline' }}>
                                 {slaStats.avgDelay} дн.
                             </Typography.Body>
                         </div>
@@ -1857,14 +1855,14 @@ function DashboardPage({
                     {slaDetailsOpen && (
                         <div style={{ paddingTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
                             <div style={{ marginBottom: '0.6rem' }}>
-                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>Авто</Typography.Body>
-                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Авто{'   '}</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'inline' }}>
                                     {slaStatsByType.auto.percentOnTime}% ({slaStatsByType.auto.onTime}/{slaStatsByType.auto.total}), ср. {slaStatsByType.auto.avgDelay} дн.
                                 </Typography.Body>
                             </div>
                             <div>
-                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.35rem' }}>Паром</Typography.Body>
-                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Паром{'   '}</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'inline' }}>
                                     {slaStatsByType.ferry.percentOnTime}% ({slaStatsByType.ferry.onTime}/{slaStatsByType.ferry.total}), ср. {slaStatsByType.ferry.avgDelay} дн.
                                 </Typography.Body>
                             </div>
