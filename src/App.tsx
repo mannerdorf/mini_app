@@ -1971,7 +1971,6 @@ function CustomerSwitcher({
                 </Typography.Body>
                 <ChevronDown className="w-4 h-4" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </Button>
-            <span className="status-value success">Активна</span>
             {isOpen && (
                 <div
                     className="filter-dropdown"
