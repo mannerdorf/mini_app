@@ -19,7 +19,7 @@ import {
 } from "./utils";
 import { getWebApp, isMaxWebApp, isMaxDocsEnabled } from "./webApp";
 import { DOCUMENT_METHODS } from "./documentMethods";
-import { NotificationsPage } from "./pages/NotificationsPage";
+// import { NotificationsPage } from "./pages/NotificationsPage"; // temporarily disabled
 import { TapSwitch } from "./components/TapSwitch";
 import type {
     Account, ApiError, AuthData, CargoItem, CargoStat, CompanyRow, CustomerOption,
@@ -3361,18 +3361,8 @@ function ProfilePage({
         );
     }
 
-    if (currentView === 'notifications') {
-        return (
-            <NotificationsPage
-                activeAccount={activeAccount}
-                activeAccountId={activeAccountId}
-                onBack={() => setCurrentView('main')}
-                onOpenDeveloper={onOpenNotifications}
-                onOpenTelegramBot={onOpenTelegramBot}
-                onUpdateAccount={onUpdateAccount}
-            />
-        );
-    }
+    // Notifications module temporarily disabled
+    // if (currentView === 'notifications') { ... }
 
     if (currentView === 'faq') {
         return (
@@ -3667,18 +3657,11 @@ function ProfilePage({
                             </Flex>
                         </Panel>
                     )}
-                    <Panel
-                        className="cargo-card"
-                        onClick={() => setCurrentView('notifications')}
-                        style={{ display: 'flex', alignItems: 'center', padding: '1rem', cursor: 'pointer' }}
-                    >
-                        <Flex align="center" style={{ flex: 1, gap: '0.75rem' }}>
-                            <div style={{ color: 'var(--color-primary)' }}>
-                                <Bell className="w-5 h-5" />
-                            </div>
-                            <Typography.Body style={{ fontSize: '0.9rem' }}>Уведомления</Typography.Body>
-                        </Flex>
+                    {/* Уведомления — временно отключено
+                    <Panel ... onClick={() => setCurrentView('notifications')} ... >
+                        <Typography.Body>Уведомления</Typography.Body>
                     </Panel>
+                    */}
                 </div>
             </div>
 
