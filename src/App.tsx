@@ -9,137 +9,23 @@ import { ChatModal } from "./ChatModal";
 import "./styles.css";
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile } from "@ffmpeg/util";
-
-// --- FRIENDLY HTTP ERRORS ---
-async function readJsonOrText(res: Response): Promise<any> {
-    const contentType = res.headers.get("content-type") || "";
-    try {
-        if (contentType.includes("application/json")) return await res.json();
-    } catch { /* ignore */ }
-    try {
-        const text = await res.text();
-        return text;
-    } catch {
-        return null;
-    }
-}
-
-function humanizeStatus(status: number): string {
-    if (status === 400) return "Неверный запрос. Проверьте данные.";
-    if (status === 401 || status === 403) return "Неверный логин или пароль.";
-    if (status === 404) return "Данные не найдены.";
-    if (status === 408) return "Превышено время ожидания. Повторите попытку.";
-    if (status === 429) return "Слишком много попыток. Попробуйте позже.";
-    if (status >= 500) return "Ошибка сервера. Попробуйте позже.";
-    return "Не удалось выполнить запрос. Попробуйте позже.";
-}
-
-async function ensureOk(res: Response, fallback?: string): Promise<void> {
-    if (res.ok) return;
-    const payload = await readJsonOrText(res);
-    const statusMsg = humanizeStatus(res.status);
-    const safe =
-        (typeof payload === "object" && payload && (payload.error || payload.message))
-            ? String(payload.error || payload.message)
-            : (typeof payload === "string" && payload.trim() ? payload.trim() : "");
-    // Для 404/500 всегда показываем человекочитаемо, не "сырые" тексты
-    const message =
-        res.status === 404 ? "Данные не найдены." :
-        res.status >= 500 ? "Ошибка сервера. Попробуйте позже." :
-        safe || fallback || statusMsg;
-    throw new Error(message);
-}
-
-function extractCustomerFromPerevozki(payload: any): string | null {
-    const list = Array.isArray(payload) ? payload : payload?.items || [];
-    if (!Array.isArray(list)) return null;
-    const item = list.find((entry: any) => entry?.Customer || entry?.customer);
-    const customer = item?.Customer ?? item?.customer;
-    return customer ? String(customer) : null;
-}
-
-/** ИНН из ответа GetPerevozki (из той же записи, что и Customer) */
-function extractInnFromPerevozki(payload: any): string | null {
-    const list = Array.isArray(payload) ? payload : payload?.items || [];
-    if (!Array.isArray(list)) return null;
-    const item = list.find((entry: any) => entry?.Customer || entry?.customer);
-    const inn = (item?.INN ?? item?.Inn ?? "").toString().trim();
-    return inn.length > 0 ? inn : null;
-}
-
-/** Список ИНН, уже добавленных в «Мои компании» для данных логинов */
-async function getExistingInns(logins: string[]): Promise<Set<string>> {
-    if (logins.length === 0) return new Set();
-    const query = logins.map((l) => `login=${encodeURIComponent(l.trim().toLowerCase())}`).join("&");
-    const r = await fetch(`/api/companies?${query}`);
-    const data = await r.json().catch(() => ({}));
-    const list = Array.isArray(data?.companies) ? data.companies : [];
-    const inns = new Set<string>();
-    for (const c of list) {
-        const inn = (c?.inn ?? "").toString().trim();
-        if (inn.length > 0) inns.add(inn);
-    }
-    return inns;
-}
-// --- TELEGRAM MINI APP SUPPORT ---
-const getWebApp = () => {
-    if (typeof window === "undefined") return undefined;
-    
-    // MAX Bridge использует window.WebApp (после подключения max-web-app.js)
-    // Telegram использует window.Telegram.WebApp
-    const webApp = window.Telegram?.WebApp || (window as any).WebApp;
-
-    // ЕСЛИ мы в MAX и initData пустое, пробуем распарсить из URL hash (#WebAppData=...)
-    if (webApp && !webApp.initData && isMaxWebApp()) {
-        try {
-            const hash = window.location.hash || "";
-            if (hash.includes("WebAppData=")) {
-                const rawData = hash.split("WebAppData=")[1]?.split("&")[0];
-                if (rawData) {
-                    const decoded = decodeURIComponent(rawData);
-                    webApp.initData = decoded;
-                    
-                    // Парсим в initDataUnsafe
-                    const params = new URLSearchParams(decoded);
-                    const unsafe: any = {};
-                    params.forEach((val, key) => {
-                        if (key === "user" || key === "chat") {
-                            try { unsafe[key] = JSON.parse(val); } catch(e) {}
-                        } else {
-                            unsafe[key] = val;
-                        }
-                    });
-                    webApp.initDataUnsafe = unsafe;
-                    console.log("[getWebApp] Manually parsed WebAppData from hash:", unsafe);
-                }
-            }
-        } catch (e) {
-            console.error("[getWebApp] Error parsing MAX hash:", e);
-        }
-    }
-
-    return webApp;
-};
-
-const isMaxWebApp = () => {
-    if (typeof window === "undefined") return false;
-    // MAX Bridge создаёт window.WebApp после подключения библиотеки
-    // Также проверяем userAgent для дополнительной надёжности
-    const ua = window.navigator?.userAgent || "";
-    return Boolean(
-        (window as any).WebApp && !window.Telegram?.WebApp || // MAX Bridge (но не Telegram)
-        /max[^a-z0-9]?app/i.test(ua) ||
-        /\bmax\b/i.test(ua)
-    );
-};
-
-const isMaxDocsEnabled = () => {
-    if (typeof window === "undefined") return false;
-    return new URLSearchParams(window.location.search).has("maxdocs");
-};
-
+import {
+    ensureOk,
+    readJsonOrText,
+    extractCustomerFromPerevozki,
+    extractInnFromPerevozki,
+    getExistingInns,
+    dedupeCustomersByInn,
+} from "./utils";
+import { getWebApp, isMaxWebApp, isMaxDocsEnabled } from "./webApp";
 import { DOCUMENT_METHODS } from "./documentMethods";
-
+import { NotificationsPage } from "./pages/NotificationsPage";
+import { TapSwitch } from "./components/TapSwitch";
+import type {
+    Account, ApiError, AuthData, CargoItem, CargoStat, CompanyRow, CustomerOption,
+    DateFilter, HaulzOffice, HeaderCompanyRow, HomePeriodFilter, PerevozkaTimelineStep,
+    ProfileView, StatusFilter, Tab,
+} from "./types";
 
 // --- CONFIGURATION ---
 const PROXY_API_BASE_URL = '/api/perevozki';
@@ -147,60 +33,7 @@ const PROXY_API_GETCUSTOMERS_URL = '/api/getcustomers';
 // GetPerevozki и Getcustomers — только для авторизации. Запрос данных перевозок — только GetPerevozki с DateB, DateE, INN (через PROXY_API_BASE_URL с auth.inn).
 const PROXY_API_DOWNLOAD_URL = '/api/download';
 const PROXY_API_SEND_DOC_URL = '/api/send-document';
-const PROXY_API_GETPEREVOZKA_URL = '/api/getperevozka'; 
-
-// --- TYPES ---
-type ApiError = { error?: string; [key: string]: unknown; };
-type AuthData = { login: string; password: string; id?: string; inn?: string; };
-type CustomerOption = { name: string; inn: string };
-type Account = {
-    login: string;
-    password: string;
-    id: string;
-    customer?: string;
-    /** Список заказчиков при способе 2 авторизации (Getcustomers) */
-    customers?: CustomerOption[];
-    /** Выбранный заказчик для загрузки перевозок по ИНН */
-    activeCustomerInn?: string | null;
-    twoFactorEnabled?: boolean;
-    twoFactorMethod?: "google" | "telegram";
-    twoFactorTelegramLinked?: boolean;
-    /** Секрет Google Authenticator сохранён (2FA по приложению настроен) */
-    twoFactorGoogleSecretSet?: boolean;
-};
-// УДАЛЕНО: type Tab = "home" | "cargo" | "docs" | "support" | "profile";
-type Tab = "home" | "cargo" | "docs" | "support" | "profile" | "dashboard"; // Все разделы + секретный dashboard
-type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
-type StatusFilter = "all" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
-type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom"; // Оставлено, так как это может использоваться в Home, который пока остается в коде ниже
-
-/** Контроль дублирования заказчиков по ИНН: один заказчик на один ИНН */
-function dedupeCustomersByInn(list: CustomerOption[]): CustomerOption[] {
-  const byInn = new Map<string, CustomerOption>();
-  for (const c of list) {
-    const key = c.inn.length > 0 ? c.inn : `__empty_${c.name}`;
-    if (!byInn.has(key)) {
-      byInn.set(key, c);
-    } else {
-      const existing = byInn.get(key)!;
-      if ((c.name?.length ?? 0) > (existing.name?.length ?? 0)) {
-        byInn.set(key, c);
-      }
-    }
-  }
-  return Array.from(byInn.values());
-}
-
-// --- ИСПОЛЬЗУЕМ ТОЛЬКО ПЕРЕМЕННЫЕ ИЗ API ---
-type CargoItem = {
-    Number?: string; DatePrih?: string; DateVr?: string; State?: string; Mest?: number | string;
-    PW?: number | string; W?: number | string; Value?: number | string; Sum?: number | string;
-    StateBill?: string; Sender?: string; Customer?: string; [key: string]: any; // Для всех остальных полей
-};
-
-type CargoStat = {
-    key: string; label: string; icon: React.ElementType; value: number | string; unit: string; bgColor: string;
-};
+const PROXY_API_GETPEREVOZKA_URL = '/api/getperevozka';
 
 // --- CONSTANTS ---
 const getTodayDate = () => new Date().toISOString().split('T')[0];
@@ -699,12 +532,6 @@ const ABOUT_HAULZ_TEXT = `HAULZ — B2B-логистическая компан�
 Мы выстраиваем логистику на базе современных цифровых технологий, глубоких интеграций и электронного документооборота, что позволяет клиентам получать актуальные статусы, документы и закрывающие отчёты в цифровом виде.
 
 Сервисы HAULZ могут интегрироваться с внутренними системами клиентов и обеспечивают быстрый доступ к счетам, УПД и данным по перевозкам через онлайн-кабинет, мини-приложение, API, бот.`;
-
-type HaulzOffice = {
-    city: string;
-    address: string;
-    phone: string;
-};
 
 const HAULZ_OFFICES: HaulzOffice[] = [
     { city: "Калининград", address: "Железнодорожная ул., 12к4", phone: "+7 (401) 227-95-55" },
@@ -1938,7 +1765,6 @@ function DashboardPage({
 }
 
 // --- CUSTOMER SWITCHER (тот же список, что в «Мои компании», из БД; с прокруткой) ---
-type HeaderCompanyRow = { login: string; inn: string; name: string };
 
 function CustomerSwitcher({
     accounts,
@@ -2139,9 +1965,6 @@ function AccountSwitcher({
         </div>
     );
 }
-
-// Типы для навигации профиля
-type ProfileView = 'main' | 'companies' | 'addCompanyMethod' | 'addCompanyByINN' | 'addCompanyByLogin' | 'about' | 'faq' | 'voiceAssistants' | '2fa' | 'notifications' | 'tinyurl-test';
 
 function truncateForLog(u: string, max = 80) {
     return u.length <= max ? u : u.slice(0, max) + '...';
@@ -4294,7 +4117,6 @@ function AddCompanyByLoginPage({
 }
 
 // --- COMPANIES LIST PAGE (данные из БД, единый список по названию) ---
-type CompanyRow = { login: string; inn: string; name: string };
 
 /** Одна компания на одно название: убираем дубли от разных способов авторизации (Способ 1 — без ИНН, Способ 2 — с ИНН). Приоритет — строка с непустым ИНН. */
 function dedupeCompaniesByName(rows: CompanyRow[]): CompanyRow[] {
@@ -5280,8 +5102,6 @@ function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: { isOpen: 
         </div>
     );
 }
-
-type PerevozkaTimelineStep = { label: string; date?: string; completed?: boolean };
 
 /** Нормализация названия этапа из API для сопоставления */
 const normalizeStageKey = (s: string) => s.replace(/\s+/g, '').toLowerCase();

@@ -1,33 +1,51 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getRedisValue, setRedisValue } from "./redis";
-
-const REDIS_TTL = 60 * 60 * 24 * 365; // 1 year
+import { getPool } from "./_db";
 
 const DEFAULT_PREFS = {
   telegram: {} as Record<string, boolean>,
   webpush: {} as Record<string, boolean>,
 };
 
-/** GET ?login= — вернуть настройки уведомлений. POST { login, preferences } — сохранить. */
+const EVENTS = ["accepted", "in_transit", "delivered", "bill_paid"] as const;
+
+/** GET ?login= — настройки из БД (notification_preferences). POST { login, preferences } — сохранить в БД. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  let pool: Awaited<ReturnType<typeof getPool>>;
+  try {
+    pool = getPool();
+  } catch {
+    return res.status(503).json({ error: "Database not configured" });
+  }
+
   if (req.method === "GET") {
     const login = String(req.query?.login || "").trim().toLowerCase();
     if (!login) return res.status(400).json({ error: "login is required" });
 
-    const key = `notif_prefs:${login}`;
-    const raw = await getRedisValue(key);
-    let prefs = DEFAULT_PREFS;
+    const prefs = { ...DEFAULT_PREFS };
     try {
-      if (raw) prefs = { ...DEFAULT_PREFS, ...JSON.parse(raw) };
-    } catch {
-      // keep default
+      const { rows } = await pool.query<{ channel: string; event_id: string; enabled: boolean }>(
+        "SELECT channel, event_id, enabled FROM notification_preferences WHERE login = $1",
+        [login]
+      );
+      for (const r of rows) {
+        const ch = r.channel === "telegram" ? "telegram" : "webpush";
+        if (EVENTS.includes(r.event_id as any)) {
+          prefs[ch][r.event_id] = r.enabled;
+        }
+      }
+      return res.status(200).json(prefs);
+    } catch (e: any) {
+      if (e?.code === "42P01") {
+        return res.status(200).json(prefs);
+      }
+      console.error("webpush-preferences GET error:", e?.message || e);
+      return res.status(500).json({ error: "Failed to load preferences" });
     }
-    return res.status(200).json(prefs);
   }
 
   let body: any = req.body;
@@ -46,24 +64,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "preferences object is required" });
   }
 
-  const key = `notif_prefs:${login}`;
-  const raw = await getRedisValue(key);
-  let current: typeof DEFAULT_PREFS = DEFAULT_PREFS;
+  const telegram = preferences.telegram && typeof preferences.telegram === "object" ? preferences.telegram : {};
+  const webpush = preferences.webpush && typeof preferences.webpush === "object" ? preferences.webpush : {};
+  const current = {
+    telegram: { ...DEFAULT_PREFS.telegram, ...telegram },
+    webpush: { ...DEFAULT_PREFS.webpush, ...webpush },
+  };
+
   try {
-    if (raw) current = { ...DEFAULT_PREFS, ...JSON.parse(raw) };
-  } catch {
-    // keep default
+    for (const eventId of EVENTS) {
+      await pool.query(
+        `INSERT INTO notification_preferences (login, channel, event_id, enabled, updated_at)
+         VALUES ($1, 'telegram', $2, $3, now())
+         ON CONFLICT (login, channel, event_id) DO UPDATE SET enabled = excluded.enabled, updated_at = now()`,
+        [login, eventId, !!current.telegram[eventId]]
+      );
+      await pool.query(
+        `INSERT INTO notification_preferences (login, channel, event_id, enabled, updated_at)
+         VALUES ($1, 'web', $2, $3, now())
+         ON CONFLICT (login, channel, event_id) DO UPDATE SET enabled = excluded.enabled, updated_at = now()`,
+        [login, eventId, !!current.webpush[eventId]]
+      );
+    }
+    return res.status(200).json({ ok: true, preferences: current });
+  } catch (e: any) {
+    console.error("webpush-preferences POST error:", e?.message || e);
+    return res.status(500).json({ error: "Failed to save preferences" });
   }
-
-  if (preferences.telegram && typeof preferences.telegram === "object") {
-    current.telegram = { ...current.telegram, ...preferences.telegram };
-  }
-  if (preferences.webpush && typeof preferences.webpush === "object") {
-    current.webpush = { ...current.webpush, ...preferences.webpush };
-  }
-
-  const saved = await setRedisValue(key, JSON.stringify(current), REDIS_TTL);
-  if (!saved) return res.status(500).json({ error: "Failed to save preferences" });
-
-  return res.status(200).json({ ok: true, preferences: current });
 }
