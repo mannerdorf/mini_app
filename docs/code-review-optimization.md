@@ -9,14 +9,15 @@
 
 ### API
 - **webpush-subscribe.ts**, **webpush-preferences.ts**, **webpush-send.ts** уже используют общий `api/redis.ts` (`getRedisValue`, `setRedisValue`). Дублирования Redis-логики в этих файлах нет.
+- **Миграция на api/redis.ts** — переведены на общий `api/redis.ts`: `tg-webhook.ts`, `doc/[token].ts`, `alice-link.ts`, `alice-unlink.ts`, `alice.ts`, `2fa.ts`, `2fa-telegram.ts`, `2fa-google.ts`. В `api/redis.ts` добавлен/используется `deleteRedisValue`.
 
 ---
 
 ## Рекомендации (на будущее)
 
-1. **App.tsx (~8k строк)** — при возможности разбить на подфайлы: например, вынести `NotificationsPage`, `ProfilePage`, экраны компаний, типы и утилиты в отдельные модули. Это упростит поддержку и тесты.
-2. **Остальные API (alice.ts, 2fa.ts, alice-link.ts и т.д.)** — по-прежнему содержат свои копии `getRedisValue`/`setRedisValue`. Имеет смысл постепенно перевести их на `api/redis.ts` (и при необходимости добавить в redis.ts `deleteRedisValue`), чтобы не дублировать логику.
-3. **Устаревшие комментарии** — в коде есть пометки вида `// УДАЛЕНО`, `// Оставлено`. При следующем рефакторинге их можно убрать или заменить на актуальные.
+1. **App.tsx** — частично выполнено: вынесены `NotificationsPage`, `ProfilePage`, типы (`types.ts`), утилиты (`utils.ts`), компонент `TapSwitch`. В App.tsx остаётся ~5.5k строк (HomePage, DashboardPage, CargoPage, модалки, таббар). При возможности дальше вынести экраны грузов/дашборда в отдельные модули.
+2. ~~**Остальные API (alice.ts, 2fa.ts, alice-link.ts и т.д.)** — по-прежнему содержат свои копии `getRedisValue`/`setRedisValue`.**~~ Выполнено: переведены на `api/redis.ts`.
+3. ~~**Устаревшие комментарии**~~ — выполнено: комментарий «оставлено, так как…» в App.tsx заменён на нейтральный «Заглушка статистики для HomePage».
 4. **useEffect с асинхронной загрузкой** — в нескольких местах используется паттерн `let cancelled = false; ... return () => { cancelled = true };` для отмены при размонтировании. Это корректно и стоит сохранять при добавлении новых подобных эффектов.
 
 ---

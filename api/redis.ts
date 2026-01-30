@@ -41,3 +41,22 @@ export async function setRedisValue(key: string, value: string, ttlSeconds?: num
     return false;
   }
 }
+
+export async function deleteRedisValue(key: string): Promise<boolean> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return false;
+  try {
+    const response = await fetch(`${url}/pipeline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify([["DEL", key]]),
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    const firstResult = Array.isArray(data) ? data[0] : data;
+    return firstResult?.result === 1 || firstResult?.result === true;
+  } catch {
+    return false;
+  }
+}

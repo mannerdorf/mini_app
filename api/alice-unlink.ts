@@ -1,44 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-
-async function getRedisValue(key: string): Promise<string | null> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  try {
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify([["GET", key]]),
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    const firstResult = Array.isArray(data) ? data[0] : data;
-    if (firstResult?.error) return null;
-    const value = firstResult?.result;
-    if (value === null || value === undefined) return null;
-    return String(value);
-  } catch {
-    return null;
-  }
-}
-
-async function delRedisKeys(keys: string[]): Promise<boolean> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token || keys.length === 0) return false;
-  try {
-    const pipeline = keys.map((k) => ["DEL", k] as [string, string]);
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(pipeline),
-    });
-    if (!response.ok) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { getRedisValue, deleteRedisValue } from "./redis";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -65,6 +26,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, message: "Привязка к Алисе не найдена или уже отключена." });
   }
 
-  const deleted = await delRedisKeys([`alice:bind:${userId}`, `alice:login:${login}`]);
-  return res.status(200).json({ ok: true, unlinked: deleted });
+  const d1 = await deleteRedisValue(`alice:bind:${userId}`);
+  const d2 = await deleteRedisValue(`alice:login:${login}`);
+  return res.status(200).json({ ok: true, unlinked: d1 || d2 });
 }

@@ -1,83 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getRedisValue, setRedisValue, deleteRedisValue } from "./redis";
 
 const APP_DOMAIN =
   process.env.NEXT_PUBLIC_APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
 const ALICE_VERIFICATION_CODE = process.env.ALICE_VERIFICATION_CODE || "589570";
-
-async function getRedisValue(key: string): Promise<string | null> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-
-  try {
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([["GET", key]]),
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    const firstResult = Array.isArray(data) ? data[0] : data;
-    if (firstResult?.error) return null;
-    const value = firstResult?.result;
-    if (value === null || value === undefined) return null;
-    return String(value);
-  } catch {
-    return null;
-  }
-}
-
-async function setRedisValue(key: string, value: string, ttlSeconds?: number): Promise<boolean> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return false;
-
-  try {
-    const pipeline = ttlSeconds
-      ? [["SET", key, value], ["EXPIRE", key, ttlSeconds]]
-      : [["SET", key, value]];
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(pipeline),
-    });
-    if (!response.ok) return false;
-    const data = await response.json();
-    const firstResult = Array.isArray(data) ? data[0] : data;
-    return firstResult?.result === "OK" || firstResult?.result === true;
-  } catch {
-    return false;
-  }
-}
-
-async function deleteRedisValue(key: string): Promise<boolean> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return false;
-  try {
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([["DEL", key]]),
-    });
-    if (!response.ok) return false;
-    const data = await response.json();
-    const firstResult = Array.isArray(data) ? data[0] : data;
-    return typeof firstResult?.result === "number" ? firstResult.result > 0 : false;
-  } catch {
-    return false;
-  }
-}
 
 /** Номер перевозки для голоса: без ведущих нулей (135702, не 0135702) */
 function speechNumber(n: any): string {

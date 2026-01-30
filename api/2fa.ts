@@ -1,53 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-
-async function getRedisValue(key: string): Promise<string | null> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-
-  try {
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([["GET", key]]),
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    const firstResult = Array.isArray(data) ? data[0] : data;
-    if (firstResult?.error) return null;
-    const value = firstResult?.result;
-    if (value === null || value === undefined) return null;
-    return String(value);
-  } catch {
-    return null;
-  }
-}
-
-async function setRedisValue(key: string, value: string): Promise<boolean> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return false;
-
-  try {
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([["SET", key, value]]),
-    });
-    if (!response.ok) return false;
-    const data = await response.json();
-    const firstResult = Array.isArray(data) ? data[0] : data;
-    return firstResult?.result === "OK" || firstResult?.result === true;
-  } catch {
-    return false;
-  }
-}
+import { getRedisValue, setRedisValue } from "./redis";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const url = process.env.UPSTASH_REDIS_REST_URL;

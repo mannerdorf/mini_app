@@ -1,107 +1,12 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import https from "https";
 import { URL } from "url";
+import { getRedisValue } from "../redis";
 
 // Document download handler - uses only Redis (no in-memory fallback)
 const EXTERNAL_API_BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
-
-async function getRedisValue(key: string): Promise<string | null> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-  if (!url || !token) {
-    console.error("[doc/[token]] UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN is missing!");
-    return null;
-  }
-
-  try {
-    // Проверяем доступность fetch
-    if (typeof fetch === 'undefined') {
-      console.error("[doc/[token]] fetch is not available in this runtime");
-      return null;
-    }
-    
-    // Upstash REST API формат: POST с командой в body
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([["GET", key]]),
-    });
-    
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`[doc/[token]] Redis get error: ${response.status} ${text}`);
-      return null;
-    }
-    
-    const data = await response.json();
-    console.log(`[doc/[token]] Redis response for ${key.substring(0, 8)}...:`, JSON.stringify(data).substring(0, 200));
-    
-    // Upstash pipeline возвращает массив результатов
-    // Формат: [{result: "value"}] или [{result: "value", error: null}]
-    const firstResult = Array.isArray(data) ? data[0] : data;
-    
-    // Проверяем наличие ошибки в ответе
-    if (firstResult?.error) {
-      console.error(`[doc/[token]] Redis error in response:`, firstResult.error);
-      return null;
-    }
-    
-    const value = firstResult?.result;
-    
-    // Если result null или undefined, значит ключ не найден
-    if (value === null || value === undefined) {
-      console.log(`[doc/[token]] Key not found in Redis: ${key.substring(0, 8)}...`);
-      return null;
-    }
-    
-    return String(value);
-  } catch (error: any) {
-    console.error(`[doc/[token]] Redis get exception:`, error?.message || error);
-    return null;
-  }
-}
-
-async function deleteRedis(key: string) {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-  if (!url || !token) return false;
-
-  try {
-    // Upstash REST API формат: POST с командой в body
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([["DEL", key]]),
-    });
-    
-    if (!response.ok) {
-      const text = await response.text();
-      console.error("Redis delete error:", response.status, text);
-      return false;
-    }
-    
-    const data = await response.json();
-    // Upstash pipeline возвращает массив результатов
-    // Формат: [{result: 1}] (1 = удалено, 0 = не найдено)
-    const firstResult = Array.isArray(data) ? data[0] : data;
-    const deleted = firstResult?.result === 1 || firstResult?.result === true;
-    
-    return deleted;
-  } catch (error) {
-    console.error("Redis delete error:", error);
-    return false;
-  }
-}
 
 /**
  * Редирект/скачивание документа по токену
