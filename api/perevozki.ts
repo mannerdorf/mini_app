@@ -32,6 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     dateFrom = "2024-01-01",
     dateTo = new Date().toISOString().split("T")[0],
     inn,
+    mode,
   } = body || {};
 
   if (!login || !password) {
@@ -43,12 +44,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)" });
   }
 
-  // Запрос данных перевозок — только DateB, DateE, INN (ИНН из аккаунта/БД при авторизации)
+  // Запрос данных перевозок: DateB, DateE, INN, Mode (Customer | Sender | Receiver)
   const url = new URL(BASE_URL);
   url.searchParams.set("DateB", dateFrom);
   url.searchParams.set("DateE", dateTo);
   if (inn) {
     url.searchParams.set("INN", String(inn).trim());
+  }
+  const validModes = ["Customer", "Sender", "Receiver"];
+  if (mode && validModes.includes(String(mode))) {
+    url.searchParams.set("Mode", String(mode));
   }
 
   try {
@@ -79,9 +84,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // если это JSON — вернём JSON, если нет — просто текст
+    // Если 1С вернула Success: false — только текст ошибки ("Не найден пользователь", "Неверный пароль" и т.д.), без JSON.
     try {
       const json = JSON.parse(text);
+      if (json && typeof json === "object" && json.Success === false) {
+        const message = (json.Error ?? json.error ?? json.message) as string | undefined;
+        const errorText = typeof message === "string" && message.trim() ? message.trim() : "Ошибка авторизации";
+        return res.status(401).json({ error: errorText });
+      }
       const list = Array.isArray(json) ? json : json.items || [];
       if (Array.isArray(list) && list.length > 0) {
         ingestCargoItems(list, login).catch((error) => {

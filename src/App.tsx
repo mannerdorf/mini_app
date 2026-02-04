@@ -25,7 +25,7 @@ import { TapSwitch } from "./components/TapSwitch";
 import type {
     Account, ApiError, AuthData, CargoItem, CargoStat, CompanyRow, CustomerOption,
     DateFilter, HaulzOffice, HeaderCompanyRow, HomePeriodFilter, PerevozkaTimelineStep,
-    ProfileView, StatusFilter, Tab,
+    PerevozkiRole, ProfileView, StatusFilter, Tab,
 } from "./types";
 
 // --- CONFIGURATION ---
@@ -3070,6 +3070,12 @@ function ProfilePage({
             onClick: () => setCurrentView('companies')
         },
         { 
+            id: 'roles', 
+            label: 'Роли', 
+            icon: <UserIcon className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => setCurrentView('roles')
+        },
+        { 
             id: 'voiceAssistants', 
             label: 'Голосовые помощники', 
             icon: <Mic className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
@@ -3191,6 +3197,66 @@ function ProfilePage({
             onBack={() => setCurrentView('main')}
             onAddCompany={() => setCurrentView('addCompanyMethod')}
         />;
+    }
+
+    if (currentView === 'roles') {
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Роли</Typography.Headline>
+                </Flex>
+                <Typography.Body style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                    Включите роли, если хотите видеть перевозки, где вы выступаете в качестве заказчика, отправителя или получателя. Для заказчика отображаются полные данные, для отправителя и получателя — без стоимости и финансовой информации.
+                </Typography.Body>
+                {!activeAccountId || !activeAccount ? (
+                    <Panel className="cargo-card" style={{ padding: '1rem', textAlign: 'center' }}>
+                        <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Сначала добавьте аккаунт в «Мои компании».</Typography.Body>
+                    </Panel>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                            <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
+                                <Typography.Body style={{ fontWeight: 600 }}>Заказчик</Typography.Body>
+                                <Switch
+                                    checked={activeAccount.roleCustomer ?? true}
+                                    onCheckedChange={(v) => onUpdateAccount(activeAccountId, { roleCustomer: !!v })}
+                                />
+                            </Flex>
+                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                Включите, если хотите видеть перевозки, где вы выступаете в качестве заказчика (полные данные, включая стоимость).
+                            </Typography.Body>
+                        </Panel>
+                        <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                            <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
+                                <Typography.Body style={{ fontWeight: 600 }}>Отправитель</Typography.Body>
+                                <Switch
+                                    checked={activeAccount.roleSender ?? true}
+                                    onCheckedChange={(v) => onUpdateAccount(activeAccountId, { roleSender: !!v })}
+                                />
+                            </Flex>
+                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                Включите, если хотите видеть перевозки, где вы выступаете в качестве отправителя (без финансовой информации).
+                            </Typography.Body>
+                        </Panel>
+                        <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                            <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
+                                <Typography.Body style={{ fontWeight: 600 }}>Получатель</Typography.Body>
+                                <Switch
+                                    checked={activeAccount.roleReceiver ?? true}
+                                    onCheckedChange={(v) => onUpdateAccount(activeAccountId, { roleReceiver: !!v })}
+                                />
+                            </Flex>
+                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                Включите, если хотите видеть перевозки, где вы выступаете в качестве получателя (без финансовой информации).
+                            </Typography.Body>
+                        </Panel>
+                    </div>
+                )}
+            </div>
+        );
     }
     
     if (currentView === 'addCompanyMethod') {
@@ -4274,6 +4340,8 @@ function CompaniesListPage({
 }
 
 // --- CARGO PAGE (LIST ONLY) ---
+const PEREVOZKI_MODES: PerevozkiRole[] = ["Customer", "Sender", "Receiver"];
+
 function CargoPage({ 
     auth, 
     searchText, 
@@ -4282,7 +4350,10 @@ function CargoPage({
     contextCargoNumber,
     onClearContextCargo,
     initialStatusFilter,
-    onClearQuickFilters
+    onClearQuickFilters,
+    roleCustomer = true,
+    roleSender = true,
+    roleReceiver = true,
 }: { 
     auth: AuthData; 
     searchText: string; 
@@ -4292,6 +4363,9 @@ function CargoPage({
     onClearContextCargo?: () => void;
     initialStatusFilter?: StatusFilter;
     onClearQuickFilters?: () => void;
+    roleCustomer?: boolean;
+    roleSender?: boolean;
+    roleReceiver?: boolean;
 }) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -4381,70 +4455,76 @@ function CargoPage({
         }
         setLoading(true); setError(null);
         try {
-            // Данные перевозок — только GetPerevozki с DateB, DateE, INN (ИНН из аккаунта/БД)
-            const res = await fetch(PROXY_API_BASE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: auth.login, password: auth.password, dateFrom, dateTo, ...(auth.inn ? { inn: auth.inn } : {}) }) });
-            await ensureOk(res, "Ошибка загрузки данных");
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : data.items || [];
-            
-            // МАППИНГ ДАННЫХ: используем только указанные поля API
-            const mapped = list.map((item: any) => ({
-                ...item,
-                Number: item.Number, 
-                DatePrih: item.DatePrih, 
-                DateVr: item.DateVr, // Дата доставки
-                State: item.State, 
-                Mest: item.Mest, 
-                PW: item.PW, // Платный вес
-                W: item.W, // Общий вес
-                Value: item.Value, // Объем
-                Sum: item.Sum, 
-                StateBill: item.StateBill, // Статус счета
-                Sender: item.Sender, // Отправитель
-                Customer: item.Customer ?? item.customer, // Заказчик
-            }));
+            const modesToRequest: PerevozkiRole[] = [];
+            if (roleCustomer) modesToRequest.push("Customer");
+            if (roleSender) modesToRequest.push("Sender");
+            if (roleReceiver) modesToRequest.push("Receiver");
+            if (modesToRequest.length === 0) {
+                setItems([]);
+                return;
+            }
+
+            const basePayload = { login: auth.login, password: auth.password, dateFrom, dateTo, ...(auth.inn ? { inn: auth.inn } : {}) };
+            const allMapped: CargoItem[] = [];
+            for (const mode of modesToRequest) {
+                const res = await fetch(PROXY_API_BASE_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ ...basePayload, mode }),
+                });
+                await ensureOk(res, "Ошибка загрузки данных");
+                const data = await res.json();
+                const list = Array.isArray(data) ? data : data.items || [];
+                const mapped = list.map((item: any) => ({
+                    ...item,
+                    Number: item.Number,
+                    DatePrih: item.DatePrih,
+                    DateVr: item.DateVr,
+                    State: item.State,
+                    Mest: item.Mest,
+                    PW: item.PW,
+                    W: item.W,
+                    Value: item.Value,
+                    Sum: item.Sum,
+                    StateBill: item.StateBill,
+                    Sender: item.Sender,
+                    Customer: item.Customer ?? item.customer,
+                    _role: mode,
+                }));
+                allMapped.push(...mapped);
+            }
+
             const parseDateValue = (value: any): number => {
                 if (!value) return 0;
                 const d = new Date(String(value));
                 return isNaN(d.getTime()) ? 0 : d.getTime();
             };
-            const chooseLatest = (a: CargoItem, b: CargoItem) => {
+            const rolePriority: Record<PerevozkiRole, number> = { Customer: 3, Sender: 2, Receiver: 1 };
+            const chooseBest = (a: CargoItem, b: CargoItem): CargoItem => {
                 const aDate = parseDateValue(a.DatePrih) || parseDateValue(a.DateVr);
                 const bDate = parseDateValue(b.DatePrih) || parseDateValue(b.DateVr);
-                if (!aDate && !bDate) return a;
-                return aDate >= bDate ? a : b;
+                if (aDate !== bDate) return aDate >= bDate ? a : b;
+                return (rolePriority[(a._role as PerevozkiRole) || "Receiver"] >= rolePriority[(b._role as PerevozkiRole) || "Receiver"]) ? a : b;
             };
 
             const byNumber = new Map<string, CargoItem>();
-            mapped.forEach((item) => {
+            allMapped.forEach((item) => {
                 const key = String(item.Number || "").trim();
                 if (!key) return;
                 const existing = byNumber.get(key);
-                byNumber.set(key, existing ? chooseLatest(existing, item) : item);
+                byNumber.set(key, existing ? chooseBest(existing, item) : item);
             });
 
-            const deduped: CargoItem[] = [];
-            const seen = new Set<string>();
-            mapped.forEach((item) => {
-                const key = String(item.Number || "").trim();
-                if (!key) {
-                    deduped.push(item);
-                    return;
-                }
-                if (seen.has(key)) return;
-                const chosen = byNumber.get(key);
-                if (chosen) deduped.push(chosen);
-                seen.add(key);
-            });
+            const deduped: CargoItem[] = Array.from(byNumber.values());
 
             setItems(deduped);
 
-            const customer = mapped.find((item: CargoItem) => item.Customer)?.Customer;
-            if (customer && onCustomerDetected) {
-                onCustomerDetected(customer);
+            const customerItem = allMapped.find((item: CargoItem) => item.Customer);
+            if (customerItem?.Customer && onCustomerDetected) {
+                onCustomerDetected(customerItem.Customer);
             }
         } catch (e: any) { setError(e.message); } finally { setLoading(false); }
-    }, [auth]);
+    }, [auth, roleCustomer, roleSender, roleReceiver]);
 
     // При смене аккаунта — перезапрос грузов под выбранным аккаунтом
     useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo, auth]);
@@ -4810,9 +4890,16 @@ function CargoPage({
                             style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
                         >
                             <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem' }}>
-                                <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
-                                    {item.Number || '-'}
-                                </Typography.Body>
+                                <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap' }}>
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
+                                        {item.Number || '-'}
+                                    </Typography.Body>
+                                    {item._role && (
+                                        <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
+                                            {item._role === 'Customer' ? 'Заказчик' : item._role === 'Sender' ? 'Отправитель' : 'Получатель'}
+                                        </span>
+                                    )}
+                                </Flex>
                                 <Flex align="center" gap="0.5rem">
                                     <Button
                                         style={{ 
@@ -4906,16 +4993,18 @@ function CargoPage({
                                             lines.push(`Место отправления: ${fromCity || '-'}`);
                                             lines.push(`Место получения: ${toCity || '-'}`);
                                             if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
-                                            if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
+                                            if (item._role === 'Customer') {
+                                                if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
+                                                if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
+                                                if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
+                                            }
                                             if (item.W !== undefined) lines.push(`Вес: ${item.W} кг`);
                                             if (item.Value !== undefined) lines.push(`Объем: ${item.Value} м³`);
-                                            if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
-                                            if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
 
                                             // Остальные поля (если нужно "всю информацию")
                                             Object.entries(item).forEach(([k, v]) => {
                                                 if ([
-                                                    "Number","State","DatePrih","DateVr","Sender","Customer","Mest","PW","W","Value","Sum","StateBill"
+                                                    "Number","State","DatePrih","DateVr","Sender","Customer","Mest","PW","W","Value","Sum","StateBill","_role"
                                                 ].includes(k)) return;
                                                 if (v === undefined || v === null || v === "" || (typeof v === "string" && v.trim() === "")) return;
                                                 lines.push(`${k}: ${String(v)}`);
@@ -5387,7 +5476,8 @@ function CargoDetailsModal({
     };
 
     // Список явно отображаемых полей (из API примера). INN скрыт — используется для БД и проверки дублей, не показываем в карточке.
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role'];
+    const isCustomerRole = item._role === "Customer";
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
@@ -5398,11 +5488,19 @@ function CargoDetailsModal({
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-                        {/* Иконка типа перевозки — прижата к левому краю */}
-                        {(() => {
-                            const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
-                            return isFerry ? <Ship className="modal-header-transport-icon" style={{ flexShrink: 0, color: 'var(--color-primary-blue)', width: 24, height: 24 }} title="Паром" /> : <Truck className="modal-header-transport-icon" style={{ flexShrink: 0, color: 'var(--color-primary-blue)', width: 24, height: 24 }} title="Авто" />;
-                        })()}
+                        <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                            {/* Иконка типа перевозки */}
+                            {(() => {
+                                const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
+                                return isFerry ? <Ship className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24 }} title="Паром" /> : <Truck className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24 }} title="Авто" />;
+                            })()}
+                            {/* Бейдж роли: Заказчик / Отправитель / Получатель */}
+                            {item._role && (
+                                <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.2rem 0.5rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
+                                    {item._role === 'Customer' ? 'Заказчик' : item._role === 'Sender' ? 'Отправитель' : 'Получатель'}
+                                </span>
+                            )}
+                        </Flex>
                         <Flex align="center" gap="0.5rem">
                         {/* Отступ 3 см между иконкой типа перевозки и шерингом */}
                         <span style={{ width: '3cm', flexShrink: 0 }} aria-hidden />
@@ -5467,9 +5565,11 @@ function CargoDetailsModal({
                                     lines.push(`Место отправления: ${fromCity || '-'}`);
                                     lines.push(`Место получения: ${toCity || '-'}`);
                                     if (item.Mest !== undefined) lines.push(`Мест: ${item.Mest}`);
-                                    if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
-                                    if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
-                                    if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
+                                    if (item._role === 'Customer') {
+                                        if (item.PW !== undefined) lines.push(`Плат. вес: ${item.PW} кг`);
+                                        if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
+                                        if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
+                                    }
                                     lines.push("");
                                     lines.push("Документы:");
                                     lines.push(`ЭР: ${shortUrls["ЭР"]}`);
@@ -5565,11 +5665,11 @@ function CargoDetailsModal({
                     <DetailItem label="Отправитель" value={stripOoo(item.Sender) || '-'} />
                     <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? item.receiver) || '-'} />
                     <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary"/>} />
-                    <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary"/>} highlighted /> {/* Используем PW */}
-                    <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем W */}
-                    <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary"/>} /> {/* Используем Value */}
-                    <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
-                    <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted /> {/* Используем StateBill */}
+                    {isCustomerRole && <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary"/>} highlighted />}
+                    <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} />
+                    <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary"/>} />
+                    {isCustomerRole && <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />}
+                    {isCustomerRole && <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />}
                 </div>
                 
                 {/* ДОПОЛНИТЕЛЬНЫЕ поля из API - УДАЛЕН ЗАГОЛОВОК "Прочие данные из API" */}
@@ -7738,6 +7838,9 @@ export default function App() {
                             onClearContextCargo={() => setContextCargoNumber(null)}
                             initialStatusFilter={cargoQuickFilters?.status}
                             onClearQuickFilters={() => setCargoQuickFilters(null)}
+                            roleCustomer={activeAccount?.roleCustomer ?? true}
+                            roleSender={activeAccount?.roleSender ?? true}
+                            roleReceiver={activeAccount?.roleReceiver ?? true}
                         />
                     )}
                     {showDashboard && activeTab === "docs" && (
@@ -7782,6 +7885,9 @@ export default function App() {
                             onClearContextCargo={() => setContextCargoNumber(null)}
                             initialStatusFilter={cargoQuickFilters?.status}
                             onClearQuickFilters={() => setCargoQuickFilters(null)}
+                            roleCustomer={activeAccount?.roleCustomer ?? true}
+                            roleSender={activeAccount?.roleSender ?? true}
+                            roleReceiver={activeAccount?.roleReceiver ?? true}
                         />
                     )}
                     {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (

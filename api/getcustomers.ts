@@ -97,7 +97,15 @@ export default async function handler(
       return res.status(200).json({ customers: [] });
     }
 
-    // Формат 1С: { Success, Error, Customers: [ { name, Inn }, ... ] } или массив / items / data
+    // Формат 1С: { Success, Error, Key }. Если Success === false — только текст ошибки (например "Не найден пользователь", "Неверный пароль").
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const o = data as Record<string, unknown>;
+      if (o.Success === false) {
+        const message = (o.Error ?? o.error ?? o.message) as string | undefined;
+        const errorText = typeof message === "string" && message.trim() ? message.trim() : "Ошибка авторизации";
+        return res.status(401).json({ error: errorText });
+      }
+    }
     let payload: unknown = data;
     if (data && typeof data === "object" && !Array.isArray(data)) {
       const o = data as Record<string, unknown>;

@@ -6,6 +6,9 @@ export type AuthData = { login: string; password: string; id?: string; inn?: str
 
 export type CustomerOption = { name: string; inn: string };
 
+/** Режим запроса перевозок по ИНН: заказчик, отправитель, получатель */
+export type PerevozkiRole = "Customer" | "Sender" | "Receiver";
+
 export type Account = {
     login: string;
     password: string;
@@ -13,6 +16,12 @@ export type Account = {
     customer?: string;
     customers?: CustomerOption[];
     activeCustomerInn?: string | null;
+    /** Показывать перевозки, где вы заказчик (полные данные) */
+    roleCustomer?: boolean;
+    /** Показывать перевозки, где вы отправитель (без финансов) */
+    roleSender?: boolean;
+    /** Показывать перевозки, где вы получатель (без финансов) */
+    roleReceiver?: boolean;
     twoFactorEnabled?: boolean;
     twoFactorMethod?: "google" | "telegram";
     twoFactorTelegramLinked?: boolean;
@@ -40,6 +49,8 @@ export type CargoItem = {
     StateBill?: string;
     Sender?: string;
     Customer?: string;
+    /** Роль авторизованного лица по этой перевозке (для бейджа и скрытия финансов) */
+    _role?: PerevozkiRole;
     [key: string]: any;
 };
 
@@ -64,6 +75,7 @@ export type HeaderCompanyRow = { login: string; inn: string; name: string };
 export type ProfileView =
     | "main"
     | "companies"
+    | "roles"
     | "addCompanyMethod"
     | "addCompanyByINN"
     | "addCompanyByLogin"
