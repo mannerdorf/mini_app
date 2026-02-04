@@ -3217,37 +3217,46 @@ function ProfilePage({
                     </Panel>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Panel className="cargo-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
                             <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
                                 <Typography.Body style={{ fontWeight: 600 }}>Заказчик</Typography.Body>
-                                <Switch
-                                    checked={activeAccount.roleCustomer ?? true}
-                                    onCheckedChange={(v) => onUpdateAccount(activeAccountId, { roleCustomer: !!v })}
-                                />
+                                <span onClick={(e) => e.stopPropagation()}>
+                                    <Switch
+                                        type="checkbox"
+                                        checked={activeAccount.roleCustomer ?? true}
+                                        onChange={(e) => onUpdateAccount(activeAccountId, { roleCustomer: e?.target?.checked ?? false })}
+                                    />
+                                </span>
                             </Flex>
                             <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                                 Включите, если хотите видеть перевозки, где вы выступаете в качестве заказчика (полные данные, включая стоимость).
                             </Typography.Body>
                         </Panel>
-                        <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Panel className="cargo-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
                             <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
                                 <Typography.Body style={{ fontWeight: 600 }}>Отправитель</Typography.Body>
-                                <Switch
-                                    checked={activeAccount.roleSender ?? true}
-                                    onCheckedChange={(v) => onUpdateAccount(activeAccountId, { roleSender: !!v })}
-                                />
+                                <span onClick={(e) => e.stopPropagation()}>
+                                    <Switch
+                                        type="checkbox"
+                                        checked={activeAccount.roleSender ?? true}
+                                        onChange={(e) => onUpdateAccount(activeAccountId, { roleSender: e?.target?.checked ?? false })}
+                                    />
+                                </span>
                             </Flex>
                             <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                                 Включите, если хотите видеть перевозки, где вы выступаете в качестве отправителя (без финансовой информации).
                             </Typography.Body>
                         </Panel>
-                        <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Panel className="cargo-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
                             <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
                                 <Typography.Body style={{ fontWeight: 600 }}>Получатель</Typography.Body>
-                                <Switch
-                                    checked={activeAccount.roleReceiver ?? true}
-                                    onCheckedChange={(v) => onUpdateAccount(activeAccountId, { roleReceiver: !!v })}
-                                />
+                                <span onClick={(e) => e.stopPropagation()}>
+                                    <Switch
+                                        type="checkbox"
+                                        checked={activeAccount.roleReceiver ?? true}
+                                        onChange={(e) => onUpdateAccount(activeAccountId, { roleReceiver: e?.target?.checked ?? false })}
+                                    />
+                                </span>
                             </Flex>
                             <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                                 Включите, если хотите видеть перевозки, где вы выступаете в качестве получателя (без финансовой информации).
