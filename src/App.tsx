@@ -1454,6 +1454,7 @@ function DashboardPage({
     return (
         <div className="w-full">
             {showSums && (
+            <>
             {/* Раскрывающаяся полоска: в свёрнутом виде — период + переключатели; в развёрнутом — переключатель и диаграммы */}
             <div
                 className="home-strip"
@@ -1569,6 +1570,7 @@ function DashboardPage({
                     </div>
                 )}
             </div>
+            </>
             )}
 
             {/* Filters (такие же как на странице грузов) */}
