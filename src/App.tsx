@@ -383,7 +383,6 @@ const getFilterKeyByStatus = (s: string | undefined): StatusFilter => {
 }
 
 const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "in_transit": "В пути", "ready": "Готов к выдаче", "delivering": "На доставке", "delivered": "Доставлено", "favorites": "Избранные" };
-const ROLE_LABELS: Record<'all' | PerevozkiRole, string> = { all: 'Все', Customer: 'Заказчик', Sender: 'Отправитель', Receiver: 'Получатель' };
 
 /** Выпадающее меню поверх всего — рендер в document.body, чтобы не обрезалось контейнером с overflow */
 function FilterDropdownPortal({ triggerRef, isOpen, children }: { triggerRef: React.RefObject<HTMLElement | null>; isOpen: boolean; children: React.ReactNode }) {
@@ -775,24 +774,26 @@ function HomePage({ auth }: { auth: AuthData }) {
                 Умные нотификации
             </Typography.Headline>
             <Grid className="stats-grid" cols={2} gap={12}>
-                <Panel
-                    className="stat-card"
-                    onClick={() => onOpenCargoFilters({ search: "не оплачен" })}
-                    style={{ cursor: 'pointer' }}
-                >
-                    <div className="flex justify-between items-center mb-2">
-                        <CreditCard className="w-5 h-5 text-theme-primary" />
-                        <Typography.Label className="text-xs text-theme-secondary">
-                            Счета
+                {showSums && (
+                    <Panel
+                        className="stat-card"
+                        onClick={() => onOpenCargoFilters({ search: "не оплачен" })}
+                        style={{ cursor: 'pointer' }}
+                    >
+                        <div className="flex justify-between items-center mb-2">
+                            <CreditCard className="w-5 h-5 text-theme-primary" />
+                            <Typography.Label className="text-xs text-theme-secondary">
+                                Счета
+                            </Typography.Label>
+                        </div>
+                        <Typography.Display className="text-2xl font-bold text-white">
+                            {unpaidCount}
+                        </Typography.Display>
+                        <Typography.Label className="text-sm text-theme-secondary mt-1">
+                            Не оплачено
                         </Typography.Label>
-                    </div>
-                    <Typography.Display className="text-2xl font-bold text-white">
-                        {unpaidCount}
-                    </Typography.Display>
-                    <Typography.Label className="text-sm text-theme-secondary mt-1">
-                        Не оплачено
-                    </Typography.Label>
-                </Panel>
+                    </Panel>
+                )}
                 <Panel
                     className="stat-card"
                     onClick={() => onOpenCargoFilters({ status: "ready" })}
@@ -978,10 +979,13 @@ function DashboardPage({
     auth,
     onClose,
     onOpenCargoFilters,
+    showSums = true,
 }: {
     auth: AuthData;
     onClose: () => void;
     onOpenCargoFilters: (filters: { status?: StatusFilter; search?: string }) => void;
+    /** false = роль только отправитель/получатель, раздел с суммами недоступен */
+    showSums?: boolean;
 }) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [debugInfo, setDebugInfo] = useState<string>("");
@@ -1012,10 +1016,15 @@ function DashboardPage({
     const routeButtonRef = useRef<HTMLDivElement>(null);
     const [slaDetailsOpen, setSlaDetailsOpen] = useState(false);
     
-    // Chart type selector: деньги / вес / объём
-    const [chartType, setChartType] = useState<'money' | 'weight' | 'volume'>('money');
+    // Chart type selector: деньги / вес / объём (при !showSums доступны только вес и объём)
+    const [chartType, setChartType] = useState<'money' | 'weight' | 'volume'>(() => (showSums ? 'money' : 'weight'));
     const [stripExpanded, setStripExpanded] = useState(false);
     const [stripTab, setStripTab] = useState<'type' | 'sender' | 'receiver'>('type');
+
+    // При отключении раздела сумм (роль отправитель/получатель) переключаем тип графика с денег на вес
+    useEffect(() => {
+        if (!showSums && chartType === 'money') setChartType('weight');
+    }, [showSums]);
 
     const unpaidCount = useMemo(() => {
         return items.filter(item => getPaymentFilterKey(item.StateBill) === "unpaid").length;
@@ -1485,7 +1494,9 @@ function DashboardPage({
                         </Typography.Body>
                     </span>
                     <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Деньги"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        {showSums && (
+                            <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Деньги"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        )}
                         <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'weight' ? '#10b981' : 'transparent', border: 'none' }} onClick={() => setChartType('weight')} title="Вес"><Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                         <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'volume' ? '#f59e0b' : 'transparent', border: 'none' }} onClick={() => setChartType('volume')} title="Объём"><List className="w-4 h-4" style={{ color: chartType === 'volume' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                     </Flex>
@@ -4391,12 +4402,10 @@ function CargoPage({
     const [receiverFilter, setReceiverFilter] = useState<string>('');
     const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
     const [routeFilter, setRouteFilter] = useState<'all' | 'MSK-KGD' | 'KGD-MSK'>('all');
-    const [roleFilter, setRoleFilter] = useState<'all' | PerevozkiRole>('all');
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
-    const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
     const [showSummary, setShowSummary] = useState(true);
     const dateButtonRef = useRef<HTMLDivElement>(null);
     const statusButtonRef = useRef<HTMLDivElement>(null);
@@ -4404,7 +4413,6 @@ function CargoPage({
     const receiverButtonRef = useRef<HTMLDivElement>(null);
     const typeButtonRef = useRef<HTMLDivElement>(null);
     const routeButtonRef = useRef<HTMLDivElement>(null);
-    const roleButtonRef = useRef<HTMLDivElement>(null);
     // Sort State
     const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>('datePrih');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -4583,7 +4591,6 @@ function CargoPage({
         if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
         if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
-        if (roleFilter !== 'all') res = res.filter(i => i._role === roleFilter);
         
         // Применяем сортировку ТОЛЬКО по датам
         if (sortBy) {
@@ -4683,7 +4690,7 @@ function CargoPage({
         }
         
         return res;
-    }, [items, statusFilter, searchText, senderFilter, receiverFilter, typeFilter, routeFilter, roleFilter, sortBy, sortOrder, favorites]);
+    }, [items, statusFilter, searchText, senderFilter, receiverFilter, typeFilter, routeFilter, sortBy, sortOrder, favorites]);
 
     // Подсчет сумм из отфильтрованных элементов
     const summary = useMemo(() => {
@@ -4757,7 +4764,7 @@ function CargoPage({
                         )}
                     </Button>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4771,7 +4778,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4785,7 +4792,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4798,7 +4805,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4811,7 +4818,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4823,7 +4830,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                             Маршрут: {routeFilter === 'all' ? 'Все' : routeFilter} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4833,33 +4840,18 @@ function CargoPage({
                         <div className="dropdown-item" onClick={() => { setRouteFilter('KGD-MSK'); setIsRouteDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
                     </FilterDropdownPortal>
                 </div>
-                <div className="filter-group" style={{ flexShrink: 0 }}>
-                    <div ref={roleButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRoleDropdownOpen(!isRoleDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Роль: {ROLE_LABELS[roleFilter]} <ChevronDown className="w-4 h-4"/>
-                        </Button>
-                    </div>
-                    <FilterDropdownPortal triggerRef={roleButtonRef} isOpen={isRoleDropdownOpen}>
-                        <div className="dropdown-item" onClick={() => { setRoleFilter('all'); setIsRoleDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setRoleFilter('Customer'); setIsRoleDropdownOpen(false); }}><Typography.Body>Заказчик</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setRoleFilter('Sender'); setIsRoleDropdownOpen(false); }}><Typography.Body>Отправитель</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setRoleFilter('Receiver'); setIsRoleDropdownOpen(false); }}><Typography.Body>Получатель</Typography.Body></div>
-                    </FilterDropdownPortal>
-                </div>
             </div>
 
             {/* Суммирующая строка: для отправителя/получателя — только платный вес и штуки, без стоимости */}
             <div className="cargo-card mb-4" style={{ padding: '0.75rem' }}>
                 <Flex justify="center" align="center">
                     <Flex gap="1.5rem" align="center" style={{ flexWrap: 'wrap' }}>
-                        {(roleFilter === 'all' || roleFilter === 'Customer') && (
-                            <Flex direction="column" align="center">
-                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
-                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                    {formatCurrency(summary.sum)}
-                                </Typography.Body>
-                            </Flex>
-                        )}
+                        <Flex direction="column" align="center">
+                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                {formatCurrency(summary.sum)}
+                            </Typography.Body>
+                        </Flex>
                         <Flex direction="column" align="center">
                             <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Мест</Typography.Label>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
@@ -4916,7 +4908,7 @@ function CargoPage({
                             style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
                         >
                             <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem' }}>
-                                <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', marginRight: '-1cm' }}>
+                                <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap' }}>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
                                         {item.Number || '-'}
                                     </Typography.Body>
@@ -4927,7 +4919,7 @@ function CargoPage({
                                     )}
                                 </Flex>
                                 <Flex align="center" gap="0.5rem">
-                                    <Flex align="center" gap="0.25rem" style={{ marginLeft: '-1cm', marginRight: '0.5cm' }}>
+                                    <Flex align="center" gap="0.25rem" style={{ marginRight: '0.5cm' }}>
                                     <Button
                                         style={{ 
                                             padding: '0.25rem', 
@@ -7851,6 +7843,7 @@ export default function App() {
                             auth={auth}
                             onClose={() => {}}
                             onOpenCargoFilters={openCargoWithFilters}
+                            showSums={activeAccount?.roleCustomer ?? true}
                         />
                     )}
                     {showDashboard && activeTab === "cargo" && auth && (
@@ -7920,6 +7913,7 @@ export default function App() {
                             auth={auth}
                             onClose={() => {}}
                             onOpenCargoFilters={openCargoWithFilters}
+                            showSums={activeAccount?.roleCustomer ?? true}
                         />
                     )}
                     {!showDashboard && activeTab === "support" && auth && (
