@@ -383,6 +383,7 @@ const getFilterKeyByStatus = (s: string | undefined): StatusFilter => {
 }
 
 const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "in_transit": "В пути", "ready": "Готов к выдаче", "delivering": "На доставке", "delivered": "Доставлено", "favorites": "Избранные" };
+const ROLE_LABELS: Record<'all' | PerevozkiRole, string> = { all: 'Все', Customer: 'Заказчик', Sender: 'Отправитель', Receiver: 'Получатель' };
 
 /** Выпадающее меню поверх всего — рендер в document.body, чтобы не обрезалось контейнером с overflow */
 function FilterDropdownPortal({ triggerRef, isOpen, children }: { triggerRef: React.RefObject<HTMLElement | null>; isOpen: boolean; children: React.ReactNode }) {
@@ -3220,7 +3221,7 @@ function ProfilePage({
                         <Panel className="cargo-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
                             <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
                                 <Typography.Body style={{ fontWeight: 600 }}>Заказчик</Typography.Body>
-                                <span onClick={(e) => e.stopPropagation()}>
+                                <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
                                     <Switch
                                         type="checkbox"
                                         checked={activeAccount.roleCustomer ?? true}
@@ -3235,7 +3236,7 @@ function ProfilePage({
                         <Panel className="cargo-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
                             <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
                                 <Typography.Body style={{ fontWeight: 600 }}>Отправитель</Typography.Body>
-                                <span onClick={(e) => e.stopPropagation()}>
+                                <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
                                     <Switch
                                         type="checkbox"
                                         checked={activeAccount.roleSender ?? true}
@@ -3250,7 +3251,7 @@ function ProfilePage({
                         <Panel className="cargo-card" style={{ padding: '1rem' }} onClick={(e) => e.stopPropagation()}>
                             <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
                                 <Typography.Body style={{ fontWeight: 600 }}>Получатель</Typography.Body>
-                                <span onClick={(e) => e.stopPropagation()}>
+                                <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
                                     <Switch
                                         type="checkbox"
                                         checked={activeAccount.roleReceiver ?? true}
@@ -4393,10 +4394,12 @@ function CargoPage({
     const [receiverFilter, setReceiverFilter] = useState<string>('');
     const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
     const [routeFilter, setRouteFilter] = useState<'all' | 'MSK-KGD' | 'KGD-MSK'>('all');
+    const [roleFilter, setRoleFilter] = useState<'all' | PerevozkiRole>('all');
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
+    const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
     const [showSummary, setShowSummary] = useState(true);
     const dateButtonRef = useRef<HTMLDivElement>(null);
     const statusButtonRef = useRef<HTMLDivElement>(null);
@@ -4404,6 +4407,7 @@ function CargoPage({
     const receiverButtonRef = useRef<HTMLDivElement>(null);
     const typeButtonRef = useRef<HTMLDivElement>(null);
     const routeButtonRef = useRef<HTMLDivElement>(null);
+    const roleButtonRef = useRef<HTMLDivElement>(null);
     // Sort State
     const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>('datePrih');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -4582,6 +4586,7 @@ function CargoPage({
         if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
         if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
+        if (roleFilter !== 'all') res = res.filter(i => i._role === roleFilter);
         
         // Применяем сортировку ТОЛЬКО по датам
         if (sortBy) {
@@ -4681,7 +4686,7 @@ function CargoPage({
         }
         
         return res;
-    }, [items, statusFilter, searchText, senderFilter, receiverFilter, typeFilter, routeFilter, sortBy, sortOrder, favorites]);
+    }, [items, statusFilter, searchText, senderFilter, receiverFilter, typeFilter, routeFilter, roleFilter, sortBy, sortOrder, favorites]);
 
     // Подсчет сумм из отфильтрованных элементов
     const summary = useMemo(() => {
@@ -4755,7 +4760,7 @@ function CargoPage({
                         )}
                     </Button>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4769,7 +4774,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4783,7 +4788,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4796,7 +4801,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4809,7 +4814,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4821,7 +4826,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Маршрут: {routeFilter === 'all' ? 'Все' : routeFilter} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -4831,18 +4836,33 @@ function CargoPage({
                         <div className="dropdown-item" onClick={() => { setRouteFilter('KGD-MSK'); setIsRouteDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
                     </FilterDropdownPortal>
                 </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <div ref={roleButtonRef} style={{ display: 'inline-flex' }}>
+                        <Button className="filter-button" onClick={() => { setIsRoleDropdownOpen(!isRoleDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            Роль: {ROLE_LABELS[roleFilter]} <ChevronDown className="w-4 h-4"/>
+                        </Button>
+                    </div>
+                    <FilterDropdownPortal triggerRef={roleButtonRef} isOpen={isRoleDropdownOpen}>
+                        <div className="dropdown-item" onClick={() => { setRoleFilter('all'); setIsRoleDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setRoleFilter('Customer'); setIsRoleDropdownOpen(false); }}><Typography.Body>Заказчик</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setRoleFilter('Sender'); setIsRoleDropdownOpen(false); }}><Typography.Body>Отправитель</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setRoleFilter('Receiver'); setIsRoleDropdownOpen(false); }}><Typography.Body>Получатель</Typography.Body></div>
+                    </FilterDropdownPortal>
+                </div>
             </div>
 
-            {/* Суммирующая строка */}
+            {/* Суммирующая строка: для отправителя/получателя — только платный вес и штуки, без стоимости */}
             <div className="cargo-card mb-4" style={{ padding: '0.75rem' }}>
                 <Flex justify="center" align="center">
                     <Flex gap="1.5rem" align="center" style={{ flexWrap: 'wrap' }}>
-                        <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                {formatCurrency(summary.sum)}
-                            </Typography.Body>
-                        </Flex>
+                        {(roleFilter === 'all' || roleFilter === 'Customer') && (
+                            <Flex direction="column" align="center">
+                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
+                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                    {formatCurrency(summary.sum)}
+                                </Typography.Body>
+                            </Flex>
+                        )}
                         <Flex direction="column" align="center">
                             <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Мест</Typography.Label>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
@@ -5109,18 +5129,16 @@ function CargoPage({
                         </Flex>
                             <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
                                 <StatusBadge status={item.State} />
-                                {item._role === 'Customer' ? (
+                                {item._role === 'Customer' && (
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: getSumColorByPaymentStatus(item.StateBill) }}>
                                         {formatCurrency(item.Sum)}
                                     </Typography.Body>
-                                ) : (
-                                    <StatusBillBadge status={item.StateBill} />
                                 )}
                             </Flex>
                             <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                                 <Flex gap="1rem">
                                     <Typography.Label>Мест: {item.Mest || '-'}</Typography.Label>
-                                    <Typography.Label>Вес: {item.PW ? `${item.PW} кг` : '-'}</Typography.Label>
+                                    <Typography.Label>Плат. вес: {item.PW ? `${item.PW} кг` : '-'}</Typography.Label>
                                 </Flex>
                                 {item._role === 'Customer' && <StatusBillBadge status={item.StateBill} />}
                             </Flex>
@@ -5671,11 +5689,15 @@ function CargoDetailsModal({
                     <DetailItem label="Отправитель" value={stripOoo(item.Sender) || '-'} />
                     <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? item.receiver) || '-'} />
                     <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary"/>} />
-                    {isCustomerRole && <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary"/>} highlighted />}
-                    <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} />
-                    <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary"/>} />
-                    {isCustomerRole && <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />}
-                    {isCustomerRole && <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />}
+                    <DetailItem label="Плат. вес" value={renderValue(item.PW, 'кг')} icon={<Scale className="w-4 h-4 mr-1 text-theme-primary"/>} highlighted />
+                    {isCustomerRole && (
+                        <>
+                            <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} />
+                            <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary"/>} />
+                            <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
+                            <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
+                        </>
+                    )}
                 </div>
                 
                 {/* ДОПОЛНИТЕЛЬНЫЕ поля из API - УДАЛЕН ЗАГОЛОВОК "Прочие данные из API" */}
