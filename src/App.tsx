@@ -4916,7 +4916,7 @@ function CargoPage({
                             style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
                         >
                             <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem' }}>
-                                <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap' }}>
+                                <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', marginRight: '-1cm' }}>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
                                         {item.Number || '-'}
                                     </Typography.Body>
