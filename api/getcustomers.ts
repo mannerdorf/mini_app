@@ -81,10 +81,10 @@ export default async function handler(
 
     if (!upstream.ok) {
       try {
-        const errJson = JSON.parse(text);
-        return res
-          .status(upstream.status)
-          .json(errJson?.error ? { error: errJson.error } : errJson);
+        const errJson = JSON.parse(text) as Record<string, unknown>;
+        const message = (errJson?.Error ?? errJson?.error ?? errJson?.message) as string | undefined;
+        const errorText = typeof message === "string" && message.trim() ? message.trim() : text || upstream.statusText;
+        return res.status(upstream.status).json({ error: errorText });
       } catch {
         return res.status(upstream.status).send(text || upstream.statusText);
       }

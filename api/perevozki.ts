@@ -69,12 +69,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log("⬅️ Upstream body start:", text.substring(0, 100));
 
     if (!upstream.ok) {
-      // пробуем вернуть текст 1С как есть
-      return res.status(upstream.status).send(
-        text || {
-          error: `Upstream error: ${upstream.status}`,
-        }
-      );
+      try {
+        const errJson = JSON.parse(text) as Record<string, unknown>;
+        const message = (errJson?.Error ?? errJson?.error ?? errJson?.message) as string | undefined;
+        const errorText = typeof message === "string" && message.trim() ? message.trim() : text || upstream.statusText;
+        return res.status(upstream.status).json({ error: errorText });
+      } catch {
+        return res.status(upstream.status).send(text || upstream.statusText);
+      }
     }
 
     // если это JSON — вернём JSON, если нет — просто текст

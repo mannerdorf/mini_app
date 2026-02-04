@@ -12,6 +12,7 @@ import { fetchFile } from "@ffmpeg/util";
 import {
     ensureOk,
     readJsonOrText,
+    extractErrorMessage,
     extractCustomerFromPerevozki,
     extractInnFromPerevozki,
     getExistingInns,
@@ -5386,7 +5387,7 @@ function CargoDetailsModal({
     };
 
     // Список явно отображаемых полей (из API примера). INN скрыт — используется для БД и проверки дублей, не показываем в карточке.
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN'];
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
@@ -7237,7 +7238,9 @@ export default function App() {
 
             setActiveTab((prev) => prev || "cargo");
         } catch (err: any) {
-            setError(err?.message || "Ошибка сети.");
+            const raw = err?.message || "Ошибка сети.";
+            const message = extractErrorMessage(raw) || (typeof raw === "string" ? raw : "Ошибка сети.");
+            setError(message);
         } finally {
             setLoading(false);
         }
@@ -7439,8 +7442,9 @@ export default function App() {
         if (!res.ok) {
             let message = `Ошибка авторизации`;
             try {
-                const errorData = await res.json() as ApiError;
-                if (errorData.error) message = errorData.error;
+                const payload = await readJsonOrText(res);
+                const extracted = extractErrorMessage(payload);
+                if (extracted) message = extracted;
             } catch { }
             throw new Error(message);
         }

@@ -25,14 +25,34 @@ export function humanizeStatus(status: number): string {
     return "Не удалось выполнить запрос. Попробуйте позже.";
 }
 
+/** Извлекает текст ошибки из ответа (без служебных символов JSON). Учитывает 1С: { Success, Error }. */
+export function extractErrorMessage(payload: unknown): string {
+    if (payload == null) return "";
+    if (typeof payload === "object") {
+        const o = payload as Record<string, unknown>;
+        const text = (o.Error ?? o.error ?? o.message) as string | undefined;
+        return typeof text === "string" && text.trim() ? text.trim() : "";
+    }
+    if (typeof payload === "string") {
+        const s = payload.trim();
+        if (!s) return "";
+        try {
+            const parsed = JSON.parse(s) as Record<string, unknown>;
+            const text = (parsed.Error ?? parsed.error ?? parsed.message) as string | undefined;
+            return typeof text === "string" && text.trim() ? text.trim() : "";
+        } catch {
+            return s;
+        }
+    }
+    return "";
+}
+
 /** Бросает Error с понятным сообщением, если !res.ok */
 export async function ensureOk(res: Response, fallback?: string): Promise<void> {
     if (res.ok) return;
     const payload = await readJsonOrText(res);
-    const safe =
-        (typeof payload === "object" && payload && (payload.error || payload.message))
-            ? String(payload.error || payload.message)
-            : (typeof payload === "string" && payload.trim() ? payload.trim() : "");
+    const safe = extractErrorMessage(payload)
+        || (typeof payload === "string" && payload.trim() ? payload.trim() : "");
     const message =
         res.status === 404 ? "Данные не найдены." :
         res.status >= 500 ? "Ошибка сервера. Попробуйте позже." :
