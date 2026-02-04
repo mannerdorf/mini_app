@@ -3222,10 +3222,9 @@ function ProfilePage({
                             <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
                                 <Typography.Body style={{ fontWeight: 600 }}>Заказчик</Typography.Body>
                                 <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
-                                    <Switch
-                                        type="checkbox"
+                                    <TapSwitch
                                         checked={activeAccount.roleCustomer ?? true}
-                                        onChange={(e) => onUpdateAccount(activeAccountId, { roleCustomer: e?.target?.checked ?? false })}
+                                        onToggle={() => onUpdateAccount(activeAccountId, { roleCustomer: !(activeAccount.roleCustomer ?? true) })}
                                     />
                                 </span>
                             </Flex>
@@ -3237,10 +3236,9 @@ function ProfilePage({
                             <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
                                 <Typography.Body style={{ fontWeight: 600 }}>Отправитель</Typography.Body>
                                 <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
-                                    <Switch
-                                        type="checkbox"
+                                    <TapSwitch
                                         checked={activeAccount.roleSender ?? true}
-                                        onChange={(e) => onUpdateAccount(activeAccountId, { roleSender: e?.target?.checked ?? false })}
+                                        onToggle={() => onUpdateAccount(activeAccountId, { roleSender: !(activeAccount.roleSender ?? true) })}
                                     />
                                 </span>
                             </Flex>
@@ -3252,10 +3250,9 @@ function ProfilePage({
                             <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
                                 <Typography.Body style={{ fontWeight: 600 }}>Получатель</Typography.Body>
                                 <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
-                                    <Switch
-                                        type="checkbox"
+                                    <TapSwitch
                                         checked={activeAccount.roleReceiver ?? true}
-                                        onChange={(e) => onUpdateAccount(activeAccountId, { roleReceiver: e?.target?.checked ?? false })}
+                                        onToggle={() => onUpdateAccount(activeAccountId, { roleReceiver: !(activeAccount.roleReceiver ?? true) })}
                                     />
                                 </span>
                             </Flex>
@@ -4930,6 +4927,7 @@ function CargoPage({
                                     )}
                                 </Flex>
                                 <Flex align="center" gap="0.5rem">
+                                    <Flex align="center" gap="0.25rem" style={{ marginLeft: '-1cm', marginRight: '0.5cm' }}>
                                     <Button
                                         style={{ 
                                             padding: '0.25rem', 
@@ -5121,6 +5119,7 @@ function CargoPage({
                                             }} 
                                         />
                                     </Button>
+                                    </Flex>
                                     <Calendar className="w-4 h-4 text-theme-secondary" />
                                     <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
                                         <DateText value={item.DatePrih} />
