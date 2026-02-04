@@ -769,31 +769,31 @@ function HomePage({ auth }: { auth: AuthData }) {
                 </Panel>
             </Grid>
 
+            {showSums && (
+                <>
             {/* Умные нотификации */}
             <Typography.Headline style={{ marginTop: '1.5rem', marginBottom: '0.75rem', fontSize: '1rem' }}>
                 Умные нотификации
             </Typography.Headline>
             <Grid className="stats-grid" cols={2} gap={12}>
-                {showSums && (
-                    <Panel
-                        className="stat-card"
-                        onClick={() => onOpenCargoFilters({ search: "не оплачен" })}
-                        style={{ cursor: 'pointer' }}
-                    >
-                        <div className="flex justify-between items-center mb-2">
-                            <CreditCard className="w-5 h-5 text-theme-primary" />
-                            <Typography.Label className="text-xs text-theme-secondary">
-                                Счета
-                            </Typography.Label>
-                        </div>
-                        <Typography.Display className="text-2xl font-bold text-white">
-                            {unpaidCount}
-                        </Typography.Display>
-                        <Typography.Label className="text-sm text-theme-secondary mt-1">
-                            Не оплачено
+                <Panel
+                    className="stat-card"
+                    onClick={() => onOpenCargoFilters({ search: "не оплачен" })}
+                    style={{ cursor: 'pointer' }}
+                >
+                    <div className="flex justify-between items-center mb-2">
+                        <CreditCard className="w-5 h-5 text-theme-primary" />
+                        <Typography.Label className="text-xs text-theme-secondary">
+                            Счета
                         </Typography.Label>
-                    </Panel>
-                )}
+                    </div>
+                    <Typography.Display className="text-2xl font-bold text-white">
+                        {unpaidCount}
+                    </Typography.Display>
+                    <Typography.Label className="text-sm text-theme-secondary mt-1">
+                        Не оплачено
+                    </Typography.Label>
+                </Panel>
                 <Panel
                     className="stat-card"
                     onClick={() => onOpenCargoFilters({ status: "ready" })}
@@ -813,6 +813,8 @@ function HomePage({ auth }: { auth: AuthData }) {
                     </Typography.Label>
                 </Panel>
             </Grid>
+                </>
+            )}
 
             {/* Загрузка / ошибка */}
             {loading && (
@@ -1451,6 +1453,7 @@ function DashboardPage({
 
     return (
         <div className="w-full">
+            {showSums && (
             {/* Раскрывающаяся полоска: в свёрнутом виде — период + переключатели; в развёрнутом — переключатель и диаграммы */}
             <div
                 className="home-strip"
@@ -1566,6 +1569,7 @@ function DashboardPage({
                     </div>
                 )}
             </div>
+            )}
 
             {/* Filters (такие же как на странице грузов) */}
             <div className="filters-container filters-row-scroll">
@@ -1662,7 +1666,7 @@ function DashboardPage({
                 </Flex>
             )}
             
-            {!loading && !error && (
+            {!loading && !error && showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
                     {(() => {
                         let chartDataForType: { date: string; value: number }[];
