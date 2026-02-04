@@ -3209,7 +3209,7 @@ function ProfilePage({
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Роли</Typography.Headline>
                 </Flex>
                 <Typography.Body style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                    Включите роли, если хотите видеть перевозки, где вы выступаете в качестве заказчика, отправителя или получателя. Для заказчика отображаются полные данные, для отправителя и получателя — без стоимости и финансовой информации.
+                    Включите роли, если хотите видеть перевозки, где вы выступаете в качестве заказчика, отправителя или получателя.
                 </Typography.Body>
                 {!activeAccountId || !activeAccount ? (
                     <Panel className="cargo-card" style={{ padding: '1rem', textAlign: 'center' }}>
@@ -4926,17 +4926,11 @@ function CargoPage({
                                             if (!item.Number) return;
 
                                             const baseOrigin = typeof window !== "undefined" ? window.location.origin : "";
-                                            
-                                            // Формируем длинные ссылки для каждого документа
+                                            const docTypesList = item._role === 'Customer'
+                                                ? [{ label: "ЭР" as const, metod: DOCUMENT_METHODS["ЭР"] }, { label: "СЧЕТ" as const, metod: DOCUMENT_METHODS["СЧЕТ"] }, { label: "УПД" as const, metod: DOCUMENT_METHODS["УПД"] }, { label: "АПП" as const, metod: DOCUMENT_METHODS["АПП"] }]
+                                                : [{ label: "АПП" as const, metod: DOCUMENT_METHODS["АПП"] }];
                                             const longUrls: Record<string, string> = {};
-                                            const docTypes: Array<{ label: "ЭР" | "СЧЕТ" | "УПД" | "АПП"; metod: string }> = [
-                                                { label: "ЭР", metod: DOCUMENT_METHODS["ЭР"] },
-                                                { label: "СЧЕТ", metod: DOCUMENT_METHODS["СЧЕТ"] },
-                                                { label: "УПД", metod: DOCUMENT_METHODS["УПД"] },
-                                                { label: "АПП", metod: DOCUMENT_METHODS["АПП"] },
-                                            ];
-                                            
-                                            for (const { label, metod } of docTypes) {
+                                            for (const { label, metod } of docTypesList) {
                                                 const params = new URLSearchParams({
                                                     login: auth.login,
                                                     password: auth.password,
@@ -4951,7 +4945,7 @@ function CargoPage({
                                             const shortUrls: Record<string, string> = {};
                                             console.log('[share] Starting to shorten URLs via TinyURL (token mode)...');
                                             
-                                            const shortenPromises = docTypes.map(async ({ label, metod }) => {
+                                            const shortenPromises = docTypesList.map(async ({ label, metod }) => {
                                                 try {
                                                     console.log(`[share] Creating token for ${label}...`);
                                                     
@@ -4976,7 +4970,6 @@ function CargoPage({
                                                     } else {
                                                         const errorText = await res.text().catch(() => '');
                                                         console.error(`[share] Failed to shorten ${label}: ${res.status} ${errorText}`);
-                                                        // Если токенизация не сработала, используем прямую ссылку (хотя это менее безопасно)
                                                         shortUrls[label] = longUrls[label];
                                                     }
                                                 } catch (error: any) {
@@ -4985,7 +4978,6 @@ function CargoPage({
                                                 }
                                             });
                                             
-                                            // Ждем завершения всех запросов
                                             await Promise.all(shortenPromises);
                                             console.log('[share] All shorten requests completed. Short URLs:', shortUrls);
 
@@ -5021,9 +5013,11 @@ function CargoPage({
 
                                             lines.push("");
                                             lines.push("Документы:");
-                                            lines.push(`ЭР: ${shortUrls["ЭР"] || "(не удалось сократить)"}`);
-                                            lines.push(`Счет: ${shortUrls["СЧЕТ"] || "(не удалось сократить)"}`);
-                                            lines.push(`УПД: ${shortUrls["УПД"] || "(не удалось сократить)"}`);
+                                            if (item._role === 'Customer') {
+                                                lines.push(`ЭР: ${shortUrls["ЭР"] || "(не удалось сократить)"}`);
+                                                lines.push(`Счет: ${shortUrls["СЧЕТ"] || "(не удалось сократить)"}`);
+                                                lines.push(`УПД: ${shortUrls["УПД"] || "(не удалось сократить)"}`);
+                                            }
                                             lines.push(`АПП: ${shortUrls["АПП"] || "(не удалось сократить)"}`);
                                             
                                             const text = lines.join("\n");
@@ -5115,16 +5109,20 @@ function CargoPage({
                         </Flex>
                             <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
                                 <StatusBadge status={item.State} />
-                                <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: getSumColorByPaymentStatus(item.StateBill) }}>
-                                    {formatCurrency(item.Sum)}
-                                </Typography.Body>
+                                {item._role === 'Customer' ? (
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: getSumColorByPaymentStatus(item.StateBill) }}>
+                                        {formatCurrency(item.Sum)}
+                                    </Typography.Body>
+                                ) : (
+                                    <StatusBillBadge status={item.StateBill} />
+                                )}
                             </Flex>
                             <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                                 <Flex gap="1rem">
                                     <Typography.Label>Мест: {item.Mest || '-'}</Typography.Label>
                                     <Typography.Label>Вес: {item.PW ? `${item.PW} кг` : '-'}</Typography.Label>
                                 </Flex>
-                                <StatusBillBadge status={item.StateBill} />
+                                {item._role === 'Customer' && <StatusBillBadge status={item.StateBill} />}
                             </Flex>
                             <Flex align="center" gap="0.5rem" style={{ marginTop: '0.5rem' }}>
                                 {(() => {
@@ -5521,15 +5519,12 @@ function CargoDetailsModal({
                                 setDownloading("share");
                                 try {
                                     const baseOrigin = typeof window !== "undefined" ? window.location.origin : "";
-                                    const docTypes: Array<{ label: "ЭР" | "СЧЕТ" | "УПД" | "АПП"; metod: string }> = [
-                                        { label: "ЭР", metod: DOCUMENT_METHODS["ЭР"] },
-                                        { label: "СЧЕТ", metod: DOCUMENT_METHODS["СЧЕТ"] },
-                                        { label: "УПД", metod: DOCUMENT_METHODS["УПД"] },
-                                        { label: "АПП", metod: DOCUMENT_METHODS["АПП"] },
-                                    ];
+                                    const docsForRole = item._role === 'Customer'
+                                        ? [{ label: "ЭР" as const, metod: DOCUMENT_METHODS["ЭР"] }, { label: "СЧЕТ" as const, metod: DOCUMENT_METHODS["СЧЕТ"] }, { label: "УПД" as const, metod: DOCUMENT_METHODS["УПД"] }, { label: "АПП" as const, metod: DOCUMENT_METHODS["АПП"] }]
+                                        : [{ label: "АПП" as const, metod: DOCUMENT_METHODS["АПП"] }];
                                     const shortUrls: Record<string, string> = {};
                                     const longUrls: Record<string, string> = {};
-                                    const shortenPromises = docTypes.map(async ({ label, metod }) => {
+                                    const shortenPromises = docsForRole.map(async ({ label, metod }) => {
                                         const params = new URLSearchParams({
                                             login: auth.login,
                                             password: auth.password,
@@ -5581,9 +5576,11 @@ function CargoDetailsModal({
                                     }
                                     lines.push("");
                                     lines.push("Документы:");
-                                    lines.push(`ЭР: ${shortUrls["ЭР"]}`);
-                                    lines.push(`Счет: ${shortUrls["СЧЕТ"]}`);
-                                    lines.push(`УПД: ${shortUrls["УПД"]}`);
+                                    if (item._role === 'Customer') {
+                                        lines.push(`ЭР: ${shortUrls["ЭР"]}`);
+                                        lines.push(`Счет: ${shortUrls["СЧЕТ"]}`);
+                                        lines.push(`УПД: ${shortUrls["УПД"]}`);
+                                    }
                                     lines.push(`АПП: ${shortUrls["АПП"]}`);
                                     const text = lines.join("\n");
                                     if (typeof navigator !== "undefined" && (navigator as any).share) {
@@ -5789,11 +5786,9 @@ function CargoDetailsModal({
                                   item.StateBill?.toLowerCase().includes('paid') ||
                                   item.StateBill === 'Оплачен';
                     
-                    // Базовые документы (всегда доступны)
-                    const baseDocs = ['ЭР', 'АПП'];
-                    
-                    // Документы (как было ранее): УПД доступен кнопкой в разделе выгрузки документов
-                    const availableDocs = [...baseDocs, 'СЧЕТ', 'УПД'];
+                    // Для отправителя и получателя доступен только АПП
+                    const isCustomerRole = item._role === 'Customer';
+                    const availableDocs = isCustomerRole ? ['ЭР', 'АПП', 'СЧЕТ', 'УПД'] : ['АПП'];
                     
                     return (
                         <>
