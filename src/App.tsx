@@ -5503,23 +5503,21 @@ function CargoDetailsModal({
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <Flex align="center" justify="space-between" style={{ width: '100%' }}>
-                        <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                    <Flex align="center" justify="space-between" style={{ width: '100%', minWidth: 0 }}>
+                        <Flex align="center" gap="0.5rem" style={{ flexShrink: 1, minWidth: 0, maxWidth: '55%' }}>
                             {/* Иконка типа перевозки */}
                             {(() => {
                                 const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
-                                return isFerry ? <Ship className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24 }} title="Паром" /> : <Truck className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24 }} title="Авто" />;
+                                return isFerry ? <Ship className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24, flexShrink: 0 }} title="Паром" /> : <Truck className="modal-header-transport-icon" style={{ color: 'var(--color-primary-blue)', width: 24, height: 24, flexShrink: 0 }} title="Авто" />;
                             })()}
                             {/* Бейдж роли: Заказчик / Отправитель / Получатель */}
                             {item._role && (
-                                <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.2rem 0.5rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
+                                <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.2rem 0.5rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {item._role === 'Customer' ? 'Заказчик' : item._role === 'Sender' ? 'Отправитель' : 'Получатель'}
                                 </span>
                             )}
                         </Flex>
-                        <Flex align="center" gap="0.5rem">
-                        {/* Отступ 3 см между иконкой типа перевозки и шерингом */}
-                        <span style={{ width: '3cm', flexShrink: 0 }} aria-hidden />
+                        <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
                         <button
                             type="button"
                             className="modal-header-icon-btn"
