@@ -4907,8 +4907,8 @@ function CargoPage({
                             onClick={() => setSelectedCargo(item)}
                             style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
                         >
-                            <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem' }}>
-                                <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap' }}>
+                            <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
+                                <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
                                         {item.Number || '-'}
                                     </Typography.Body>
@@ -4918,7 +4918,7 @@ function CargoPage({
                                         </span>
                                     )}
                                 </Flex>
-                                <Flex align="center" gap="0.5rem">
+                                <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
                                     <Flex align="center" gap="0.25rem" style={{ marginRight: '0.5cm' }}>
                                     <Button
                                         style={{ 
