@@ -3263,17 +3263,20 @@ function ProfilePage({
                             placeholder="Введите пароль"
                             style={{ marginBottom: '0.75rem' }}
                         />
-                        {serviceModeError && <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{serviceModeError}</Typography.Body>
-                        <Button className="filter-button" onClick={() => {
-                            if (serviceModePwd.trim() === SERVICE_MODE_PASSWORD) {
-                                localStorage.setItem(SERVICE_MODE_STORAGE_KEY, '1');
-                                setServiceModeActive(true);
-                                setServiceModeError(null);
-                                onServiceModeChange?.();
-                            } else {
-                                setServiceModeError('Неверный пароль');
-                            }
-                        }}>
+                        {serviceModeError ? <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{serviceModeError}</Typography.Body> : null}
+                        <Button
+                            className="filter-button"
+                            onClick={() => {
+                                if (serviceModePwd.trim() === SERVICE_MODE_PASSWORD) {
+                                    localStorage.setItem(SERVICE_MODE_STORAGE_KEY, '1');
+                                    setServiceModeActive(true);
+                                    setServiceModeError(null);
+                                    onServiceModeChange?.();
+                                } else {
+                                    setServiceModeError('Неверный пароль');
+                                }
+                            }}
+                        >
                             Активировать
                         </Button>
                     </Panel>
