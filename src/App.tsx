@@ -1525,6 +1525,26 @@ function DashboardPage({
         return `${stripTotals.vol.toFixed(2).replace('.', ',')} м³`;
     };
 
+    /** Тренд по выбранной метрике: первая половина периода vs вторая половина */
+    const stripTrend = useMemo(() => {
+        if (chartData.length < 4) return null;
+        const mid = Math.floor(chartData.length / 2);
+        const firstHalf = chartData.slice(0, mid);
+        const secondHalf = chartData.slice(mid);
+        const getVal = (d: { sum: number; pw: number; w: number; mest: number; vol: number }) => {
+            if (chartType === 'money') return d.sum;
+            if (chartType === 'paidWeight') return d.pw;
+            if (chartType === 'weight') return d.w;
+            if (chartType === 'pieces') return d.mest;
+            return d.vol;
+        };
+        const v1 = firstHalf.reduce((acc, d) => acc + getVal(d), 0);
+        const v2 = secondHalf.reduce((acc, d) => acc + getVal(d), 0);
+        if (v2 > v1) return 'up';
+        if (v2 < v1) return 'down';
+        return null;
+    }, [chartData, chartType]);
+
     return (
         <div className="w-full">
             {showSums && (
@@ -1576,7 +1596,12 @@ function DashboardPage({
                 </button>
                 {stripExpanded && (
                     <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
-                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.75rem' }}>{formatStripValue()}</Typography.Body>
+                        <Flex align="center" gap="0.5rem" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                            <Typography.Body style={{ fontWeight: 600 }}>{formatStripValue()}</Typography.Body>
+                            {stripTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)', flexShrink: 0 }} title="Тренд вверх (вторая половина периода больше первой)" />}
+                            {stripTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444', flexShrink: 0 }} title="Тренд вниз (вторая половина периода меньше первой)" />}
+                            {stripTrend === null && chartData.length >= 2 && <Minus className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} title="Без выраженного тренда" />}
+                        </Flex>
                         <div style={{ marginBottom: '0.75rem', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch' }}>
                             <Flex gap="0.5rem" style={{ flexWrap: 'nowrap', minWidth: 'min-content' }}>
                                 {((useServiceRequest ? ['type', 'sender', 'receiver', 'customer'] : ['type', 'sender', 'receiver']) as const).map((tab) => (
