@@ -76,6 +76,7 @@ export type ProfileView =
     | "main"
     | "companies"
     | "roles"
+    | "serviceMode"
     | "addCompanyMethod"
     | "addCompanyByINN"
     | "addCompanyByLogin"

@@ -3001,7 +3001,8 @@ function ProfilePage({
     onOpenNotifications,
     onOpenCargo,
     onOpenTelegramBot,
-    onUpdateAccount
+    onUpdateAccount,
+    onServiceModeChange
 }: { 
     accounts: Account[]; 
     activeAccountId: string | null; 
@@ -3014,6 +3015,7 @@ function ProfilePage({
     onOpenCargo: (cargoNumber: string) => void;
     onOpenTelegramBot?: () => Promise<void>;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
+    onServiceModeChange?: () => void;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
@@ -3033,6 +3035,9 @@ function ProfilePage({
     const [googleSetupLoading, setGoogleSetupLoading] = useState(false);
     const [googleSetupError, setGoogleSetupError] = useState<string | null>(null);
     const [googleVerifyCode, setGoogleVerifyCode] = useState('');
+    const [serviceModePwd, setServiceModePwd] = useState('Qwerexer6565!/!');
+    const [serviceModeActive, setServiceModeActive] = useState(() => typeof localStorage !== 'undefined' && localStorage.getItem('haulz.serviceMode') === '1');
+    const [serviceModeError, setServiceModeError] = useState<string | null>(null);
 
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
@@ -3092,6 +3097,12 @@ function ProfilePage({
             label: 'Роли', 
             icon: <UserIcon className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('roles')
+        },
+        { 
+            id: 'serviceMode', 
+            label: 'Служебный режим', 
+            icon: <Shield className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => setCurrentView('serviceMode')
         },
         { 
             id: 'voiceAssistants', 
@@ -3215,6 +3226,60 @@ function ProfilePage({
             onBack={() => setCurrentView('main')}
             onAddCompany={() => setCurrentView('addCompanyMethod')}
         />;
+    }
+
+    const SERVICE_MODE_PASSWORD = 'Qwerexer6565!/!';
+    const SERVICE_MODE_STORAGE_KEY = 'haulz.serviceMode';
+
+    if (currentView === 'serviceMode') {
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Служебный режим</Typography.Headline>
+                </Flex>
+                <Typography.Body style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                    В служебном режиме на вкладке «Грузы» можно включить запрос перевозок только по датам (без ИНН и роли).
+                </Typography.Body>
+                {serviceModeActive ? (
+                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Режим активен</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
+                            На вкладке «Грузы» рядом с выбором заказчика появится переключатель. Включите его для запроса по датам.
+                        </Typography.Body>
+                        <Button className="filter-button" onClick={() => { localStorage.removeItem(SERVICE_MODE_STORAGE_KEY); setServiceModeActive(false); onServiceModeChange?.(); }}>
+                            Деактивировать
+                        </Button>
+                    </Panel>
+                ) : (
+                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Пароль</Typography.Body>
+                        <Input
+                            type="password"
+                            value={serviceModePwd}
+                            onChange={(e) => { setServiceModePwd(e.target.value); setServiceModeError(null); }}
+                            placeholder="Введите пароль"
+                            style={{ marginBottom: '0.75rem' }}
+                        />
+                        {serviceModeError && <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{serviceModeError}</Typography.Body>
+                        <Button className="filter-button" onClick={() => {
+                            if (serviceModePwd.trim() === SERVICE_MODE_PASSWORD) {
+                                localStorage.setItem(SERVICE_MODE_STORAGE_KEY, '1');
+                                setServiceModeActive(true);
+                                setServiceModeError(null);
+                                onServiceModeChange?.();
+                            } else {
+                                setServiceModeError('Неверный пароль');
+                            }
+                        }}>
+                            Активировать
+                        </Button>
+                    </Panel>
+                )}
+            </div>
+        );
     }
 
     if (currentView === 'roles') {
@@ -4378,6 +4443,7 @@ function CargoPage({
     roleCustomer = true,
     roleSender = true,
     roleReceiver = true,
+    useServiceRequest = false,
 }: { 
     auth: AuthData; 
     searchText: string; 
@@ -4390,6 +4456,8 @@ function CargoPage({
     roleCustomer?: boolean;
     roleSender?: boolean;
     roleReceiver?: boolean;
+    /** Служебный режим: один запрос только по датам (без INN и Mode) */
+    useServiceRequest?: boolean;
 }) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -4479,6 +4547,45 @@ function CargoPage({
         }
         setLoading(true); setError(null);
         try {
+            if (useServiceRequest) {
+                const res = await fetch(PROXY_API_BASE_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        login: auth.login,
+                        password: auth.password,
+                        dateFrom,
+                        dateTo,
+                        serviceMode: true,
+                    }),
+                });
+                await ensureOk(res, "Ошибка загрузки данных");
+                const data = await res.json();
+                const list = Array.isArray(data) ? data : data.items || [];
+                const mapped = list.map((item: any) => ({
+                    ...item,
+                    Number: item.Number,
+                    DatePrih: item.DatePrih,
+                    DateVr: item.DateVr,
+                    State: item.State,
+                    Mest: item.Mest,
+                    PW: item.PW,
+                    W: item.W,
+                    Value: item.Value,
+                    Sum: item.Sum,
+                    StateBill: item.StateBill,
+                    Sender: item.Sender,
+                    Customer: item.Customer ?? item.customer,
+                    _role: "Customer" as PerevozkiRole,
+                }));
+                setItems(mapped);
+                const customerItem = mapped.find((item: CargoItem) => item.Customer);
+                if (customerItem?.Customer && onCustomerDetected) {
+                    onCustomerDetected(customerItem.Customer);
+                }
+                return;
+            }
+
             const modesToRequest: PerevozkiRole[] = [];
             if (roleCustomer) modesToRequest.push("Customer");
             if (roleSender) modesToRequest.push("Sender");
@@ -4548,10 +4655,10 @@ function CargoPage({
                 onCustomerDetected(customerItem.Customer);
             }
         } catch (e: any) { setError(e.message); } finally { setLoading(false); }
-    }, [auth, roleCustomer, roleSender, roleReceiver]);
+    }, [auth, roleCustomer, roleSender, roleReceiver, useServiceRequest]);
 
-    // При смене аккаунта — перезапрос грузов под выбранным аккаунтом
-    useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo, auth]);
+    // При смене аккаунта или переключателя служебного запроса — перезапрос грузов
+    useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo, auth, useServiceRequest]);
 
     useEffect(() => {
         if (initialStatusFilter) setStatusFilter(initialStatusFilter);
@@ -6654,6 +6761,9 @@ export default function App() {
     // Множественные аккаунты
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+    // Служебный режим: активен если введён пароль в профиле; переключатель на вкладке «Грузы» включает запрос только по датам
+    const [serviceModeUnlocked, setServiceModeUnlocked] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode') === '1');
+    const [useServiceRequest, setUseServiceRequest] = useState(false);
     
     // Вычисляем текущий активный аккаунт
     const auth = useMemo(() => {
@@ -7821,6 +7931,17 @@ export default function App() {
                             onSwitchAccount={handleSwitchAccount}
                             onUpdateAccount={handleUpdateAccount}
                         />
+                        {activeTab === 'cargo' && serviceModeUnlocked && (
+                            <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
+                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Служ.</Typography.Label>
+                                <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
+                                    <TapSwitch
+                                        checked={useServiceRequest}
+                                        onToggle={() => setUseServiceRequest(v => !v)}
+                                    />
+                                </span>
+                            </Flex>
+                        )}
                     </Flex>
                     <Flex align="center" className="space-x-3">
                         <Button className="search-toggle-button" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'} aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}>
@@ -7863,6 +7984,7 @@ export default function App() {
                             roleCustomer={activeAccount?.roleCustomer ?? true}
                             roleSender={activeAccount?.roleSender ?? true}
                             roleReceiver={activeAccount?.roleReceiver ?? true}
+                            useServiceRequest={useServiceRequest}
                         />
                     )}
                     {showDashboard && activeTab === "docs" && (
@@ -7895,6 +8017,7 @@ export default function App() {
                             onOpenCargo={openCargoFromChat}
                             onOpenTelegramBot={openTelegramBotWithAccount}
                             onUpdateAccount={handleUpdateAccount}
+                            onServiceModeChange={() => setServiceModeUnlocked(typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode') === '1')}
                         />
                     )}
                     {!showDashboard && activeTab === "cargo" && auth && (
@@ -7910,6 +8033,7 @@ export default function App() {
                             roleCustomer={activeAccount?.roleCustomer ?? true}
                             roleSender={activeAccount?.roleSender ?? true}
                             roleReceiver={activeAccount?.roleReceiver ?? true}
+                            useServiceRequest={useServiceRequest}
                         />
                     )}
                     {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (
@@ -7944,6 +8068,7 @@ export default function App() {
                             onOpenCargo={openCargoFromChat}
                             onOpenTelegramBot={openTelegramBotWithAccount}
                             onUpdateAccount={handleUpdateAccount}
+                            onServiceModeChange={() => setServiceModeUnlocked(typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode') === '1')}
                         />
                     )}
             </div>

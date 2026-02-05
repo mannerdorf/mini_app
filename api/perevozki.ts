@@ -33,6 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     dateTo = new Date().toISOString().split("T")[0],
     inn,
     mode,
+    serviceMode,
   } = body || {};
 
   if (!login || !password) {
@@ -44,16 +45,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)" });
   }
 
-  // Запрос данных перевозок: DateB, DateE, INN, Mode (Customer | Sender | Receiver)
+  // Запрос данных перевозок: DateB, DateE; при serviceMode не передаём INN и Mode
   const url = new URL(BASE_URL);
   url.searchParams.set("DateB", dateFrom);
   url.searchParams.set("DateE", dateTo);
-  if (inn) {
-    url.searchParams.set("INN", String(inn).trim());
-  }
-  const validModes = ["Customer", "Sender", "Receiver"];
-  if (mode && validModes.includes(String(mode))) {
-    url.searchParams.set("Mode", String(mode));
+  if (!serviceMode) {
+    if (inn) {
+      url.searchParams.set("INN", String(inn).trim());
+    }
+    const validModes = ["Customer", "Sender", "Receiver"];
+    if (mode && validModes.includes(String(mode))) {
+      url.searchParams.set("Mode", String(mode));
+    }
   }
 
   try {
