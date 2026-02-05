@@ -118,6 +118,7 @@ const getDateRange = (filter: DateFilter) => {
         case 'вчера': (() => { const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1); const d = yesterday.toISOString().split('T')[0]; dateFrom = d; dateTo = d; })(); break;
         case 'неделя': today.setDate(today.getDate() - 7); dateFrom = today.toISOString().split('T')[0]; break;
         case 'месяц': today.setMonth(today.getMonth() - 1); dateFrom = today.toISOString().split('T')[0]; break;
+        case 'год': dateFrom = `${today.getFullYear()}-01-01`; break;
         default: break;
     }
     return { dateFrom, dateTo };
@@ -1661,9 +1662,9 @@ function DashboardPage({
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
-                        {['сегодня', 'вчера', 'неделя', 'месяц', 'период'].map(key => (
+                        {['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => (
                             <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key === 'период') setIsCustomModalOpen(true); }}>
-                                <Typography.Body>{key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
+                                <Typography.Body>{key === 'год' ? 'Год' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
                             </div>
                         ))}
                     </FilterDropdownPortal>
@@ -5107,9 +5108,9 @@ function CargoPage({
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
-                        {['сегодня', 'вчера', 'неделя', 'месяц', 'период'].map(key => (
+                        {['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => (
                             <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key==='период') setIsCustomModalOpen(true); }}>
-                                <Typography.Body>{key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
+                                <Typography.Body>{key === 'год' ? 'Год' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
                             </div>
                         ))}
                     </FilterDropdownPortal>
