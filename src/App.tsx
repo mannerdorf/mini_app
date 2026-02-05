@@ -201,10 +201,17 @@ const DateText = ({ value, className, style }: { value?: string; className?: str
     );
 };
 
-const formatCurrency = (value: number | string | undefined): string => {
+const formatCurrency = (value: number | string | undefined, integers?: boolean): string => {
     if (value === undefined || value === null || (typeof value === 'string' && value.trim() === "")) return '-';
     const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
-    return isNaN(num) ? String(value) : new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 2 }).format(num);
+    if (isNaN(num)) return String(value);
+    const rounded = integers ? Math.round(num) : num;
+    return new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB',
+        minimumFractionDigits: integers ? 0 : 2,
+        maximumFractionDigits: integers ? 0 : 2,
+    }).format(rounded);
 };
 
 /** Все города Калининградской области → KGD; все города Московской области → MSK */
@@ -380,6 +387,13 @@ const BILL_STATUS_MAP: Record<BillStatusFilterKey, string> = {
     partial: 'Частично',
     cancelled: 'Отменён',
     unknown: 'Не указан',
+};
+
+/** Статус «получена информация» — исключаем из отображения и фильтров */
+const isReceivedInfoStatus = (s: string | undefined): boolean => {
+    if (!s) return false;
+    const l = normalizeStatus(s).toLowerCase();
+    return /получена\s*информация|полученаинформация/.test(l) || (l.includes('получена') && l.includes('информация'));
 };
 
 const getFilterKeyByStatus = (s: string | undefined): StatusFilter => { 
@@ -1054,11 +1068,11 @@ function DashboardPage({
     }, [useServiceRequest, stripTab]);
 
     const unpaidCount = useMemo(() => {
-        return items.filter(item => getPaymentFilterKey(item.StateBill) === "unpaid").length;
+        return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
     }, [items]);
 
     const readyCount = useMemo(() => {
-        return items.filter(item => getFilterKeyByStatus(item.State) === "ready").length;
+        return items.filter(item => !isReceivedInfoStatus(item.State) && getFilterKeyByStatus(item.State) === "ready").length;
     }, [items]);
     
     const testMaxMessage = async () => {
@@ -1177,7 +1191,7 @@ function DashboardPage({
     
     // Фильтрация
     const filteredItems = useMemo(() => {
-        let res = items;
+        let res = items.filter(i => !isReceivedInfoStatus(i.State));
         if (statusFilter === 'favorites') {
             // Фильтр избранных (если нужно)
             const favorites = JSON.parse(localStorage.getItem('haulz.favorites') || '[]') as string[];
@@ -4829,7 +4843,7 @@ function CargoPage({
 
     // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
-        let res = items;
+        let res = items.filter(i => !isReceivedInfoStatus(i.State));
         if (statusFilter === 'favorites') {
             // Фильтр избранных
             res = res.filter(i => i.Number && favorites.has(i.Number));
@@ -5200,19 +5214,19 @@ function CargoPage({
                         <Flex direction="column" align="center">
                             <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                {formatCurrency(summary.sum)}
+                                {formatCurrency(summary.sum, true)}
                             </Typography.Body>
                         </Flex>
                         <Flex direction="column" align="center">
                             <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Мест</Typography.Label>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                {summary.mest.toFixed(0)}
+                                {Math.round(summary.mest)}
                             </Typography.Body>
                         </Flex>
                         <Flex direction="column" align="center">
                             <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Плат. вес</Typography.Label>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                {summary.pw.toFixed(2)} кг
+                                {Math.round(summary.pw)} кг
                             </Typography.Body>
                         </Flex>
                         {useServiceRequest && (
@@ -5220,13 +5234,13 @@ function CargoPage({
                                 <Flex direction="column" align="center">
                                     <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Вес</Typography.Label>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                        {summary.w.toFixed(2)} кг
+                                        {Math.round(summary.w)} кг
                                     </Typography.Body>
                                 </Flex>
                                 <Flex direction="column" align="center">
                                     <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Объём</Typography.Label>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                        {summary.vol.toFixed(2)} м³
+                                        {Math.round(summary.vol)} м³
                                     </Typography.Body>
                                 </Flex>
                             </>
@@ -5302,11 +5316,11 @@ function CargoPage({
                                         title={expandedTableCustomer === row.customer ? 'Свернуть детали' : 'Показать перевозки по строчно'}
                                     >
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.mest.toFixed(0)}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.pw.toFixed(2)} кг</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.w.toFixed(2)} кг</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.vol.toFixed(2)} м³</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum, true)}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{Math.round(row.mest)}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{Math.round(row.pw)} кг</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{Math.round(row.w)} кг</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{Math.round(row.vol)} м³</td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
                                     </tr>
                                     {expandedTableCustomer === row.customer && (
@@ -5335,9 +5349,9 @@ function CargoPage({
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}>{item.Number || '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{typeof item.Mest === 'string' ? item.Mest : (item.Mest ?? '—')}</td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${typeof item.PW === 'string' ? item.PW : Number(item.PW)} кг` : '—'}</td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number) : '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
                                                                 </tr>
                                                             ))}
                                                         </tbody>
