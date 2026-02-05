@@ -110,11 +110,12 @@ const STATS_LEVEL_2: { [key: string]: CargoStat[] } = {
 // --- HELPERS ---
 const getDateRange = (filter: DateFilter) => {
     const today = new Date();
-    const dateTo = getTodayDate();
+    let dateTo = getTodayDate();
     let dateFrom = getTodayDate();
     switch (filter) {
-        case 'все': dateFrom = getSixMonthsAgoDate(); break; // ИСПРАВЛЕНО: 'all' на 'все'
+        case 'все': dateFrom = getSixMonthsAgoDate(); break;
         case 'сегодня': dateFrom = getTodayDate(); break;
+        case 'вчера': (() => { const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1); const d = yesterday.toISOString().split('T')[0]; dateFrom = d; dateTo = d; })(); break;
         case 'неделя': today.setDate(today.getDate() - 7); dateFrom = today.toISOString().split('T')[0]; break;
         case 'месяц': today.setMonth(today.getMonth() - 1); dateFrom = today.toISOString().split('T')[0]; break;
         default: break;
@@ -982,12 +983,15 @@ function DashboardPage({
     onClose,
     onOpenCargoFilters,
     showSums = true,
+    useServiceRequest = false,
 }: {
     auth: AuthData;
     onClose: () => void;
     onOpenCargoFilters: (filters: { status?: StatusFilter; search?: string }) => void;
     /** false = роль только отправитель/получатель, раздел с суммами недоступен */
     showSums?: boolean;
+    /** служебный режим: запрос перевозок только по датам (без INN и Mode) */
+    useServiceRequest?: boolean;
 }) {
     const [items, setItems] = useState<CargoItem[]>([]);
     const [debugInfo, setDebugInfo] = useState<string>("");
@@ -1103,16 +1107,18 @@ function DashboardPage({
         setLoading(true);
         setError(null);
         try {
+            const body: Record<string, unknown> = {
+                login: auth.login,
+                password: auth.password,
+                dateFrom,
+                dateTo,
+            };
+            if (!useServiceRequest && auth.inn) body.inn = auth.inn;
+            if (useServiceRequest) body.serviceMode = true;
             const res = await fetch(PROXY_API_BASE_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    login: auth.login,
-                    password: auth.password,
-                    dateFrom,
-                    dateTo,
-                    ...(auth.inn ? { inn: auth.inn } : {}),
-                }),
+                body: JSON.stringify(body),
             });
             await ensureOk(res, "Ошибка загрузки данных");
             const data = await res.json();
@@ -1137,12 +1143,12 @@ function DashboardPage({
         } finally {
             setLoading(false);
         }
-    }, [auth]);
+    }, [auth, useServiceRequest]);
 
-    // Всегда грузим данные по текущему выбранному аккаунту; при смене аккаунта — перезапрос
+    // Всегда грузим данные по текущему выбранному аккаунту; при смене аккаунта или служебного режима — перезапрос
     useEffect(() => {
         loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo);
-    }, [apiDateRange, loadCargo, auth]);
+    }, [apiDateRange, loadCargo, auth, useServiceRequest]);
 
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
@@ -1582,7 +1588,7 @@ function DashboardPage({
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
-                        {['сегодня', 'неделя', 'месяц', 'период'].map(key => (
+                        {['сегодня', 'вчера', 'неделя', 'месяц', 'период'].map(key => (
                             <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key === 'период') setIsCustomModalOpen(true); }}>
                                 <Typography.Body>{key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
                             </div>
@@ -3057,7 +3063,7 @@ function ProfilePage({
     const [googleSetupLoading, setGoogleSetupLoading] = useState(false);
     const [googleSetupError, setGoogleSetupError] = useState<string | null>(null);
     const [googleVerifyCode, setGoogleVerifyCode] = useState('');
-    const [serviceModePwd, setServiceModePwd] = useState('Qwerexer6565!/!');
+    const [serviceModePwd, setServiceModePwd] = useState('Haulz2026!/!');
     const [serviceModeActive, setServiceModeActive] = useState(() => typeof localStorage !== 'undefined' && localStorage.getItem('haulz.serviceMode') === '1');
     const [serviceModeError, setServiceModeError] = useState<string | null>(null);
 
@@ -3250,7 +3256,7 @@ function ProfilePage({
         />;
     }
 
-    const SERVICE_MODE_PASSWORD = 'Qwerexer6565!/!';
+    const SERVICE_MODE_PASSWORD = 'Haulz2026!/!';
     const SERVICE_MODE_STORAGE_KEY = 'haulz.serviceMode';
 
     if (currentView === 'serviceMode') {
@@ -4907,7 +4913,7 @@ function CargoPage({
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
-                        {['сегодня', 'неделя', 'месяц', 'период'].map(key => (
+                        {['сегодня', 'вчера', 'неделя', 'месяц', 'период'].map(key => (
                             <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key==='период') setIsCustomModalOpen(true); }}>
                                 <Typography.Body>{key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
                             </div>
@@ -7961,7 +7967,7 @@ export default function App() {
                             onSwitchAccount={handleSwitchAccount}
                             onUpdateAccount={handleUpdateAccount}
                         />
-                        {activeTab === 'cargo' && serviceModeUnlocked && (
+                        {serviceModeUnlocked && (
                             <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
                                 <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Служ.</Typography.Label>
                                 <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
@@ -7999,6 +8005,7 @@ export default function App() {
                             onClose={() => {}}
                             onOpenCargoFilters={openCargoWithFilters}
                             showSums={activeAccount?.roleCustomer ?? true}
+                            useServiceRequest={useServiceRequest}
                         />
                     )}
                     {showDashboard && activeTab === "cargo" && auth && (
@@ -8072,6 +8079,7 @@ export default function App() {
                             onClose={() => {}}
                             onOpenCargoFilters={openCargoWithFilters}
                             showSums={activeAccount?.roleCustomer ?? true}
+                            useServiceRequest={useServiceRequest}
                         />
                     )}
                     {!showDashboard && activeTab === "support" && auth && (

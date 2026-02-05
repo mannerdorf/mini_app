@@ -30,7 +30,7 @@ export type Account = {
 
 export type Tab = "home" | "cargo" | "docs" | "support" | "profile" | "dashboard";
 
-export type DateFilter = "все" | "сегодня" | "неделя" | "месяц" | "период";
+export type DateFilter = "все" | "сегодня" | "вчера" | "неделя" | "месяц" | "период";
 
 export type StatusFilter = "all" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
 
