@@ -4853,10 +4853,22 @@ function CargoPage({
             return acc + pw;
         }, 0);
         
+        const totalW = filteredItems.reduce((acc, item) => {
+            const w = typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
+            return acc + w;
+        }, 0);
+        
+        const totalValue = filteredItems.reduce((acc, item) => {
+            const v = typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
+            return acc + v;
+        }, 0);
+        
         return {
             sum: totalSum,
             mest: totalMest,
-            pw: totalPW
+            pw: totalPW,
+            w: totalW,
+            vol: totalValue
         };
     }, [filteredItems]);
 
@@ -4986,7 +4998,7 @@ function CargoPage({
                 </div>
             </div>
 
-            {/* Суммирующая строка: для отправителя/получателя — только платный вес и штуки, без стоимости */}
+            {/* Суммирующая строка */}
             <div className="cargo-card mb-4" style={{ padding: '0.75rem' }}>
                 <Flex justify="center" align="center">
                     <Flex gap="1.5rem" align="center" style={{ flexWrap: 'wrap' }}>
@@ -5008,6 +5020,22 @@ function CargoPage({
                                 {summary.pw.toFixed(2)} кг
                             </Typography.Body>
                         </Flex>
+                        {useServiceRequest && (
+                            <>
+                                <Flex direction="column" align="center">
+                                    <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Вес</Typography.Label>
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                        {summary.w.toFixed(2)} кг
+                                    </Typography.Body>
+                                </Flex>
+                                <Flex direction="column" align="center">
+                                    <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Объём</Typography.Label>
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                        {summary.vol.toFixed(2)} м³
+                                    </Typography.Body>
+                                </Flex>
+                            </>
+                        )}
                     </Flex>
                 </Flex>
             </div>
