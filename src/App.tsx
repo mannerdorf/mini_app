@@ -1035,6 +1035,11 @@ function DashboardPage({
         if (!showSums && chartType === 'money') setChartType('weight');
     }, [showSums]);
 
+    // При выключении служебного режима сбрасываем вкладку «Заказчик»
+    useEffect(() => {
+        if (!useServiceRequest && stripTab === 'customer') setStripTab('type');
+    }, [useServiceRequest, stripTab]);
+
     const unpaidCount = useMemo(() => {
         return items.filter(item => getPaymentFilterKey(item.StateBill) === "unpaid").length;
     }, [items]);
@@ -1538,7 +1543,7 @@ function DashboardPage({
                         <Typography.Body style={{ fontWeight: 600, marginBottom: '0.75rem' }}>{formatStripValue()}</Typography.Body>
                         <div style={{ marginBottom: '0.75rem', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch' }}>
                             <Flex gap="0.5rem" style={{ flexWrap: 'nowrap', minWidth: 'min-content' }}>
-                                {(['type', 'sender', 'receiver'] as const).map((tab) => (
+                                {((useServiceRequest ? ['type', 'sender', 'receiver', 'customer'] : ['type', 'sender', 'receiver']) as const).map((tab) => (
                                     <Button
                                         key={tab}
                                         className="filter-button"
@@ -1551,7 +1556,7 @@ function DashboardPage({
                                         }}
                                         onClick={() => setStripTab(tab)}
                                     >
-                                        {tab === 'type' ? 'Тип' : tab === 'sender' ? 'Отправитель' : 'Получатель'}
+                                        {tab === 'type' ? 'Тип' : tab === 'sender' ? 'Отправитель' : tab === 'receiver' ? 'Получатель' : 'Заказчик'}
                                     </Button>
                                 ))}
                             </Flex>
@@ -1593,6 +1598,18 @@ function DashboardPage({
                                     <Typography.Body style={{ flexShrink: 0, fontWeight: 600, minWidth: 36 }}>{row.percent}%</Typography.Body>
                                 </div>
                             ))}
+                            {stripTab === 'customer' && stripDiagramByCustomer.map((row, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.color, flexShrink: 0 }} />
+                                    <Typography.Body style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={row.name}>{row.name}</Typography.Body>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                            <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
+                                        </div>
+                                    </div>
+                                    <Typography.Body style={{ flexShrink: 0, fontWeight: 600, minWidth: 36 }}>{row.percent}%</Typography.Body>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
@@ -1604,7 +1621,7 @@ function DashboardPage({
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -1632,7 +1649,7 @@ function DashboardPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -1645,7 +1662,7 @@ function DashboardPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
