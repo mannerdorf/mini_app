@@ -1799,6 +1799,7 @@ function CustomerSwitcher({
     const [isOpen, setIsOpen] = useState(false);
     const [companies, setCompanies] = useState<HeaderCompanyRow[]>([]);
     const [loading, setLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const activeAccount = accounts.find((acc) => acc.id === activeAccountId) || null;
     const activeLogin = activeAccount?.login?.trim().toLowerCase() ?? "";
@@ -1843,7 +1844,13 @@ function CustomerSwitcher({
             onUpdateAccount(acc.id, { activeCustomerInn: c.inn });
         }
         setIsOpen(false);
+        setSearchQuery('');
     };
+
+    const searchLower = searchQuery.trim().toLowerCase();
+    const filteredCompanies = searchLower
+        ? companies.filter((c) => stripOoo(c.name).toLowerCase().includes(searchLower) || (c.login || '').toLowerCase().includes(searchLower))
+        : companies;
 
     if (!activeAccountId || !activeAccount) return null;
 
@@ -1878,7 +1885,21 @@ function CustomerSwitcher({
                             <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Нет компаний</Typography.Body>
                         </div>
                     ) : (
-                        companies.map((c) => {
+                        <>
+                            <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--color-border)' }} onClick={(e) => e.stopPropagation()}>
+                                <Input
+                                    type="text"
+                                    placeholder="Поиск по названию…"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    style={{ fontSize: '0.9rem', padding: '0.4rem 0.5rem' }}
+                                />
+                            </div>
+                            {filteredCompanies.length === 0 ? (
+                                <div style={{ padding: '0.75rem 1rem' }}>
+                                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Ничего не найдено</Typography.Body>
+                                </div>
+                            ) : filteredCompanies.map((c) => {
                             const isActive = activeLogin === c.login && (c.inn === '' || c.inn === activeInn);
                             return (
                                 <div
@@ -1898,7 +1919,8 @@ function CustomerSwitcher({
                                     {isActive && <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />}
                                 </div>
                             );
-                        })
+                        })}
+                        </>
                     )}
                 </div>
             )}
@@ -5263,6 +5285,11 @@ function CargoPage({
                                     );
                                 })()}
                             </Flex>
+                            {useServiceRequest && (item.Customer ?? (item as any).customer) && (
+                                <Flex justify="flex-end" style={{ marginTop: '0.35rem' }}>
+                                    <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{stripOoo(item.Customer ?? (item as any).customer)}</Typography.Label>
+                                </Flex>
+                            )}
                     </Panel>
                 ))}
             </div>
