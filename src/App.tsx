@@ -4616,6 +4616,8 @@ function CargoPage({
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
     const [showSummary, setShowSummary] = useState(true);
+    /** В служебном режиме: табличный вид с суммированием по заказчику */
+    const [tableModeByCustomer, setTableModeByCustomer] = useState(false);
     const dateButtonRef = useRef<HTMLDivElement>(null);
     const statusButtonRef = useRef<HTMLDivElement>(null);
     const senderButtonRef = useRef<HTMLDivElement>(null);
@@ -4978,6 +4980,32 @@ function CargoPage({
         };
     }, [filteredItems]);
 
+    /** Группировка по заказчику для табличного режима (только при useServiceRequest) */
+    const groupedByCustomer = useMemo(() => {
+        const map = new Map<string, { customer: string; items: CargoItem[]; sum: number; mest: number; pw: number; w: number; vol: number }>();
+        filteredItems.forEach(item => {
+            const key = (item.Customer ?? (item as any).customer ?? '').trim() || '—';
+            const existing = map.get(key);
+            const sum = typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+            const mest = typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
+            const pw = typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            const w = typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
+            const vol = typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
+            if (existing) {
+                existing.items.push(item);
+                existing.sum += sum;
+                existing.mest += mest;
+                existing.pw += pw;
+                existing.w += w;
+                existing.vol += vol;
+            } else {
+                map.set(key, { customer: key, items: [item], sum, mest, pw, w, vol });
+            }
+        });
+        return Array.from(map.entries())
+            .map(([, v]) => v)
+            .sort((a, b) => (stripOoo(b.customer) || '').localeCompare(stripOoo(a.customer) || ''));
+    }, [filteredItems]);
 
     return (
         <div className="w-full">
@@ -5162,6 +5190,17 @@ function CargoPage({
                 </Flex>
             </div>
 
+            {/* Тумблер табличного режима по заказчику — только в служебном режиме */}
+            {useServiceRequest && (
+                <Flex align="center" gap="0.5rem" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                    <Typography.Body style={{ fontSize: '0.9rem' }}>Табличный режим (по заказчику)</Typography.Body>
+                    <Switch
+                        checked={tableModeByCustomer}
+                        onCheckedChange={(checked) => setTableModeByCustomer(checked ?? false)}
+                    />
+                </Flex>
+            )}
+
             {/* List */}
             {loading && (
                 <Flex justify="center" className="text-center py-8">
@@ -5190,9 +5229,41 @@ function CargoPage({
                     </Flex>
                 </Panel>
             )}
+
+            {/* Табличный режим по заказчику (служебный режим) */}
+            {!loading && !error && useServiceRequest && tableModeByCustomer && groupedByCustomer.length > 0 && (
+                <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Мест</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Плат. вес</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Объём</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Перевозок</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {groupedByCustomer.map((row, i) => (
+                                <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                    <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
+                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>
+                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.mest.toFixed(0)}</td>
+                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.pw.toFixed(2)} кг</td>
+                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.w.toFixed(2)} кг</td>
+                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.vol.toFixed(2)} м³</td>
+                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
             
-            {/* List */}
-            {filteredItems.length > 0 && (
+            {/* List (карточки) — скрываем в табличном режиме */}
+            {filteredItems.length > 0 && !(useServiceRequest && tableModeByCustomer) && (
             <div className="cargo-list">
                 {filteredItems.map((item: CargoItem, idx: number) => (
                         <Panel 
