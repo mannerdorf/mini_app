@@ -4618,6 +4618,11 @@ function CargoPage({
     const [showSummary, setShowSummary] = useState(true);
     /** В служебном режиме: табличный вид с суммированием по заказчику */
     const [tableModeByCustomer, setTableModeByCustomer] = useState(false);
+    /** Сортировка таблицы по заказчику: столбец и направление (а-я / я-а) */
+    const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'mest' | 'pw' | 'w' | 'vol' | 'count'>('customer');
+    const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
+    /** Развёрнутая строка таблицы по заказчику: показываем детальные перевозки */
+    const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
     const dateButtonRef = useRef<HTMLDivElement>(null);
     const statusButtonRef = useRef<HTMLDivElement>(null);
     const senderButtonRef = useRef<HTMLDivElement>(null);
@@ -5002,10 +5007,39 @@ function CargoPage({
                 map.set(key, { customer: key, items: [item], sum, mest, pw, w, vol });
             }
         });
-        return Array.from(map.entries())
-            .map(([, v]) => v)
-            .sort((a, b) => (stripOoo(b.customer) || '').localeCompare(stripOoo(a.customer) || ''));
+        return Array.from(map.entries()).map(([, v]) => v);
     }, [filteredItems]);
+
+    /** Отсортированные по выбранному столбцу данные для таблицы */
+    const sortedGroupedByCustomer = useMemo(() => {
+        const key = (row: { customer: string; sum: number; mest: number; pw: number; w: number; vol: number; items: CargoItem[] }) => {
+            switch (tableSortColumn) {
+                case 'customer': return (stripOoo(row.customer) || '').toLowerCase();
+                case 'sum': return row.sum;
+                case 'mest': return row.mest;
+                case 'pw': return row.pw;
+                case 'w': return row.w;
+                case 'vol': return row.vol;
+                case 'count': return row.items.length;
+                default: return (stripOoo(row.customer) || '').toLowerCase();
+            }
+        };
+        return [...groupedByCustomer].sort((a, b) => {
+            const va = key(a);
+            const vb = key(b);
+            const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
+            return tableSortOrder === 'asc' ? cmp : -cmp;
+        });
+    }, [groupedByCustomer, tableSortColumn, tableSortOrder]);
+
+    const handleTableSort = (column: typeof tableSortColumn) => {
+        if (tableSortColumn === column) {
+            setTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
+        } else {
+            setTableSortColumn(column);
+            setTableSortOrder('asc');
+        }
+    };
 
     return (
         <div className="w-full">
@@ -5236,26 +5270,83 @@ function CargoPage({
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Мест</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Плат. вес</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Объём</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Перевозок</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка: первый клик А–Я, второй Я–А">
+                                    Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
+                                </th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка: первый клик А–Я, второй Я–А">
+                                    Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
+                                </th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('mest')} title="Сортировка: первый клик А–Я, второй Я–А">
+                                    Мест {tableSortColumn === 'mest' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
+                                </th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('pw')} title="Сортировка: первый клик А–Я, второй Я–А">
+                                    Плат. вес {tableSortColumn === 'pw' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
+                                </th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('w')} title="Сортировка: первый клик А–Я, второй Я–А">
+                                    Вес {tableSortColumn === 'w' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
+                                </th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('vol')} title="Сортировка: первый клик А–Я, второй Я–А">
+                                    Объём {tableSortColumn === 'vol' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
+                                </th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка: первый клик А–Я, второй Я–А">
+                                    Перевозок {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
-                            {groupedByCustomer.map((row, i) => (
-                                <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                    <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
-                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>
-                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.mest.toFixed(0)}</td>
-                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.pw.toFixed(2)} кг</td>
-                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.w.toFixed(2)} кг</td>
-                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.vol.toFixed(2)} м³</td>
-                                    <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
-                                </tr>
+                            {sortedGroupedByCustomer.map((row, i) => (
+                                <React.Fragment key={i}>
+                                    <tr
+                                        style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }}
+                                        onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)}
+                                        title={expandedTableCustomer === row.customer ? 'Свернуть детали' : 'Показать перевозки по строчно'}
+                                    >
+                                        <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.mest.toFixed(0)}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.pw.toFixed(2)} кг</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.w.toFixed(2)} кг</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.vol.toFixed(2)} м³</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
+                                    </tr>
+                                    {expandedTableCustomer === row.customer && (
+                                        <tr key={`${i}-detail`}>
+                                            <td colSpan={7} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
+                                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                        <thead>
+                                                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата прихода</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Мест</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Плат. вес</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {row.items.map((item, j) => (
+                                                                <tr
+                                                                    key={item.Number || j}
+                                                                    style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
+                                                                    onClick={(e) => { e.stopPropagation(); setSelectedCargo(item); }}
+                                                                    title="Открыть карточку перевозки"
+                                                                >
+                                                                    <td style={{ padding: '0.35rem 0.3rem' }}>{item.Number || '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{typeof item.Mest === 'string' ? item.Mest : (item.Mest ?? '—')}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${typeof item.PW === 'string' ? item.PW : Number(item.PW)} кг` : '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number) : '—'}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
                             ))}
                         </tbody>
                     </table>
