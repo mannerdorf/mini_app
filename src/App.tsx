@@ -1039,13 +1039,13 @@ function DashboardPage({
     const [slaDetailsOpen, setSlaDetailsOpen] = useState(false);
     
     // Chart type selector: деньги / вес / объём (при !showSums доступны только вес и объём)
-    const [chartType, setChartType] = useState<'money' | 'weight' | 'volume' | 'pieces'>(() => (showSums ? 'money' : 'weight'));
+    const [chartType, setChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>(() => (showSums ? 'money' : 'paidWeight'));
     const [stripExpanded, setStripExpanded] = useState(false);
     const [stripTab, setStripTab] = useState<'type' | 'sender' | 'receiver' | 'customer'>('type');
 
     // При отключении раздела сумм (роль отправитель/получатель) переключаем тип графика с денег на вес
     useEffect(() => {
-        if (!showSums && chartType === 'money') setChartType('weight');
+        if (!showSums && chartType === 'money') setChartType('paidWeight');
     }, [showSums]);
 
     // При выключении служебного режима сбрасываем вкладку «Заказчик»
@@ -1198,16 +1198,17 @@ function DashboardPage({
     
     // Подготовка данных для графиков (группировка по датам)
     const chartData = useMemo(() => {
-        const dataMap = new Map<string, { date: string; sum: number; pw: number; mest: number; vol: number }>();
+        const dataMap = new Map<string, { date: string; sum: number; pw: number; w: number; mest: number; vol: number }>();
         
         filteredItems.forEach(item => {
             if (!item.DatePrih) return;
             const dateKey = item.DatePrih.split('T')[0];
             const displayDate = formatDate(item.DatePrih);
             if (!dateKey || displayDate === '-') return;
-            const existing = dataMap.get(dateKey) || { date: displayDate, sum: 0, pw: 0, mest: 0, vol: 0 };
+            const existing = dataMap.get(dateKey) || { date: displayDate, sum: 0, pw: 0, w: 0, mest: 0, vol: 0 };
             existing.sum += typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
             existing.pw += typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            existing.w += typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
             existing.mest += typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
             existing.vol += typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
             dataMap.set(dateKey, existing);
@@ -1224,20 +1225,22 @@ function DashboardPage({
 
     const DIAGRAM_COLORS = ['#06b6d4', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#3b82f6', '#ef4444', '#84cc16'];
     const stripTotals = useMemo(() => {
-        let sum = 0, pw = 0, vol = 0, mest = 0;
+        let sum = 0, pw = 0, w = 0, vol = 0, mest = 0;
         filteredItems.forEach(item => {
             sum += typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
             pw += typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            w += typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
             vol += typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
             mest += typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
         });
-        return { sum, pw, vol, mest };
+        return { sum, pw, w, vol, mest };
     }, [filteredItems]);
     const stripDiagramByType = useMemo(() => {
         let autoVal = 0, ferryVal = 0;
         const getVal = (item: CargoItem) => {
             if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
-            if (chartType === 'weight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            if (chartType === 'weight') return typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
             if (chartType === 'pieces') return typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
             return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
         };
@@ -1297,7 +1300,8 @@ function DashboardPage({
         const map = new Map<string, number>();
         const getVal = (item: CargoItem) => {
             if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
-            if (chartType === 'weight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            if (chartType === 'weight') return typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
             if (chartType === 'pieces') return typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
             return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
         };
@@ -1314,7 +1318,8 @@ function DashboardPage({
         const map = new Map<string, number>();
         const getVal = (item: CargoItem) => {
             if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
-            if (chartType === 'weight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            if (chartType === 'weight') return typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
             if (chartType === 'pieces') return typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
             return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
         };
@@ -1331,7 +1336,8 @@ function DashboardPage({
         const map = new Map<string, number>();
         const getVal = (item: CargoItem) => {
             if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
-            if (chartType === 'weight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            if (chartType === 'weight') return typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
             if (chartType === 'pieces') return typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
             return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
         };
@@ -1498,7 +1504,8 @@ function DashboardPage({
     
     const formatStripValue = (): string => {
         if (chartType === 'money') return `${Math.round(stripTotals.sum).toLocaleString('ru-RU')} ₽`;
-        if (chartType === 'weight') return `${Math.round(stripTotals.pw).toLocaleString('ru-RU')} кг`;
+        if (chartType === 'paidWeight') return `${Math.round(stripTotals.pw).toLocaleString('ru-RU')} кг`;
+        if (chartType === 'weight') return `${Math.round(stripTotals.w).toLocaleString('ru-RU')} кг`;
         if (chartType === 'pieces') return `${Math.round(stripTotals.mest).toLocaleString('ru-RU')} шт`;
         return `${stripTotals.vol.toFixed(2).replace('.', ',')} м³`;
     };
@@ -1543,11 +1550,12 @@ function DashboardPage({
                     </span>
                     <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                         {showSums && (
-                            <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Деньги"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                            <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Рубли"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                         )}
-                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'weight' ? '#10b981' : 'transparent', border: 'none' }} onClick={() => setChartType('weight')} title="Вес"><Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'paidWeight' ? '#10b981' : 'transparent', border: 'none' }} onClick={() => setChartType('paidWeight')} title="Платный вес"><Scale className="w-4 h-4" style={{ color: chartType === 'paidWeight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'weight' ? '#0d9488' : 'transparent', border: 'none' }} onClick={() => setChartType('weight')} title="Вес"><Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                         <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'volume' ? '#f59e0b' : 'transparent', border: 'none' }} onClick={() => setChartType('volume')} title="Объём"><List className="w-4 h-4" style={{ color: chartType === 'volume' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
-                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'pieces' ? '#8b5cf6' : 'transparent', border: 'none' }} onClick={() => setChartType('pieces')} title="Места (шт)"><Package className="w-4 h-4" style={{ color: chartType === 'pieces' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'pieces' ? '#8b5cf6' : 'transparent', border: 'none' }} onClick={() => setChartType('pieces')} title="Шт"><Package className="w-4 h-4" style={{ color: chartType === 'pieces' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                     </Flex>
                     <ChevronDown className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', transform: stripExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
                 </button>
@@ -1771,10 +1779,16 @@ function DashboardPage({
                                 color = "#6366f1";
                                 formatValue = (val) => `${Math.round(val).toLocaleString('ru-RU')} ₽`;
                                 break;
-                            case 'weight':
+                            case 'paidWeight':
                                 chartDataForType = chartData.map(d => ({ date: d.date, value: Math.round(d.pw) }));
                                 title = "Динамика в платном весе";
                                 color = "#10b981";
+                                formatValue = (val) => `${Math.round(val)} кг`;
+                                break;
+                            case 'weight':
+                                chartDataForType = chartData.map(d => ({ date: d.date, value: Math.round(d.w) }));
+                                title = "Динамика по весу";
+                                color = "#0d9488";
                                 formatValue = (val) => `${Math.round(val)} кг`;
                                 break;
                             case 'volume':
@@ -4593,10 +4607,12 @@ function CargoPage({
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
+    const [billStatusFilter, setBillStatusFilter] = useState<BillStatusFilterKey>('all');
     const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
     const [routeFilter, setRouteFilter] = useState<'all' | 'MSK-KGD' | 'KGD-MSK'>('all');
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
+    const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
     const [showSummary, setShowSummary] = useState(true);
@@ -4604,6 +4620,7 @@ function CargoPage({
     const statusButtonRef = useRef<HTMLDivElement>(null);
     const senderButtonRef = useRef<HTMLDivElement>(null);
     const receiverButtonRef = useRef<HTMLDivElement>(null);
+    const billStatusButtonRef = useRef<HTMLDivElement>(null);
     const typeButtonRef = useRef<HTMLDivElement>(null);
     const routeButtonRef = useRef<HTMLDivElement>(null);
     // Sort State
@@ -4819,6 +4836,7 @@ function CargoPage({
         }
         if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
         if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
+        if (useServiceRequest && billStatusFilter !== 'all') res = res.filter(i => getPaymentFilterKey(i.StateBill) === billStatusFilter);
         if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
         if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
         if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
@@ -4922,7 +4940,7 @@ function CargoPage({
         }
         
         return res;
-    }, [items, statusFilter, searchText, senderFilter, receiverFilter, typeFilter, routeFilter, sortBy, sortOrder, favorites]);
+    }, [items, statusFilter, searchText, senderFilter, receiverFilter, billStatusFilter, useServiceRequest, typeFilter, routeFilter, sortBy, sortOrder, favorites]);
 
     // Подсчет сумм из отфильтрованных элементов
     const summary = useMemo(() => {
@@ -5008,7 +5026,7 @@ function CargoPage({
                         )}
                     </Button>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -5022,7 +5040,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -5036,7 +5054,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -5049,7 +5067,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -5060,9 +5078,25 @@ function CargoPage({
                         ))}
                     </FilterDropdownPortal>
                 </div>
+                {useServiceRequest && (
+                    <div className="filter-group" style={{ flexShrink: 0 }}>
+                        <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                                Статус счёта: {BILL_STATUS_MAP[billStatusFilter]} <ChevronDown className="w-4 h-4"/>
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal triggerRef={billStatusButtonRef} isOpen={isBillStatusDropdownOpen}>
+                            {(['all', 'paid', 'unpaid', 'partial', 'cancelled', 'unknown'] as const).map(key => (
+                                <div key={key} className="dropdown-item" onClick={() => { setBillStatusFilter(key); setIsBillStatusDropdownOpen(false); }}>
+                                    <Typography.Body>{BILL_STATUS_MAP[key]}</Typography.Body>
+                                </div>
+                            ))}
+                        </FilterDropdownPortal>
+                    </div>
+                )}
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -5074,7 +5108,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                             Маршрут: {routeFilter === 'all' ? 'Все' : routeFilter} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
