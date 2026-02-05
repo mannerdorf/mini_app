@@ -5146,6 +5146,17 @@ function CargoPage({
                         <div className="dropdown-item" onClick={() => { setRouteFilter('KGD-MSK'); setIsRouteDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
                     </FilterDropdownPortal>
                 </div>
+                {useServiceRequest && (
+                    <div className="filter-group" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица по заказчику</Typography.Body>
+                        <span className="roles-switch-wrap" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                            <TapSwitch
+                                checked={tableModeByCustomer}
+                                onToggle={() => setTableModeByCustomer(v => !v)}
+                            />
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* Суммирующая строка */}
@@ -5189,17 +5200,6 @@ function CargoPage({
                     </Flex>
                 </Flex>
             </div>
-
-            {/* Тумблер табличного режима по заказчику — только в служебном режиме */}
-            {useServiceRequest && (
-                <Flex align="center" gap="0.5rem" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                    <Typography.Body style={{ fontSize: '0.9rem' }}>Табличный режим (по заказчику)</Typography.Body>
-                    <Switch
-                        checked={tableModeByCustomer}
-                        onCheckedChange={(checked) => setTableModeByCustomer(checked ?? false)}
-                    />
-                </Flex>
-            )}
 
             {/* List */}
             {loading && (
