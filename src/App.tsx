@@ -2321,7 +2321,7 @@ function DashboardPage({
                                                                                     <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{step.label}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', color: 'var(--color-text-secondary)' }}>{formatTimelineDate(step.date)}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: 'var(--color-text-secondary)' }}>{formatTimelineTime(step.date, i >= 1)}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: 'var(--color-text-secondary)' }}>{formatTimelineTime(step.date)}</td>
                                                                                     </tr>
                                                                                 ))}
                                                                             </tbody>
