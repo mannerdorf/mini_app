@@ -8313,12 +8313,14 @@ export default function App() {
             <header className="app-header">
                     <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <CustomerSwitcher
-                            accounts={accounts}
-                            activeAccountId={activeAccountId}
-                            onSwitchAccount={handleSwitchAccount}
-                            onUpdateAccount={handleUpdateAccount}
-                        />
+                        {!useServiceRequest && (
+                            <CustomerSwitcher
+                                accounts={accounts}
+                                activeAccountId={activeAccountId}
+                                onSwitchAccount={handleSwitchAccount}
+                                onUpdateAccount={handleUpdateAccount}
+                            />
+                        )}
                         {serviceModeUnlocked && (
                             <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
                                 <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Служ.</Typography.Label>
