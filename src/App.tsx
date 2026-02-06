@@ -191,6 +191,20 @@ const formatDate = (dateString: string | undefined): string => {
     return dateString;
 };
 
+/** Дата и время (DD.MM.YYYY, HH:mm) для статусов перевозки */
+const formatDateTime = (dateString: string | undefined): string => {
+    if (!dateString) return '-';
+    try {
+        const date = new Date(dateString);
+        if (!isNaN(date.getTime())) {
+            const d = date.toLocaleDateString('ru-RU');
+            const t = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: undefined });
+            return `${d}, ${t}`;
+        }
+    } catch { }
+    return dateString;
+};
+
 const HOLIDAYS_MM_DD = new Set([
     "01-01", "01-02", "01-03", "01-04", "01-05", "01-06", "01-07", "01-08",
     "02-23", "03-08", "05-01", "05-09", "06-12", "11-04",
@@ -2232,7 +2246,7 @@ function DashboardPage({
                                                                                 {slaTimelineSteps.map((step, i) => (
                                                                                     <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{step.label}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: 'var(--color-text-secondary)' }}>{step.date ? formatDate(step.date) : '—'}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: 'var(--color-text-secondary)' }}>{step.date ? formatDateTime(step.date) : '—'}</td>
                                                                                     </tr>
                                                                                 ))}
                                                                             </tbody>
@@ -6627,7 +6641,7 @@ function CargoDetailsModal({
                                                     <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{step.label}</Typography.Body>
                                                     {step.date && (
                                                         <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                            {formatDate(step.date)}
+                                                            {formatDateTime(step.date)}
                                                         </Typography.Body>
                                                     )}
                                                 </div>
