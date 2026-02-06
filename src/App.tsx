@@ -1730,11 +1730,12 @@ function DashboardPage({
     };
     
     const formatStripValue = (): string => {
-        if (chartType === 'money') return `${Math.round(stripTotals.sum).toLocaleString('ru-RU')} ₽`;
-        if (chartType === 'paidWeight') return `${Math.round(stripTotals.pw).toLocaleString('ru-RU')} кг`;
-        if (chartType === 'weight') return `${Math.round(stripTotals.w).toLocaleString('ru-RU')} кг`;
-        if (chartType === 'pieces') return `${Math.round(stripTotals.mest).toLocaleString('ru-RU')} шт`;
-        return `${stripTotals.vol.toFixed(2).replace('.', ',')} м³`;
+        if (chartType === 'money') return `${Math.round(stripTotals.sum || 0).toLocaleString('ru-RU')} ₽`;
+        if (chartType === 'paidWeight') return `${Math.round(stripTotals.pw || 0).toLocaleString('ru-RU')} кг`;
+        if (chartType === 'weight') return `${Math.round(stripTotals.w || 0).toLocaleString('ru-RU')} кг`;
+        if (chartType === 'pieces') return `${Math.round(stripTotals.mest || 0).toLocaleString('ru-RU')} шт`;
+        const vol = Number(stripTotals.vol);
+        return `${(isNaN(vol) ? 0 : vol).toFixed(2).replace('.', ',')} м³`;
     };
 
     /** Фильтрация данных предыдущего периода (те же фильтры, что и для текущего) */
@@ -1801,6 +1802,14 @@ function DashboardPage({
         if (v2 < v1) return 'down';
         return null;
     }, [chartData, chartType]);
+
+    if (!auth?.login || !auth?.password) {
+        return (
+            <div className="w-full p-4">
+                <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Нет доступа к дашборду. Выберите аккаунт в профиле.</Typography.Body>
+            </div>
+        );
+    }
 
     return (
         <div className="w-full">
