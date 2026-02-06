@@ -1115,6 +1115,12 @@ function DashboardPage({
     const [chartType, setChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>(() => (showSums ? 'money' : 'paidWeight'));
     const [stripExpanded, setStripExpanded] = useState(false);
     const [stripTab, setStripTab] = useState<'type' | 'sender' | 'receiver' | 'customer'>('type');
+    /** Раскрытая строка в таблице «Перевозки вне SLA»: по клику показываем статусы в виде таблицы */
+    const [expandedSlaCargoNumber, setExpandedSlaCargoNumber] = useState<string | null>(null);
+    const [expandedSlaItem, setExpandedSlaItem] = useState<CargoItem | null>(null);
+    const [slaTimelineSteps, setSlaTimelineSteps] = useState<PerevozkaTimelineStep[] | null>(null);
+    const [slaTimelineLoading, setSlaTimelineLoading] = useState(false);
+    const [slaTimelineError, setSlaTimelineError] = useState<string | null>(null);
 
     // При отключении раздела сумм (роль отправитель/получатель) переключаем тип графика с денег на вес
     useEffect(() => {
@@ -1125,6 +1131,23 @@ function DashboardPage({
     useEffect(() => {
         if (!useServiceRequest && stripTab === 'customer') setStripTab('type');
     }, [useServiceRequest, stripTab]);
+
+    // Загрузка статусов перевозки при раскрытии строки в таблице «Перевозки вне SLA»
+    useEffect(() => {
+        if (!expandedSlaCargoNumber || !expandedSlaItem || !auth?.login || !auth?.password) {
+            setSlaTimelineSteps(null);
+            setSlaTimelineError(null);
+            return;
+        }
+        let cancelled = false;
+        setSlaTimelineLoading(true);
+        setSlaTimelineError(null);
+        fetchPerevozkaTimeline(auth, expandedSlaCargoNumber, expandedSlaItem)
+            .then((steps) => { if (!cancelled) setSlaTimelineSteps(steps); })
+            .catch((e: any) => { if (!cancelled) setSlaTimelineError(e?.message || 'Не удалось загрузить статусы'); })
+            .finally(() => { if (!cancelled) setSlaTimelineLoading(false); });
+        return () => { cancelled = true; };
+    }, [expandedSlaCargoNumber, expandedSlaItem, auth?.login, auth?.password]);
 
     const unpaidCount = useMemo(() => {
         return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
@@ -2158,18 +2181,67 @@ function DashboardPage({
                                             </thead>
                                             <tbody>
                                                 {outOfSlaByType.auto.map(({ item, sla }, idx) => (
-                                                    <tr key={`auto-${item.Number ?? idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{item.Number ?? '—'}</td>
-                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
-                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
-                                                        <td style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
-                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
-                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
-                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
-                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.actualDays}</td>
-                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.planDays}</td>
-                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
-                                                    </tr>
+                                                    <React.Fragment key={`auto-${item.Number ?? idx}`}>
+                                                        <tr
+                                                            style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedSlaCargoNumber === (item.Number ?? '') ? 'var(--color-bg-hover)' : undefined }}
+                                                            onClick={() => {
+                                                                const num = item.Number ?? '';
+                                                                if (expandedSlaCargoNumber === num) {
+                                                                    setExpandedSlaCargoNumber(null);
+                                                                    setExpandedSlaItem(null);
+                                                                } else {
+                                                                    setExpandedSlaCargoNumber(num);
+                                                                    setExpandedSlaItem(item);
+                                                                }
+                                                            }}
+                                                            title={expandedSlaCargoNumber === (item.Number ?? '') ? 'Свернуть статусы' : 'Показать статусы перевозки'}
+                                                        >
+                                                            <td style={{ padding: '0.35rem 0.3rem' }}>{item.Number ?? '—'}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.actualDays}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.planDays}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
+                                                        </tr>
+                                                        {expandedSlaCargoNumber === (item.Number ?? '') && (
+                                                            <tr>
+                                                                <td colSpan={10} style={{ padding: '0.5rem', borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                                    <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.35rem' }}>Статусы перевозки</Typography.Body>
+                                                                    {slaTimelineLoading && (
+                                                                        <Flex align="center" gap="0.5rem" style={{ padding: '0.35rem 0' }}>
+                                                                            <Loader2 className="w-3 h-3 animate-spin" style={{ color: 'var(--color-primary-blue)' }} />
+                                                                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Загрузка…</Typography.Body>
+                                                                        </Flex>
+                                                                    )}
+                                                                    {slaTimelineError && (
+                                                                        <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{slaTimelineError}</Typography.Body>
+                                                                    )}
+                                                                    {!slaTimelineLoading && slaTimelineSteps && slaTimelineSteps.length > 0 && (
+                                                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                                            <thead>
+                                                                                <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
+                                                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                {slaTimelineSteps.map((step, i) => (
+                                                                                    <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{step.label}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: 'var(--color-text-secondary)' }}>{step.date ? formatDate(step.date) : '—'}</td>
+                                                                                    </tr>
+                                                                                ))}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </React.Fragment>
                                                 ))}
                                             </tbody>
                                         </table>
@@ -6029,6 +6101,49 @@ function getTimelineStepColor(label: string): 'success' | 'warning' | 'danger' |
     return 'default';
 }
 
+/** Загрузка и сортировка статусов перевозки (общая логика для модалки и дашборда) */
+async function fetchPerevozkaTimeline(auth: AuthData, number: string, item: CargoItem): Promise<PerevozkaTimelineStep[] | null> {
+    const res = await fetch(PROXY_API_GETPEREVOZKA_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: auth.login, password: auth.password, number }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || err?.details || `Ошибка ${res.status}`);
+    }
+    const data = await res.json();
+    const raw = Array.isArray(data) ? data : (data?.items ?? data?.Steps ?? data?.stages ?? data?.Statuses ?? []);
+    if (!Array.isArray(raw)) return null;
+    const steps: PerevozkaTimelineStep[] = raw.map((el: any) => {
+        const rawLabel = el?.Stage ?? el?.Name ?? el?.Status ?? el?.label ?? String(el);
+        const labelStr = typeof rawLabel === 'string' ? rawLabel : String(rawLabel);
+        const date = el?.Date ?? el?.date ?? el?.DatePrih ?? el?.DateVr;
+        const displayLabel = mapTimelineStageLabel(labelStr, item);
+        return { label: displayLabel, date, completed: true };
+    });
+    const fromCity = cityToCode(item.CitySender) || '—';
+    const toCity = cityToCode(item.CityReceiver) || '—';
+    const senderLabel = `Получена в ${fromCity}`;
+    const arrivedAtDestLabel = `Прибыла в ${toCity}`;
+    const orderOf = (l: string, i: number): number => {
+        if (l === 'Получена информация') return 1;
+        if (l === senderLabel) return 2;
+        if (l === 'Измерена') return 3;
+        if (l === 'Консолидация') return 4;
+        if (l === 'Загружена в ТС') return 5;
+        if (l === 'Отправлена') return 6;
+        if (l === arrivedAtDestLabel) return 7;
+        if (l === 'Запланирована доставка') return 8;
+        if (l === 'Доставлена') return 9;
+        return 10 + i;
+    };
+    const sorted = steps.map((s, i) => ({ s, key: orderOf(s.label, i) }))
+        .sort((a, b) => a.key - b.key)
+        .map(x => x.s);
+    return sorted.length ? sorted : null;
+}
+
 function CargoDetailsModal({
     item,
     isOpen,
@@ -6063,58 +6178,10 @@ function CargoDetailsModal({
         let cancelled = false;
         setPerevozkaLoading(true);
         setPerevozkaError(null);
-        fetch(PROXY_API_GETPEREVOZKA_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ login: auth.login, password: auth.password, number: item.Number }),
-        })
-            .then(async (res) => {
-                if (cancelled) return;
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    throw new Error(err?.error || err?.details || `Ошибка ${res.status}`);
-                }
-                const data = await res.json();
-                const raw = Array.isArray(data) ? data : (data?.items ?? data?.Steps ?? data?.stages ?? data?.Statuses ?? []);
-                if (!Array.isArray(raw)) {
-                    setPerevozkaTimeline(null);
-                    return;
-                }
-                const steps: PerevozkaTimelineStep[] = raw.map((el: any) => {
-                    const rawLabel = el?.Stage ?? el?.Name ?? el?.Status ?? el?.label ?? String(el);
-                    const labelStr = typeof rawLabel === 'string' ? rawLabel : String(rawLabel);
-                    const date = el?.Date ?? el?.date ?? el?.DatePrih ?? el?.DateVr;
-                    const displayLabel = mapTimelineStageLabel(labelStr, item);
-                    return { label: displayLabel, date, completed: true };
-                });
-                // Порядок статусов: Получена информация → Получена в месте отправления → Измерена → Консолидация → Загружена в ТС → Отправлена → Прибыла в место получения → Запланирована доставка → Доставлена
-                const fromCity = cityToCode(item.CitySender) || '—';
-                const toCity = cityToCode(item.CityReceiver) || '—';
-                const senderLabel = `Получена в ${fromCity}`;
-                const arrivedAtDestLabel = `Прибыла в ${toCity}`;
-                const orderOf = (l: string, i: number): number => {
-                    if (l === 'Получена информация') return 1;
-                    if (l === senderLabel) return 2;
-                    if (l === 'Измерена') return 3;
-                    if (l === 'Консолидация') return 4;
-                    if (l === 'Загружена в ТС') return 5;
-                    if (l === 'Отправлена') return 6;
-                    if (l === arrivedAtDestLabel) return 7;
-                    if (l === 'Запланирована доставка') return 8;
-                    if (l === 'Доставлена') return 9;
-                    return 10 + i;
-                };
-                const sorted = steps.map((s, i) => ({ s, key: orderOf(s.label, i) }))
-                    .sort((a, b) => a.key - b.key)
-                    .map(x => x.s);
-                setPerevozkaTimeline(sorted.length ? sorted : null);
-            })
-            .catch((e: any) => {
-                if (!cancelled) setPerevozkaError(e?.message || 'Не удалось загрузить статусы');
-            })
-            .finally(() => {
-                if (!cancelled) setPerevozkaLoading(false);
-            });
+        fetchPerevozkaTimeline(auth, item.Number, item)
+            .then((sorted) => { if (!cancelled) setPerevozkaTimeline(sorted); })
+            .catch((e: any) => { if (!cancelled) setPerevozkaError(e?.message || 'Не удалось загрузить статусы'); })
+            .finally(() => { if (!cancelled) setPerevozkaLoading(false); });
         return () => { cancelled = true; };
     }, [isOpen, item?.Number, auth?.login, auth?.password]);
 
