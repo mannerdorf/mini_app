@@ -1174,9 +1174,6 @@ function DashboardPage({
         });
     };
 
-    const sortedOutOfSlaAuto = useMemo(() => sortOutOfSlaRows(outOfSlaByType.auto), [outOfSlaByType.auto, slaTableSortColumn, slaTableSortOrder]);
-    const sortedOutOfSlaFerry = useMemo(() => sortOutOfSlaRows(outOfSlaByType.ferry), [outOfSlaByType.ferry, slaTableSortColumn, slaTableSortOrder]);
-
     // При отключении раздела сумм (роль отправитель/получатель) переключаем тип графика с денег на вес
     useEffect(() => {
         if (!showSums && chartType === 'money') setChartType('paidWeight');
@@ -1506,6 +1503,9 @@ function DashboardPage({
             ferry: withSla.filter(x => isFerry(x.item)),
         };
     }, [filteredItems]);
+
+    const sortedOutOfSlaAuto = useMemo(() => sortOutOfSlaRows(outOfSlaByType.auto), [outOfSlaByType.auto, slaTableSortColumn, slaTableSortOrder]);
+    const sortedOutOfSlaFerry = useMemo(() => sortOutOfSlaRows(outOfSlaByType.ferry), [outOfSlaByType.ferry, slaTableSortColumn, slaTableSortOrder]);
 
     const slaTrend = useMemo(() => {
         const withSla = filteredItems
