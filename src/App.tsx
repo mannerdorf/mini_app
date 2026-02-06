@@ -1396,10 +1396,11 @@ function DashboardPage({
         const avgDelay = delayed.length > 0
             ? Math.round(delayed.reduce((sum, s) => sum + s.delayDays, 0) / delayed.length)
             : 0;
-        const actualDaysList = withSla.map(s => s.actualDays);
-        const minDays = actualDaysList.length ? Math.min(...actualDaysList) : 0;
-        const maxDays = actualDaysList.length ? Math.max(...actualDaysList) : 0;
-        const avgDays = actualDaysList.length ? Math.round(actualDaysList.reduce((a, b) => a + b, 0) / actualDaysList.length) : 0;
+        // Мин/макс/среднее только по неотрицательным срокам доставки (ошибки дат дают отрицательные значения)
+        const actualDaysValid = withSla.map(s => s.actualDays).filter(d => d >= 0);
+        const minDays = actualDaysValid.length ? Math.min(...actualDaysValid) : 0;
+        const maxDays = actualDaysValid.length ? Math.max(...actualDaysValid) : 0;
+        const avgDays = actualDaysValid.length ? Math.round(actualDaysValid.reduce((a, b) => a + b, 0) / actualDaysValid.length) : 0;
         return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay, minDays, maxDays, avgDays };
     }, [filteredItems]);
 
@@ -2142,20 +2143,30 @@ function DashboardPage({
                                         <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Перевозки вне SLA:</Typography.Body>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                             <thead>
-                                                <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                    <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem' }}>Номер</th>
-                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>Дней</th>
-                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>План</th>
-                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>Просрочка</th>
+                                                <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата прихода</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Мест</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Плат. вес</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Дней</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>План</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Просрочка</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {outOfSlaByType.auto.map(({ item, sla }, idx) => (
                                                     <tr key={`auto-${item.Number ?? idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                        <td style={{ padding: '0.35rem 0.5rem' }}>{item.Number ?? '—'}</td>
-                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>{sla.actualDays}</td>
-                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>{sla.planDays}</td>
-                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{item.Number ?? '—'}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.actualDays}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.planDays}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -2173,20 +2184,30 @@ function DashboardPage({
                                         <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Перевозки вне SLA:</Typography.Body>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                             <thead>
-                                                <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                    <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem' }}>Номер</th>
-                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>Дней</th>
-                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>План</th>
-                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>Просрочка</th>
+                                                <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата прихода</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Мест</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Плат. вес</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Дней</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>План</th>
+                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Просрочка</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {outOfSlaByType.ferry.map(({ item, sla }, idx) => (
                                                     <tr key={`ferry-${item.Number ?? idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                        <td style={{ padding: '0.35rem 0.5rem' }}>{item.Number ?? '—'}</td>
-                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>{sla.actualDays}</td>
-                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>{sla.planDays}</td>
-                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{item.Number ?? '—'}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.actualDays}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sla.planDays}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
