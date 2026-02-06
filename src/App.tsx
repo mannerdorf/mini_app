@@ -124,6 +124,62 @@ const getDateRange = (filter: DateFilter) => {
     return { dateFrom, dateTo };
 }
 
+/** Вычисляет предыдущий период для сравнения (неделя/месяц/год/период) */
+const getPreviousPeriodRange = (filter: DateFilter, currentFrom: string, currentTo: string): { dateFrom: string; dateTo: string } | null => {
+    const today = new Date();
+    let dateTo: string;
+    let dateFrom: string;
+    
+    switch (filter) {
+        case 'неделя': {
+            // Предыдущая неделя: 7 дней назад от начала текущей недели
+            const currentFromDate = new Date(currentFrom + 'T00:00:00');
+            const prevWeekEnd = new Date(currentFromDate);
+            prevWeekEnd.setDate(prevWeekEnd.getDate() - 1);
+            const prevWeekStart = new Date(prevWeekEnd);
+            prevWeekStart.setDate(prevWeekStart.getDate() - 6);
+            dateFrom = prevWeekStart.toISOString().split('T')[0];
+            dateTo = prevWeekEnd.toISOString().split('T')[0];
+            break;
+        }
+        case 'месяц': {
+            // Предыдущий месяц
+            const currentFromDate = new Date(currentFrom + 'T00:00:00');
+            const prevMonthEnd = new Date(currentFromDate);
+            prevMonthEnd.setDate(0); // Последний день предыдущего месяца
+            const prevMonthStart = new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 1);
+            dateFrom = prevMonthStart.toISOString().split('T')[0];
+            dateTo = prevMonthEnd.toISOString().split('T')[0];
+            break;
+        }
+        case 'год': {
+            // Предыдущий год
+            const currentYear = new Date(currentFrom + 'T00:00:00').getFullYear();
+            const prevYear = currentYear - 1;
+            dateFrom = `${prevYear}-01-01`;
+            dateTo = `${prevYear}-12-31`;
+            break;
+        }
+        case 'период': {
+            // Для кастомного периода: предыдущий период той же длительности
+            const currentFromDate = new Date(currentFrom + 'T00:00:00');
+            const currentToDate = new Date(currentTo + 'T00:00:00');
+            const daysDiff = Math.ceil((currentToDate.getTime() - currentFromDate.getTime()) / (1000 * 60 * 60 * 24));
+            const prevPeriodEnd = new Date(currentFromDate);
+            prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1);
+            const prevPeriodStart = new Date(prevPeriodEnd);
+            prevPeriodStart.setDate(prevPeriodStart.getDate() - daysDiff);
+            dateFrom = prevPeriodStart.toISOString().split('T')[0];
+            dateTo = prevPeriodEnd.toISOString().split('T')[0];
+            break;
+        }
+        default:
+            return null; // Для 'сегодня', 'вчера', 'все' не считаем предыдущий период
+    }
+    
+    return { dateFrom, dateTo };
+}
+
 const formatDate = (dateString: string | undefined): string => {
     if (!dateString) return '-';
     try {
@@ -1019,6 +1075,8 @@ function DashboardPage({
     useServiceRequest?: boolean;
 }) {
     const [items, setItems] = useState<CargoItem[]>([]);
+    const [prevPeriodItems, setPrevPeriodItems] = useState<CargoItem[]>([]);
+    const [prevPeriodLoading, setPrevPeriodLoading] = useState(false);
     const [debugInfo, setDebugInfo] = useState<string>("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -1181,10 +1239,70 @@ function DashboardPage({
         }
     }, [auth, useServiceRequest]);
 
+    // Загрузка данных для предыдущего периода (только в служебном режиме)
+    const loadPrevPeriodCargo = useCallback(async (dateFrom: string, dateTo: string) => {
+        if (!auth?.login || !auth?.password || !useServiceRequest) {
+            setPrevPeriodItems([]);
+            return;
+        }
+        setPrevPeriodLoading(true);
+        try {
+            const body: Record<string, unknown> = {
+                login: auth.login,
+                password: auth.password,
+                dateFrom,
+                dateTo,
+                serviceMode: true,
+            };
+            const res = await fetch(PROXY_API_BASE_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            await ensureOk(res, "Ошибка загрузки данных предыдущего периода");
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : data.items || [];
+            setPrevPeriodItems(list.map((item: any) => ({
+                ...item,
+                Number: item.Number,
+                DatePrih: item.DatePrih,
+                DateVr: item.DateVr,
+                State: item.State,
+                Mest: item.Mest,
+                PW: item.PW,
+                W: item.W,
+                Value: item.Value,
+                Sum: item.Sum,
+                StateBill: item.StateBill,
+                Sender: item.Sender,
+                Customer: item.Customer ?? item.customer,
+            })));
+        } catch (e: any) {
+            console.error("Ошибка загрузки предыдущего периода:", e);
+            setPrevPeriodItems([]);
+        } finally {
+            setPrevPeriodLoading(false);
+        }
+    }, [auth, useServiceRequest]);
+
     // Всегда грузим данные по текущему выбранному аккаунту; при смене аккаунта или служебного режима — перезапрос
     useEffect(() => {
         loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo);
     }, [apiDateRange, loadCargo, auth, useServiceRequest]);
+
+    // Загрузка данных предыдущего периода (только в служебном режиме)
+    useEffect(() => {
+        if (!useServiceRequest) {
+            setPrevPeriodItems([]);
+            return;
+        }
+        const prevRange = getPreviousPeriodRange(dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo);
+        if (prevRange) {
+            loadPrevPeriodCargo(prevRange.dateFrom, prevRange.dateTo);
+        } else {
+            setPrevPeriodItems([]);
+        }
+    }, [useServiceRequest, dateFilter, apiDateRange, loadPrevPeriodCargo]);
 
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
@@ -1525,6 +1643,51 @@ function DashboardPage({
         return `${stripTotals.vol.toFixed(2).replace('.', ',')} м³`;
     };
 
+    /** Фильтрация данных предыдущего периода (те же фильтры, что и для текущего) */
+    const filteredPrevPeriodItems = useMemo(() => {
+        if (!useServiceRequest || prevPeriodItems.length === 0) return [];
+        let res = prevPeriodItems.filter(i => !isReceivedInfoStatus(i.State));
+        if (statusFilter === 'favorites') {
+            const favorites = JSON.parse(localStorage.getItem('haulz.favorites') || '[]') as string[];
+            res = res.filter(i => i.Number && favorites.includes(i.Number));
+        } else if (statusFilter !== 'all') {
+            res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
+        }
+        if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
+        if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
+        if (customerFilter) res = res.filter(i => (i.Customer ?? (i as any).customer ?? '').trim() === customerFilter);
+        if (billStatusFilter !== 'all') res = res.filter(i => getPaymentFilterKey(i.StateBill) === billStatusFilter);
+        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
+        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
+        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
+        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
+        return res;
+    }, [prevPeriodItems, useServiceRequest, statusFilter, senderFilter, receiverFilter, customerFilter, billStatusFilter, typeFilter, routeFilter]);
+
+    /** Тренд период к периоду: текущий период vs предыдущий период (только в служебном режиме) */
+    const periodToPeriodTrend = useMemo(() => {
+        if (!useServiceRequest || filteredPrevPeriodItems.length === 0) return null;
+        
+        const getVal = (item: CargoItem) => {
+            if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+            if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            if (chartType === 'weight') return typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
+            if (chartType === 'pieces') return typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
+            return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
+        };
+        
+        const currentVal = filteredItems.reduce((acc, item) => acc + getVal(item), 0);
+        const prevVal = filteredPrevPeriodItems.reduce((acc, item) => acc + getVal(item), 0);
+        
+        if (prevVal === 0) return currentVal > 0 ? { direction: 'up', percent: 100 } : null;
+        
+        const percent = Math.round(((currentVal - prevVal) / prevVal) * 100);
+        return {
+            direction: currentVal > prevVal ? 'up' : currentVal < prevVal ? 'down' : null,
+            percent: Math.abs(percent),
+        };
+    }, [useServiceRequest, filteredItems, filteredPrevPeriodItems, chartType]);
+
     /** Тренд по выбранной метрике: первая половина периода vs вторая половина */
     const stripTrend = useMemo(() => {
         if (chartData.length < 4) return null;
@@ -1598,9 +1761,41 @@ function DashboardPage({
                     <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
                         <Flex align="center" gap="0.5rem" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
                             <Typography.Body style={{ fontWeight: 600 }}>{formatStripValue()}</Typography.Body>
-                            {stripTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)', flexShrink: 0 }} title="Тренд вверх (вторая половина периода больше первой)" />}
-                            {stripTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444', flexShrink: 0 }} title="Тренд вниз (вторая половина периода меньше первой)" />}
-                            {stripTrend === null && chartData.length >= 2 && <Minus className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} title="Без выраженного тренда" />}
+                            {useServiceRequest && periodToPeriodTrend && (
+                                <>
+                                    {periodToPeriodTrend.direction === 'up' && (
+                                        <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
+                                            <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} />
+                                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-success-status)', fontWeight: 600 }}>
+                                                +{periodToPeriodTrend.percent}%
+                                            </Typography.Body>
+                                        </Flex>
+                                    )}
+                                    {periodToPeriodTrend.direction === 'down' && (
+                                        <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
+                                            <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} />
+                                            <Typography.Body style={{ fontSize: '0.85rem', color: '#ef4444', fontWeight: 600 }}>
+                                                -{periodToPeriodTrend.percent}%
+                                            </Typography.Body>
+                                        </Flex>
+                                    )}
+                                    {periodToPeriodTrend.direction === null && periodToPeriodTrend.percent === 0 && (
+                                        <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
+                                            <Minus className="w-5 h-5" style={{ color: 'var(--color-text-secondary)' }} />
+                                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                0%
+                                            </Typography.Body>
+                                        </Flex>
+                                    )}
+                                </>
+                            )}
+                            {!useServiceRequest && (
+                                <>
+                                    {stripTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)', flexShrink: 0 }} title="Тренд вверх (вторая половина периода больше первой)" />}
+                                    {stripTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444', flexShrink: 0 }} title="Тренд вниз (вторая половина периода меньше первой)" />}
+                                    {stripTrend === null && chartData.length >= 2 && <Minus className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} title="Без выраженного тренда" />}
+                                </>
+                            )}
                         </Flex>
                         <div style={{ marginBottom: '0.75rem', overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch' }}>
                             <Flex gap="0.5rem" style={{ flexWrap: 'nowrap', minWidth: 'min-content' }}>
