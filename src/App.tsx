@@ -1396,7 +1396,11 @@ function DashboardPage({
         const avgDelay = delayed.length > 0
             ? Math.round(delayed.reduce((sum, s) => sum + s.delayDays, 0) / delayed.length)
             : 0;
-        return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay };
+        const actualDaysList = withSla.map(s => s.actualDays);
+        const minDays = actualDaysList.length ? Math.min(...actualDaysList) : 0;
+        const maxDays = actualDaysList.length ? Math.max(...actualDaysList) : 0;
+        const avgDays = actualDaysList.length ? Math.round(actualDaysList.reduce((a, b) => a + b, 0) / actualDaysList.length) : 0;
+        return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay, minDays, maxDays, avgDays };
     }, [filteredItems]);
 
     const slaStatsByType = useMemo(() => {
@@ -1411,6 +1415,17 @@ function DashboardPage({
             return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay };
         };
         return { auto: calc(autoItems), ferry: calc(ferryItems) };
+    }, [filteredItems]);
+
+    /** Перевозки вне SLA по типу (для таблицы в подробностях, только в служебном режиме) */
+    const outOfSlaByType = useMemo(() => {
+        const withSla = filteredItems
+            .map(i => ({ item: i, sla: getSlaInfo(i) }))
+            .filter((x): x is { item: CargoItem; sla: NonNullable<ReturnType<typeof getSlaInfo>> } => x.sla != null && !x.sla.onTime);
+        return {
+            auto: withSla.filter(x => !isFerry(x.item)),
+            ferry: withSla.filter(x => isFerry(x.item)),
+        };
     }, [filteredItems]);
 
     const slaTrend = useMemo(() => {
@@ -2069,6 +2084,28 @@ function DashboardPage({
                                 {slaStats.avgDelay} дн.
                             </Typography.Body>
                         </div>
+                        {useServiceRequest && (
+                            <>
+                                <div style={{ minWidth: 0 }}>
+                                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Мин. дней доставки{'   '}</Typography.Body>
+                                    <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--color-text-primary)', display: 'inline' }}>
+                                        {slaStats.minDays} дн.
+                                    </Typography.Body>
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Макс. дней доставки{'   '}</Typography.Body>
+                                    <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--color-text-primary)', display: 'inline' }}>
+                                        {slaStats.maxDays} дн.
+                                    </Typography.Body>
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Среднее дней доставки{'   '}</Typography.Body>
+                                    <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: 'var(--color-text-primary)', display: 'inline' }}>
+                                        {slaStats.avgDays} дн.
+                                    </Typography.Body>
+                                </div>
+                            </>
+                        )}
                     </Flex>
                     <div
                         role="button"
@@ -2095,17 +2132,67 @@ function DashboardPage({
                     </div>
                     {slaDetailsOpen && (
                         <div style={{ paddingTop: '0.75rem', borderTop: '1px solid var(--color-border)' }}>
-                            <div style={{ marginBottom: '0.6rem' }}>
+                            <div style={{ marginBottom: '0.75rem' }}>
                                 <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Авто{'   '}</Typography.Body>
                                 <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'inline' }}>
                                     {slaStatsByType.auto.percentOnTime}% ({slaStatsByType.auto.onTime}/{slaStatsByType.auto.total}), ср. {slaStatsByType.auto.avgDelay} дн.
                                 </Typography.Body>
+                                {useServiceRequest && outOfSlaByType.auto.length > 0 && (
+                                    <div style={{ marginTop: '0.5rem', overflowX: 'auto' }}>
+                                        <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Перевозки вне SLA:</Typography.Body>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                    <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem' }}>Номер</th>
+                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>Дней</th>
+                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>План</th>
+                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>Просрочка</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {outOfSlaByType.auto.map(({ item, sla }, idx) => (
+                                                    <tr key={`auto-${item.Number ?? idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                        <td style={{ padding: '0.35rem 0.5rem' }}>{item.Number ?? '—'}</td>
+                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>{sla.actualDays}</td>
+                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>{sla.planDays}</td>
+                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Паром{'   '}</Typography.Body>
                                 <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'inline' }}>
                                     {slaStatsByType.ferry.percentOnTime}% ({slaStatsByType.ferry.onTime}/{slaStatsByType.ferry.total}), ср. {slaStatsByType.ferry.avgDelay} дн.
                                 </Typography.Body>
+                                {useServiceRequest && outOfSlaByType.ferry.length > 0 && (
+                                    <div style={{ marginTop: '0.5rem', overflowX: 'auto' }}>
+                                        <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Перевозки вне SLA:</Typography.Body>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                    <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem' }}>Номер</th>
+                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>Дней</th>
+                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>План</th>
+                                                    <th style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>Просрочка</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {outOfSlaByType.ferry.map(({ item, sla }, idx) => (
+                                                    <tr key={`ferry-${item.Number ?? idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                        <td style={{ padding: '0.35rem 0.5rem' }}>{item.Number ?? '—'}</td>
+                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>{sla.actualDays}</td>
+                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem' }}>{sla.planDays}</td>
+                                                        <td style={{ textAlign: 'right', padding: '0.35rem 0.5rem', color: '#ef4444' }}>+{sla.delayDays} дн.</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
