@@ -205,6 +205,29 @@ const formatDateTime = (dateString: string | undefined, withPlus?: boolean): str
     return dateString;
 };
 
+/** Только дата (DD.MM.YYYY) для колонки «Дата доставки» в статусах перевозки */
+const formatTimelineDate = (dateString: string | undefined): string => {
+    if (!dateString) return '—';
+    try {
+        const date = new Date(dateString);
+        if (!isNaN(date.getTime())) return date.toLocaleDateString('ru-RU');
+    } catch { }
+    return dateString;
+};
+
+/** Только время (HH:mm) для колонки «Время доставки» в статусах перевозки; withPlus — со знаком + */
+const formatTimelineTime = (dateString: string | undefined, withPlus?: boolean): string => {
+    if (!dateString) return '—';
+    try {
+        const date = new Date(dateString);
+        if (!isNaN(date.getTime())) {
+            const t = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: undefined });
+            return withPlus ? `+${t}` : t;
+        }
+    } catch { }
+    return '—';
+};
+
 const HOLIDAYS_MM_DD = new Set([
     "01-01", "01-02", "01-03", "01-04", "01-05", "01-06", "01-07", "01-08",
     "02-23", "03-08", "05-01", "05-09", "06-12", "11-04",
@@ -2289,14 +2312,16 @@ function DashboardPage({
                                                                             <thead>
                                                                                 <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
-                                                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата доставки</th>
+                                                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Время доставки</th>
                                                                                 </tr>
                                                                             </thead>
                                                                             <tbody>
                                                                                 {slaTimelineSteps.map((step, i) => (
                                                                                     <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{step.label}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: 'var(--color-text-secondary)' }}>{step.date ? formatDateTime(step.date, i >= 1) : '—'}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: 'var(--color-text-secondary)' }}>{formatTimelineDate(step.date)}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: 'var(--color-text-secondary)' }}>{formatTimelineTime(step.date, i >= 1)}</td>
                                                                                     </tr>
                                                                                 ))}
                                                                             </tbody>
