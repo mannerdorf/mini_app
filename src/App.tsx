@@ -1152,6 +1152,8 @@ function DashboardPage({
     const [chartType, setChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>(() => (showSums ? 'money' : 'paidWeight'));
     const [stripExpanded, setStripExpanded] = useState(false);
     const [stripTab, setStripTab] = useState<'type' | 'sender' | 'receiver' | 'customer'>('type');
+    /** true = показывать проценты, false = показывать в рублях/кг/м³/шт (по типу графика) */
+    const [stripShowAsPercent, setStripShowAsPercent] = useState(true);
     /** Раскрытая строка в таблице «Перевозки вне SLA»: по клику показываем статусы в виде таблицы */
     const [expandedSlaCargoNumber, setExpandedSlaCargoNumber] = useState<string | null>(null);
     const [expandedSlaItem, setExpandedSlaItem] = useState<CargoItem | null>(null);
@@ -1884,8 +1886,8 @@ function DashboardPage({
                     <ChevronDown className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', transform: stripExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
                 </button>
                 {stripExpanded && (
-                    <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
-                        <Flex align="center" gap="0.5rem" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                    <div style={{ padding: '1.25rem 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
+                        <Flex align="center" gap="0.5rem" style={{ marginBottom: '1.25rem', flexWrap: 'wrap' }}>
                             <Typography.Body style={{ fontWeight: 600 }}>{formatStripValue()}</Typography.Body>
                             {useServiceRequest && periodToPeriodTrend && (
                                 <>
@@ -1953,7 +1955,14 @@ function DashboardPage({
                                             <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
                                         </div>
                                     </div>
-                                    <Typography.Body style={{ flexShrink: 0, fontWeight: 600 }}>{row.percent}%</Typography.Body>
+                                    <Typography.Body
+                                        component="span"
+                                        style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}
+                                        onClick={(e) => { e.stopPropagation(); setStripShowAsPercent(p => !p); }}
+                                        title={stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}
+                                    >
+                                        {stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
+                                    </Typography.Body>
                                 </div>
                             ))}
                             {stripTab === 'sender' && stripDiagramBySender.map((row, i) => (
@@ -1965,7 +1974,14 @@ function DashboardPage({
                                             <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
                                         </div>
                                     </div>
-                                    <Typography.Body style={{ flexShrink: 0, fontWeight: 600, minWidth: 36 }}>{row.percent}%</Typography.Body>
+                                    <Typography.Body
+                                        component="span"
+                                        style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: 'pointer', userSelect: 'none' }}
+                                        onClick={(e) => { e.stopPropagation(); setStripShowAsPercent(p => !p); }}
+                                        title={stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}
+                                    >
+                                        {stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
+                                    </Typography.Body>
                                 </div>
                             ))}
                             {stripTab === 'receiver' && stripDiagramByReceiver.map((row, i) => (
@@ -1977,7 +1993,14 @@ function DashboardPage({
                                             <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
                                         </div>
                                     </div>
-                                    <Typography.Body style={{ flexShrink: 0, fontWeight: 600, minWidth: 36 }}>{row.percent}%</Typography.Body>
+                                    <Typography.Body
+                                        component="span"
+                                        style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: 'pointer', userSelect: 'none' }}
+                                        onClick={(e) => { e.stopPropagation(); setStripShowAsPercent(p => !p); }}
+                                        title={stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}
+                                    >
+                                        {stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
+                                    </Typography.Body>
                                 </div>
                             ))}
                             {stripTab === 'customer' && stripDiagramByCustomer.map((row, i) => (
@@ -1989,7 +2012,14 @@ function DashboardPage({
                                             <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
                                         </div>
                                     </div>
-                                    <Typography.Body style={{ flexShrink: 0, fontWeight: 600, minWidth: 36 }}>{row.percent}%</Typography.Body>
+                                    <Typography.Body
+                                        component="span"
+                                        style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: 'pointer', userSelect: 'none' }}
+                                        onClick={(e) => { e.stopPropagation(); setStripShowAsPercent(p => !p); }}
+                                        title={stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}
+                                    >
+                                        {stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
+                                    </Typography.Body>
                                 </div>
                             ))}
                         </div>
