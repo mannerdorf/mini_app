@@ -209,6 +209,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const appDomain = process.env.NEXT_PUBLIC_APP_URL
       || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
     if (debugInfo) debugInfo.appDomain = appDomain;
+    await sendTgChatAction(chatId, "typing");
+    const typingInterval = setInterval(() => { sendTgChatAction(chatId, "typing"); }, 4000);
     const aiRes = await fetch(`${appDomain}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -233,6 +235,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (debugInfo) debugInfo.aiData = aiData;
 
+    clearInterval(typingInterval);
     if (aiRes.ok) {
       const replyText = aiData.reply || "Не удалось получить ответ.";
       await sendTgMessageChunked(chatId, replyText, { formatLinks: true });
@@ -241,6 +244,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await sendTgMessageChunked(chatId, "Временная ошибка чата. Попробуйте через минуту.", { formatLinks: false });
     }
   } catch (e) {
+    clearInterval(typingInterval);
     if (debugInfo) debugInfo.error = String((e as any)?.message || e);
     console.error("TG AI error:", e);
     try {
@@ -339,6 +343,17 @@ function formatTelegramHtmlWithLinks(text: string) {
 
   result += escapeHtml(raw.slice(lastIndex));
   return result || escapeHtml(raw);
+}
+
+async function sendTgChatAction(chatId: number, action: string) {
+  if (!TG_BOT_TOKEN) return;
+  try {
+    await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendChatAction`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, action }),
+    });
+  } catch (_) {}
 }
 
 async function sendTgMessage(chatId: number, text: string, replyMarkup?: any) {

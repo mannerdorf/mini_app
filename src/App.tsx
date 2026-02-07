@@ -3054,6 +3054,10 @@ function AiChatProfilePage({
 }) {
     const [prefillMessage, setPrefillMessage] = useState<string | undefined>(undefined);
     const [tgLinkError, setTgLinkError] = useState<string | null>(null);
+    const [chatCustomerState, setChatCustomerState] = useState<{ customer: string | null; unlinked: boolean }>({
+        customer: customer ?? null,
+        unlinked: false,
+    });
     const chatClearRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
@@ -3070,7 +3074,7 @@ function AiChatProfilePage({
             className="w-full"
             style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 240px)' }}
         >
-            <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+            <Flex align="center" style={{ marginBottom: '0.5rem', gap: '0.75rem', flexWrap: 'wrap' }}>
                 <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
@@ -3099,6 +3103,13 @@ function AiChatProfilePage({
                     </Button>
                 )}
             </Flex>
+            <div style={{ marginBottom: '1rem', paddingLeft: '0.25rem' }}>
+                <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                    Заказчик: {chatCustomerState.unlinked || !chatCustomerState.customer
+                        ? 'не привязан'
+                        : stripOoo(chatCustomerState.customer)}
+                </Typography.Body>
+            </div>
             {tgLinkError && (
                 <Typography.Body style={{ color: 'var(--color-error-text)', marginBottom: '0.5rem' }}>
                     {tgLinkError}
@@ -3115,6 +3126,7 @@ function AiChatProfilePage({
                         onClearPrefill={() => setPrefillMessage(undefined)}
                         onOpenCargo={onOpenCargo}
                         clearChatRef={chatClearRef}
+                        onChatCustomerState={setChatCustomerState}
                     />
                 ) : (
                     <Panel className="cargo-card" style={{ padding: '1rem', width: '100%' }}>
@@ -6981,17 +6993,17 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
-/** Аватар Грузика — WebM для анимации, при ошибке загрузки показывается PNG; принудительный play() для автовоспроизведения */
+/** Аватар Грузика: приоритет GIF (анимация в img), затем WebM (video), затем PNG */
 function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: number; typing?: boolean; className?: string }) {
-    const [useFallback, setUseFallback] = useState(false);
+    const [source, setSource] = useState<'gif' | 'webm' | 'png'>('gif');
     const videoRef = useRef<HTMLVideoElement | null>(null);
 
     useEffect(() => {
-        if (useFallback) return;
+        if (source !== 'webm') return;
         const video = videoRef.current;
         if (!video) return;
         const play = () => {
-            video.play().catch(() => setUseFallback(true));
+            video.play().catch(() => setSource('png'));
         };
         play();
         video.addEventListener('loadeddata', play);
@@ -7000,7 +7012,7 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
             video.removeEventListener('loadeddata', play);
             video.removeEventListener('canplay', play);
         };
-    }, [useFallback]);
+    }, [source]);
 
     return (
         <div
@@ -7016,7 +7028,7 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
             }}
             aria-hidden
         >
-            {useFallback ? (
+            {source === 'png' ? (
                 <img
                     src="/gruzik.png"
                     alt="Грузик"
@@ -7025,7 +7037,7 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
                     style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
                     title="Грузик"
                 />
-            ) : (
+            ) : source === 'webm' ? (
                 <video
                     ref={videoRef}
                     src="/gruzik.webm"
@@ -7037,7 +7049,17 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
                     height={size}
                     style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
                     title="Грузик"
-                    onError={() => setUseFallback(true)}
+                    onError={() => setSource('png')}
+                />
+            ) : (
+                <img
+                    src="/gruzik.gif"
+                    alt="Грузик"
+                    width={size}
+                    height={size}
+                    style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
+                    title="Грузик"
+                    onError={() => setSource('webm')}
                 />
             )}
         </div>
@@ -7053,7 +7075,8 @@ function ChatPage({
     userIdOverride,
     customerOverride,
     onOpenCargo,
-    clearChatRef
+    clearChatRef,
+    onChatCustomerState
 }: { 
     prefillMessage?: string; 
     onClearPrefill?: () => void;
@@ -7065,6 +7088,8 @@ function ChatPage({
     onOpenCargo?: (cargoNumber: string) => void;
     /** ref для вызова очистки чата из родителя (кнопка «Очистить чат») */
     clearChatRef?: React.MutableRefObject<(() => void) | null>;
+    /** вызывается при смене заказчика/отвязке в чате — для отображения в шапке */
+    onChatCustomerState?: (state: { customer: string | null; unlinked: boolean }) => void;
 }) {
     const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
     const [inputValue, setInputValue] = useState("");
@@ -7094,6 +7119,11 @@ function ChatPage({
     useEffect(() => {
         if (customerOverride) setSessionUnlinked(false);
     }, [customerOverride]);
+
+    const effectiveCustomer = sessionUnlinked ? null : customerOverride ?? null;
+    useEffect(() => {
+        onChatCustomerState?.({ customer: effectiveCustomer ?? null, unlinked: sessionUnlinked });
+    }, [effectiveCustomer, sessionUnlinked, onChatCustomerState]);
     const recorderRef = React.useRef<MediaRecorder | null>(null);
     const chunksRef = React.useRef<Blob[]>([]);
     const streamRef = React.useRef<MediaStream | null>(null);
@@ -7720,14 +7750,18 @@ function ChatPage({
                 {isTyping && (
                     <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', gap: '0.5rem' }}>
                         <GruzikAvatar size={52} typing />
-                        <div style={{ 
+                        <div className="chat-bubble chat-bubble-assistant" style={{ 
                             padding: '0.75rem 1rem', 
                             borderRadius: '1rem', 
                             backgroundColor: 'var(--color-panel-secondary)',
                             border: '1px solid var(--color-border)',
-                            borderBottomLeftRadius: '0'
+                            borderBottomLeftRadius: '0',
+                            maxWidth: '85%'
                         }}>
-                            <Loader2 className="w-5 h-5 animate-spin text-theme-primary" />
+                            <span className="chat-typing-text">печатает</span>
+                            <span className="chat-typing-dots">
+                                <span>.</span><span>.</span><span>.</span>
+                            </span>
                         </div>
                     </div>
                 )}
