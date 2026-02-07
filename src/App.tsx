@@ -6981,27 +6981,21 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
-/** Анимированный аватар Грузика — коробка с глазами, крышка время от времени открывается и закрывается */
+/** Анимированный аватар Грузика — персонаж (изображение из public/gruzik.png) */
 function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: number; typing?: boolean; className?: string }) {
     return (
         <div
             className={`gruzik-avatar ${typing ? 'typing' : ''} ${className}`.trim()}
-            style={{ width: size, height: size, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ width: size, height: size, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderRadius: '50%' }}
             aria-hidden
         >
-            <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* коробка — передняя грань */}
-                <rect x="12" y="18" width="24" height="24" rx="2" fill="var(--color-primary-blue)" stroke="var(--color-border)" strokeWidth="1" />
-                {/* крышка (анимируется: открывается/закрывается) */}
-                <g className="gruzik-lid">
-                    <rect x="12" y="10" width="24" height="8" rx="2" fill="var(--color-primary-blue)" stroke="var(--color-border)" strokeWidth="1" />
-                </g>
-                {/* глаза */}
-                <circle cx="20" cy="28" r="3" fill="var(--color-text-primary)" />
-                <circle cx="28" cy="28" r="3" fill="var(--color-text-primary)" />
-                {/* улыбка */}
-                <path d="M18 34 Q24 38 30 34" stroke="var(--color-text-primary)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-            </svg>
+            <img
+                src="/gruzik.png"
+                alt="Грузик"
+                width={size}
+                height={size}
+                style={{ width: size, height: size, objectFit: 'cover' }}
+            />
         </div>
     );
 }

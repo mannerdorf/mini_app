@@ -1,14 +1,21 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPool } from "./_db.js";
+-- Навыки/возможности чата Грузика — отдельная таблица (без RAG)
+create table if not exists chat_capabilities (
+  id bigserial primary key,
+  slug text not null unique,
+  title text not null,
+  content text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
-/**
- * Заполнение таблицы chat_capabilities («что умеет Грузик» и «примеры запросов»).
- * GET или POST — выполнит upsert в chat_capabilities.
- */
-const CAPABILITIES_DOC = {
-  slug: "gruzik_abilities",
-  title: "Что умеет Грузик",
-  content: `Грузик — AI-помощник HAULZ. Возможности:
+create index if not exists chat_capabilities_slug_idx on chat_capabilities(slug);
+
+-- Начальное наполнение: что умеет Грузик и примеры запросов
+insert into chat_capabilities (slug, title, content, updated_at) values
+(
+  'gruzik_abilities',
+  'Что умеет Грузик',
+  'Грузик — AI-помощник HAULZ. Возможности:
 
 1. ПЕРЕВОЗКИ (API get_perevozki)
 - Список перевозок за период: за сегодня, за неделю, за месяц, за вчера.
@@ -28,13 +35,13 @@ const CAPABILITIES_DOC = {
 4. ПОЛНАЯ ИНФОРМАЦИЯ ПО НОМЕРУ
 - Детали перевозки по номеру из базы знаний (RAG).
 
-Используй инструменты get_perevozki и get_contacts когда пользователь явно просит список перевозок или контакты. Для перевозок нужны учётные данные (логин/пароль) из контекста сессии.`,
-};
-
-const EXAMPLES_DOC = {
-  slug: "gruzik_examples",
-  title: "Примеры запросов пользователей",
-  content: `Варианты запросов, которые понимает Грузик:
+Используй инструменты get_perevozki и get_contacts когда пользователь явно просит список перевозок или контакты. Для перевозок нужны учётные данные (логин/пароль) из контекста сессии.',
+  now()
+),
+(
+  'gruzik_examples',
+  'Примеры запросов пользователей',
+  'Варианты запросов, которые понимает Грузик:
 
 ПЕРЕВОЗКИ:
 - перевозки за сегодня; что за сегодня; грузы на сегодня;
@@ -61,32 +68,10 @@ const EXAMPLES_DOC = {
 - полная информация по перевозке 12345; что по перевозке 12345;
 
 ОБЩЕЕ:
-- привет; что умеешь; помощь; отвяжи компанию.`,
-};
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "GET" && req.method !== "POST") {
-    res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  try {
-    const pool = getPool();
-    for (const doc of [CAPABILITIES_DOC, EXAMPLES_DOC]) {
-      await pool.query(
-        `insert into chat_capabilities (slug, title, content, updated_at)
-         values ($1, $2, $3, now())
-         on conflict (slug) do update set title = excluded.title, content = excluded.content, updated_at = now()`,
-        [doc.slug, doc.title, doc.content],
-      );
-    }
-    return res.status(200).json({
-      ok: true,
-      message: "chat_capabilities seeded",
-      slugs: [CAPABILITIES_DOC.slug, EXAMPLES_DOC.slug],
-    });
-  } catch (err: any) {
-    console.error("rag-seed-capabilities error:", err?.message || err);
-    return res.status(500).json({ error: err?.message || "Seed failed" });
-  }
-}
+- привет; что умеешь; помощь; отвяжи компанию.',
+  now()
+)
+on conflict (slug) do update set
+  title = excluded.title,
+  content = excluded.content,
+  updated_at = excluded.updated_at;

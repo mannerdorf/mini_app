@@ -621,18 +621,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let ragContext = "";
     let capabilityContext = "";
     try {
-      const topK = Number(process.env.RAG_TOP_K || 5);
-      const minScore = Number(process.env.RAG_MIN_SCORE || 0);
-      const capabilityResults = await searchSimilar(userMessage, {
-        topK: 4,
-        minScore: 0.3,
-        sourceTypes: ["capability"],
-      });
-      if (capabilityResults.length > 0) {
-        capabilityContext = "ЧТО УМЕЕТ ГРУЗИК (из базы возможностей):\n" + capabilityResults
-          .map((item, idx) => `[${idx + 1}] ${item.title || item.sourceId}\n${item.content}`)
+      const capRows = await pool.query<{ title: string; content: string }>(
+        `select title, content from chat_capabilities order by slug`,
+      );
+      if (capRows.rows.length > 0) {
+        capabilityContext = "ЧТО УМЕЕТ ГРУЗИК (из таблицы навыков):\n" + capRows.rows
+          .map((row, idx) => `[${idx + 1}] ${row.title}\n${row.content}`)
           .join("\n\n");
       }
+    } catch (capErr: any) {
+      console.warn("chat_capabilities load failed:", capErr?.message ?? capErr);
+    }
+    try {
+      const topK = Number(process.env.RAG_TOP_K || 5);
+      const minScore = Number(process.env.RAG_MIN_SCORE || 0);
       const ragResults = await searchSimilar(userMessage, { topK, minScore, customer: effectiveCustomer });
       if (ragResults.length > 0) {
         ragContext = ragResults
