@@ -70,8 +70,18 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     0%, 100% { transform: rotate(-2deg); }
     50% { transform: rotate(2deg); }
 }
-.gruzik-avatar { animation: gruzik-bounce 2s ease-in-out infinite; }
+/* Коробка: крышка открывается и закрывается время от времени */
+@keyframes gruzik-lid {
+    0%, 75%, 100% { transform: rotate(0deg); }
+    40%, 50% { transform: rotate(-95deg); }
+}
+.gruzik-avatar .gruzik-lid {
+    transform-origin: 50% 100%;
+    animation: gruzik-lid 4s ease-in-out infinite;
+}
+.gruzik-avatar { animation: gruzik-bounce 2.5s ease-in-out infinite; }
 .gruzik-avatar.typing { animation: gruzik-wave 0.8s ease-in-out infinite; }
+.gruzik-avatar.typing .gruzik-lid { animation: gruzik-lid 2s ease-in-out infinite; }
 .text-theme-primary { color: var(--color-text-primary); }
 .text-theme-secondary { color: var(--color-text-secondary); }
 

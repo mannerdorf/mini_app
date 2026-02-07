@@ -619,9 +619,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     let ragContext = "";
+    let capabilityContext = "";
     try {
       const topK = Number(process.env.RAG_TOP_K || 5);
       const minScore = Number(process.env.RAG_MIN_SCORE || 0);
+      const capabilityResults = await searchSimilar(userMessage, {
+        topK: 4,
+        minScore: 0.3,
+        sourceTypes: ["capability"],
+      });
+      if (capabilityResults.length > 0) {
+        capabilityContext = "ЧТО УМЕЕТ ГРУЗИК (из базы возможностей):\n" + capabilityResults
+          .map((item, idx) => `[${idx + 1}] ${item.title || item.sourceId}\n${item.content}`)
+          .join("\n\n");
+      }
       const ragResults = await searchSimilar(userMessage, { topK, minScore, customer: effectiveCustomer });
       if (ragResults.length > 0) {
         ragContext = ragResults
@@ -670,23 +681,18 @@ ${contextForPrompt ? JSON.stringify(contextForPrompt, null, 2) : "Пользов
 АКТИВНЫЙ ЗАКАЗЧИК:
 ${effectiveCustomer || "Не указан. В этой сессии компания не привязана — выберите компанию в приложении или попросите отвязать текущую."}
 
-ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ (из базы знаний):
+${capabilityContext ? capabilityContext + "\n\n" : ""}ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ (из базы знаний):
 ${ragContext || "Нет дополнительных данных."}
 
 ПРАВИЛА ОТВЕТОВ:
 1. Представляйся как Грузик. Используй дружелюбные смайлики и лёгкое чувство юмора в ответах.
-2. Если пользователь спрашивает про конкретную перевозку, ищи её в предоставленном контексте.
-3. Если данных в контексте нет, вежливо попроси уточнить номер перевозки.
-4. Если не знаешь ответа, предложи связаться с оператором.
-5. Не проси пароли и не повторяй их.
-6. Если вопрос на другом языке, всё равно отвечай по‑русски.`;
+2. Если нужны актуальные данные перевозок по API — вызови инструмент get_perevozki с датами (dateFrom, dateTo). Если пользователь просит контакты — вызови get_contacts.
+3. Если пользователь спрашивает про конкретную перевозку, ищи её в предоставленном контексте или в результате get_perevozki.
+4. Если данных в контексте нет, вежливо попроси уточнить номер перевозки или вызови get_perevozki при наличии учётных данных.
+5. Если не знаешь ответа, предложи связаться с оператором.
+6. Не проси пароли и не повторяй их.
+7. Если вопрос на другом языке, всё равно отвечай по‑русски.`;
     const systemPrompt = aliceRules ? `${basePrompt}\n${aliceRules}` : basePrompt;
-
-    // Используем историю из БД или переданные сообщения
-    const chatMessages: { role: ChatRole; content: string }[] = [
-      { role: "system", content: systemPrompt },
-      ...history.rows.reverse(),
-    ];
 
     const client = new OpenAI({ apiKey });
     const allowedModels = new Set(["gpt-4o-mini", "gpt-4o"]);
@@ -698,14 +704,130 @@ ${ragContext || "Нет дополнительных данных."}
           ? requestedModel
           : "gpt-4o-mini";
 
-    const completion = await client.chat.completions.create({
-      model: chosenModel,
-      messages: chatMessages,
-      temperature: 0.7,
-      max_tokens: 500,
-    });
+    const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+      {
+        type: "function",
+        function: {
+          name: "get_perevozki",
+          description: "Получить список перевозок из API. Вызывай при запросах типа «перевозки за сегодня/неделю/месяц», «что в пути», «неоплаченные» и т.п. Требуются учётные данные (логин/пароль) в сессии.",
+          parameters: {
+            type: "object",
+            properties: {
+              dateFrom: { type: "string", description: "Начало периода YYYY-MM-DD" },
+              dateTo: { type: "string", description: "Конец периода YYYY-MM-DD" },
+              status: { type: "string", enum: ["in_transit", "ready", "delivering", "delivered"], description: "Опционально: фильтр по статусу" },
+              type: { type: "string", enum: ["ferry", "auto"], description: "Опционально: паром или авто" },
+            },
+            required: ["dateFrom", "dateTo"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_contacts",
+          description: "Вернуть контакты HAULZ: адреса офисов, телефон, email, сайт. Вызывай при запросах «контакты», «адрес», «телефон», «как связаться».",
+          parameters: { type: "object" },
+        },
+      },
+    ];
 
-    const reply = completion.choices[0]?.message?.content?.trim() || "";
+    type MessageParam =
+      | { role: "system"; content: string }
+      | { role: "user"; content: string }
+      | { role: "assistant"; content: string | null; tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] }
+      | { role: "tool"; tool_call_id: string; content: string };
+
+    const baseMessages: MessageParam[] = [
+      { role: "system", content: systemPrompt },
+      ...history.rows.reverse().map((r) => ({ role: r.role as "user" | "assistant", content: r.content })),
+    ];
+
+    let messages: MessageParam[] = [...baseMessages];
+    let reply = "";
+    const appDomain = getAppDomain();
+    const maxToolRounds = 5;
+    let toolRounds = 0;
+
+    while (true) {
+      if (toolRounds >= maxToolRounds) break;
+      toolRounds++;
+      const completion = await client.chat.completions.create({
+        model: chosenModel,
+        messages,
+        temperature: 0.7,
+        max_tokens: 800,
+        tools: tools.length ? tools : undefined,
+      });
+
+      const msg = completion.choices[0]?.message;
+      if (!msg) break;
+
+      const content = msg.content?.trim() ?? "";
+      const toolCalls = msg.tool_calls;
+
+      if (toolCalls && toolCalls.length > 0) {
+        messages.push({ role: "assistant", content: content || null, tool_calls: toolCalls });
+        for (const tc of toolCalls) {
+          const name = tc.function?.name;
+          const argsStr = tc.function?.arguments ?? "{}";
+          let resultJson: unknown = {};
+          try {
+            if (name === "get_perevozki") {
+              const args = JSON.parse(argsStr) as { dateFrom?: string; dateTo?: string };
+              const dateFrom = args.dateFrom ?? "2024-01-01";
+              const dateTo = args.dateTo ?? new Date().toISOString().split("T")[0];
+              if (!auth?.login || !auth?.password) {
+                resultJson = { error: "Нет учётных данных. Попросите пользователя авторизоваться." };
+              } else {
+                const perevozkiRes = await fetch(`${appDomain}/api/perevozki`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    dateFrom,
+                    dateTo,
+                    ...(auth.inn ? { inn: auth.inn } : {}),
+                  }),
+                });
+                const data = perevozkiRes.ok ? await perevozkiRes.json().catch(() => ({})) : { error: "Ошибка API" };
+                resultJson = Array.isArray(data) ? { items: data } : data;
+                await pool.query(
+                  `insert into chat_api_results (session_id, api_name, request_payload, response_payload)
+                   values ($1, 'get_perevozki', $2, $3)`,
+                  [sid, JSON.stringify({ dateFrom, dateTo }), JSON.stringify(resultJson)],
+                );
+              }
+            } else if (name === "get_contacts") {
+              resultJson = {
+                website: HAULZ_CONTACTS.website,
+                email: HAULZ_CONTACTS.email,
+                offices: HAULZ_CONTACTS.offices,
+              };
+              await pool.query(
+                `insert into chat_api_results (session_id, api_name, request_payload, response_payload)
+                 values ($1, 'get_contacts', '{}', $2)`,
+                [sid, JSON.stringify(resultJson)],
+              );
+            } else {
+              resultJson = { error: "Unknown tool" };
+            }
+          } catch (err: any) {
+            resultJson = { error: err?.message ?? "Tool failed" };
+          }
+          messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(resultJson) });
+        }
+        continue;
+      }
+
+      reply = content;
+      break;
+    }
+
+    if (!reply) {
+      reply = "Не удалось сформировать ответ. Попробуйте переформулировать или написать позже.";
+    }
 
     await pool.query(
       `insert into chat_messages (session_id, role, content)

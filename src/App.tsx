@@ -6981,7 +6981,7 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
-/** Анимированный аватар Грузика — дружелюбный грузовик для чата */
+/** Анимированный аватар Грузика — коробка с глазами, крышка время от времени открывается и закрывается */
 function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: number; typing?: boolean; className?: string }) {
     return (
         <div
@@ -6990,21 +6990,17 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
             aria-hidden
         >
             <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* кузов */}
-                <rect x="8" y="22" width="24" height="14" rx="3" fill="var(--color-primary-blue)" opacity="0.9" />
-                {/* кабина */}
-                <rect x="28" y="18" width="12" height="18" rx="2" fill="var(--color-primary-blue)" />
-                {/* лобовое стекло */}
-                <path d="M30 20 L38 20 L38 26 L30 26 Z" fill="rgba(255,255,255,0.3)" />
+                {/* коробка — передняя грань */}
+                <rect x="12" y="18" width="24" height="24" rx="2" fill="var(--color-primary-blue)" stroke="var(--color-border)" strokeWidth="1" />
+                {/* крышка (анимируется: открывается/закрывается) */}
+                <g className="gruzik-lid">
+                    <rect x="12" y="10" width="24" height="8" rx="2" fill="var(--color-primary-blue)" stroke="var(--color-border)" strokeWidth="1" />
+                </g>
                 {/* глаза */}
-                <circle cx="32" cy="24" r="2" fill="var(--color-text-primary)" />
-                <circle cx="36" cy="24" r="2" fill="var(--color-text-primary)" />
+                <circle cx="20" cy="28" r="3" fill="var(--color-text-primary)" />
+                <circle cx="28" cy="28" r="3" fill="var(--color-text-primary)" />
                 {/* улыбка */}
-                <path d="M31 28 Q34 31 37 28" stroke="var(--color-text-primary)" strokeWidth="1.2" fill="none" strokeLinecap="round" />
-                {/* колёса */}
-                <circle cx="14" cy="38" r="4" fill="var(--color-bg-primary)" stroke="var(--color-border)" strokeWidth="1" />
-                <circle cx="26" cy="38" r="4" fill="var(--color-bg-primary)" stroke="var(--color-border)" strokeWidth="1" />
-                <circle cx="34" cy="38" r="4" fill="var(--color-bg-primary)" stroke="var(--color-border)" strokeWidth="1" />
+                <path d="M18 34 Q24 38 30 34" stroke="var(--color-text-primary)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
             </svg>
         </div>
     );
@@ -7571,6 +7567,10 @@ function ChatPage({
             cargoList: recentCargoList,
         };
 
+        const CHAT_TIMEOUT_MS = 90000; // 90 сек — после этого снимаем «печатает» и показываем ошибку
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+
         try {
             const effectiveCustomer = sessionUnlinked ? null : customerOverride;
             const res = await fetch('/api/chat', {
@@ -7583,9 +7583,11 @@ function ChatPage({
                     context: { ...context, customer: effectiveCustomer },
                     customer: effectiveCustomer,
                     auth: auth?.login && auth?.password ? { login: auth.login, password: auth.password, ...(auth.inn ? { inn: auth.inn } : {}) } : undefined
-                })
+                }),
+                signal: controller.signal,
             });
 
+            clearTimeout(timeoutId);
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 throw new Error(data?.error || data?.message || `Ошибка ${res.status}`);
@@ -7601,7 +7603,9 @@ function ChatPage({
             }
             setMessages(prev => [...prev, { role: 'assistant', content: data.reply || "" }]);
         } catch (e: any) {
-            const msg = e?.message || "Не удалось получить ответ";
+            clearTimeout(timeoutId);
+            const isAbort = e?.name === 'AbortError';
+            const msg = isAbort ? 'Ответ занял слишком много времени. Попробуйте ещё раз.' : (e?.message || 'Не удалось получить ответ');
             setMessages(prev => [...prev, { 
                 role: 'assistant', 
                 content: `Ошибка: ${msg}` 
