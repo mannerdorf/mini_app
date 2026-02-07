@@ -7529,6 +7529,8 @@ function ChatPage({
         try {
             if (auth?.login && auth?.password) {
                 const today = new Date().toISOString().split("T")[0];
+                const perevozkiController = new AbortController();
+                const perevozkiTimeout = setTimeout(() => perevozkiController.abort(), 10000);
                 const perevozkiRes = await fetch('/api/perevozki', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -7540,7 +7542,9 @@ function ChatPage({
                         ...(customerOverride ? { customer: customerOverride } : {}),
                         ...(auth.inn ? { inn: auth.inn } : {}),
                     }),
+                    signal: perevozkiController.signal,
                 });
+                clearTimeout(perevozkiTimeout);
                 if (perevozkiRes.ok) {
                     const data = await perevozkiRes.json().catch(() => ({}));
                     const list = Array.isArray(data) ? data : (data?.items ?? []);
@@ -7660,7 +7664,8 @@ function ChatPage({
                     window.localStorage.setItem("haulz.chat.sessionId", data.sessionId);
                 }
             }
-            setMessages(prev => [...prev, { role: 'assistant', content: data.reply || "" }]);
+            const replyText = typeof data?.reply === "string" ? data.reply : "";
+            setMessages(prev => [...prev, { role: 'assistant', content: replyText || "(Нет ответа от сервера. Попробуйте ещё раз.)" }]);
         } catch (e: any) {
             clearTimeout(timeoutId);
             clearTimeout(safetyId);

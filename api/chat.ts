@@ -239,7 +239,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? sessionId.trim()
         : crypto.randomUUID();
 
-    const pool = getPool();
+    let pool;
+    try {
+      pool = getPool();
+    } catch (dbErr: any) {
+      console.error("chat getPool failed:", dbErr?.message ?? dbErr);
+      return res.status(200).json({
+        sessionId: sid,
+        reply: "Сервис временно недоступен. Попробуйте позже.",
+      });
+    }
 
     if (action === "history") {
       if (!sessionId || typeof sessionId !== "string") {
