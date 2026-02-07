@@ -6981,7 +6981,9 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
-/** Анимированный аватар Грузика — персонаж, чёрный фон убирается через mix-blend-mode */
+const GRUZIK_VIDEO_URL = 'https://cdn.midjourney.com/video/d81cf70d-a3b4-4b9c-b390-3f04af13f202/0.mp4';
+
+/** Анимированный аватар Грузика — видео с Midjourney, чёрный фон убирается через mix-blend-mode */
 function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: number; typing?: boolean; className?: string }) {
     return (
         <div
@@ -6997,12 +6999,16 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
             }}
             aria-hidden
         >
-            <img
-                src="/gruzik.png"
-                alt="Грузик"
+            <video
+                src={GRUZIK_VIDEO_URL}
+                autoPlay
+                loop
+                muted
+                playsInline
                 width={size}
                 height={size}
                 style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
+                title="Грузик"
             />
         </div>
     );
@@ -7439,7 +7445,7 @@ function ChatPage({
     useEffect(() => {
         if (hasLoadedHistory && messages.length === 0) {
             setMessages([
-                { role: 'assistant', content: "Здравствуйте! Меня зовут Грузик, я AI-помощник HAULZ. Как я могу вам помочь? 🚛" }
+                { role: 'assistant', content: "Здравствуйте! Меня зовут Грузик, я AI-помощник HAULZ. Как я могу вам помочь?" }
             ]);
         }
     }, [hasLoadedHistory, messages.length]);
