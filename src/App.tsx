@@ -7113,6 +7113,8 @@ function ChatPage({
     const [sessionUnlinked, setSessionUnlinked] = useState(false);
     /** Отладка на экране: последний статус ответа API и текст ошибки */
     const [chatStatus, setChatStatus] = useState<{ status?: number; error?: string } | null>(null);
+    /** Отдельная строка: какие запросы по API выполнялись (перевозки, чат) */
+    const [apiRequestInfo, setApiRequestInfo] = useState<{ context?: string; chat?: string } | null>(null);
     const scrollRef = React.useRef<HTMLDivElement>(null);
 
     // После отвязки в чате не отправляем заказчика, пока пользователь снова не выберет компанию
@@ -7554,8 +7556,10 @@ function ChatPage({
         setInputValue("");
         setIsReady(true);
         setChatStatus(null);
+        setApiRequestInfo(null);
 
         let fetchedCargo: CargoItem[] = [];
+        let contextApiLabel = '';
         try {
             if (auth?.login && auth?.password) {
                 const today = new Date().toISOString().split("T")[0];
@@ -7578,6 +7582,8 @@ function ChatPage({
                 if (perevozkiRes.ok) {
                     const data = await perevozkiRes.json().catch(() => ({}));
                     const list = Array.isArray(data) ? data : (data?.items ?? []);
+                    const count = Array.isArray(list) ? list.length : 0;
+                    contextApiLabel = `POST /api/perevozki (${count} перевозок)`;
                     fetchedCargo = (list as any[]).slice(0, 30).map((i: any) => ({
                         Number: i.Number,
                         DatePrih: i.DatePrih,
@@ -7591,11 +7597,16 @@ function ChatPage({
                         Receiver: i.Receiver,
                         Customer: i.Customer ?? i.customer,
                     }));
+                } else {
+                    contextApiLabel = `POST /api/perevozki (код ${perevozkiRes.status})`;
                 }
+            } else {
+                contextApiLabel = 'POST /api/perevozki не вызывался (нет авторизации)';
             }
         } catch {
-            // оставляем fetchedCargo пустым
+            contextApiLabel = 'POST /api/perevozki (ошибка или таймаут)';
         }
+        setApiRequestInfo(prev => ({ ...prev, context: contextApiLabel || undefined }));
 
         const cargoForContext = fetchedCargo.length > 0 ? fetchedCargo : (cargoItems ?? []);
         const recentCargoList = cargoForContext.slice(0, 35).map(i => {
@@ -7682,9 +7693,11 @@ function ChatPage({
             if (!res.ok) {
                 const msg = data?.reply || data?.error || data?.message || `Код ${res.status}`;
                 setChatStatus({ status: res.status, error: msg });
+                setApiRequestInfo(prev => ({ ...prev, chat: `POST /api/chat (${res.status})` }));
                 throw new Error(msg);
             }
             setChatStatus({ status: 200 });
+            setApiRequestInfo(prev => ({ ...prev, chat: 'POST /api/chat (200)' }));
             if (data?.unlinked === true) {
                 setSessionUnlinked(true);
             }
@@ -7702,6 +7715,7 @@ function ChatPage({
             const isAbort = e?.name === 'AbortError';
             const msg = isAbort ? 'Ответ занял слишком много времени. Попробуйте ещё раз.' : (e?.message || 'Не удалось получить ответ');
             setChatStatus({ error: msg });
+            setApiRequestInfo(prev => ({ ...prev, chat: 'POST /api/chat (ошибка)' }));
             setMessages(prev => [...prev, { 
                 role: 'assistant', 
                 content: `Ошибка: ${msg}` 
@@ -7768,18 +7782,26 @@ function ChatPage({
             </div>
 
             {/* Статус/ошибка API — на экране для отладки */}
-            {chatStatus && (
+            {(chatStatus || apiRequestInfo) && (
                 <div style={{
-                    padding: '0.35rem 0.75rem',
-                    background: chatStatus.error ? 'var(--color-error-bg)' : 'var(--color-bg-secondary)',
                     borderTop: '1px solid var(--color-border)',
                     fontSize: '0.8rem',
-                    color: chatStatus.error ? 'var(--color-error-text)' : 'var(--color-text-secondary)',
+                    color: 'var(--color-text-secondary)',
+                    background: 'var(--color-bg-secondary)',
                 }}>
-                    {chatStatus.error ? (
-                        <>Ошибка API: {chatStatus.status != null ? `код ${chatStatus.status} — ` : ''}{chatStatus.error}</>
-                    ) : (
-                        <>Статус: {chatStatus.status ?? '—'}</>
+                    {chatStatus && (
+                        <div style={{ padding: '0.35rem 0.75rem', color: chatStatus.error ? 'var(--color-error-text)' : undefined, background: chatStatus.error ? 'var(--color-error-bg)' : undefined }}>
+                            {chatStatus.error ? (
+                                <>Ошибка API: {chatStatus.status != null ? `код ${chatStatus.status} — ` : ''}{chatStatus.error}</>
+                            ) : (
+                                <>Статус: {chatStatus.status ?? '—'}</>
+                            )}
+                        </div>
+                    )}
+                    {apiRequestInfo && (apiRequestInfo.context || apiRequestInfo.chat) && (
+                        <div style={{ padding: '0.35rem 0.75rem', borderTop: chatStatus ? '1px solid var(--color-border)' : undefined }}>
+                            Запрос по API: {[apiRequestInfo.context, apiRequestInfo.chat].filter(Boolean).join(' → ')}
+                        </div>
                     )}
                 </div>
             )}

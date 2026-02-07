@@ -62,25 +62,9 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .max-w-4xl { max-width: 56rem; }
 .animate-spin { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes gruzik-bounce {
-    0%, 100% { transform: translateY(0) scale(1); }
-    50% { transform: translateY(-6px) scale(1.05); }
-}
-@keyframes gruzik-wave {
-    0%, 100% { transform: rotate(-4deg); }
-    50% { transform: rotate(4deg); }
-}
-/* Коробка: крышка открывается и закрывается время от времени */
-@keyframes gruzik-lid {
-    0%, 75%, 100% { transform: rotate(0deg); }
-    40%, 50% { transform: rotate(-95deg); }
-}
-.gruzik-avatar .gruzik-lid {
-    transform-origin: 50% 100%;
-    animation: gruzik-lid 4s ease-in-out infinite;
-}
-.gruzik-avatar { animation: gruzik-bounce 2s ease-in-out infinite; }
-.gruzik-avatar.typing { animation: gruzik-wave 0.6s ease-in-out infinite; }
+/* Аватар без изменения размера — анимация только внутри GIF/video */
+.gruzik-avatar { }
+.gruzik-avatar.typing { }
 /* Тёмная тема: чёрный фон видео сливается с фоном чата */
 .gruzik-avatar img,
 .gruzik-avatar video { mix-blend-mode: screen; }
@@ -92,7 +76,6 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 }
 .light-mode .gruzik-avatar img,
 .light-mode .gruzik-avatar video { mix-blend-mode: screen; }
-.gruzik-avatar.typing .gruzik-lid { animation: gruzik-lid 2s ease-in-out infinite; }
 
 /* Чат: «печатает» и анимированное троеточие */
 .chat-typing-text { margin-right: 0.15em; }
