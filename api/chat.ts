@@ -905,8 +905,12 @@ ${ragContext || "Нет дополнительных данных."}
       sid,
     ]);
     } catch (loopErr: any) {
-      console.error("Chat completion/tools error:", loopErr?.message ?? loopErr);
+      const errMsg = String(loopErr?.message ?? loopErr);
+      console.error("Chat completion/tools error:", errMsg);
       reply = "Извините, произошла временная ошибка. Попробуйте написать ещё раз или позже.";
+      if (process.env.NODE_ENV !== "production" || process.env.CHAT_DEBUG === "1") {
+        reply += ` [Ошибка: ${errMsg.slice(0, 200)}]`;
+      }
       try {
         await pool.query(
           `insert into chat_messages (session_id, role, content) values ($1, 'assistant', $2)`,
