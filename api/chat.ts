@@ -749,6 +749,7 @@ ${ragContext || "Нет дополнительных данных."}
     const maxToolRounds = 5;
     let toolRounds = 0;
 
+    try {
     while (true) {
       if (toolRounds >= maxToolRounds) break;
       toolRounds++;
@@ -793,11 +794,15 @@ ${ragContext || "Нет дополнительных данных."}
                 });
                 const data = perevozkiRes.ok ? await perevozkiRes.json().catch(() => ({})) : { error: "Ошибка API" };
                 resultJson = Array.isArray(data) ? { items: data } : data;
-                await pool.query(
-                  `insert into chat_api_results (session_id, api_name, request_payload, response_payload)
-                   values ($1, 'get_perevozki', $2, $3)`,
-                  [sid, JSON.stringify({ dateFrom, dateTo }), JSON.stringify(resultJson)],
-                );
+                try {
+                  await pool.query(
+                    `insert into chat_api_results (session_id, api_name, request_payload, response_payload)
+                     values ($1, 'get_perevozki', $2, $3)`,
+                    [sid, JSON.stringify({ dateFrom, dateTo }), JSON.stringify(resultJson)],
+                  );
+                } catch (dbErr: any) {
+                  console.warn("chat_api_results insert failed:", dbErr?.message ?? dbErr);
+                }
               }
             } else if (name === "get_contacts") {
               resultJson = {
@@ -805,11 +810,15 @@ ${ragContext || "Нет дополнительных данных."}
                 email: HAULZ_CONTACTS.email,
                 offices: HAULZ_CONTACTS.offices,
               };
-              await pool.query(
-                `insert into chat_api_results (session_id, api_name, request_payload, response_payload)
-                 values ($1, 'get_contacts', '{}', $2)`,
-                [sid, JSON.stringify(resultJson)],
-              );
+              try {
+                await pool.query(
+                  `insert into chat_api_results (session_id, api_name, request_payload, response_payload)
+                   values ($1, 'get_contacts', '{}', $2)`,
+                  [sid, JSON.stringify(resultJson)],
+                );
+              } catch (dbErr: any) {
+                console.warn("chat_api_results insert failed:", dbErr?.message ?? dbErr);
+              }
             } else {
               resultJson = { error: "Unknown tool" };
             }
@@ -837,6 +846,19 @@ ${ragContext || "Нет дополнительных данных."}
     await pool.query(`update chat_sessions set updated_at = now() where id = $1`, [
       sid,
     ]);
+    } catch (loopErr: any) {
+      console.error("Chat completion/tools error:", loopErr?.message ?? loopErr);
+      reply = "Извините, произошла временная ошибка. Попробуйте написать ещё раз или позже.";
+      try {
+        await pool.query(
+          `insert into chat_messages (session_id, role, content) values ($1, 'assistant', $2)`,
+          [sid, reply],
+        );
+        await pool.query(`update chat_sessions set updated_at = now() where id = $1`, [sid]);
+      } catch (e2: any) {
+        console.warn("Fallback message save failed:", e2?.message ?? e2);
+      }
+    }
 
     const dialogLines = [
       ...history.rows.reverse(),
