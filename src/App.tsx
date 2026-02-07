@@ -3074,7 +3074,7 @@ function AiChatProfilePage({
                 <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <GruzikAvatar size={32} />
+                <GruzikAvatar size={48} />
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>AI чат</Typography.Headline>
                 <Button
                     className="filter-button"
@@ -6990,7 +6990,7 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
             aria-hidden
         >
             <img
-                src="/gruzik.png"
+                src="/gruzik.jpg"
                 alt="Грузик"
                 width={size}
                 height={size}
@@ -7629,7 +7629,7 @@ function ChatPage({
             >
                 {messages.map((msg, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: '0.5rem' }}>
-                        {msg.role === 'assistant' && <GruzikAvatar size={28} />}
+                        {msg.role === 'assistant' && <GruzikAvatar size={40} />}
                         <div className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'}`} style={{ 
                             maxWidth: '85%', 
                             padding: '0.75rem 1rem', 
@@ -7647,7 +7647,7 @@ function ChatPage({
                 ))}
                 {isTyping && (
                     <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', gap: '0.5rem' }}>
-                        <GruzikAvatar size={36} typing />
+                        <GruzikAvatar size={52} typing />
                         <div style={{ 
                             padding: '0.75rem 1rem', 
                             borderRadius: '1rem', 
