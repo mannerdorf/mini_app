@@ -6728,7 +6728,7 @@ function CargoDetailsModal({
                                                     <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{step.label}</Typography.Body>
                                                     {step.date && (
                                                         <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                            {formatDateTime(step.date, index >= 1)}
+                                                            {formatDate(step.date)}
                                                         </Typography.Body>
                                                     )}
                                                 </div>
