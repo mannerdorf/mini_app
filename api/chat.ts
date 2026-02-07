@@ -335,7 +335,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? sessionId.trim()
         : crypto.randomUUID();
 
-    const pool = getPool();
+    let pool;
+    try {
+      pool = getPool();
+    } catch (dbInitErr: any) {
+      console.error("chat getPool failed:", dbInitErr?.message ?? dbInitErr);
+      return res.status(503).json({
+        error: "Database unavailable",
+        reply: "Сервис временно недоступен. Попробуйте позже.",
+      });
+    }
 
     if (action === "history") {
       if (!sessionId || typeof sessionId !== "string") {
@@ -630,7 +639,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .join("\n\n");
       }
     } catch (capErr: any) {
-      console.warn("chat_capabilities load failed:", capErr?.message ?? capErr);
+      const code = (capErr as { code?: string })?.code;
+      if (code === "42P01" || (String(capErr?.message || "").includes("does not exist"))) {
+        // Таблица chat_capabilities не создана — работаем без неё
+      } else {
+        console.warn("chat_capabilities load failed:", capErr?.message ?? capErr);
+      }
     }
     try {
       const topK = Number(process.env.RAG_TOP_K || 5);
@@ -740,9 +754,12 @@ ${ragContext || "Нет дополнительных данных."}
       | { role: "assistant"; content: string | null; tool_calls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] }
       | { role: "tool"; tool_call_id: string; content: string };
 
+    const historyList = [...history.rows].reverse();
     const baseMessages: MessageParam[] = [
       { role: "system", content: systemPrompt },
-      ...history.rows.reverse().map((r) => ({ role: r.role as "user" | "assistant", content: r.content })),
+      ...historyList
+        .filter((r) => r.role === "user" || r.role === "assistant")
+        .map((r) => ({ role: r.role as "user" | "assistant", content: String(r.content ?? "") })),
     ];
 
     let messages: MessageParam[] = [...baseMessages];
@@ -863,12 +880,12 @@ ${ragContext || "Нет дополнительных данных."}
     }
 
     const dialogLines = [
-      ...history.rows.reverse(),
+      ...historyList.filter((r) => r.role === "user" || r.role === "assistant"),
       { role: "assistant" as const, content: reply },
     ]
       .map((item) => {
         const role = item.role === "user" ? "Пользователь" : "Ассистент";
-        return `${role}: ${item.content}`;
+        return `${role}: ${String((item as { content?: string }).content ?? "")}`;
       })
       .join("\n");
 
@@ -887,10 +904,12 @@ ${ragContext || "Нет дополнительных данных."}
 
     return res.status(200).json({ sessionId: sid, reply });
   } catch (err: any) {
-    console.error("chat error:", err?.message || err);
-    return res.status(500).json({ 
-      error: "chat failed",
-      reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже."
+    console.error("chat error:", err?.message || err, err?.stack);
+    const sid = (req.body && typeof req.body === "object" && req.body.sessionId) || null;
+    return res.status(200).json({
+      sessionId: sid,
+      reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже.",
+      error: process.env.NODE_ENV === "development" ? String(err?.message || err) : undefined,
     });
   }
 }
