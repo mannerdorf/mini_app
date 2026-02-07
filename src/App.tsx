@@ -180,24 +180,29 @@ const getPreviousPeriodRange = (filter: DateFilter, currentFrom: string, current
     return { dateFrom, dateTo };
 }
 
+const WEEKDAY_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'] as const;
+
 const formatDate = (dateString: string | undefined): string => {
     if (!dateString) return '-';
     try {
-        // Убеждаемся, что строка - это только дата (без времени) для корректного парсинга
-        const cleanDateString = dateString.split('T')[0]; 
+        const cleanDateString = dateString.split('T')[0];
         const date = new Date(cleanDateString);
-        if (!isNaN(date.getTime())) return date.toLocaleDateString('ru-RU');
+        if (!isNaN(date.getTime())) {
+            const dayShort = WEEKDAY_SHORT[date.getDay()] ?? '';
+            return dayShort ? `${dayShort}, ${date.toLocaleDateString('ru-RU')}` : date.toLocaleDateString('ru-RU');
+        }
     } catch { }
     return dateString;
 };
 
-/** Дата и время (DD.MM.YYYY, HH:mm) для статусов перевозки; withPlus — со знаком + перед временем (со 2-й строки) */
+/** Дата и время (день недели + DD.MM.YYYY, HH:mm) для статусов перевозки; withPlus — со знаком + перед временем (со 2-й строки) */
 const formatDateTime = (dateString: string | undefined, withPlus?: boolean): string => {
     if (!dateString) return '-';
     try {
         const date = new Date(dateString);
         if (!isNaN(date.getTime())) {
-            const d = date.toLocaleDateString('ru-RU');
+            const dayShort = WEEKDAY_SHORT[date.getDay()] ?? '';
+            const d = dayShort ? `${dayShort}, ${date.toLocaleDateString('ru-RU')}` : date.toLocaleDateString('ru-RU');
             const t = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: undefined });
             return withPlus ? `${d}, +${t}` : `${d}, ${t}`;
         }
@@ -205,12 +210,15 @@ const formatDateTime = (dateString: string | undefined, withPlus?: boolean): str
     return dateString;
 };
 
-/** Только дата (DD.MM.YYYY) для колонки «Дата доставки» в статусах перевозки */
+/** Только дата (день недели + DD.MM.YYYY) для колонки «Дата доставки» в статусах перевозки */
 const formatTimelineDate = (dateString: string | undefined): string => {
     if (!dateString) return '—';
     try {
         const date = new Date(dateString);
-        if (!isNaN(date.getTime())) return date.toLocaleDateString('ru-RU');
+        if (!isNaN(date.getTime())) {
+            const dayShort = WEEKDAY_SHORT[date.getDay()] ?? '';
+            return dayShort ? `${dayShort}, ${date.toLocaleDateString('ru-RU')}` : date.toLocaleDateString('ru-RU');
+        }
     } catch { }
     return dateString;
 };
