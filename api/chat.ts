@@ -347,7 +347,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const CHAT_DEBUG = process.env.VERCEL_ENV !== "production" || process.env.CHAT_DEBUG === "1";
   try {
     const body = coerceBody(req);
-    const { sessionId, userId, message, messages, context, customer, action, auth, channel, model } = body;
+    const { sessionId, userId, message, messages: messagesFromBody, context, customer, action, auth, channel, model } = body;
     if (CHAT_DEBUG) console.log("[chat] body", { sessionId, hasMessage: !!message, hasAuth: !!(auth?.login), action });
 
     const sid =
@@ -387,7 +387,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Поддержка двух форматов:
     // 1. Простой формат: { message, sessionId?, userId? }
     // 2. Формат с массивом сообщений: { messages, context?, sessionId?, userId? }
-    const userMessage = message || (Array.isArray(messages) && messages.length > 0 ? messages[messages.length - 1]?.content : null);
+    const userMessage = message || (Array.isArray(messagesFromBody) && messagesFromBody.length > 0 ? messagesFromBody[messagesFromBody.length - 1]?.content : null);
     
     if (!userMessage || typeof userMessage !== "string") {
       return res.status(400).json({ error: "message or messages array is required" });
