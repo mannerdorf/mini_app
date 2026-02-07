@@ -791,7 +791,7 @@ ${ragContext || "Нет дополнительных данных."}
         .map((r) => ({ role: r.role as "user" | "assistant", content: String(r.content ?? "") })),
     ];
 
-    let messages: MessageParam[] = [...baseMessages];
+    let openAiMessages: MessageParam[] = [...baseMessages];
     let reply = "";
     const appDomain = getAppDomain();
     const maxToolRounds = 5;
@@ -804,7 +804,7 @@ ${ragContext || "Нет дополнительных данных."}
       toolRounds++;
       const completion = await client.chat.completions.create({
         model: chosenModel,
-        messages,
+        messages: openAiMessages,
         temperature: 0.7,
         max_tokens: 800,
         tools: tools.length ? tools : undefined,
@@ -817,7 +817,7 @@ ${ragContext || "Нет дополнительных данных."}
       const toolCalls = msg.tool_calls;
 
       if (toolCalls && toolCalls.length > 0) {
-        messages.push({ role: "assistant", content: content || null, tool_calls: toolCalls });
+        openAiMessages.push({ role: "assistant", content: content || null, tool_calls: toolCalls });
         for (const tc of toolCalls) {
           const name = tc.function?.name;
           const argsStr = tc.function?.arguments ?? "{}";
@@ -883,7 +883,7 @@ ${ragContext || "Нет дополнительных данных."}
           } catch (err: any) {
             resultJson = { error: err?.message ?? "Tool failed" };
           }
-          messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(resultJson) });
+          openAiMessages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(resultJson) });
         }
         continue;
       }
