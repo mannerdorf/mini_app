@@ -6981,12 +6981,20 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
-/** Анимированный аватар Грузика — персонаж на прозрачном фоне, без границ */
+/** Анимированный аватар Грузика — персонаж, чёрный фон убирается через mix-blend-mode */
 function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: number; typing?: boolean; className?: string }) {
     return (
         <div
             className={`gruzik-avatar ${typing ? 'typing' : ''} ${className}`.trim()}
-            style={{ width: size, height: size, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{
+                width: size,
+                height: size,
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--color-bg-primary)',
+            }}
             aria-hidden
         >
             <img
