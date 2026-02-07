@@ -330,11 +330,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  // Всегда один лог при входе — по нему в Vercel видно, что запрос дошёл (отладка без CHAT_DEBUG)
+  console.log("[chat] request start");
+
+  try {
   const CHAT_DEBUG = process.env.VERCEL_ENV !== "production" || process.env.CHAT_DEBUG === "1";
   try {
     const body = coerceBody(req);
     const { sessionId, userId, message, messages, context, customer, action, auth, channel, model } = body;
-    if (CHAT_DEBUG) console.log("[chat] request", { sessionId, hasMessage: !!message, hasAuth: !!(auth?.login), action });
+    if (CHAT_DEBUG) console.log("[chat] body", { sessionId, hasMessage: !!message, hasAuth: !!(auth?.login), action });
 
     const sid =
       typeof sessionId === "string" && sessionId.trim()
@@ -923,12 +927,23 @@ ${ragContext || "Нет дополнительных данных."}
   } catch (err: any) {
     console.error("chat error:", err?.message || err, err?.stack);
     if (CHAT_DEBUG) console.log("[chat] caught", err?.message);
-    const sid = (req.body && typeof req.body === "object" && req.body.sessionId) || null;
+    const catchBody = coerceBody(req);
+    const sid = typeof catchBody?.sessionId === "string" ? catchBody.sessionId : null;
     return res.status(200).json({
       sessionId: sid,
       reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже.",
       error: process.env.NODE_ENV === "development" ? String(err?.message || err) : undefined,
     });
+  }
+  } catch (outerErr: any) {
+    console.error("[chat] outer error", outerErr?.message || outerErr, outerErr?.stack);
+    try {
+      const b = coerceBody(req);
+      const sid = typeof b?.sessionId === "string" ? b.sessionId : null;
+      return res.status(200).json({ sessionId: sid, reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже." });
+    } catch (_) {
+      return res.status(200).json({ sessionId: null, reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже." });
+    }
   }
 }
 

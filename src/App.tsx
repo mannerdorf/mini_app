@@ -7086,6 +7086,8 @@ function ChatPage({
         return sid;
     });
     const [sessionUnlinked, setSessionUnlinked] = useState(false);
+    /** Отладка на экране: последний статус ответа API и текст ошибки */
+    const [chatStatus, setChatStatus] = useState<{ status?: number; error?: string } | null>(null);
     const scrollRef = React.useRef<HTMLDivElement>(null);
 
     // После отвязки в чате не отправляем заказчика, пока пользователь снова не выберет компанию
@@ -7521,6 +7523,7 @@ function ChatPage({
         setMessages(newMessages);
         setInputValue("");
         setIsReady(true);
+        setChatStatus(null);
 
         let fetchedCargo: CargoItem[] = [];
         try {
@@ -7643,9 +7646,11 @@ function ChatPage({
             });
             if (CHAT_DEBUG) console.log('[chat] response', { status: res.status, ok: res.ok, hasReply: !!data?.reply, replyLen: data?.reply?.length });
             if (!res.ok) {
-                const msg = data?.reply || data?.error || data?.message || `Ошибка ${res.status}. Попробуйте позже.`;
+                const msg = data?.reply || data?.error || data?.message || `Код ${res.status}`;
+                setChatStatus({ status: res.status, error: msg });
                 throw new Error(msg);
             }
+            setChatStatus({ status: 200 });
             if (data?.unlinked === true) {
                 setSessionUnlinked(true);
             }
@@ -7659,9 +7664,9 @@ function ChatPage({
         } catch (e: any) {
             clearTimeout(timeoutId);
             clearTimeout(safetyId);
-            if (CHAT_DEBUG) console.warn('[chat] error', e?.name, e?.message, e);
             const isAbort = e?.name === 'AbortError';
             const msg = isAbort ? 'Ответ занял слишком много времени. Попробуйте ещё раз.' : (e?.message || 'Не удалось получить ответ');
+            setChatStatus({ error: msg });
             setMessages(prev => [...prev, { 
                 role: 'assistant', 
                 content: `Ошибка: ${msg}` 
@@ -7723,6 +7728,22 @@ function ChatPage({
                 )}
             </div>
 
+            {/* Статус/ошибка API — на экране для отладки */}
+            {chatStatus && (
+                <div style={{
+                    padding: '0.35rem 0.75rem',
+                    background: chatStatus.error ? 'var(--color-error-bg)' : 'var(--color-bg-secondary)',
+                    borderTop: '1px solid var(--color-border)',
+                    fontSize: '0.8rem',
+                    color: chatStatus.error ? 'var(--color-error-text)' : 'var(--color-text-secondary)',
+                }}>
+                    {chatStatus.error ? (
+                        <>Ошибка API: {chatStatus.status != null ? `код ${chatStatus.status} — ` : ''}{chatStatus.error}</>
+                    ) : (
+                        <>Статус: {chatStatus.status ?? '—'}</>
+                    )}
+                </div>
+            )}
             {/* Поле ввода — прижато к низу, без линии сверху */}
             <div className="chat-input-bar" style={{ padding: '0.75rem', background: 'var(--color-bg-primary)', width: '100%', boxSizing: 'border-box', flexShrink: 0 }}>
                 <form 

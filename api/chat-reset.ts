@@ -2,9 +2,13 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 
 function coerceBody(req: VercelRequest): any {
-  let body: any = req.body;
-  if (typeof body === "string") body = JSON.parse(body);
-  return body ?? {};
+  try {
+    let body: any = req.body;
+    if (typeof body === "string") body = JSON.parse(body);
+    return body ?? {};
+  } catch {
+    return {};
+  }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -24,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true });
   } catch (err: any) {
     console.error("chat-reset error:", err?.message || err);
-    return res.status(500).json({ error: "chat-reset failed" });
+    return res.status(200).json({ ok: false, error: "chat-reset failed" });
   }
 }
 
