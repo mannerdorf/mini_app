@@ -7509,14 +7509,15 @@ function ChatPage({
             customer: i.Customer ?? (i as any).customer,
         }));
 
-            // Подготавливаем контекст: данные перевозок из API или переданный cargoItems
-            const context = {
-                userLogin: auth?.login,
-                customer: customerOverride,
-                activeCargoCount: cargoForContext.length,
-                cargoList: recentCargoList,
-            };
+        // Подготавливаем контекст: данные перевозок из API или переданный cargoItems
+        const context = {
+            userLogin: auth?.login,
+            customer: customerOverride,
+            activeCargoCount: cargoForContext.length,
+            cargoList: recentCargoList,
+        };
 
+        try {
             const effectiveCustomer = sessionUnlinked ? null : customerOverride;
             const res = await fetch('/api/chat', {
                 method: 'POST',
