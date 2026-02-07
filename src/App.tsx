@@ -6981,8 +6981,9 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
-/** Аватар Грузика — картинка из public/gruzik.png, чёрный фон убирается через mix-blend-mode */
+/** Аватар Грузика — WebM для анимации, при ошибке загрузки показывается PNG */
 function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: number; typing?: boolean; className?: string }) {
+    const [useFallback, setUseFallback] = useState(false);
     return (
         <div
             className={`gruzik-avatar ${typing ? 'typing' : ''} ${className}`.trim()}
@@ -6997,14 +6998,29 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
             }}
             aria-hidden
         >
-            <img
-                src="/gruzik.png"
-                alt="Грузик"
-                width={size}
-                height={size}
-                style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
-                title="Грузик"
-            />
+            {useFallback ? (
+                <img
+                    src="/gruzik.png"
+                    alt="Грузик"
+                    width={size}
+                    height={size}
+                    style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
+                    title="Грузик"
+                />
+            ) : (
+                <video
+                    src="/gruzik.webm"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    width={size}
+                    height={size}
+                    style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
+                    title="Грузик"
+                    onError={() => setUseFallback(true)}
+                />
+            )}
         </div>
     );
 }
@@ -7593,7 +7609,8 @@ function ChatPage({
             clearTimeout(timeoutId);
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                throw new Error(data?.error || data?.message || `Ошибка ${res.status}`);
+                const msg = data?.reply || data?.error || data?.message || `Ошибка ${res.status}. Попробуйте позже.`;
+                throw new Error(msg);
             }
             if (data?.unlinked === true) {
                 setSessionUnlinked(true);

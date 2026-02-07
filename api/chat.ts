@@ -53,11 +53,15 @@ function buildContactsReply() {
 }
 
 function coerceBody(req: VercelRequest): any {
-  let body: any = req.body;
-  if (typeof body === "string") {
-    body = JSON.parse(body);
+  try {
+    let body: any = req.body;
+    if (typeof body === "string") {
+      body = JSON.parse(body);
+    }
+    return body ?? {};
+  } catch {
+    return {};
   }
-  return body ?? {};
 }
 
 function getAppDomain() {
