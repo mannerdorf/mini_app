@@ -3054,6 +3054,7 @@ function AiChatProfilePage({
 }) {
     const [prefillMessage, setPrefillMessage] = useState<string | undefined>(undefined);
     const [tgLinkError, setTgLinkError] = useState<string | null>(null);
+    const chatClearRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -3074,10 +3075,16 @@ function AiChatProfilePage({
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>AI чат</Typography.Headline>
+                <Button
+                    className="filter-button"
+                    style={{ marginLeft: 'auto' }}
+                    onClick={() => chatClearRef.current?.()}
+                >
+                    Очистить чат
+                </Button>
                 {onOpenTelegramBot && (
                     <Button
                         className="filter-button"
-                        style={{ marginLeft: 'auto' }}
                         onClick={async () => {
                             setTgLinkError(null);
                             try {
@@ -3106,6 +3113,7 @@ function AiChatProfilePage({
                         prefillMessage={prefillMessage}
                         onClearPrefill={() => setPrefillMessage(undefined)}
                         onOpenCargo={onOpenCargo}
+                        clearChatRef={chatClearRef}
                     />
                 ) : (
                     <Panel className="cargo-card" style={{ padding: '1rem', width: '100%' }}>
@@ -6980,7 +6988,8 @@ function ChatPage({
     sessionOverride,
     userIdOverride,
     customerOverride,
-    onOpenCargo
+    onOpenCargo,
+    clearChatRef
 }: { 
     prefillMessage?: string; 
     onClearPrefill?: () => void;
@@ -6990,6 +6999,8 @@ function ChatPage({
     userIdOverride?: string;
     customerOverride?: string;
     onOpenCargo?: (cargoNumber: string) => void;
+    /** ref для вызова очистки чата из родителя (кнопка «Очистить чат») */
+    clearChatRef?: React.MutableRefObject<(() => void) | null>;
 }) {
     const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
     const [inputValue, setInputValue] = useState("");
@@ -7404,6 +7415,24 @@ function ChatPage({
             ]);
         }
     }, [hasLoadedHistory, messages.length]);
+
+    const clearChat = useCallback(async () => {
+        try {
+            await fetch('/api/chat-reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId }),
+            });
+        } catch {
+            // ignore
+        }
+        setMessages([]);
+    }, [sessionId]);
+
+    useEffect(() => {
+        if (clearChatRef) clearChatRef.current = clearChat;
+        return () => { if (clearChatRef) clearChatRef.current = null; };
+    }, [clearChatRef, clearChat]);
 
     // Автоматическая прокрутка вниз
     useEffect(() => {
