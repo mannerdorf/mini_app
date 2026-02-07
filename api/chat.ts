@@ -23,7 +23,6 @@ const DOC_METHODS_MAP: Record<string, string> = {
 
 function isContactsRequest(text: string) {
   const lower = text.toLowerCase();
-  // Вопрос по перевозке с номером (например «по перевозке номер 123») — не запрос контактов
   if ((lower.includes("перевозк") || lower.includes("груз")) && /\d{4,}/.test(text)) return false;
   return (
     lower.includes("контакт") ||
@@ -72,7 +71,6 @@ function getAppDomain() {
       : "https://mini-app-lake-phi.vercel.app";
 }
 
-/** Ключ статуса перевозки для фильтра (как на вкладке Грузы) */
 function getStatusKey(state: string | undefined): string {
   if (!state) return "all";
   const l = String(state).toLowerCase();
@@ -83,7 +81,6 @@ function getStatusKey(state: string | undefined): string {
   return "all";
 }
 
-/** Ключ оплаты счёта */
 function getPaymentKey(stateBill: string | undefined): string {
   if (!stateBill) return "unknown";
   const l = String(stateBill).toLowerCase();
@@ -107,7 +104,6 @@ function cityToCode(city: string | undefined | null): string {
   return String(city).trim();
 }
 
-/** Для Telegram/Alice: загрузить перевозки по API и собрать контекст как в мини-приложении */
 async function fetchCargoContextForChannel(
   auth: { login: string; password: string; inn?: string },
   customerName: string | null,
@@ -123,27 +119,17 @@ async function fetchCargoContextForChannel(
   monthAgo.setDate(monthAgo.getDate() - 30);
   const monthStartStr = monthAgo.toISOString().split("T")[0];
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
-  let res: Response;
-  try {
-    res = await fetch(`${appDomain}/api/perevozki`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        login: auth.login,
-        password: auth.password,
-        dateFrom: "2024-01-01",
-        dateTo: todayStr,
-        ...(auth.inn ? { inn: auth.inn } : {}),
-      }),
-      signal: controller.signal,
-    });
-  } catch (e) {
-    clearTimeout(timeoutId);
-    return { todayDate: todayStr, todayLabel, weekStartDate: weekStartStr, weekEndDate: todayStr, monthStartDate: monthStartStr, monthEndDate: todayStr, cargoList: [], activeCargoCount: 0, customer: customerName };
-  }
-  clearTimeout(timeoutId);
+  const res = await fetch(`${appDomain}/api/perevozki`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      login: auth.login,
+      password: auth.password,
+      dateFrom: "2024-01-01",
+      dateTo: todayStr,
+      ...(auth.inn ? { inn: auth.inn } : {}),
+    }),
+  });
   if (!res.ok) return { todayDate: todayStr, todayLabel, weekStartDate: weekStartStr, weekEndDate: todayStr, monthStartDate: monthStartStr, monthEndDate: todayStr, cargoList: [], activeCargoCount: 0, customer: customerName };
 
   const data = await res.json().catch(() => ({}));
@@ -248,7 +234,6 @@ function wantsNoLinks(text: string) {
   return lower.includes("без ссылок");
 }
 
-/** Запрос на отвязку компании/заказчика в чате */
 function isUnlinkRequest(text: string) {
   const lower = text.toLowerCase().trim();
   return (
@@ -340,15 +325,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Всегда один лог при входе — по нему в Vercel видно, что запрос дошёл (отладка без CHAT_DEBUG)
-  console.log("[chat] request start");
-
-  try {
-  const CHAT_DEBUG = process.env.VERCEL_ENV !== "production" || process.env.CHAT_DEBUG === "1";
   try {
     const body = coerceBody(req);
     const { sessionId, userId, message, messages: messagesFromBody, context, customer, action, auth, channel, model } = body;
-    if (CHAT_DEBUG) console.log("[chat] body", { sessionId, hasMessage: !!message, hasAuth: !!(auth?.login), action });
 
     const sid =
       typeof sessionId === "string" && sessionId.trim()
@@ -384,11 +363,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ sessionId: sid, history: history.rows });
     }
 
-    // Поддержка двух форматов:
-    // 1. Простой формат: { message, sessionId?, userId? }
-    // 2. Формат с массивом сообщений: { messages, context?, sessionId?, userId? }
     const userMessage = message || (Array.isArray(messagesFromBody) && messagesFromBody.length > 0 ? messagesFromBody[messagesFromBody.length - 1]?.content : null);
-    
+
     if (!userMessage || typeof userMessage !== "string") {
       return res.status(400).json({ error: "message or messages array is required" });
     }
@@ -422,7 +398,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // Получаем историю из БД
     const history = await pool.query<{
       role: ChatRole;
       content: string;
@@ -435,7 +410,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [sid],
     );
 
-    // Запрос «отвяжи компанию» / «отвяжи заказчика» — очищаем привязку сессии в БД
     if (isUnlinkRequest(userMessage)) {
       await pool.query(
         `insert into chat_session_bindings (session_id, login, inn, customer_name, updated_at)
@@ -455,7 +429,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ sessionId: sid, reply: unlinkReply, unlinked: true });
     }
 
-    // Регистрируем/обновляем привязку сессии к логину и заказчику (чего нет в БД — не авторизован)
     const login = typeof auth?.login === "string" ? auth.login.trim() : null;
     const inn = typeof auth?.inn === "string" ? auth.inn.trim() : null;
     const customerName = typeof customer === "string" ? customer.trim() || null : null;
@@ -469,14 +442,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
 
-    // Эффективный заказчик для сессии — из БД (если нет записи или customer_name null — не авторизован)
     const bindingResult = await pool.query<{ customer_name: string | null }>(
       `select customer_name from chat_session_bindings where session_id = $1`,
       [sid],
     );
     const effectiveCustomer = bindingResult.rows[0]?.customer_name ?? null;
 
-    // Для Telegram и Alice подставляем контекст перевозок (cargoList), если его не передали с клиента
     let contextForPrompt = context ?? undefined;
     if (
       (channel === "telegram" || channel === "alice") &&
@@ -670,7 +641,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (capErr: any) {
       const code = (capErr as { code?: string })?.code;
       if (code === "42P01" || (String(capErr?.message || "").includes("does not exist"))) {
-        // Таблица chat_capabilities не создана — работаем без неё
       } else {
         console.warn("chat_capabilities load failed:", capErr?.message ?? capErr);
       }
@@ -699,7 +669,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 3. Отвечай коротко и по делу, без ссылок.`
       : "";
 
-    // Формируем системный промпт с контекстом
     const basePrompt = `Ты — Грузик, дружелюбный AI-помощник логистической компании HAULZ.
 Твоя задача — помогать клиентам отслеживать их грузы и отвечать на вопросы по логистике.
 Отвечай вежливо, профессионально, кратко и только на русском языке. Используй дружелюбные смайлики (📦 📄 ✨ 😊 и т.п.) и лёгкое чувство юмора. Не используй смайлики машин и грузовиков (🚛 и т.п.), оставаясь полезным и по делу.
@@ -772,7 +741,7 @@ ${ragContext || "Нет дополнительных данных."}
         function: {
           name: "get_contacts",
           description: "Вернуть контакты HAULZ: адреса офисов, телефон, email, сайт. Вызывай при запросах «контакты», «адрес», «телефон», «как связаться».",
-          parameters: { type: "object" },
+          parameters: { type: "object", properties: {} },
         },
       },
     ];
@@ -798,7 +767,6 @@ ${ragContext || "Нет дополнительных данных."}
     let toolRounds = 0;
 
     try {
-    if (CHAT_DEBUG) console.log("[chat] starting completion loop");
     while (true) {
       if (toolRounds >= maxToolRounds) break;
       toolRounds++;
@@ -830,28 +798,19 @@ ${ragContext || "Нет дополнительных данных."}
               if (!auth?.login || !auth?.password) {
                 resultJson = { error: "Нет учётных данных. Попросите пользователя авторизоваться." };
               } else {
-                const ctrl = new AbortController();
-                const t = setTimeout(() => ctrl.abort(), 20000);
-                try {
-                  const perevozkiRes = await fetch(`${appDomain}/api/perevozki`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      login: auth.login,
-                      password: auth.password,
-                      dateFrom,
-                      dateTo,
-                      ...(auth.inn ? { inn: auth.inn } : {}),
-                    }),
-                    signal: ctrl.signal,
-                  });
-                  clearTimeout(t);
-                  const data = perevozkiRes.ok ? await perevozkiRes.json().catch(() => ({})) : { error: "Ошибка API перевозок" };
-                  resultJson = Array.isArray(data) ? { items: data } : data;
-                } catch (fetchErr: any) {
-                  clearTimeout(t);
-                  resultJson = { error: fetchErr?.name === "AbortError" ? "Таймаут запроса к API перевозок. Попробуйте позже." : (fetchErr?.message || "Ошибка запроса перевозок.") };
-                }
+                const perevozkiRes = await fetch(`${appDomain}/api/perevozki`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    dateFrom,
+                    dateTo,
+                    ...(auth.inn ? { inn: auth.inn } : {}),
+                  }),
+                });
+                const data = perevozkiRes.ok ? await perevozkiRes.json().catch(() => ({})) : { error: "Ошибка API" };
+                resultJson = Array.isArray(data) ? { items: data } : data;
                 try {
                   await pool.query(
                     `insert into chat_api_results (session_id, api_name, request_payload, response_payload)
@@ -905,12 +864,8 @@ ${ragContext || "Нет дополнительных данных."}
       sid,
     ]);
     } catch (loopErr: any) {
-      const errMsg = String(loopErr?.message ?? loopErr);
-      console.error("Chat completion/tools error:", errMsg);
+      console.error("Chat completion/tools error:", loopErr?.message ?? loopErr);
       reply = "Извините, произошла временная ошибка. Попробуйте написать ещё раз или позже.";
-      if (process.env.NODE_ENV !== "production" || process.env.CHAT_DEBUG === "1") {
-        reply += ` [Ошибка: ${errMsg.slice(0, 200)}]`;
-      }
       try {
         await pool.query(
           `insert into chat_messages (session_id, role, content) values ($1, 'assistant', $2)`,
@@ -945,11 +900,9 @@ ${ragContext || "Нет дополнительных данных."}
       console.warn("RAG chat ingest failed:", error?.message || error);
     });
 
-    if (CHAT_DEBUG) console.log("[chat] success replyLen=", reply?.length);
     return res.status(200).json({ sessionId: sid, reply });
   } catch (err: any) {
     console.error("chat error:", err?.message || err, err?.stack);
-    if (CHAT_DEBUG) console.log("[chat] caught", err?.message);
     const catchBody = coerceBody(req);
     const sid = typeof catchBody?.sessionId === "string" ? catchBody.sessionId : null;
     return res.status(200).json({
@@ -958,15 +911,4 @@ ${ragContext || "Нет дополнительных данных."}
       error: process.env.NODE_ENV === "development" ? String(err?.message || err) : undefined,
     });
   }
-  } catch (outerErr: any) {
-    console.error("[chat] outer error", outerErr?.message || outerErr, outerErr?.stack);
-    try {
-      const b = coerceBody(req);
-      const sid = typeof b?.sessionId === "string" ? b.sessionId : null;
-      return res.status(200).json({ sessionId: sid, reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже." });
-    } catch (_) {
-      return res.status(200).json({ sessionId: null, reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже." });
-    }
-  }
 }
-
