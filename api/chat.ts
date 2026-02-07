@@ -68,6 +68,106 @@ function getAppDomain() {
       : "https://mini-app-lake-phi.vercel.app";
 }
 
+/** Ключ статуса перевозки для фильтра (как на вкладке Грузы) */
+function getStatusKey(state: string | undefined): string {
+  if (!state) return "all";
+  const l = String(state).toLowerCase();
+  if (l.includes("доставлен") || l.includes("заверш")) return "delivered";
+  if (l.includes("пути") || l.includes("отправлен")) return "in_transit";
+  if (l.includes("готов")) return "ready";
+  if (l.includes("доставке")) return "delivering";
+  return "all";
+}
+
+/** Ключ оплаты счёта */
+function getPaymentKey(stateBill: string | undefined): string {
+  if (!stateBill) return "unknown";
+  const l = String(stateBill).toLowerCase();
+  if (l.includes("не оплачен") || l.includes("неоплачен") || l.includes("ожидает")) return "unpaid";
+  if (l.includes("отменен") || l.includes("аннулирован")) return "cancelled";
+  if (l.includes("оплачен")) return "paid";
+  if (l.includes("частично")) return "partial";
+  return "unknown";
+}
+
+function isFerryItem(item: any): boolean {
+  const ak = item?.AK;
+  return ak === true || ak === "true" || ak === "1" || ak === 1;
+}
+
+function cityToCode(city: string | undefined | null): string {
+  if (city == null) return "";
+  const s = String(city).trim().toLowerCase();
+  if (/калининград|кгд/.test(s)) return "KGD";
+  if (/москва|мск|msk/.test(s)) return "MSK";
+  return String(city).trim();
+}
+
+/** Для Telegram/Alice: загрузить перевозки по API и собрать контекст как в мини-приложении */
+async function fetchCargoContextForChannel(
+  auth: { login: string; password: string; inn?: string },
+  customerName: string | null,
+  appDomain: string
+): Promise<Record<string, unknown>> {
+  const today = new Date();
+  const todayStr = today.toISOString().split("T")[0];
+  const todayLabel = today.toLocaleDateString("ru-RU");
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekStartStr = weekAgo.toISOString().split("T")[0];
+  const monthAgo = new Date(today);
+  monthAgo.setDate(monthAgo.getDate() - 30);
+  const monthStartStr = monthAgo.toISOString().split("T")[0];
+
+  const res = await fetch(`${appDomain}/api/perevozki`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      login: auth.login,
+      password: auth.password,
+      dateFrom: "2024-01-01",
+      dateTo: todayStr,
+      ...(auth.inn ? { inn: auth.inn } : {}),
+    }),
+  });
+  if (!res.ok) return { todayDate: todayStr, todayLabel, weekStartDate: weekStartStr, weekEndDate: todayStr, monthStartDate: monthStartStr, monthEndDate: todayStr, cargoList: [], activeCargoCount: 0, customer: customerName };
+
+  const data = await res.json().catch(() => ({}));
+  const list = Array.isArray(data) ? data : data?.items ?? [];
+  const items = (list as any[]).slice(0, 35).map((i: any) => {
+    const from = cityToCode(i.CitySender);
+    const to = cityToCode(i.CityReceiver);
+    const route = from === "MSK" && to === "KGD" ? "MSK-KGD" : from === "KGD" && to === "MSK" ? "KGD-MSK" : "other";
+    return {
+      number: i.Number,
+      status: i.State ?? "",
+      statusKey: getStatusKey(i.State),
+      datePrih: i.DatePrih,
+      dateVr: i.DateVr,
+      stateBill: i.StateBill,
+      paymentKey: getPaymentKey(i.StateBill),
+      sum: i.Sum,
+      sender: i.Sender,
+      receiver: i.Receiver ?? i.receiver,
+      customer: i.Customer ?? i.customer,
+      type: isFerryItem(i) ? "ferry" : "auto",
+      route,
+    };
+  });
+
+  return {
+    todayDate: todayStr,
+    todayLabel,
+    weekStartDate: weekStartStr,
+    weekEndDate: todayStr,
+    monthStartDate: monthStartStr,
+    monthEndDate: todayStr,
+    activeCargoCount: items.length,
+    cargoList: items,
+    customer: customerName,
+  };
+}
+
 function extractCargoNumber(text: string) {
   const match = text.match(/(?:№\s*)?(\d{4,})/);
   return match?.[1] || null;
@@ -338,6 +438,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const effectiveCustomer = bindingResult.rows[0]?.customer_name ?? null;
 
+    // Для Telegram и Alice подставляем контекст перевозок (cargoList), если его не передали с клиента
+    let contextForPrompt = context ?? undefined;
+    if (
+      (channel === "telegram" || channel === "alice") &&
+      auth?.login &&
+      auth?.password &&
+      !contextForPrompt?.cargoList
+    ) {
+      try {
+        contextForPrompt = await fetchCargoContextForChannel(
+          {
+            login: String(auth.login),
+            password: String(auth.password),
+            inn: typeof auth?.inn === "string" ? auth.inn : undefined,
+          },
+          effectiveCustomer,
+          getAppDomain()
+        );
+      } catch (e) {
+        console.warn("fetchCargoContextForChannel failed", e);
+      }
+    }
+
     if (isContactsRequest(userMessage)) {
       const reply = buildContactsReply();
       await pool.query(
@@ -532,7 +655,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 - Особенности: Быстрая доставка, работа с B2B.
 
 КОНТЕКСТ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ (могут быть перевозки из API):
-${context ? JSON.stringify(context, null, 2) : "Пользователь пока не авторизован или данных о перевозках нет."}
+${contextForPrompt ? JSON.stringify(contextForPrompt, null, 2) : "Пользователь пока не авторизован или данных о перевозках нет."}
 РАБОТА С ПЕРЕВОЗКАМИ (cargoList). В контексте может быть cargoList — массив перевозок. У каждой записи: number, status, statusKey, datePrih, dateVr, stateBill, paymentKey, sum, sender, receiver, customer, type, route.
 Даты в контексте: todayDate, todayLabel — «сегодня»; weekStartDate, weekEndDate — «неделя» (7 дней); monthStartDate, monthEndDate — «месяц» (30 дней). Сравнивать даты по началу строки в формате YYYY-MM-DD.
 ФИЛЬТРЫ (как на вкладке «Грузы») — применяй к cargoList по запросу пользователя, можно комбинировать:
