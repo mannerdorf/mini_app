@@ -528,6 +528,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.warn("RAG search failed:", error?.message || error);
     }
 
+    let capabilitiesText = "";
+    try {
+      const capRes = await pool.query<{ title: string; content: string }>(
+        `select title, content from chat_capabilities order by slug`,
+      );
+      if (capRes.rows?.length) {
+        capabilitiesText = capRes.rows
+          .map((r) => `### ${r.title}\n${r.content}`)
+          .join("\n\n");
+      }
+    } catch (error: any) {
+      console.warn("chat_capabilities load failed:", error?.message || error);
+    }
+
     const aliceRules = channel === "alice"
       ? `
 ДОПОЛНИТЕЛЬНЫЕ ПРАВИЛА ДЛЯ АЛИСЫ:
@@ -556,6 +570,9 @@ ${effectiveCustomer || "Не указан. В этой сессии компан
 ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ (из базы знаний):
 ${ragContext || "Нет дополнительных данных."}
 
+НАВЫКИ ГРУЗИКА (что умеет бот, примеры запросов — ориентируйся на это):
+${capabilitiesText || "Не загружено."}
+
 ПРАВИЛА ОТВЕТОВ:
 1. Если пользователь спрашивает про конкретную перевозку, ищи её в предоставленном контексте.
 2. Если данных в контексте нет, вежливо попроси уточнить номер перевозки.
@@ -572,17 +589,8 @@ ${ragContext || "Нет дополнительных данных."}
     ];
 
     const client = new OpenAI({ apiKey });
-    const allowedModels = new Set(["gpt-4o-mini", "gpt-4o"]);
-    const requestedModel = typeof model === "string" ? model : null;
-    const chosenModel =
-      channel === "alice"
-        ? "gpt-4o"
-        : requestedModel && allowedModels.has(requestedModel)
-          ? requestedModel
-          : "gpt-4o-mini";
-
     const completion = await client.chat.completions.create({
-      model: chosenModel,
+      model: "gpt-4o",
       messages: chatMessages,
       temperature: 0.7,
       max_tokens: 500,
