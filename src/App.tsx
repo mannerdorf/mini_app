@@ -2283,7 +2283,7 @@ function DashboardPage({
                                                             }}
                                                             title={expandedSlaCargoNumber === (item.Number ?? '') ? 'Свернуть статусы' : 'Показать статусы перевозки'}
                                                         >
-                                                            <td style={{ padding: '0.35rem 0.3rem' }}>{item.Number ?? '—'}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
                                                             <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
                                                             <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
                                                             <td style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
@@ -2307,7 +2307,9 @@ function DashboardPage({
                                                                     {slaTimelineError && (
                                                                         <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{slaTimelineError}</Typography.Body>
                                                                     )}
-                                                                    {!slaTimelineLoading && slaTimelineSteps && slaTimelineSteps.length > 0 && (
+                                                                    {!slaTimelineLoading && slaTimelineSteps && slaTimelineSteps.length > 0 && (() => {
+                                                                        const planEndMs = item?.DatePrih ? new Date(item.DatePrih).getTime() + getPlanDays(item) * 24 * 60 * 60 * 1000 : 0;
+                                                                        return (
                                                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                                             <thead>
                                                                                 <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
@@ -2317,16 +2319,22 @@ function DashboardPage({
                                                                                 </tr>
                                                                             </thead>
                                                                             <tbody>
-                                                                                {slaTimelineSteps.map((step, i) => (
+                                                                                {slaTimelineSteps.map((step, i) => {
+                                                                                    const stepMs = step.date ? new Date(step.date).getTime() : 0;
+                                                                                    const outOfSlaFromThisStep = planEndMs > 0 && stepMs > planEndMs;
+                                                                                    const dateColor = outOfSlaFromThisStep ? '#ef4444' : (planEndMs > 0 && stepMs > 0 ? '#22c55e' : 'var(--color-text-secondary)');
+                                                                                    return (
                                                                                     <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{step.label}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: 'var(--color-text-secondary)' }}>{formatTimelineDate(step.date)}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: 'var(--color-text-secondary)' }}>{formatTimelineTime(step.date)}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: dateColor }}>{formatTimelineDate(step.date)}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: dateColor }}>{formatTimelineTime(step.date)}</td>
                                                                                     </tr>
-                                                                                ))}
+                                                                                    );
+                                                                                })}
                                                                             </tbody>
                                                                         </table>
-                                                                    )}
+                                                                        );
+                                                                    })()}
                                                                 </td>
                                                             </tr>
                                                         )}
@@ -2363,7 +2371,7 @@ function DashboardPage({
                                             <tbody>
                                                 {sortedOutOfSlaFerry.map(({ item, sla }, idx) => (
                                                     <tr key={`ferry-${item.Number ?? idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{item.Number ?? '—'}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
                                                         <td style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
