@@ -313,6 +313,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [sid],
     );
 
+    // Секретный PIN: добавить последний обмен (запрос → ответ) в chat_capabilities как навык
+    const learnPin = (process.env.CHAT_LEARN_PIN || "").trim();
+    if (learnPin && userMessage.trim() === learnPin) {
+      const rows = history.rows;
+      if (rows.length >= 3 && rows[1].role === "assistant" && rows[2].role === "user") {
+        const prevUser = rows[2].content.trim();
+        const prevAssistant = rows[1].content.trim();
+        const skipStarts = ["Извините", "Ошибка", "Сервис временно", "не удалось получить"];
+        const isBad = prevAssistant.length < 60 || skipStarts.some((s) => prevAssistant.startsWith(s));
+        if (!isBad && prevUser) {
+          const slug = `learned_pin_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+          const content = `Вариант запроса пользователя: ${prevUser.slice(0, 500)}\n\nОтвет ассистента (ориентир для модели): ${prevAssistant.slice(0, 2000)}`;
+          await pool.query(
+            `insert into chat_capabilities (slug, title, content, updated_at)
+             values ($1, $2, $3, now())
+             on conflict (slug) do update set title = excluded.title, content = excluded.content, updated_at = now()`,
+            [slug, "Пример из чата (по PIN)", content],
+          );
+          const reply = "Навык добавлен из последнего обмена в чате.";
+          await pool.query(
+            `insert into chat_messages (session_id, role, content)
+             values ($1, 'assistant', $2)`,
+            [sid, reply],
+          );
+          await pool.query(`update chat_sessions set updated_at = now() where id = $1`, [sid]);
+          return res.status(200).json({ sessionId: sid, reply });
+        }
+      }
+      const reply = "Не удалось добавить навык: нужен предыдущий обмен (ваш вопрос и ответ ассистента), ответ не менее 60 символов и не сообщение об ошибке.";
+      await pool.query(
+        `insert into chat_messages (session_id, role, content)
+         values ($1, 'assistant', $2)`,
+        [sid, reply],
+      );
+      await pool.query(`update chat_sessions set updated_at = now() where id = $1`, [sid]);
+      return res.status(200).json({ sessionId: sid, reply });
+    }
+
     // Запрос «отвяжи компанию» / «отвяжи заказчика» — очищаем привязку сессии в БД
     if (isUnlinkRequest(userMessage)) {
       await pool.query(
@@ -511,6 +549,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ sessionId: sid, reply });
     }
 
+    // Если контекст без перевозок (например Telegram не шлёт context) — запрашиваем перевозки на сервере
+    let contextToUse: Record<string, unknown> | null = context && typeof context === "object" ? { ...context } : null;
+    if (
+      (!contextToUse?.cargoList || (Array.isArray(contextToUse.cargoList) && contextToUse.cargoList.length === 0)) &&
+      auth?.login &&
+      auth?.password
+    ) {
+      try {
+        const appDomain = getAppDomain();
+        const today = new Date().toISOString().split("T")[0];
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const monthAgo = new Date();
+        monthAgo.setDate(monthAgo.getDate() - 30);
+        const weekStartStr = weekAgo.toISOString().split("T")[0];
+        const monthStartStr = monthAgo.toISOString().split("T")[0];
+        const perevozkiRes = await fetch(`${appDomain}/api/perevozki`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            login: auth.login,
+            password: auth.password,
+            dateFrom: "2024-01-01",
+            dateTo: today,
+            ...(auth.inn ? { inn: auth.inn } : {}),
+          }),
+        });
+        if (perevozkiRes.ok) {
+          const data = await perevozkiRes.json().catch(() => ({}));
+          const list = Array.isArray(data) ? data : (data?.items ?? []);
+          const cargoList = (list as any[]).slice(0, 35).map((i: any) => ({
+            number: i.Number ?? i.number,
+            status: i.State ?? i.state,
+            datePrih: i.DatePrih ?? i.datePrih,
+            dateVr: i.DateVr ?? i.dateVr,
+            stateBill: i.StateBill ?? i.stateBill,
+            sum: i.Sum ?? i.sum,
+            pw: i.PW ?? i.pw,
+            mest: i.Mest ?? i.mest,
+            sender: i.Sender ?? i.sender,
+            receiver: i.Receiver ?? i.receiver,
+            customer: i.Customer ?? i.customer,
+          }));
+          contextToUse = {
+            ...(contextToUse || {}),
+            userLogin: auth.login,
+            customer: effectiveCustomer ?? customer ?? null,
+            todayDate: today,
+            weekStartDate: weekStartStr,
+            weekEndDate: today,
+            monthStartDate: monthStartStr,
+            monthEndDate: today,
+            activeCargoCount: cargoList.length,
+            cargoList,
+          };
+        }
+      } catch (e: any) {
+        console.warn("chat: perevozki fetch for context failed", e?.message || e);
+      }
+    }
+    if (contextToUse === null && context && typeof context === "object") contextToUse = { ...context };
+
     let ragContext = "";
     try {
       const topK = Number(process.env.RAG_TOP_K || 5);
@@ -562,7 +662,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 - Особенности: Быстрая доставка, работа с B2B.
 
 КОНТЕКСТ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ:
-${context ? JSON.stringify(context, null, 2) : "Пользователь пока не авторизован или данных о перевозках нет."}
+${contextToUse ? JSON.stringify(contextToUse, null, 2) : "Пользователь пока не авторизован или данных о перевозках нет."}
 
 АКТИВНЫЙ ЗАКАЗЧИК:
 ${effectiveCustomer || "Не указан. В этой сессии компания не привязана — выберите компанию в приложении или попросите отвязать текущую."}
@@ -574,7 +674,7 @@ ${ragContext || "Нет дополнительных данных."}
 ${capabilitiesText || "Не загружено."}
 
 ПРАВИЛА ОТВЕТОВ:
-1. Если пользователь спрашивает перевозки за период (за неделю, за месяц, за сегодня и т.п.) — смотри в КОНТЕКСТЕ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ поле cargoList (и даты weekStartDate, monthStartDate и т.д.). Если там есть перевозки — ответь конкретно: «За [период] у вас N перевозок: №X, №Y…» или «За неделю приняты перевозки: №…» с номерами и при необходимости кратким статусом. Если cargoList пустой или данных нет — ответь: за этот период перевозок не найдено (или что запрос к API не вернул данные).
+1. Запросы по перевозкам за период — понимай широко. Считай одним и тем же запросом: «перевозки за неделю», «сводка за неделю», «саммари недели», «за период принято», «сколько перевозок за месяц», «итого за неделю», «сумма за месяц», «платный вес за период», «что за неделю», «грузы за месяц», «принято за неделю», «статистика за месяц», «сводка недели», «кратко за период» и любые похожие формулировки. На все такие запросы отвечай кратко и по одному формату: «За [неделю/месяц/сегодня] принято N перевозок на сумму X руб., платный вес Y кг» (при необходимости добавь мест или объём). Данные бери из cargoList и полей sum, PW (платный вес) в контексте: посчитай количество, сложи суммы и платный вес. Не перечисляй все перевозки подряд — только сводка. Если cargoList пустой — ответь, что за период перевозок не найдено.
 2. Если пользователь спрашивает про конкретную перевозку по номеру, ищи её в контексте.
 3. Если данных в контексте нет по номеру, вежливо попроси уточнить номер перевозки.
 4. Можно использовать смайлики для дружелюбности, но не используй эмодзи грузовиков, машин и автомобилей (🚚 и т.п.).

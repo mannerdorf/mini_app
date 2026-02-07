@@ -103,6 +103,17 @@ const FILTERS_REF_DOC = {
 Контрагент: по отправителю/от … → sender; по получателю/для … → receiver; по заказчику → customer.`,
 };
 
+/** Варианты запросов за период и формат ответа */
+const PERIOD_QUERIES_DOC = {
+  slug: "gruzik_period_queries",
+  title: "Запросы за период — варианты и формат ответа",
+  content: `Варианты запросов (все трактуй как «сводка за период»):
+перевозки за неделю; сводка за неделю; саммари недели; за период принято; сколько перевозок за месяц; итого за неделю; сумма за месяц; платный вес за период; что за неделю; грузы за месяц; принято за неделю; статистика за месяц; сводка недели; кратко за период; перевозки за месяц; за сегодня; за вчера; что за месяц; итого за месяц.
+
+Формат ответа (кратко, без перечисления всех перевозок):
+«За [неделю/месяц/сегодня] принято N перевозок на сумму X руб., платный вес Y кг.» При необходимости добавь мест или объём. Данные бери из cargoList в контексте: посчитай количество, сложи sum и платный вес (PW).`,
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
@@ -111,7 +122,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
-    for (const doc of [CAPABILITIES_DOC, EXAMPLES_DOC, FILTERS_REF_DOC]) {
+    for (const doc of [CAPABILITIES_DOC, EXAMPLES_DOC, FILTERS_REF_DOC, PERIOD_QUERIES_DOC]) {
       await pool.query(
         `insert into chat_capabilities (slug, title, content, updated_at)
          values ($1, $2, $3, now())
@@ -125,7 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       ok: true,
       message: "chat_capabilities seeded",
-      slugs: [CAPABILITIES_DOC.slug, EXAMPLES_DOC.slug, FILTERS_REF_DOC.slug],
+      slugs: [CAPABILITIES_DOC.slug, EXAMPLES_DOC.slug, FILTERS_REF_DOC.slug, PERIOD_QUERIES_DOC.slug],
       link: `${baseUrl}/api/rag-seed-capabilities`,
     });
   } catch (err: any) {

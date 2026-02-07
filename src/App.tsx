@@ -7564,7 +7564,7 @@ function ChatPage({
             if (auth?.login && auth?.password) {
                 const today = new Date().toISOString().split("T")[0];
                 const perevozkiController = new AbortController();
-                const perevozkiTimeout = setTimeout(() => perevozkiController.abort(), 25000);
+                const perevozkiTimeout = setTimeout(() => perevozkiController.abort(), 60000);
                 const perevozkiRes = await fetch('/api/perevozki', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
