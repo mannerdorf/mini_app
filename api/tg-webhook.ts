@@ -75,7 +75,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true });
   }
 
-  const update = req.body;
+  try {
+  const update = req.body || {};
   console.log("TG Webhook update:", JSON.stringify(update));
 
   const chatId = update?.message?.chat?.id || update?.callback_query?.message?.chat?.id;
@@ -236,18 +237,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const replyText = aiData.reply || "Не удалось получить ответ.";
       await sendTgMessageChunked(chatId, replyText, { formatLinks: true });
     } else {
-      const errorText = aiData?.error || aiData?.message || raw || "Ошибка сервера";
-      await sendTgMessageChunked(chatId, `Ошибка: ${errorText}`, { formatLinks: false });
+      console.error("TG chat API error:", aiRes.status, raw?.slice?.(0, 500));
+      await sendTgMessageChunked(chatId, "Временная ошибка чата. Попробуйте через минуту.", { formatLinks: false });
     }
   } catch (e) {
     if (debugInfo) debugInfo.error = String((e as any)?.message || e);
     console.error("TG AI error:", e);
+    try {
+      await sendTgMessageChunked(chatId, "Произошла ошибка. Попробуйте позже.", { formatLinks: false });
+    } catch (_) {}
   }
 
   if (debug) {
     return res.status(200).json({ ok: true, debug: debugInfo });
   }
   return res.status(200).json({ ok: true });
+  } catch (outerErr: any) {
+    console.error("TG webhook error:", outerErr?.message || outerErr, outerErr?.stack);
+    try {
+      const body = req?.body || {};
+      const cid = body?.message?.chat?.id ?? body?.callback_query?.message?.chat?.id;
+      if (typeof cid === "number" && TG_BOT_TOKEN) {
+        await sendTgMessageChunked(cid, "Произошла ошибка. Попробуйте позже.");
+      }
+    } catch (_) {}
+    return res.status(200).json({ ok: true });
+  }
 }
 
 function normalizeText(text: unknown): string {

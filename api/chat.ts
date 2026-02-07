@@ -123,17 +123,27 @@ async function fetchCargoContextForChannel(
   monthAgo.setDate(monthAgo.getDate() - 30);
   const monthStartStr = monthAgo.toISOString().split("T")[0];
 
-  const res = await fetch(`${appDomain}/api/perevozki`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      login: auth.login,
-      password: auth.password,
-      dateFrom: "2024-01-01",
-      dateTo: todayStr,
-      ...(auth.inn ? { inn: auth.inn } : {}),
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  let res: Response;
+  try {
+    res = await fetch(`${appDomain}/api/perevozki`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        login: auth.login,
+        password: auth.password,
+        dateFrom: "2024-01-01",
+        dateTo: todayStr,
+        ...(auth.inn ? { inn: auth.inn } : {}),
+      }),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    clearTimeout(timeoutId);
+    return { todayDate: todayStr, todayLabel, weekStartDate: weekStartStr, weekEndDate: todayStr, monthStartDate: monthStartStr, monthEndDate: todayStr, cargoList: [], activeCargoCount: 0, customer: customerName };
+  }
+  clearTimeout(timeoutId);
   if (!res.ok) return { todayDate: todayStr, todayLabel, weekStartDate: weekStartStr, weekEndDate: todayStr, monthStartDate: monthStartStr, monthEndDate: todayStr, cargoList: [], activeCargoCount: 0, customer: customerName };
 
   const data = await res.json().catch(() => ({}));
@@ -820,19 +830,28 @@ ${ragContext || "Нет дополнительных данных."}
               if (!auth?.login || !auth?.password) {
                 resultJson = { error: "Нет учётных данных. Попросите пользователя авторизоваться." };
               } else {
-                const perevozkiRes = await fetch(`${appDomain}/api/perevozki`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    login: auth.login,
-                    password: auth.password,
-                    dateFrom,
-                    dateTo,
-                    ...(auth.inn ? { inn: auth.inn } : {}),
-                  }),
-                });
-                const data = perevozkiRes.ok ? await perevozkiRes.json().catch(() => ({})) : { error: "Ошибка API" };
-                resultJson = Array.isArray(data) ? { items: data } : data;
+                const ctrl = new AbortController();
+                const t = setTimeout(() => ctrl.abort(), 20000);
+                try {
+                  const perevozkiRes = await fetch(`${appDomain}/api/perevozki`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      login: auth.login,
+                      password: auth.password,
+                      dateFrom,
+                      dateTo,
+                      ...(auth.inn ? { inn: auth.inn } : {}),
+                    }),
+                    signal: ctrl.signal,
+                  });
+                  clearTimeout(t);
+                  const data = perevozkiRes.ok ? await perevozkiRes.json().catch(() => ({})) : { error: "Ошибка API перевозок" };
+                  resultJson = Array.isArray(data) ? { items: data } : data;
+                } catch (fetchErr: any) {
+                  clearTimeout(t);
+                  resultJson = { error: fetchErr?.name === "AbortError" ? "Таймаут запроса к API перевозок. Попробуйте позже." : (fetchErr?.message || "Ошибка запроса перевозок.") };
+                }
                 try {
                   await pool.query(
                     `insert into chat_api_results (session_id, api_name, request_payload, response_payload)

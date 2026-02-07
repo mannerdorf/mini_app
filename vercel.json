@@ -1,3 +1,7 @@
 {
-  "crons": []
+  "crons": [],
+  "functions": {
+    "api/chat.ts": { "maxDuration": 60 },
+    "api/tg-webhook.ts": { "maxDuration": 60 }
+  }
 }
