@@ -6981,9 +6981,27 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
-/** Аватар Грузика — WebM для анимации, при ошибке загрузки показывается PNG */
+/** Аватар Грузика — WebM для анимации, при ошибке загрузки показывается PNG; принудительный play() для автовоспроизведения */
 function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: number; typing?: boolean; className?: string }) {
     const [useFallback, setUseFallback] = useState(false);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+
+    useEffect(() => {
+        if (useFallback) return;
+        const video = videoRef.current;
+        if (!video) return;
+        const play = () => {
+            video.play().catch(() => setUseFallback(true));
+        };
+        play();
+        video.addEventListener('loadeddata', play);
+        video.addEventListener('canplay', play);
+        return () => {
+            video.removeEventListener('loadeddata', play);
+            video.removeEventListener('canplay', play);
+        };
+    }, [useFallback]);
+
     return (
         <div
             className={`gruzik-avatar ${typing ? 'typing' : ''} ${className}`.trim()}
@@ -7009,6 +7027,7 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
                 />
             ) : (
                 <video
+                    ref={videoRef}
                     src="/gruzik.webm"
                     autoPlay
                     loop
@@ -7586,11 +7605,21 @@ function ChatPage({
             cargoList: recentCargoList,
         };
 
+        const CHAT_DEBUG = typeof window !== 'undefined' && window.localStorage?.getItem('haulz.chatDebug') === '1';
         const CHAT_TIMEOUT_MS = 90000; // 90 сек — после этого снимаем «печатает» и показываем ошибку
+        const SAFETY_TYPING_MS = 92000; // страховка: принудительно снять «печатает», если что-то пошло не так
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+        const timeoutId = setTimeout(() => {
+            if (CHAT_DEBUG) console.warn('[chat] timeout: aborting request');
+            controller.abort();
+        }, CHAT_TIMEOUT_MS);
+        const safetyId = setTimeout(() => {
+            if (CHAT_DEBUG) console.warn('[chat] safety: forcing typing off');
+            setIsReady(false);
+        }, SAFETY_TYPING_MS);
 
         try {
+            if (CHAT_DEBUG) console.log('[chat] send start', { sessionId, messageLen: messageText.length });
             const effectiveCustomer = sessionUnlinked ? null : customerOverride;
             const res = await fetch('/api/chat', {
                 method: 'POST',
@@ -7607,7 +7636,12 @@ function ChatPage({
             });
 
             clearTimeout(timeoutId);
-            const data = await res.json().catch(() => ({}));
+            clearTimeout(safetyId);
+            const data = await res.json().catch((parseErr) => {
+                if (CHAT_DEBUG) console.warn('[chat] response json parse failed', parseErr);
+                return {};
+            });
+            if (CHAT_DEBUG) console.log('[chat] response', { status: res.status, ok: res.ok, hasReply: !!data?.reply, replyLen: data?.reply?.length });
             if (!res.ok) {
                 const msg = data?.reply || data?.error || data?.message || `Ошибка ${res.status}. Попробуйте позже.`;
                 throw new Error(msg);
@@ -7624,6 +7658,8 @@ function ChatPage({
             setMessages(prev => [...prev, { role: 'assistant', content: data.reply || "" }]);
         } catch (e: any) {
             clearTimeout(timeoutId);
+            clearTimeout(safetyId);
+            if (CHAT_DEBUG) console.warn('[chat] error', e?.name, e?.message, e);
             const isAbort = e?.name === 'AbortError';
             const msg = isAbort ? 'Ответ занял слишком много времени. Попробуйте ещё раз.' : (e?.message || 'Не удалось получить ответ');
             setMessages(prev => [...prev, { 

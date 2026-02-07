@@ -330,9 +330,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  const CHAT_DEBUG = process.env.VERCEL_ENV !== "production" || process.env.CHAT_DEBUG === "1";
   try {
     const body = coerceBody(req);
     const { sessionId, userId, message, messages, context, customer, action, auth, channel, model } = body;
+    if (CHAT_DEBUG) console.log("[chat] request", { sessionId, hasMessage: !!message, hasAuth: !!(auth?.login), action });
 
     const sid =
       typeof sessionId === "string" && sessionId.trim()
@@ -782,6 +784,7 @@ ${ragContext || "Нет дополнительных данных."}
     let toolRounds = 0;
 
     try {
+    if (CHAT_DEBUG) console.log("[chat] starting completion loop");
     while (true) {
       if (toolRounds >= maxToolRounds) break;
       toolRounds++;
@@ -915,9 +918,11 @@ ${ragContext || "Нет дополнительных данных."}
       console.warn("RAG chat ingest failed:", error?.message || error);
     });
 
+    if (CHAT_DEBUG) console.log("[chat] success replyLen=", reply?.length);
     return res.status(200).json({ sessionId: sid, reply });
   } catch (err: any) {
     console.error("chat error:", err?.message || err, err?.stack);
+    if (CHAT_DEBUG) console.log("[chat] caught", err?.message);
     const sid = (req.body && typeof req.body === "object" && req.body.sessionId) || null;
     return res.status(200).json({
       sessionId: sid,
