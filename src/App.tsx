@@ -6981,9 +6981,7 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
-const GRUZIK_VIDEO_URL = 'https://cdn.midjourney.com/video/d81cf70d-a3b4-4b9c-b390-3f04af13f202/0.mp4';
-
-/** Анимированный аватар Грузика — видео с Midjourney, чёрный фон убирается через mix-blend-mode */
+/** Аватар Грузика — картинка из public/gruzik.png, чёрный фон убирается через mix-blend-mode */
 function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: number; typing?: boolean; className?: string }) {
     return (
         <div
@@ -6999,12 +6997,9 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
             }}
             aria-hidden
         >
-            <video
-                src={GRUZIK_VIDEO_URL}
-                autoPlay
-                loop
-                muted
-                playsInline
+            <img
+                src="/gruzik.png"
+                alt="Грузик"
                 width={size}
                 height={size}
                 style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}

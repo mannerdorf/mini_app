@@ -81,10 +81,17 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 }
 .gruzik-avatar { animation: gruzik-bounce 2s ease-in-out infinite; }
 .gruzik-avatar.typing { animation: gruzik-wave 0.6s ease-in-out infinite; }
-/* Чёрный фон видео/картинки сливается с фоном чата в обеих темах */
+/* Тёмная тема: чёрный фон видео сливается с фоном чата */
 .gruzik-avatar img,
 .gruzik-avatar video { mix-blend-mode: screen; }
-.light-mode .gruzik-avatar { background: var(--color-bg-primary) !important; }
+/* Светлая тема: аватар в круге на чёрном фоне */
+.light-mode .gruzik-avatar {
+  background: #000 !important;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.light-mode .gruzik-avatar img,
+.light-mode .gruzik-avatar video { mix-blend-mode: screen; }
 .gruzik-avatar.typing .gruzik-lid { animation: gruzik-lid 2s ease-in-out infinite; }
 .text-theme-primary { color: var(--color-text-primary); }
 .text-theme-secondary { color: var(--color-text-secondary); }

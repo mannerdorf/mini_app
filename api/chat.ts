@@ -375,23 +375,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ error: "OPENAI_API_KEY is not configured" });
+      return res.status(200).json({
+        sessionId: sid,
+        reply: "Сервис чата временно недоступен (не настроен API). Попробуйте позже.",
+      });
     }
-    await pool.query(
-      `insert into chat_sessions (id, user_id)
-       values ($1, $2)
-       on conflict (id) do update
-         set user_id = coalesce(chat_sessions.user_id, excluded.user_id),
-             updated_at = now()`,
-      [sid, typeof userId === "string" ? userId : null],
-    );
-
-    // Сохраняем пользовательское сообщение в БД
-    await pool.query(
-      `insert into chat_messages (session_id, role, content)
-       values ($1, 'user', $2)`,
-      [sid, userMessage],
-    );
+    try {
+      await pool.query(
+        `insert into chat_sessions (id, user_id)
+         values ($1, $2)
+         on conflict (id) do update
+           set user_id = coalesce(chat_sessions.user_id, excluded.user_id),
+               updated_at = now()`,
+        [sid, typeof userId === "string" ? userId : null],
+      );
+      await pool.query(
+        `insert into chat_messages (session_id, role, content)
+         values ($1, 'user', $2)`,
+        [sid, userMessage],
+      );
+    } catch (dbWriteErr: any) {
+      console.error("chat DB write failed:", dbWriteErr?.message ?? dbWriteErr);
+      return res.status(200).json({
+        sessionId: sid,
+        reply: "Не удалось сохранить сообщение. Проверьте подключение к базе и попробуйте снова.",
+      });
+    }
 
     // Получаем историю из БД
     const history = await pool.query<{
