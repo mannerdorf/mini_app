@@ -7497,22 +7497,46 @@ function ChatPage({
         }
 
         const cargoForContext = fetchedCargo.length > 0 ? fetchedCargo : (cargoItems ?? []);
-        const recentCargoList = cargoForContext.slice(0, 25).map(i => ({
-            number: i.Number,
-            status: normalizeStatus(i.State),
-            datePrih: i.DatePrih,
-            dateVr: i.DateVr,
-            stateBill: i.StateBill,
-            sum: i.Sum,
-            sender: i.Sender,
-            receiver: i.Receiver ?? (i as any).receiver,
-            customer: i.Customer ?? (i as any).customer,
-        }));
+        const recentCargoList = cargoForContext.slice(0, 35).map(i => {
+            const from = cityToCode(i.CitySender);
+            const to = cityToCode(i.CityReceiver);
+            const route = from === 'MSK' && to === 'KGD' ? 'MSK-KGD' : from === 'KGD' && to === 'MSK' ? 'KGD-MSK' : 'other';
+            return {
+                number: i.Number,
+                status: normalizeStatus(i.State),
+                statusKey: getFilterKeyByStatus(i.State),
+                datePrih: i.DatePrih,
+                dateVr: i.DateVr,
+                stateBill: i.StateBill,
+                paymentKey: getPaymentFilterKey(i.StateBill),
+                sum: i.Sum,
+                sender: i.Sender,
+                receiver: i.Receiver ?? (i as any).receiver,
+                customer: i.Customer ?? (i as any).customer,
+                type: isFerry(i) ? 'ferry' : 'auto',
+                route,
+            };
+        });
 
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+        const todayLabel = now.toLocaleDateString('ru-RU');
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const weekStartStr = weekAgo.toISOString().split('T')[0];
+        const monthAgo = new Date(now);
+        monthAgo.setDate(monthAgo.getDate() - 30);
+        const monthStartStr = monthAgo.toISOString().split('T')[0];
         // Подготавливаем контекст: данные перевозок из API или переданный cargoItems
         const context = {
             userLogin: auth?.login,
             customer: customerOverride,
+            todayDate: todayStr,
+            todayLabel,
+            weekStartDate: weekStartStr,
+            weekEndDate: todayStr,
+            monthStartDate: monthStartStr,
+            monthEndDate: todayStr,
             activeCargoCount: cargoForContext.length,
             cargoList: recentCargoList,
         };
