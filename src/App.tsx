@@ -5551,6 +5551,21 @@ function CargoPage({
 
     return (
         <div className="w-full">
+            {/* Заголовок вкладки и переключатель «Таблица по заказчику» */}
+            <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <Typography.Headline style={{ fontSize: '1.25rem' }}>Грузы</Typography.Headline>
+                {useServiceRequest && (
+                    <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                        <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица по заказчику</Typography.Body>
+                        <span className="roles-switch-wrap">
+                            <TapSwitch
+                                checked={tableModeByCustomer}
+                                onToggle={() => setTableModeByCustomer(v => !v)}
+                            />
+                        </span>
+                    </Flex>
+                )}
+            </Flex>
             {/* Filters */}
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
@@ -5688,17 +5703,6 @@ function CargoPage({
                         <div className="dropdown-item" onClick={() => { setRouteFilter('KGD-MSK'); setIsRouteDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
                     </FilterDropdownPortal>
                 </div>
-                {useServiceRequest && (
-                    <div className="filter-group" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица по заказчику</Typography.Body>
-                        <span className="roles-switch-wrap" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                            <TapSwitch
-                                checked={tableModeByCustomer}
-                                onToggle={() => setTableModeByCustomer(v => !v)}
-                            />
-                        </span>
-                    </div>
-                )}
             </div>
 
             {/* Суммирующая строка */}
@@ -5840,7 +5844,11 @@ function CargoPage({
                                                                     onClick={(e) => { e.stopPropagation(); setSelectedCargo(item); }}
                                                                     title="Открыть карточку перевозки"
                                                                 >
-                                                                    <td style={{ padding: '0.35rem 0.3rem' }}>{item.Number || '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem' }}>
+                                                                        <span style={{ color: (() => { const s = getSlaInfo(item); return s ? (s.onTime ? '#22c55e' : '#ef4444') : undefined; })() }}>
+                                                                            {item.Number || '—'}
+                                                                        </span>
+                                                                    </td>
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
@@ -5864,7 +5872,10 @@ function CargoPage({
             {/* List (карточки) — скрываем в табличном режиме */}
             {filteredItems.length > 0 && !(useServiceRequest && tableModeByCustomer) && (
             <div className="cargo-list">
-                {filteredItems.map((item: CargoItem, idx: number) => (
+                {filteredItems.map((item: CargoItem, idx: number) => {
+                    const sla = getSlaInfo(item);
+                    const numberColor = sla ? (sla.onTime ? '#22c55e' : '#ef4444') : undefined;
+                    return (
                         <Panel 
                             key={item.Number || idx} 
                             className="cargo-card"
@@ -5873,7 +5884,7 @@ function CargoPage({
                         >
                             <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
                                 <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: numberColor }}>
                                         {item.Number || '-'}
                                     </Typography.Body>
                                     {item._role && (
@@ -6117,7 +6128,8 @@ function CargoPage({
                                 </Flex>
                             )}
                     </Panel>
-                ))}
+                    );
+                })}
             </div>
             )}
 
