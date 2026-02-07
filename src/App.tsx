@@ -7458,10 +7458,11 @@ function ChatPage({
         setInputValue("");
         setIsReady(true);
 
+        let fetchedCargo: CargoItem[] = [];
         try {
             if (auth?.login && auth?.password) {
                 const today = new Date().toISOString().split("T")[0];
-                await fetch('/api/perevozki', {
+                const perevozkiRes = await fetch('/api/perevozki', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -7469,23 +7470,51 @@ function ChatPage({
                         password: auth.password,
                         dateFrom: "2024-01-01",
                         dateTo: today,
-                        customer: customerOverride,
+                        ...(customerOverride ? { customer: customerOverride } : {}),
                         ...(auth.inn ? { inn: auth.inn } : {}),
                     }),
-                }).catch(() => {});
+                });
+                if (perevozkiRes.ok) {
+                    const data = await perevozkiRes.json().catch(() => ({}));
+                    const list = Array.isArray(data) ? data : (data?.items ?? []);
+                    fetchedCargo = (list as any[]).slice(0, 30).map((i: any) => ({
+                        Number: i.Number,
+                        DatePrih: i.DatePrih,
+                        DateVr: i.DateVr,
+                        State: i.State,
+                        StateBill: i.StateBill,
+                        Mest: i.Mest,
+                        PW: i.PW,
+                        Sum: i.Sum,
+                        Sender: i.Sender,
+                        Receiver: i.Receiver,
+                        Customer: i.Customer ?? i.customer,
+                    }));
+                }
             }
+        } catch {
+            // оставляем fetchedCargo пустым
+        }
 
-            // Подготавливаем контекст (только важные поля, чтобы не перегружать токены)
+        const cargoForContext = fetchedCargo.length > 0 ? fetchedCargo : (cargoItems ?? []);
+        const recentCargoList = cargoForContext.slice(0, 25).map(i => ({
+            number: i.Number,
+            status: normalizeStatus(i.State),
+            datePrih: i.DatePrih,
+            dateVr: i.DateVr,
+            stateBill: i.StateBill,
+            sum: i.Sum,
+            sender: i.Sender,
+            receiver: i.Receiver ?? (i as any).receiver,
+            customer: i.Customer ?? (i as any).customer,
+        }));
+
+            // Подготавливаем контекст: данные перевозок из API или переданный cargoItems
             const context = {
                 userLogin: auth?.login,
                 customer: customerOverride,
-                activeCargoCount: cargoItems?.length || 0,
-                recentCargo: cargoItems?.slice(0, 5).map(i => ({
-                    number: i.Number,
-                    status: normalizeStatus(i.State),
-                    date: i.DatePrih,
-                    sender: i.Sender
-                }))
+                activeCargoCount: cargoForContext.length,
+                cargoList: recentCargoList,
             };
 
             const effectiveCustomer = sessionUnlinked ? null : customerOverride;
@@ -7586,6 +7615,12 @@ function ChatPage({
                     <Input
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSend(inputValue);
+                            }
+                        }}
                         placeholder="Напишите ваш вопрос..."
                         className="chat-input"
                         style={{ flex: 1, minWidth: 0, height: '44px' }}
