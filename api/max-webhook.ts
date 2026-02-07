@@ -219,7 +219,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         chatId,
         recipient: replyRecipient,
         recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
-        text: "Добрый день! Я AI-помощник HAULZ. Чем могу помочь? 😊",
+        text: "Добрый день! Меня зовут Грузик, я AI-помощник HAULZ. Чем могу помочь? 🚛 😊",
       });
     } catch (e) {}
   }

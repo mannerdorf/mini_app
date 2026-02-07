@@ -3074,6 +3074,7 @@ function AiChatProfilePage({
                 <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
+                <GruzikAvatar size={32} />
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>AI чат</Typography.Headline>
                 <Button
                     className="filter-button"
@@ -6980,6 +6981,35 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
+/** Анимированный аватар Грузика — дружелюбный грузовик для чата */
+function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: number; typing?: boolean; className?: string }) {
+    return (
+        <div
+            className={`gruzik-avatar ${typing ? 'typing' : ''} ${className}`.trim()}
+            style={{ width: size, height: size, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            aria-hidden
+        >
+            <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* кузов */}
+                <rect x="8" y="22" width="24" height="14" rx="3" fill="var(--color-primary-blue)" opacity="0.9" />
+                {/* кабина */}
+                <rect x="28" y="18" width="12" height="18" rx="2" fill="var(--color-primary-blue)" />
+                {/* лобовое стекло */}
+                <path d="M30 20 L38 20 L38 26 L30 26 Z" fill="rgba(255,255,255,0.3)" />
+                {/* глаза */}
+                <circle cx="32" cy="24" r="2" fill="var(--color-text-primary)" />
+                <circle cx="36" cy="24" r="2" fill="var(--color-text-primary)" />
+                {/* улыбка */}
+                <path d="M31 28 Q34 31 37 28" stroke="var(--color-text-primary)" strokeWidth="1.2" fill="none" strokeLinecap="round" />
+                {/* колёса */}
+                <circle cx="14" cy="38" r="4" fill="var(--color-bg-primary)" stroke="var(--color-border)" strokeWidth="1" />
+                <circle cx="26" cy="38" r="4" fill="var(--color-bg-primary)" stroke="var(--color-border)" strokeWidth="1" />
+                <circle cx="34" cy="38" r="4" fill="var(--color-bg-primary)" stroke="var(--color-border)" strokeWidth="1" />
+            </svg>
+        </div>
+    );
+}
+
 function ChatPage({ 
     prefillMessage, 
     onClearPrefill,
@@ -7411,7 +7441,7 @@ function ChatPage({
     useEffect(() => {
         if (hasLoadedHistory && messages.length === 0) {
             setMessages([
-                { role: 'assistant', content: "Здравствуйте! Я AI-помощник HAULZ. Чем я могу вам помочь? 🚛" }
+                { role: 'assistant', content: "Здравствуйте! Меня зовут Грузик, я AI-помощник HAULZ. Как я могу вам помочь? 🚛" }
             ]);
         }
     }, [hasLoadedHistory, messages.length]);
@@ -7600,7 +7630,8 @@ function ChatPage({
                 }}
             >
                 {messages.map((msg, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                    <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: '0.5rem' }}>
+                        {msg.role === 'assistant' && <GruzikAvatar size={28} />}
                         <div className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'}`} style={{ 
                             maxWidth: '85%', 
                             padding: '0.75rem 1rem', 
@@ -7617,7 +7648,8 @@ function ChatPage({
                     </div>
                 ))}
                 {isTyping && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', gap: '0.5rem' }}>
+                        <GruzikAvatar size={36} typing />
                         <div style={{ 
                             padding: '0.75rem 1rem', 
                             borderRadius: '1rem', 

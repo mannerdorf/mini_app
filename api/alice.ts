@@ -310,7 +310,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const companyName = parsed?.customer || "Заказчик";
     return res
       .status(200)
-      .json(aliceResponse(`Вы авторизованы под компанией ${companyName}. Чем я могу вам помочь?`));
+      .json(aliceResponse(`Вы авторизованы под компанией ${companyName}. Я Грузик, AI-помощник HAULZ. Чем я могу вам помочь? 🚛`));
   }
 
   const bindRaw = await getRedisValue(`alice:bind:${userId}`);
@@ -641,7 +641,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const loginKey = String(match.login || "").trim().toLowerCase();
       if (loginKey) await setRedisValue(`alice:login:${loginKey}`, userId, 60 * 60 * 24 * 365);
       const companyName = match?.customer || "Заказчик";
-      return res.status(200).json(aliceResponse(`Теперь работаю от имени компании ${companyName}. Чем могу помочь?`));
+      return res.status(200).json(aliceResponse(`Я Грузик. Теперь работаю от имени компании ${companyName}. Чем могу помочь? 🚛`));
     }
 
     // Обновляем данные в RAG в фоне (не ждём), чтобы не съедать таймаут ответа Алисе
