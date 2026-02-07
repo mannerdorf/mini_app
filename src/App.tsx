@@ -7562,7 +7562,20 @@ function ChatPage({
         let contextApiLabel = '';
         try {
             if (auth?.login && auth?.password) {
-                const today = new Date().toISOString().split("T")[0];
+                const now = new Date();
+                const today = now.toISOString().split("T")[0];
+                const t = (messageText || '').toLowerCase();
+                let dateFrom = today;
+                let dateTo = today;
+                if (/\b(недел|за неделю|на неделю)\b/.test(t)) {
+                    const from = new Date(now);
+                    from.setDate(from.getDate() - 7);
+                    dateFrom = from.toISOString().split('T')[0];
+                } else if (/\b(месяц|за месяц|на месяц)\b/.test(t)) {
+                    const from = new Date(now);
+                    from.setDate(from.getDate() - 30);
+                    dateFrom = from.toISOString().split('T')[0];
+                }
                 const perevozkiController = new AbortController();
                 const perevozkiTimeout = setTimeout(() => perevozkiController.abort(), 60000);
                 const perevozkiRes = await fetch('/api/perevozki', {
@@ -7571,8 +7584,8 @@ function ChatPage({
                     body: JSON.stringify({
                         login: auth.login,
                         password: auth.password,
-                        dateFrom: "2024-01-01",
-                        dateTo: today,
+                        dateFrom,
+                        dateTo,
                         ...(customerOverride ? { customer: customerOverride } : {}),
                         ...(auth.inn ? { inn: auth.inn } : {}),
                     }),
@@ -7669,6 +7682,16 @@ function ChatPage({
         try {
             if (CHAT_DEBUG) console.log('[chat] send start', { sessionId, messageLen: messageText.length });
             const effectiveCustomer = sessionUnlinked ? null : customerOverride;
+            let preloadedCargo: unknown = undefined;
+            if (typeof window !== "undefined") {
+                try {
+                    const stored = window.sessionStorage.getItem("haulz.chat.cargoPreload");
+                    if (stored) {
+                        preloadedCargo = JSON.parse(stored);
+                        window.sessionStorage.removeItem("haulz.chat.cargoPreload");
+                    }
+                } catch (_) {}
+            }
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -7678,6 +7701,7 @@ function ChatPage({
                     message: messageText,
                     context: { ...context, customer: effectiveCustomer },
                     customer: effectiveCustomer,
+                    ...(preloadedCargo != null ? { preloadedCargo } : {}),
                     auth: auth?.login && auth?.password ? { login: auth.login, password: auth.password, ...(auth.inn ? { inn: auth.inn } : {}) } : undefined
                 }),
                 signal: controller.signal,
@@ -8380,12 +8404,28 @@ export default function App() {
     };
 
     const openAiChatDeepLink = (cargoNumber?: string) => {
-        if (typeof window !== "undefined") {
-            if (cargoNumber) {
-                window.sessionStorage.setItem(
-                    "haulz.chat.prefill",
-                    `Что именно вас интересует по перевозке номер ${cargoNumber}`
-                );
+        if (typeof window !== "undefined" && cargoNumber) {
+            window.sessionStorage.setItem(
+                "haulz.chat.prefill",
+                `Интересует информация по перевозке номер ${cargoNumber}`
+            );
+            if (activeAccount?.login && activeAccount?.password) {
+                fetch(PROXY_API_GETPEREVOZKA_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        login: activeAccount.login,
+                        password: activeAccount.password,
+                        number: cargoNumber,
+                    }),
+                })
+                    .then((r) => r.json())
+                    .then((data) => {
+                        try {
+                            window.sessionStorage.setItem("haulz.chat.cargoPreload", JSON.stringify(data));
+                        } catch (_) {}
+                    })
+                    .catch(() => {});
             }
         }
         setActiveTab("support");
