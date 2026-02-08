@@ -1,12 +1,16 @@
 /**
- * Endpoint для регистрации MAX webhook через Vercel
- * 
+ * Endpoint для регистрации MAX webhook через Vercel.
+ *
+ * В интерфейсе платформы MAX (business.max.ru) нет поля для ввода URL вебхука —
+ * подписка на уведомления настраивается только через API (POST /subscriptions).
+ * Вызов этого endpoint'а регистрирует webhook за вас.
+ *
  * Использование:
  * 1. Добавь MAX_BOT_TOKEN в Vercel Environment Variables
- * 2. После деплоя открой в браузере или вызови через curl:
- *    https://<твой-домен>/api/register-max-webhook
- * 
- * Endpoint автоматически определит URL твоего webhook на основе Vercel URL
+ * 2. После деплоя открой в браузере или вызови: https://<твой-домен>/api/register-max-webhook
+ *
+ * Документация: https://dev.max.ru/docs/chatbots/bots-coding/prepare
+ * API: https://dev.max.ru/docs-api/methods/POST/subscriptions
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
@@ -58,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     console.log("🔗 Registering webhook:", finalWebhookUrl);
 
-    // Регистрируем webhook через MAX API
+    // Регистрируем webhook через MAX API (см. POST /subscriptions в документации)
     const response = await fetch(`${MAX_API_BASE}/subscriptions`, {
       method: "POST",
       headers: {
@@ -67,7 +71,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       body: JSON.stringify({
         url: finalWebhookUrl,
-        events: ["message"], // Подписываемся на события сообщений
+        update_types: ["message_created", "bot_started"], // сообщения и запуск по диплинку
       }),
     });
 

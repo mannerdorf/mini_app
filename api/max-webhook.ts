@@ -59,10 +59,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true });
   }
 
-  // Проверяем разные источники payload для startapp параметра
-  const rawText =
+  // Проверяем разные источники payload для startapp параметра и текста сообщения
+  let rawText: string =
     update?.message?.text ??
     update?.message?.body?.text ??
+    update?.message?.content ??
+    update?.message?.body?.content ??
     update?.text ??
     update?.payload ??
     update?.start_param ??
@@ -74,7 +76,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     update?.message?.body?.payload ??
     update?.data?.start_param ??
     update?.data?.startapp ??
+    update?.data?.text ??
     "";
+  if (typeof rawText !== "string" && rawText != null) {
+    if (typeof (rawText as any)?.text === "string") rawText = (rawText as any).text;
+    else if (typeof (rawText as any)?.content === "string") rawText = (rawText as any).content;
+    else rawText = String(rawText);
+  }
+  rawText = String(rawText ?? "").trim();
 
   // Также проверяем тип события (может быть "start" или "message")
   const eventType = update?.type ?? update?.event ?? update?.message?.type ?? "";
@@ -171,45 +180,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Если это обычное текстовое сообщение — отвечаем через ИИ
   if (rawText) {
     const userText = rawText;
-    console.log("Using AI to respond to:", userText);
+    console.log("MAX webhook: AI request for text:", userText.slice(0, 100));
 
     try {
       const replyTarget = senderId ?? chatId;
       const appDomain = process.env.NEXT_PUBLIC_APP_URL
         || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
+      const chatUrl = `${appDomain}/api/chat`;
 
-      const aiRes = await fetch(`${appDomain}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+      const aiRes = await fetch(chatUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           sessionId: `max_${replyTarget ?? chatId}`,
           userId: String(replyTarget ?? chatId),
           message: userText,
-          channel: "max"
-        })
+          channel: "max",
+        }),
       });
 
+      const aiRaw = await aiRes.text();
+      let aiData: { reply?: string; error?: string } = {};
+      try {
+        aiData = aiRaw ? JSON.parse(aiRaw) : {};
+      } catch {
+        aiData = { reply: aiRaw || "" };
+      }
+
       if (aiRes.ok) {
-        const aiData = await aiRes.json();
+        const replyText = (aiData.reply && String(aiData.reply).trim()) || "Чем могу помочь?";
         await maxSendMessage({
           token: MAX_BOT_TOKEN,
           chatId,
           recipient: replyRecipient,
           recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
-          text: aiData.reply,
+          text: replyText,
         });
       } else {
-        throw new Error("AI service error");
+        console.error("MAX webhook: /api/chat error", aiRes.status, aiRaw?.slice(0, 300));
+        await maxSendMessage({
+          token: MAX_BOT_TOKEN,
+          chatId,
+          recipient: replyRecipient,
+          recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
+          text: "Временная ошибка чата. Попробуйте через минуту.",
+        });
       }
-    } catch (error) {
-      console.error("AI processing failed:", error);
-      await maxSendMessage({
-        token: MAX_BOT_TOKEN,
-        chatId,
-        recipient: replyRecipient,
-        recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
-        text: "Добрый день! Напишите, пожалуйста, ваш вопрос — мы поможем.",
-      });
+    } catch (error: any) {
+      console.error("MAX webhook: AI or send failed:", error?.message || error);
+      try {
+        await maxSendMessage({
+          token: MAX_BOT_TOKEN,
+          chatId,
+          recipient: replyRecipient,
+          recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
+          text: "Добрый день! Напишите, пожалуйста, ваш вопрос — мы поможем.",
+        });
+      } catch (e2: any) {
+        console.error("MAX webhook: fallback send failed:", e2?.message || e2);
+      }
     }
   } else {
     // Входящее событие без текста (например, нажатие кнопки без данных)
