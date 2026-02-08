@@ -78,6 +78,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       (await getRedisValue(`tg:by_login:${login}`)) ||
       (loginRaw && loginRaw !== login ? await getRedisValue(`tg:by_login:${loginRaw}`) : null);
     const telegramLinked = !!tgBind || !!stored?.telegramLinked;
+
+    const maxBind =
+      (await getRedisValue(`max:by_login:${login}`)) ||
+      (loginRaw && loginRaw !== login ? await getRedisValue(`max:by_login:${loginRaw}`) : null);
+    const maxLinked = !!maxBind;
+
     const enabled = !!stored?.enabled;
     const method = stored?.method === "telegram" ? "telegram" : "google";
 
@@ -88,7 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({
       ok: true,
-      settings: { enabled, method, telegramLinked, googleSecretSet },
+      settings: { enabled, method, telegramLinked, maxLinked, googleSecretSet },
     });
   }
 

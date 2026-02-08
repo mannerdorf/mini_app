@@ -8,6 +8,49 @@ import {
 // MAX bot token must be stored in Vercel Environment Variables (server-side only)
 const MAX_BOT_TOKEN = process.env.MAX_BOT_TOKEN;
 const MAX_WEBHOOK_SECRET = process.env.MAX_WEBHOOK_SECRET;
+const MAX_LINK_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days (привязка чата к аккаунту)
+
+async function getRedisValue(key: string): Promise<string | null> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  try {
+    const response = await fetch(`${url}/pipeline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify([["GET", key]]),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const firstResult = Array.isArray(data) ? data[0] : data;
+    if (firstResult?.error) return null;
+    const value = firstResult?.result;
+    if (value === null || value === undefined) return null;
+    return String(value);
+  } catch {
+    return null;
+  }
+}
+
+async function setRedisValue(key: string, value: string, ttl?: number): Promise<boolean> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return false;
+  try {
+    const pipeline = ttl ? [["SET", key, value], ["EXPIRE", key, ttl]] : [["SET", key, value]];
+    const response = await fetch(`${url}/pipeline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(pipeline),
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    const firstResult = Array.isArray(data) ? data[0] : data;
+    return firstResult?.result === "OK" || firstResult?.result === true;
+  } catch {
+    return false;
+  }
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -141,6 +184,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         replyRecipient,
       },
     });
+  }
+
+  // Привязка аккаунта (по аналогии с Telegram): startapp=haulz_auth_{token}
+  if (rawText.startsWith("haulz_auth_")) {
+    const token = rawText.replace("haulz_auth_", "").trim();
+    const raw = await getRedisValue(`max:link:${token}`);
+    if (!raw) {
+      await maxSendMessage({
+        token: MAX_BOT_TOKEN,
+        chatId,
+        recipient: replyRecipient,
+        recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
+        text: "Ссылка устарела. Откройте бота из мини‑приложения ещё раз.",
+      });
+      return res.status(200).json({ ok: true });
+    }
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      parsed = null;
+    }
+    const chatIdStr = String(chatId);
+    const saved = await setRedisValue(`max:bind:${chatIdStr}`, raw, MAX_LINK_TTL_SECONDS);
+    if (!saved) {
+      await maxSendMessage({
+        token: MAX_BOT_TOKEN,
+        chatId,
+        recipient: replyRecipient,
+        recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
+        text: "Не удалось сохранить привязку. Попробуйте позже.",
+      });
+      return res.status(200).json({ ok: true });
+    }
+    if (parsed?.login) {
+      const loginKey = String(parsed.login).trim().toLowerCase();
+      await setRedisValue(`max:by_login:${loginKey}`, chatIdStr);
+      if (loginKey !== String(parsed.login).trim()) {
+        await setRedisValue(`max:by_login:${String(parsed.login).trim()}`, chatIdStr);
+      }
+    }
+    if (parsed?.customer) {
+      await setRedisValue(`max:by_customer:${parsed.customer}`, chatIdStr);
+    }
+    const customerLabel = parsed?.customer || parsed?.login || "не указан";
+    await maxSendMessage({
+      token: MAX_BOT_TOKEN,
+      chatId,
+      recipient: replyRecipient,
+      recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
+      text: `Готово! Аккаунт привязан.\nЗаказчик: ${customerLabel}\nТеперь можно писать в чат.`,
+    });
+    return res.status(200).json({ ok: true });
   }
 
   const cargoNumber = extractCargoNumberFromPayload(rawText);

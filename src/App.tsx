@@ -3373,6 +3373,7 @@ function NotificationsPage({
   onBack,
   onOpenDeveloper,
   onOpenTelegramBot,
+  onOpenMaxBot,
   onUpdateAccount,
 }: {
   activeAccount: Account | null;
@@ -3380,6 +3381,7 @@ function NotificationsPage({
   onBack: () => void;
   onOpenDeveloper: () => void;
   onOpenTelegramBot?: () => Promise<void>;
+  onOpenMaxBot?: () => Promise<void>;
   onUpdateAccount?: (accountId: string, patch: Partial<Account>) => void;
 }) {
   const [prefs, setPrefs] = useState<{ telegram: Record<string, boolean>; webpush: Record<string, boolean> }>({
@@ -3393,14 +3395,18 @@ function NotificationsPage({
   const [webPushSubscribed, setWebPushSubscribed] = useState(false);
   const [tgLinkLoading, setTgLinkLoading] = useState(false);
   const [tgLinkError, setTgLinkError] = useState<string | null>(null);
+  const [maxLinkLoading, setMaxLinkLoading] = useState(false);
+  const [maxLinkError, setMaxLinkError] = useState<string | null>(null);
   /** Статус привязки Telegram с сервера (при открытии экрана и по «Проверить привязку»). */
   const [telegramLinkedFromApi, setTelegramLinkedFromApi] = useState<boolean | null>(null);
+  const [maxLinkedFromApi, setMaxLinkedFromApi] = useState<boolean | null>(null);
 
   const login = activeAccount?.login?.trim().toLowerCase() || "";
   /** Telegram считается подключённым, если API вернул telegramLinked или в аккаунте уже есть флаг. */
   const telegramLinked = telegramLinkedFromApi ?? activeAccount?.twoFactorTelegramLinked ?? false;
+  const maxLinked = maxLinkedFromApi ?? false;
 
-  /** Запросить статус привязки Telegram (GET /api/2fa) — так понимаем, что Telegram подключён. */
+  /** Запросить статус привязки Telegram и MAX (GET /api/2fa). */
   const checkTelegramLinked = useCallback(async () => {
     if (!login) return false;
     try {
@@ -3409,6 +3415,7 @@ function NotificationsPage({
       const data = await res.json();
       const linked = !!data?.settings?.telegramLinked;
       setTelegramLinkedFromApi(linked);
+      setMaxLinkedFromApi(!!data?.settings?.maxLinked);
       if (linked && activeAccountId && onUpdateAccount) onUpdateAccount(activeAccountId, { twoFactorTelegramLinked: true });
       return linked;
     } catch {
@@ -3420,6 +3427,7 @@ function NotificationsPage({
     if (!login) {
       setPrefsLoading(false);
       setTelegramLinkedFromApi(null);
+      setMaxLinkedFromApi(null);
       return;
     }
     let cancelled = false;
@@ -3573,6 +3581,31 @@ function NotificationsPage({
                     {tgLinkError}
                   </Typography.Body>
                 )}
+                {onOpenMaxBot && (
+                  <Button
+                    type="button"
+                    className="button-primary"
+                    disabled={maxLinkLoading}
+                    onClick={async () => {
+                      setMaxLinkError(null);
+                      setMaxLinkLoading(true);
+                      try {
+                        await onOpenMaxBot();
+                      } catch (e: any) {
+                        setMaxLinkError(e?.message || "Не удалось открыть MAX.");
+                      } finally {
+                        setMaxLinkLoading(false);
+                      }
+                    }}
+                  >
+                    {maxLinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Привязать MAX"}
+                  </Button>
+                )}
+                {maxLinkError && (
+                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
+                    {maxLinkError}
+                  </Typography.Body>
+                )}
                 <Typography.Body
                   style={{ fontSize: "0.8rem", color: "var(--color-primary)", cursor: "pointer", textDecoration: "underline" }}
                   onClick={() => checkTelegramLinked()}
@@ -3585,6 +3618,35 @@ function NotificationsPage({
                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
                   Telegram подключён.
                 </Typography.Body>
+                {maxLinked ? (
+                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
+                    MAX подключён.
+                  </Typography.Body>
+                ) : onOpenMaxBot && (
+                  <Button
+                    type="button"
+                    className="button-primary"
+                    disabled={maxLinkLoading}
+                    onClick={async () => {
+                      setMaxLinkError(null);
+                      setMaxLinkLoading(true);
+                      try {
+                        await onOpenMaxBot();
+                      } catch (e: any) {
+                        setMaxLinkError(e?.message || "Не удалось открыть MAX.");
+                      } finally {
+                        setMaxLinkLoading(false);
+                      }
+                    }}
+                  >
+                    {maxLinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Привязать MAX"}
+                  </Button>
+                )}
+                {maxLinkError && (
+                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
+                    {maxLinkError}
+                  </Typography.Body>
+                )}
                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>
                   Раздел «Перевозки»
                 </Typography.Body>
@@ -3709,6 +3771,7 @@ function ProfilePage({
     onOpenNotifications,
     onOpenCargo,
     onOpenTelegramBot,
+    onOpenMaxBot,
     onUpdateAccount,
     onServiceModeChange
 }: { 
@@ -3722,6 +3785,7 @@ function ProfilePage({
     onOpenNotifications: () => void;
     onOpenCargo: (cargoNumber: string) => void;
     onOpenTelegramBot?: () => Promise<void>;
+    onOpenMaxBot?: () => Promise<void>;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
     onServiceModeChange?: () => void;
 }) {
@@ -3818,7 +3882,12 @@ function ProfilePage({
             icon: <Mic className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('voiceAssistants')
         },
-        // temporarily hidden: notifications and dashboards
+        { 
+            id: 'notifications', 
+            label: 'Уведомления', 
+            icon: <Bell className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => setCurrentView('notifications')
+        },
     ];
 
     const faqItems = [
@@ -4228,8 +4297,19 @@ function ProfilePage({
         );
     }
 
-    // Notifications module temporarily disabled
-    // if (currentView === 'notifications') { ... }
+    if (currentView === 'notifications') {
+        return (
+            <NotificationsPage
+                activeAccount={activeAccount}
+                activeAccountId={activeAccountId}
+                onBack={() => setCurrentView('main')}
+                onOpenDeveloper={() => {}}
+                onOpenTelegramBot={onOpenTelegramBot}
+                onOpenMaxBot={onOpenMaxBot}
+                onUpdateAccount={onUpdateAccount}
+            />
+        );
+    }
 
     if (currentView === 'faq') {
         return (
@@ -8467,6 +8547,31 @@ export default function App() {
         }
     };
 
+    const openMaxBotWithAccount = async () => {
+        const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
+        if (!activeAccount) {
+            throw new Error("Сначала выберите компанию.");
+        }
+        const res = await fetch("/api/max-link", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                login: activeAccount.login,
+                password: activeAccount.password,
+                customer: activeAccount.customer || null,
+                accountId: activeAccount.id,
+            }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.token) {
+            throw new Error(data?.error || "Не удалось создать ссылку для MAX.");
+        }
+        const url = new URL(MAX_SUPPORT_BOT_URL);
+        url.searchParams.set("startapp", `haulz_auth_${data.token}`);
+        url.searchParams.set("start", `haulz_auth_${data.token}`);
+        openMaxBotLink(url.toString());
+    };
+
     const openMaxBotLink = (url: string) => {
         const webApp = getWebApp();
         // Используем метод openLink из Bridge, чтобы MAX открыл это именно как внешнюю ссылку (переход в чат)
@@ -9367,6 +9472,7 @@ export default function App() {
                             onOpenNotifications={openSecretPinModal}
                             onOpenCargo={openCargoFromChat}
                             onOpenTelegramBot={openTelegramBotWithAccount}
+                            onOpenMaxBot={openMaxBotWithAccount}
                             onUpdateAccount={handleUpdateAccount}
                             onServiceModeChange={() => setServiceModeUnlocked(typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode') === '1')}
                         />
@@ -9419,6 +9525,7 @@ export default function App() {
                             onOpenNotifications={openSecretPinModal}
                             onOpenCargo={openCargoFromChat}
                             onOpenTelegramBot={openTelegramBotWithAccount}
+                            onOpenMaxBot={openMaxBotWithAccount}
                             onUpdateAccount={handleUpdateAccount}
                             onServiceModeChange={() => setServiceModeUnlocked(typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode') === '1')}
                         />
