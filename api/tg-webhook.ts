@@ -319,8 +319,9 @@ function splitTelegramMessage(text: string, maxLen = 3500): string[] {
   return chunks.length ? chunks : [text];
 }
 
+/** Номера перевозок — 6+ цифр. Года (4 цифры) не матчим, чтобы не получать «№ 2026 года». */
 function formatTelegramHtmlWithLinks(text: string) {
-  const cargoRegex = /(?:№\s*)?(\d{4,})/g;
+  const cargoRegex = /(?:№\s*)?(\d{6,})/g;
   const raw = String(text);
   let lastIndex = 0;
   let result = "";

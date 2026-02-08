@@ -1436,6 +1436,27 @@ function DashboardPage({
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
         return res;
     }, [items, statusFilter, senderFilter, receiverFilter, customerFilter, billStatusFilter, typeFilter, routeFilter]);
+
+    /** Фильтрация данных предыдущего периода (те же фильтры, что и для текущего) */
+    const filteredPrevPeriodItems = useMemo(() => {
+        if (!useServiceRequest || prevPeriodItems.length === 0) return [];
+        let res = prevPeriodItems.filter(i => !isReceivedInfoStatus(i.State));
+        if (statusFilter === 'favorites') {
+            const favorites = JSON.parse(localStorage.getItem('haulz.favorites') || '[]') as string[];
+            res = res.filter(i => i.Number && favorites.includes(i.Number));
+        } else if (statusFilter !== 'all') {
+            res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
+        }
+        if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
+        if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
+        if (customerFilter) res = res.filter(i => (i.Customer ?? (i as any).customer ?? '').trim() === customerFilter);
+        if (billStatusFilter !== 'all') res = res.filter(i => getPaymentFilterKey(i.StateBill) === billStatusFilter);
+        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
+        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
+        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
+        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
+        return res;
+    }, [prevPeriodItems, useServiceRequest, statusFilter, senderFilter, receiverFilter, customerFilter, billStatusFilter, typeFilter, routeFilter]);
     
     // Подготовка данных для графиков (группировка по датам)
     const chartData = useMemo(() => {
@@ -1476,26 +1497,41 @@ function DashboardPage({
         });
         return { sum, pw, w, vol, mest };
     }, [filteredItems]);
+    const getValForChart = useCallback((item: CargoItem) => {
+        if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+        if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+        if (chartType === 'weight') return typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
+        if (chartType === 'pieces') return typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
+        return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
+    }, [chartType]);
+
     const stripDiagramByType = useMemo(() => {
         let autoVal = 0, ferryVal = 0;
-        const getVal = (item: CargoItem) => {
-            if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
-            if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
-            if (chartType === 'weight') return typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
-            if (chartType === 'pieces') return typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
-            return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
-        };
         filteredItems.forEach(item => {
-            const v = getVal(item);
+            const v = getValForChart(item);
             if (item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1) ferryVal += v;
             else autoVal += v;
         });
+        let autoPrev = 0, ferryPrev = 0;
+        const hasPrev = useServiceRequest && filteredPrevPeriodItems.length > 0;
+        if (hasPrev) {
+            filteredPrevPeriodItems.forEach(item => {
+                const v = getValForChart(item);
+                if (item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1) ferryPrev += v;
+                else autoPrev += v;
+            });
+        }
         const total = autoVal + ferryVal || 1;
+        const dynamics = (cur: number, prev: number): number | null => {
+            if (!hasPrev) return null;
+            if (prev === 0) return cur > 0 ? 100 : null;
+            return Math.round(((cur - prev) / prev) * 100);
+        };
         return [
-            { label: 'Авто', value: autoVal, percent: Math.round((autoVal / total) * 100), color: DIAGRAM_COLORS[0] },
-            { label: 'Паром', value: ferryVal, percent: Math.round((ferryVal / total) * 100), color: DIAGRAM_COLORS[1] },
+            { label: 'Авто', value: autoVal, percent: Math.round((autoVal / total) * 100), color: DIAGRAM_COLORS[0], dynamics: dynamics(autoVal, autoPrev) },
+            { label: 'Паром', value: ferryVal, percent: Math.round((ferryVal / total) * 100), color: DIAGRAM_COLORS[1], dynamics: dynamics(ferryVal, ferryPrev) },
         ];
-    }, [filteredItems, chartType]);
+    }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const slaStats = useMemo(() => {
         const withSla = filteredItems.map(i => getSlaInfo(i)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
         const total = withSla.length;
@@ -1558,58 +1594,73 @@ function DashboardPage({
 
     const stripDiagramBySender = useMemo(() => {
         const map = new Map<string, number>();
-        const getVal = (item: CargoItem) => {
-            if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
-            if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
-            if (chartType === 'weight') return typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
-            if (chartType === 'pieces') return typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
-            return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
-        };
+        const prevMap = new Map<string, number>();
         filteredItems.forEach(item => {
             const key = (item.Sender ?? '').trim() || '—';
-            map.set(key, (map.get(key) || 0) + getVal(item));
+            map.set(key, (map.get(key) || 0) + getValForChart(item));
         });
+        const hasPrev = useServiceRequest && filteredPrevPeriodItems.length > 0;
+        if (hasPrev) {
+            filteredPrevPeriodItems.forEach(item => {
+                const key = (item.Sender ?? '').trim() || '—';
+                prevMap.set(key, (prevMap.get(key) || 0) + getValForChart(item));
+            });
+        }
         const total = [...map.values()].reduce((a, b) => a + b, 0) || 1;
         return [...map.entries()]
-            .map(([name, value], i) => ({ name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length] }))
+            .map(([name, value], i) => {
+                const prevVal = prevMap.get(name) ?? 0;
+                const dynamics = hasPrev ? (prevVal === 0 ? (value > 0 ? 100 : null) : Math.round(((value - prevVal) / prevVal) * 100)) : null;
+                return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
+            })
             .sort((a, b) => b.value - a.value);
-    }, [filteredItems, chartType]);
+    }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const stripDiagramByReceiver = useMemo(() => {
         const map = new Map<string, number>();
-        const getVal = (item: CargoItem) => {
-            if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
-            if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
-            if (chartType === 'weight') return typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
-            if (chartType === 'pieces') return typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
-            return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
-        };
+        const prevMap = new Map<string, number>();
         filteredItems.forEach(item => {
             const key = (item.Receiver ?? (item as any).receiver ?? '').trim() || '—';
-            map.set(key, (map.get(key) || 0) + getVal(item));
+            map.set(key, (map.get(key) || 0) + getValForChart(item));
         });
+        const hasPrev = useServiceRequest && filteredPrevPeriodItems.length > 0;
+        if (hasPrev) {
+            filteredPrevPeriodItems.forEach(item => {
+                const key = (item.Receiver ?? (item as any).receiver ?? '').trim() || '—';
+                prevMap.set(key, (prevMap.get(key) || 0) + getValForChart(item));
+            });
+        }
         const total = [...map.values()].reduce((a, b) => a + b, 0) || 1;
         return [...map.entries()]
-            .map(([name, value], i) => ({ name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length] }))
+            .map(([name, value], i) => {
+                const prevVal = prevMap.get(name) ?? 0;
+                const dynamics = hasPrev ? (prevVal === 0 ? (value > 0 ? 100 : null) : Math.round(((value - prevVal) / prevVal) * 100)) : null;
+                return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
+            })
             .sort((a, b) => b.value - a.value);
-    }, [filteredItems, chartType]);
+    }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const stripDiagramByCustomer = useMemo(() => {
         const map = new Map<string, number>();
-        const getVal = (item: CargoItem) => {
-            if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
-            if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
-            if (chartType === 'weight') return typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
-            if (chartType === 'pieces') return typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
-            return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
-        };
+        const prevMap = new Map<string, number>();
         filteredItems.forEach(item => {
             const key = (item.Customer ?? (item as any).customer ?? '').trim() || '—';
-            map.set(key, (map.get(key) || 0) + getVal(item));
+            map.set(key, (map.get(key) || 0) + getValForChart(item));
         });
+        const hasPrev = useServiceRequest && filteredPrevPeriodItems.length > 0;
+        if (hasPrev) {
+            filteredPrevPeriodItems.forEach(item => {
+                const key = (item.Customer ?? (item as any).customer ?? '').trim() || '—';
+                prevMap.set(key, (prevMap.get(key) || 0) + getValForChart(item));
+            });
+        }
         const total = [...map.values()].reduce((a, b) => a + b, 0) || 1;
         return [...map.entries()]
-            .map(([name, value], i) => ({ name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length] }))
+            .map(([name, value], i) => {
+                const prevVal = prevMap.get(name) ?? 0;
+                const dynamics = hasPrev ? (prevVal === 0 ? (value > 0 ? 100 : null) : Math.round(((value - prevVal) / prevVal) * 100)) : null;
+                return { name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length], dynamics };
+            })
             .sort((a, b) => b.value - a.value);
-    }, [filteredItems, chartType]);
+    }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
 
     // Функция для создания SVG графика
     const renderChart = (
@@ -1770,27 +1821,6 @@ function DashboardPage({
         const vol = Number(stripTotals.vol);
         return `${(isNaN(vol) ? 0 : vol).toFixed(2).replace('.', ',')} м³`;
     };
-
-    /** Фильтрация данных предыдущего периода (те же фильтры, что и для текущего) */
-    const filteredPrevPeriodItems = useMemo(() => {
-        if (!useServiceRequest || prevPeriodItems.length === 0) return [];
-        let res = prevPeriodItems.filter(i => !isReceivedInfoStatus(i.State));
-        if (statusFilter === 'favorites') {
-            const favorites = JSON.parse(localStorage.getItem('haulz.favorites') || '[]') as string[];
-            res = res.filter(i => i.Number && favorites.includes(i.Number));
-        } else if (statusFilter !== 'all') {
-            res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
-        }
-        if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
-        if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
-        if (customerFilter) res = res.filter(i => (i.Customer ?? (i as any).customer ?? '').trim() === customerFilter);
-        if (billStatusFilter !== 'all') res = res.filter(i => getPaymentFilterKey(i.StateBill) === billStatusFilter);
-        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
-        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
-        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
-        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
-        return res;
-    }, [prevPeriodItems, useServiceRequest, statusFilter, senderFilter, receiverFilter, customerFilter, billStatusFilter, typeFilter, routeFilter]);
 
     /** Тренд период к периоду: текущий период vs предыдущий период (только в служебном режиме) */
     const periodToPeriodTrend = useMemo(() => {
@@ -1968,6 +1998,16 @@ function DashboardPage({
                                             <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
                                         </div>
                                     </div>
+                                    {row.dynamics != null && (
+                                        <Flex align="center" gap="0.2rem" style={{ flexShrink: 0, minWidth: 48 }}>
+                                            {row.dynamics > 0 && <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-success-status)' }} />}
+                                            {row.dynamics < 0 && <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />}
+                                            {row.dynamics === 0 && <Minus className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
+                                            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, color: row.dynamics > 0 ? 'var(--color-success-status)' : row.dynamics < 0 ? '#ef4444' : 'var(--color-text-secondary)' }}>
+                                                {row.dynamics > 0 ? '+' : ''}{row.dynamics}%
+                                            </Typography.Body>
+                                        </Flex>
+                                    )}
                                     <Typography.Body
                                         component="span"
                                         style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}
@@ -1987,6 +2027,16 @@ function DashboardPage({
                                             <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
                                         </div>
                                     </div>
+                                    {row.dynamics != null && (
+                                        <Flex align="center" gap="0.2rem" style={{ flexShrink: 0, minWidth: 48 }}>
+                                            {row.dynamics > 0 && <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-success-status)' }} />}
+                                            {row.dynamics < 0 && <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />}
+                                            {row.dynamics === 0 && <Minus className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
+                                            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, color: row.dynamics > 0 ? 'var(--color-success-status)' : row.dynamics < 0 ? '#ef4444' : 'var(--color-text-secondary)' }}>
+                                                {row.dynamics > 0 ? '+' : ''}{row.dynamics}%
+                                            </Typography.Body>
+                                        </Flex>
+                                    )}
                                     <Typography.Body
                                         component="span"
                                         style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: 'pointer', userSelect: 'none' }}
@@ -2006,6 +2056,16 @@ function DashboardPage({
                                             <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
                                         </div>
                                     </div>
+                                    {row.dynamics != null && (
+                                        <Flex align="center" gap="0.2rem" style={{ flexShrink: 0, minWidth: 48 }}>
+                                            {row.dynamics > 0 && <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-success-status)' }} />}
+                                            {row.dynamics < 0 && <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />}
+                                            {row.dynamics === 0 && <Minus className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
+                                            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, color: row.dynamics > 0 ? 'var(--color-success-status)' : row.dynamics < 0 ? '#ef4444' : 'var(--color-text-secondary)' }}>
+                                                {row.dynamics > 0 ? '+' : ''}{row.dynamics}%
+                                            </Typography.Body>
+                                        </Flex>
+                                    )}
                                     <Typography.Body
                                         component="span"
                                         style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: 'pointer', userSelect: 'none' }}
@@ -2025,6 +2085,16 @@ function DashboardPage({
                                             <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4, transition: 'width 0.3s' }} />
                                         </div>
                                     </div>
+                                    {row.dynamics != null && (
+                                        <Flex align="center" gap="0.2rem" style={{ flexShrink: 0, minWidth: 48 }}>
+                                            {row.dynamics > 0 && <TrendingUp className="w-4 h-4" style={{ color: 'var(--color-success-status)' }} />}
+                                            {row.dynamics < 0 && <TrendingDown className="w-4 h-4" style={{ color: '#ef4444' }} />}
+                                            {row.dynamics === 0 && <Minus className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
+                                            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, color: row.dynamics > 0 ? 'var(--color-success-status)' : row.dynamics < 0 ? '#ef4444' : 'var(--color-text-secondary)' }}>
+                                                {row.dynamics > 0 ? '+' : ''}{row.dynamics}%
+                                            </Typography.Body>
+                                        </Flex>
+                                    )}
                                     <Typography.Body
                                         component="span"
                                         style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: 'pointer', userSelect: 'none' }}
