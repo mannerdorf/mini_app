@@ -162,6 +162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ? { tgTokenConfigured: true, chatId, userText, hasVoice: Boolean(voice?.file_id) }
     : null;
 
+  let typingInterval: ReturnType<typeof setInterval> | undefined;
   try {
     if (!userText && voice?.file_id) {
       if (!OPENAI_API_KEY) {
@@ -200,7 +201,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const boundCustomer = bound?.customer || null;
     const boundAuth = bound?.login && bound?.password
-      ? { login: bound.login, password: bound.password }
+      ? { login: bound.login, password: bound.password, ...(bound?.inn ? { inn: String(bound.inn).trim() } : {}) }
       : undefined;
     if (debugInfo) {
       debugInfo.bound = { hasAuth: !!boundAuth, customer: boundCustomer };
@@ -210,7 +211,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
     if (debugInfo) debugInfo.appDomain = appDomain;
     await sendTgChatAction(chatId, "typing");
-    const typingInterval = setInterval(() => { sendTgChatAction(chatId, "typing"); }, 4000);
+    typingInterval = setInterval(() => { sendTgChatAction(chatId, "typing"); }, 4000);
     const aiRes = await fetch(`${appDomain}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -244,7 +245,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await sendTgMessageChunked(chatId, "Временная ошибка чата. Попробуйте через минуту.", { formatLinks: false });
     }
   } catch (e) {
-    clearInterval(typingInterval);
+    if (typingInterval !== undefined) clearInterval(typingInterval);
     if (debugInfo) debugInfo.error = String((e as any)?.message || e);
     console.error("TG AI error:", e);
     try {

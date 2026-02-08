@@ -56,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const { login, password, customer, accountId } = body || {};
+    const { login, password, customer, inn, accountId } = body || {};
     if (!login || !password) {
       return res.status(400).json({ error: "login and password are required" });
     }
@@ -67,6 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       login,
       password,
       customer: customer || null,
+      inn: inn || null,
       accountId: accountId || null,
       createdAt: Date.now(),
     });

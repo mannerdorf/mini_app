@@ -303,7 +303,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const chatIdStr = String(chatId);
       const senderIdStr = senderId != null ? String(senderId) : null;
       // Берём привязанный аккаунт из Redis. В MAX при bot_started приходит chat_id, при message_created — часто только sender.user_id; ищем по обоим
-      let maxAuth: { login?: string; password?: string; customer?: string } = {};
+      let maxAuth: { login?: string; password?: string; customer?: string; inn?: string } = {};
       let bindRaw = await getRedisValue(`max:bind:${chatIdStr}`);
       if (!bindRaw && senderIdStr && senderIdStr !== chatIdStr) {
         bindRaw = await getRedisValue(`max:bind:${senderIdStr}`);
@@ -316,8 +316,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               login: String(parsed.login).trim(),
               password: String(parsed.password).trim(),
               customer: typeof parsed.customer === "string" ? String(parsed.customer).trim() || undefined : undefined,
+              inn: typeof parsed.inn === "string" ? String(parsed.inn).trim() || undefined : undefined,
             };
-            console.log("MAX webhook: using linked account, customer:", maxAuth.customer ?? "(none)");
+            console.log("MAX webhook: using linked account, customer:", maxAuth.customer ?? "(none)", "inn:", maxAuth.inn ?? "(none)");
           }
         } catch (_) {}
       }
@@ -341,7 +342,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           userId: String(replyTarget ?? chatId),
           message: userText,
           channel: "max",
-          auth: maxAuth.login && maxAuth.password ? { login: maxAuth.login, password: maxAuth.password } : undefined,
+          auth: maxAuth.login && maxAuth.password ? { login: maxAuth.login, password: maxAuth.password, ...(maxAuth.inn ? { inn: maxAuth.inn } : {}) } : undefined,
           customer: maxAuth.customer != null && String(maxAuth.customer).trim() !== "" ? String(maxAuth.customer).trim() : undefined,
         }),
       });
