@@ -77,62 +77,6 @@ function extractCargoNumber(text: string) {
   return match?.[1] || null;
 }
 
-const MONTH_NAMES: Record<string, number> = {
-  январ: 0, февраля: 1, марта: 2, апреля: 3, мая: 4, июня: 5,
-  июля: 6, августа: 7, сентября: 8, октября: 9, ноября: 10, декабря: 11,
-};
-
-/** Парсит явный период из сообщения: «со 2 по 8 февраля 2026», «с 02.02 по 08.02.2026» */
-function extractExplicitDateRange(text: string): { dateFrom: string; dateTo: string } | null {
-  const t = text.trim();
-  const yearMatch = t.match(/(?:20\d{2}|19\d{2})/);
-  const year = yearMatch ? parseInt(yearMatch[0], 10) : new Date().getFullYear();
-  for (const [monthName, month0] of Object.entries(MONTH_NAMES)) {
-    const re = new RegExp(`(?:с|со)\\s*(\\d{1,2})\\s*(?:по|до|-)\\s*(\\d{1,2})\\s*${monthName}`, "i");
-    const m = t.match(re);
-    if (m) {
-      const d1 = Math.min(31, Math.max(1, parseInt(m[1], 10)));
-      const d2 = Math.min(31, Math.max(1, parseInt(m[2], 10)));
-      const from = new Date(year, month0, Math.min(d1, d2));
-      const to = new Date(year, month0, Math.max(d1, d2));
-      return {
-        dateFrom: from.toISOString().split("T")[0],
-        dateTo: to.toISOString().split("T")[0],
-      };
-    }
-  }
-  const ddmm = t.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})?\s*(?:[-–—по]\s*)?(\d{1,2})\.(\d{1,2})\.(\d{4})?/);
-  if (ddmm) {
-    const d1 = parseInt(ddmm[1], 10), m1 = parseInt(ddmm[2], 10) - 1, y1 = ddmm[3] ? parseInt(ddmm[3], 10) : year;
-    const d2 = parseInt(ddmm[4], 10), m2 = parseInt(ddmm[5], 10) - 1, y2 = ddmm[6] ? parseInt(ddmm[6], 10) : year;
-    const from = new Date(y1, m1, d1), to = new Date(y2, m2, d2);
-    if (!isNaN(from.getTime()) && !isNaN(to.getTime())) {
-      return { dateFrom: from.toISOString().split("T")[0], dateTo: to.toISOString().split("T")[0] };
-    }
-  }
-  for (const [monthName, month0] of Object.entries(MONTH_NAMES)) {
-    const singleRe = new RegExp(`(?:за\\s+)?(\\d{1,2})\\s*${monthName}(?:\\s+${year})?`, "i");
-    const singleM = t.match(singleRe);
-    if (singleM) {
-      const day = Math.min(31, Math.max(1, parseInt(singleM[1], 10)));
-      const d = new Date(year, month0, day);
-      const iso = d.toISOString().split("T")[0];
-      return { dateFrom: iso, dateTo: iso };
-    }
-  }
-  return null;
-}
-
-/** Сообщение — запрос по конкретному номеру перевозки (не сводка за период) */
-function isSpecificCargoNumberQuery(text: string) {
-  const num = extractCargoNumber(text);
-  if (!num) return false;
-  const t = text.toLowerCase().trim();
-  const periodKeywords = /\b(недел|месяц|год|период|сегодня|вчера|сводк|итого|сколько перевозок|принято|статистика)\b/;
-  if (periodKeywords.test(t)) return false;
-  return true;
-}
-
 function extractLastCargoNumberFromHistory(rows: { role: ChatRole; content: string }[]) {
   for (let i = rows.length - 1; i >= 0; i -= 1) {
     const row = rows[i];
@@ -619,17 +563,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const t = (userMessage || "").toLowerCase();
         let dateFrom = today;
         let dateTo = today;
-        const explicitRange = extractExplicitDateRange(userMessage || "");
-        if (explicitRange) {
-          dateFrom = explicitRange.dateFrom;
-          dateTo = explicitRange.dateTo;
-        } else if (/\b(вчера|за вчера|на вчера)\b/.test(t)) {
-          const yesterday = new Date(now);
-          yesterday.setDate(yesterday.getDate() - 1);
-          dateFrom = dateTo = yesterday.toISOString().split("T")[0];
-        } else if (/\b(сегодня|за сегодня|на сегодня)\b/.test(t)) {
-          dateFrom = dateTo = today;
-        } else if (/\b(недел|за неделю|на неделю)\b/.test(t)) {
+        if (/\b(недел|за неделю|на неделю)\b/.test(t)) {
           const from = new Date(now);
           from.setDate(from.getDate() - 7);
           dateFrom = from.toISOString().split("T")[0];
@@ -637,9 +571,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const from = new Date(now);
           from.setDate(from.getDate() - 30);
           dateFrom = from.toISOString().split("T")[0];
-        } else if (/\b(год|за год|на год|в этом году)\b/.test(t)) {
-          const y = now.getFullYear();
-          dateFrom = `${y}-01-01`;
         }
         const weekAgo = new Date(now);
         weekAgo.setDate(weekAgo.getDate() - 7);
@@ -647,51 +578,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         monthAgo.setDate(monthAgo.getDate() - 30);
         const weekStartStr = weekAgo.toISOString().split("T")[0];
         const monthStartStr = monthAgo.toISOString().split("T")[0];
-        // Как в приложении: запросы по всем ролям (Customer, Sender, Receiver) и объединение
-        const modes: Array<"Customer" | "Sender" | "Receiver"> = ["Customer", "Sender", "Receiver"];
-        const basePayload = {
-          login: auth.login,
-          password: auth.password,
-          dateFrom,
-          dateTo,
-          ...(auth.inn ? { inn: auth.inn } : {}),
-        };
-        const allItems: any[] = [];
-        for (const mode of modes) {
-          const perevozkiRes = await fetch(`${appDomain}/api/perevozki`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...basePayload, mode }),
-          });
-          if (perevozkiRes.ok) {
-            const data = await perevozkiRes.json().catch(() => ({}));
-            const raw = Array.isArray(data) ? data : (data?.items ?? data?.Items ?? data?.data?.items ?? data?.data?.Items ?? []);
-            let list: any[] = Array.isArray(raw) ? raw : [];
-            if (list.length === 0) {
-              const single = data?.Item ?? data?.item ?? data?.data?.Item ?? data?.data?.item;
-              if (single && typeof single === "object" && !Array.isArray(single)) list = [single];
-            }
-            list.forEach((i: any) => allItems.push({ ...i, _role: mode }));
-          }
-        }
-        const cargoList = (() => {
-          if (allItems.length === 0) return [];
-          const byNumber = new Map<string, any>();
-          const rolePriority: Record<string, number> = { Customer: 3, Sender: 2, Receiver: 1 };
-          for (const item of allItems) {
-            const num = String(item?.Number ?? item?.number ?? "").trim();
-            if (!num) continue;
-            const existing = byNumber.get(num);
-            const itemDate = (x: any) => {
-              const v = x?.DatePrih ?? x?.datePrih ?? x?.DateVr ?? x?.dateVr;
-              return v ? new Date(String(v)).getTime() : 0;
-            };
-            if (!existing || itemDate(item) >= itemDate(existing) || rolePriority[item._role] >= rolePriority[existing._role]) {
-              byNumber.set(num, item);
-            }
-          }
-          const list = Array.from(byNumber.values());
-          return list.slice(0, 35).map((i: any) => ({
+        const perevozkiRes = await fetch(`${appDomain}/api/perevozki`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            login: auth.login,
+            password: auth.password,
+            dateFrom,
+            dateTo,
+            ...(auth.inn ? { inn: auth.inn } : {}),
+          }),
+        });
+        if (perevozkiRes.ok) {
+          const data = await perevozkiRes.json().catch(() => ({}));
+          const list = Array.isArray(data) ? data : (data?.items ?? []);
+          const cargoList = (list as any[]).slice(0, 35).map((i: any) => ({
             number: i.Number ?? i.number,
             status: i.State ?? i.state,
             datePrih: i.DatePrih ?? i.datePrih,
@@ -704,80 +605,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             receiver: i.Receiver ?? i.receiver,
             customer: i.Customer ?? i.customer,
           }));
-        })();
-        contextToUse = {
-          ...(contextToUse || {}),
-          userLogin: auth.login,
-          customer: effectiveCustomer ?? customer ?? null,
-          todayDate: today,
-          weekStartDate: dateFrom,
-          weekEndDate: dateTo,
-          monthStartDate: monthStartStr,
-          monthEndDate: today,
-          activeCargoCount: cargoList.length,
-          cargoList,
-        };
+          contextToUse = {
+            ...(contextToUse || {}),
+            userLogin: auth.login,
+            customer: effectiveCustomer ?? customer ?? null,
+            todayDate: today,
+            weekStartDate: weekStartStr,
+            weekEndDate: today,
+            monthStartDate: monthStartStr,
+            monthEndDate: today,
+            activeCargoCount: cargoList.length,
+            cargoList,
+          };
+        }
       } catch (e: any) {
         console.warn("chat: perevozki fetch for context failed", e?.message || e);
       }
     }
-    // Запрос по конкретному номеру — получаем данные из API Getperevozka
-    let fetchedPreloadedCargo: Record<string, unknown> | null = null;
-    if (
-      isSpecificCargoNumberQuery(userMessage) &&
-      auth?.login &&
-      auth?.password
-    ) {
-      const cargoNum =
-        extractCargoNumber(userMessage) ||
-        extractLastCargoNumberFromHistory(history.rows);
-      if (cargoNum) {
-        try {
-          const appDomain = getAppDomain();
-          const gpRes = await fetch(`${appDomain}/api/getperevozka`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              login: auth.login,
-              password: auth.password,
-              number: cargoNum,
-            }),
-          });
-          if (gpRes.ok) {
-            const gpData = await gpRes.json().catch(() => ({}));
-            if (gpData && typeof gpData === "object" && gpData.Success === false) {
-              // 1C вернула "не найдено" или ошибку — не подставляем preloadedCargo
-            } else {
-            const item = gpData?.item ?? gpData?.Item ?? gpData ?? (Array.isArray(gpData) ? gpData[0] : null);
-            if (item && typeof item === "object" && !Array.isArray(item)) {
-              fetchedPreloadedCargo = {
-                Number: item.Number ?? item.number ?? cargoNum,
-                State: item.State ?? item.state,
-                DatePrih: item.DatePrih ?? item.datePrih,
-                DateVr: item.DateVr ?? item.dateVr,
-                Sum: item.Sum ?? item.sum,
-                PW: item.PW ?? item.pw,
-                Mest: item.Mest ?? item.mest,
-                Sender: item.Sender ?? item.sender,
-                Receiver: item.Receiver ?? item.receiver,
-                Customer: item.Customer ?? item.customer,
-                StateBill: item.StateBill ?? item.stateBill,
-                W: item.W ?? item.w,
-                Value: item.Value ?? item.value,
-              } as Record<string, unknown>;
-            }
-            }
-          }
-        } catch (e: any) {
-          console.warn("chat: getperevozka fetch failed", e?.message || e);
-        }
-      }
-    }
-
     if (contextToUse === null && context && typeof context === "object") contextToUse = { ...context };
-    const finalPreloadedCargo = fetchedPreloadedCargo ?? (preloadedCargo != null && typeof preloadedCargo === "object" ? preloadedCargo : null);
-    if (finalPreloadedCargo != null && contextToUse) {
-      (contextToUse as Record<string, unknown>).preloadedCargo = finalPreloadedCargo;
+    if (preloadedCargo != null && contextToUse) {
+      (contextToUse as Record<string, unknown>).preloadedCargo = preloadedCargo;
     }
 
     let ragContext = "";
@@ -844,8 +691,8 @@ ${capabilitiesText || "Не загружено."}
 
 ПРАВИЛА ОТВЕТОВ:
 0. НИТЬ РАЗГОВОРА — главное. Всегда учитывай предыдущие реплики в диалоге. Местоимения и отсылки («их», «эти», «те перевозки», «номера», «список») понимай из контекста последнего обмена. Сначала опирайся на нить разговора, потом на ключевые фразы в текущем сообщении.
-1. Запросы по перевозкам за период — понимай широко. Считай одним и тем же запросом: «перевозки за неделю», «сводка за неделю», «саммари недели», «за период принято», «сколько перевозок за месяц», «итого за неделю», «сумма за месяц», «платный вес за период», «что за неделю», «грузы за месяц», «принято за неделю», «статистика за месяц», «сводка недели», «кратко за период» и любые похожие формулировки. На все такие запросы отвечай кратко и по одному формату: «За [период] принято N перевозок на сумму X руб., платный вес Y кг» (при необходимости добавь мест или объём). ВАЖНО: Период всегда указывай из контекста — поля weekStartDate и weekEndDate (формат YYYY-MM-DD). Например: «с 2026-02-01 по 2026-02-08» или «с 1 по 8 февраля 2026». Никогда не придумывай даты. Данные бери из cargoList и полей sum, PW (платный вес): посчитай количество, сложи суммы и платный вес. Не перечисляй все перевозки подряд — только сводка. Если cargoList пустой — ответь «За период с [weekStartDate] по [weekEndDate] перевозок не найдено».
-2. Если пользователь просит перечислить перевозки — «напиши номера», «выведи номера», «какие перевозки», «какие еще перевозки», «перечисли перевозки», «номера перевозок» — бери из cargoList ВСЕ перевозки (каждый элемент массива), не только первую. Выведи список номеров и при необходимости краткие данные (номер, сумма, статус) по каждой. cargoList содержит все перевозки за период из API.
+1. Запросы по перевозкам за период — понимай широко. Считай одним и тем же запросом: «перевозки за неделю», «сводка за неделю», «саммари недели», «за период принято», «сколько перевозок за месяц», «итого за неделю», «сумма за месяц», «платный вес за период», «что за неделю», «грузы за месяц», «принято за неделю», «статистика за месяц», «сводка недели», «кратко за период» и любые похожие формулировки. На все такие запросы отвечай кратко и по одному формату: «За [неделю/месяц/сегодня] принято N перевозок на сумму X руб., платный вес Y кг» (при необходимости добавь мест или объём). Данные бери из cargoList и полей sum, PW (платный вес) в контексте: посчитай количество, сложи суммы и платный вес. Не перечисляй все перевозки подряд — только сводка. Если cargoList пустой — ответь, что за период перевозок не найдено.
+2. Если пользователь уже получил сводку (по периоду/перевозкам) и затем просит «напиши их номера», «выведи номера», «перечисли номера», «номера перевозок», «какие номера» — речь о перевозках из этой сводки. Возьми из cargoList в контексте поля number (или number из каждого элемента) и выведи в чат список номеров перевозок (через запятую или с новой строки). Не придумывай номера — только из cargoList.
 3. Если в контексте есть поле preloadedCargo — это полные данные по одной перевозке (из API Getperevozka). Используй их для ответа на вопрос по этой перевозке (номер, статус, даты, сумма, платный вес и т.д.).
 4. Если пользователь спрашивает про конкретную перевозку по номеру, ищи её в контексте или в preloadedCargo.
 5. Если данных в контексте нет по номеру, вежливо попроси уточнить номер перевозки.

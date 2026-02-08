@@ -97,10 +97,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const errorText = typeof message === "string" && message.trim() ? message.trim() : "Ошибка авторизации";
         return res.status(401).json({ error: errorText });
       }
-      const list = Array.isArray(json) ? json : (json.items ?? json.Items ?? []);
-      const arr = Array.isArray(list) ? list : (json?.Item && typeof json.Item === "object" ? [json.Item] : []);
-      if (arr.length > 0) {
-        ingestCargoItems(arr, login).catch((error) => {
+      const list = Array.isArray(json) ? json : json.items || [];
+      if (Array.isArray(list) && list.length > 0) {
+        ingestCargoItems(list, login).catch((error) => {
           console.error("RAG cargo ingest error:", error?.message || error);
         });
       }
