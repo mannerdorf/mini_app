@@ -5805,6 +5805,7 @@ function CargoPage({
 
     return (
         <div className="w-full">
+            <div className="cargo-page-sticky-header">
             {/* Заголовок вкладки и переключатель «Таблица по заказчику» */}
             <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>Грузы</Typography.Headline>
@@ -5995,10 +5996,11 @@ function CargoPage({
                                         {Math.round(summary.vol)} м³
                                     </Typography.Body>
                                 </Flex>
-                            </>
+                                </>
                         )}
                     </Flex>
                 </Flex>
+            </div>
             </div>
 
             {/* List */}

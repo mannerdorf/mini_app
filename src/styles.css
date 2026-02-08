@@ -286,6 +286,17 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .status-value.accepted { background-color: rgba(59, 130, 246, 0.2); color: var(--color-accepted-status); } /* accepted */
 .status-value.ready { background-color: rgba(250, 204, 21, 0.2); color: var(--color-pending-status); } /* ready */
 
+/* --- CARGO PAGE STICKY HEADER --- */
+.cargo-page-sticky-header {
+    position: sticky;
+    /* Высота app-header (padding 32px + контент ~40px) — секция фиксируется под шапкой */
+    top: 72px;
+    z-index: 40;
+    background-color: var(--color-bg-primary);
+    padding-bottom: 0.5rem;
+    margin-bottom: 0;
+}
+
 /* --- FILTERS --- */
 .filters-container {
     display: flex;
