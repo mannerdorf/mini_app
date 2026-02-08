@@ -3078,8 +3078,6 @@ function AiChatProfilePage({
                 <Button className="filter-button" onClick={onBack} style={{ padding: '0.5rem' }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
-                <GruzikAvatar size={48} />
-                <Typography.Headline style={{ fontSize: '1.25rem' }}>AI чат</Typography.Headline>
                 <Button
                     className="filter-button"
                     style={{ marginLeft: 'auto' }}
@@ -6993,10 +6991,61 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
-/** Аватар Грузика: приоритет GIF (анимация в img), затем WebM (video), затем PNG */
-function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: number; typing?: boolean; className?: string }) {
+/** Эмоции Грузика: под каждую можно положить gruzik-{emotion}.gif / .webm / .png в public */
+export type GruzikEmotion = 'default' | 'typing' | 'thinking' | 'happy' | 'sad' | 'error' | 'wave' | 'ok' | string;
+
+/** Аватар Грузика: приоритет GIF, затем WebM, затем PNG. emotion задаёт вариант анимации (файлы gruzik-{emotion}.gif и т.д.) */
+function GruzikAvatar({
+    size = 40,
+    typing = false,
+    emotion: emotionProp,
+    className = '',
+}: {
+    size?: number;
+    typing?: boolean;
+    /** Эмоция/вариант анимации: default, typing, thinking, happy, sad, error, wave, ok или свой ключ — ищутся файлы /gruzik-{emotion}.gif */
+    emotion?: GruzikEmotion;
+    className?: string;
+}) {
+    const emotion = typing ? 'typing' : (emotionProp ?? 'default');
+    const base = emotion === 'default' ? '' : `-${emotion}`;
     const [source, setSource] = useState<'gif' | 'webm' | 'png'>('gif');
+    const [currentBase, setCurrentBase] = useState(base);
     const videoRef = useRef<HTMLVideoElement | null>(null);
+
+    useEffect(() => {
+        setCurrentBase(base);
+        setSource('gif');
+    }, [base]);
+
+    const gifSrc = `/gruzik${currentBase || ''}.gif`;
+    const webmSrc = `/gruzik${currentBase || ''}.webm`;
+    const pngSrc = `/gruzik${currentBase || ''}.png`;
+    const defaultGif = '/gruzik.gif';
+    const defaultWebm = '/gruzik.webm';
+    const defaultPng = '/gruzik.png';
+
+    const onGifError = () => {
+        if (currentBase) {
+            setCurrentBase('');
+        } else {
+            setSource('webm');
+        }
+    };
+    const onWebmError = () => {
+        if (currentBase) {
+            setCurrentBase('');
+            setSource('webm');
+        } else {
+            setSource('png');
+        }
+    };
+    const onPngError = () => {
+        if (currentBase) {
+            setCurrentBase('');
+            setSource('png');
+        }
+    };
 
     useEffect(() => {
         if (source !== 'webm') return;
@@ -7030,17 +7079,18 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
         >
             {source === 'png' ? (
                 <img
-                    src="/gruzik.png"
+                    src={currentBase ? pngSrc : defaultPng}
                     alt="Грузик"
                     width={size}
                     height={size}
                     style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
                     title="Грузик"
+                    onError={onPngError}
                 />
             ) : source === 'webm' ? (
                 <video
                     ref={videoRef}
-                    src="/gruzik.webm"
+                    src={currentBase ? webmSrc : defaultWebm}
                     autoPlay
                     loop
                     muted
@@ -7049,21 +7099,32 @@ function GruzikAvatar({ size = 40, typing = false, className = '' }: { size?: nu
                     height={size}
                     style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
                     title="Грузик"
-                    onError={() => setSource('png')}
+                    onError={onWebmError}
                 />
             ) : (
                 <img
-                    src="/gruzik.gif"
+                    key={currentBase || 'default'}
+                    src={currentBase ? gifSrc : defaultGif}
                     alt="Грузик"
                     width={size}
                     height={size}
                     style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
                     title="Грузик"
-                    onError={() => setSource('webm')}
+                    onError={onGifError}
                 />
             )}
         </div>
     );
+}
+
+/** По тексту ответа ассистента подбираем эмоцию Грузика (для анимации) */
+function deriveEmotionFromReply(text: string): GruzikEmotion {
+    if (!text || typeof text !== 'string') return 'default';
+    const t = text.toLowerCase();
+    if (/\b(ошибка|не удалось|не получилось|проблема|к сожалению)\b/.test(t)) return 'sad';
+    if (/\b(готово|успешно|отлично|сделано|принято)\b/.test(t)) return 'happy';
+    if (/\b(думаю|сейчас проверю|ищу|подождите)\b/.test(t)) return 'thinking';
+    return 'default';
 }
 
 function ChatPage({ 
@@ -7091,7 +7152,7 @@ function ChatPage({
     /** вызывается при смене заказчика/отвязке в чате — для отображения в шапке */
     onChatCustomerState?: (state: { customer: string | null; unlinked: boolean }) => void;
 }) {
-    const [messages, setMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
+    const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string; emotion?: GruzikEmotion }[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [isTyping, setIsReady] = useState(false);
     const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
@@ -7491,7 +7552,7 @@ function ChatPage({
                     setMessages(
                         data.history
                             .filter((item: any) => item?.role === "user" || item?.role === "assistant")
-                            .map((item: any) => ({ role: item.role, content: String(item.content || "") }))
+                            .map((item: any) => ({ role: item.role, content: String(item.content || ""), emotion: item.emotion }))
                     );
                 }
             } finally {
@@ -7732,7 +7793,8 @@ function ChatPage({
                 }
             }
             const replyText = typeof data?.reply === "string" ? data.reply : "";
-            setMessages(prev => [...prev, { role: 'assistant', content: replyText || "(Нет ответа от сервера. Попробуйте ещё раз.)" }]);
+            const emotion = typeof data?.emotion === "string" ? data.emotion : deriveEmotionFromReply(replyText);
+            setMessages(prev => [...prev, { role: 'assistant', content: replyText || "(Нет ответа от сервера. Попробуйте ещё раз.)", emotion }]);
         } catch (e: any) {
             clearTimeout(timeoutId);
             clearTimeout(safetyId);
@@ -7742,7 +7804,8 @@ function ChatPage({
             setApiRequestInfo(prev => ({ ...prev, chat: 'POST /api/chat (ошибка)' }));
             setMessages(prev => [...prev, { 
                 role: 'assistant', 
-                content: `Ошибка: ${msg}` 
+                content: `Ошибка: ${msg}`,
+                emotion: 'error'
             }]);
         } finally {
             setIsReady(false);
@@ -7769,7 +7832,7 @@ function ChatPage({
             >
                 {messages.map((msg, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: '0.5rem' }}>
-                        {msg.role === 'assistant' && <GruzikAvatar size={40} />}
+                        {msg.role === 'assistant' && <GruzikAvatar size={40} emotion={msg.emotion} />}
                         <div className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'}`} style={{ 
                             maxWidth: '85%', 
                             padding: '0.75rem 1rem', 
