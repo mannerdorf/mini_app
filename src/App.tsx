@@ -3093,8 +3093,10 @@ function AiChatProfilePage({
                     Очистить чат
                 </Button>
                 {onOpenTelegramBot && (
-                    <Button
-                        className="filter-button"
+                    <button
+                        type="button"
+                        title="Открыть в Telegram"
+                        aria-label="Открыть в Telegram"
                         onClick={async () => {
                             setTgLinkError(null);
                             try {
@@ -3103,13 +3105,25 @@ function AiChatProfilePage({
                                 setTgLinkError(e?.message || "Не удалось открыть Telegram-бота.");
                             }
                         }}
+                        style={{
+                            padding: '0.35rem',
+                            border: '1px solid var(--color-border, #e5e7eb)',
+                            borderRadius: '8px',
+                            background: 'var(--color-bg-card, #fff)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
                     >
-                        Открыть в Telegram
-                    </Button>
+                        <img src="/icons/telegram.png" alt="Telegram" style={{ width: 28, height: 28, display: 'block' }} />
+                    </button>
                 )}
                 {onOpenMaxBot && (
-                    <Button
-                        className="filter-button"
+                    <button
+                        type="button"
+                        title="Открыть в MAX"
+                        aria-label="Открыть в MAX"
                         onClick={async () => {
                             setTgLinkError(null);
                             try {
@@ -3118,9 +3132,19 @@ function AiChatProfilePage({
                                 setTgLinkError(e?.message || "Не удалось открыть MAX.");
                             }
                         }}
+                        style={{
+                            padding: '0.35rem',
+                            border: '1px solid var(--color-border, #e5e7eb)',
+                            borderRadius: '8px',
+                            background: 'var(--color-bg-card, #fff)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
                     >
-                        Открыть в MAX
-                    </Button>
+                        <img src="/icons/max.png" alt="MAX" style={{ width: 28, height: 28, display: 'block' }} />
+                    </button>
                 )}
             </Flex>
             <div style={{ marginBottom: '1rem', paddingLeft: '0.25rem' }}>
