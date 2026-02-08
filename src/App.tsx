@@ -2099,7 +2099,7 @@ function DashboardPage({
                     }}
                 >
                     <span style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600, fontSize: '0.85rem' }}>
+                        <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600, fontSize: '0.6rem' }}>
                             <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
                         </Typography.Body>
                     </span>
@@ -2116,7 +2116,7 @@ function DashboardPage({
                 {(
                     <div style={{ padding: '1.25rem 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
                         <Flex align="center" gap="0.5rem" style={{ marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-                            <Typography.Body style={{ fontWeight: 600 }}>{formatStripValue()}</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.6rem' }}>{formatStripValue()}</Typography.Body>
                             {useServiceRequest && prevPeriodLoading && (
                                 <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }} title="Расчёт динамики">
                                     <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--color-primary-blue)' }} />
