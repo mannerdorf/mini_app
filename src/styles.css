@@ -354,11 +354,10 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     .details-grid-modal { grid-template-columns: 1fr; }
 }
 
-/* Суммирующая строка: 1 ряд на десктопе, 2 в ряд на телефонах */
+/* Суммирующая строка: 1 ряд на десктопе, на телефонах 2 ряда (3+2) */
 .summary-metrics { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.5rem; align-items: center; max-width: fit-content; margin: 0 auto; }
 @media (max-width: 480px) {
-    .summary-metrics { display: grid; grid-template-columns: repeat(2, 1fr); justify-items: center; }
-    .summary-metrics-item-odd { grid-column: 1 / -1; justify-self: center; }
+    .summary-metrics { display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; }
 }
 
 .details-item-modal { padding: 0.5rem; background-color: var(--color-bg-hover); border-radius: 0.5rem; }

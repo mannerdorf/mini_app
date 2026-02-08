@@ -2099,7 +2099,7 @@ function DashboardPage({
                     }}
                 >
                     <span style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600 }}>
+                        <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600, fontSize: '0.85rem' }}>
                             <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
                         </Typography.Body>
                     </span>
@@ -6159,7 +6159,7 @@ function CargoPage({
                             {Math.round(summary.mest)}
                         </Typography.Body>
                     </Flex>
-                    <Flex direction="column" align="center" className={!useServiceRequest ? 'summary-metrics-item-odd' : undefined}>
+                    <Flex direction="column" align="center">
                         <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Плат. вес</Typography.Label>
                         <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                             {Math.round(summary.pw)} кг
@@ -6173,7 +6173,7 @@ function CargoPage({
                                     {Math.round(summary.w)} кг
                                 </Typography.Body>
                             </Flex>
-                            <Flex direction="column" align="center" className="summary-metrics-item-odd">
+                            <Flex direction="column" align="center">
                                 <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Объём</Typography.Label>
                                 <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                                     {Math.round(summary.vol)} м³
