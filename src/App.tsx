@@ -1897,7 +1897,12 @@ function DashboardPage({
                     <div style={{ padding: '1.25rem 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
                         <Flex align="center" gap="0.5rem" style={{ marginBottom: '1.25rem', flexWrap: 'wrap' }}>
                             <Typography.Body style={{ fontWeight: 600 }}>{formatStripValue()}</Typography.Body>
-                            {useServiceRequest && periodToPeriodTrend && (
+                            {useServiceRequest && prevPeriodLoading && (
+                                <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }} title="Расчёт динамики">
+                                    <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--color-primary-blue)' }} />
+                                </Flex>
+                            )}
+                            {useServiceRequest && !prevPeriodLoading && periodToPeriodTrend && (
                                 <>
                                     {periodToPeriodTrend.direction === 'up' && (
                                         <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
@@ -3943,7 +3948,7 @@ function ProfilePage({
                     </Button>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Служебный режим</Typography.Headline>
                 </Flex>
-                <Typography.Body style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                <Typography.Body style={{ marginBottom: '1.75rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
                     В служебном режиме на вкладке «Грузы» можно включить запрос перевозок только по датам (без ИНН и роли).
                 </Typography.Body>
                 {serviceModeActive ? (
@@ -5196,6 +5201,9 @@ function CargoPage({
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     /** Развёрнутая строка таблицы по заказчику: показываем детальные перевозки */
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
+    /** Данные предыдущего периода (для динамики период к периоду в служебном режиме) */
+    const [prevPeriodItems, setPrevPeriodItems] = useState<CargoItem[]>([]);
+    const [prevPeriodLoading, setPrevPeriodLoading] = useState(false);
     const dateButtonRef = useRef<HTMLDivElement>(null);
     const statusButtonRef = useRef<HTMLDivElement>(null);
     const senderButtonRef = useRef<HTMLDivElement>(null);
@@ -5373,8 +5381,60 @@ function CargoPage({
         } catch (e: any) { setError(e.message); } finally { setLoading(false); }
     }, [auth, roleCustomer, roleSender, roleReceiver, useServiceRequest]);
 
+    /** Загрузка предыдущего периода для динамики период к периоду (только в служебном режиме) */
+    const loadPrevPeriodCargo = useCallback(async (dateFrom: string, dateTo: string) => {
+        if (!auth?.login || !auth?.password || !useServiceRequest) {
+            setPrevPeriodItems([]);
+            return;
+        }
+        setPrevPeriodLoading(true);
+        try {
+            const res = await fetch(PROXY_API_BASE_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    dateFrom,
+                    dateTo,
+                    serviceMode: true,
+                }),
+            });
+            await ensureOk(res, "Ошибка загрузки данных предыдущего периода");
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : data.items || [];
+            setPrevPeriodItems(list.map((item: any) => ({
+                ...item,
+                Number: item.Number,
+                DatePrih: item.DatePrih,
+                State: item.State,
+                Mest: item.Mest,
+                PW: item.PW,
+                W: item.W,
+                Value: item.Value,
+                Sum: item.Sum,
+                Customer: item.Customer ?? item.customer,
+            })));
+        } catch (e: any) {
+            setPrevPeriodItems([]);
+        } finally {
+            setPrevPeriodLoading(false);
+        }
+    }, [auth, useServiceRequest]);
+
     // При смене аккаунта или переключателя служебного запроса — перезапрос грузов
     useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo, auth, useServiceRequest]);
+
+    // Загрузка предыдущего периода для динамики по заказчикам (служебный режим)
+    useEffect(() => {
+        if (!useServiceRequest) {
+            setPrevPeriodItems([]);
+            return;
+        }
+        const prevRange = getPreviousPeriodRange(dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo);
+        if (!prevRange) return;
+        loadPrevPeriodCargo(prevRange.dateFrom, prevRange.dateTo);
+    }, [useServiceRequest, dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo, loadPrevPeriodCargo]);
 
     useEffect(() => {
         if (initialStatusFilter) setStatusFilter(initialStatusFilter);
@@ -5604,6 +5664,30 @@ function CargoPage({
             return tableSortOrder === 'asc' ? cmp : -cmp;
         });
     }, [groupedByCustomer, tableSortColumn, tableSortOrder]);
+
+    /** Динамика период к периоду по заказчику (для раскрытой таблицы, служебный режим) */
+    const customerDynamics = useMemo(() => {
+        if (!useServiceRequest || prevPeriodItems.length === 0) return new Map<string, { text: string; color: string }>();
+        const prevSumByCustomer = new Map<string, number>();
+        prevPeriodItems.forEach(item => {
+            const key = (item.Customer ?? (item as any).customer ?? '').trim() || '—';
+            const sum = typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+            prevSumByCustomer.set(key, (prevSumByCustomer.get(key) || 0) + sum);
+        });
+        const map = new Map<string, { text: string; color: string }>();
+        groupedByCustomer.forEach(row => {
+            const prevSum = prevSumByCustomer.get(row.customer) ?? 0;
+            if (prevSum === 0) {
+                map.set(row.customer, row.sum > 0 ? { text: '+100%', color: 'var(--color-success-status)' } : { text: '—', color: 'var(--color-text-secondary)' });
+                return;
+            }
+            const percent = Math.round(((row.sum - prevSum) / prevSum) * 100);
+            const color = percent > 0 ? 'var(--color-success-status)' : percent < 0 ? '#ef4444' : 'var(--color-text-secondary)';
+            const text = percent > 0 ? `+${percent}%` : percent < 0 ? `${percent}%` : '0%';
+            map.set(row.customer, { text, color });
+        });
+        return map;
+    }, [useServiceRequest, groupedByCustomer, prevPeriodItems]);
 
     const handleTableSort = (column: typeof tableSortColumn) => {
         if (tableSortColumn === column) {
@@ -5898,11 +5982,14 @@ function CargoPage({
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Мест</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Плат. вес</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Динамика</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {row.items.map((item, j) => (
+                                                            {row.items.map((item, j) => {
+                                                                const dynamics = customerDynamics.get(row.customer);
+                                                                return (
                                                                 <tr
                                                                     key={item.Number || j}
                                                                     style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
@@ -5918,9 +6005,16 @@ function CargoPage({
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>
+                                                                        {prevPeriodLoading ? (
+                                                                            <Loader2 className="w-3 h-3 animate-spin" style={{ display: 'inline-block', verticalAlign: 'middle', color: 'var(--color-primary-blue)' }} />
+                                                                        ) : dynamics ? (
+                                                                            <span style={{ color: dynamics.color, fontWeight: 600 }}>{dynamics.text}</span>
+                                                                        ) : '—'}
+                                                                    </td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
                                                                 </tr>
-                                                            ))}
+                                                            ); })}
                                                         </tbody>
                                                     </table>
                                                 </div>
