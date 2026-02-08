@@ -26,13 +26,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const now = new Date();
-  const today = now.toISOString().split("T")[0];
   const {
     login,
     password,
-    dateFrom = today,
-    dateTo = today,
+    dateFrom = "2024-01-01",
+    dateTo = new Date().toISOString().split("T")[0],
     inn,
     mode,
     serviceMode,

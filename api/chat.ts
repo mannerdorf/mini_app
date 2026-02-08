@@ -53,15 +53,11 @@ function buildContactsReply() {
 }
 
 function coerceBody(req: VercelRequest): any {
-  try {
-    let body: any = req.body;
-    if (typeof body === "string") {
-      body = JSON.parse(body);
-    }
-    return body ?? {};
-  } catch {
-    return {};
+  let body: any = req.body;
+  if (typeof body === "string") {
+    body = JSON.parse(body);
   }
+  return body ?? {};
 }
 
 function getAppDomain() {
@@ -232,23 +228,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const body = coerceBody(req);
-    const { sessionId, userId, message, messages, context, customer, action, auth, channel, model, preloadedCargo } = body;
+    const { sessionId, userId, message, messages, context, customer, action, auth, channel, model } = body;
 
     const sid =
       typeof sessionId === "string" && sessionId.trim()
         ? sessionId.trim()
         : crypto.randomUUID();
 
-    let pool;
-    try {
-      pool = getPool();
-    } catch (dbErr: any) {
-      console.error("chat getPool failed:", dbErr?.message ?? dbErr);
-      return res.status(200).json({
-        sessionId: sid,
-        reply: "Сервис временно недоступен. Попробуйте позже.",
-      });
-    }
+    const pool = getPool();
 
     if (action === "history") {
       if (!sessionId || typeof sessionId !== "string") {
@@ -279,10 +266,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return res.status(200).json({
-        sessionId: sid,
-        reply: "Сервис чата временно недоступен (не настроен API). Попробуйте позже.",
-      });
+      return res.status(500).json({ error: "OPENAI_API_KEY is not configured" });
     }
     await pool.query(
       `insert into chat_sessions (id, user_id)
@@ -312,44 +296,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        limit 20`,
       [sid],
     );
-
-    // Секретный PIN: добавить последний обмен (запрос → ответ) в chat_capabilities как навык
-    const learnPin = (process.env.CHAT_LEARN_PIN || "").trim();
-    if (learnPin && userMessage.trim() === learnPin) {
-      const rows = history.rows;
-      if (rows.length >= 3 && rows[1].role === "assistant" && rows[2].role === "user") {
-        const prevUser = rows[2].content.trim();
-        const prevAssistant = rows[1].content.trim();
-        const skipStarts = ["Извините", "Ошибка", "Сервис временно", "не удалось получить"];
-        const isBad = prevAssistant.length < 60 || skipStarts.some((s) => prevAssistant.startsWith(s));
-        if (!isBad && prevUser) {
-          const slug = `learned_pin_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-          const content = `Вариант запроса пользователя: ${prevUser.slice(0, 500)}\n\nОтвет ассистента (ориентир для модели): ${prevAssistant.slice(0, 2000)}`;
-          await pool.query(
-            `insert into chat_capabilities (slug, title, content, updated_at)
-             values ($1, $2, $3, now())
-             on conflict (slug) do update set title = excluded.title, content = excluded.content, updated_at = now()`,
-            [slug, "Пример из чата (по PIN)", content],
-          );
-          const reply = "Навык добавлен из последнего обмена в чате.";
-          await pool.query(
-            `insert into chat_messages (session_id, role, content)
-             values ($1, 'assistant', $2)`,
-            [sid, reply],
-          );
-          await pool.query(`update chat_sessions set updated_at = now() where id = $1`, [sid]);
-          return res.status(200).json({ sessionId: sid, reply });
-        }
-      }
-      const reply = "Не удалось добавить навык: нужен предыдущий обмен (ваш вопрос и ответ ассистента), ответ не менее 60 символов и не сообщение об ошибке.";
-      await pool.query(
-        `insert into chat_messages (session_id, role, content)
-         values ($1, 'assistant', $2)`,
-        [sid, reply],
-      );
-      await pool.query(`update chat_sessions set updated_at = now() where id = $1`, [sid]);
-      return res.status(200).json({ sessionId: sid, reply });
-    }
 
     // Запрос «отвяжи компанию» / «отвяжи заказчика» — очищаем привязку сессии в БД
     if (isUnlinkRequest(userMessage)) {
@@ -549,84 +495,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ sessionId: sid, reply });
     }
 
-    // Если контекст без перевозок (например Telegram не шлёт context) — запрашиваем перевозки на сервере
-    let contextToUse: Record<string, unknown> | null = context && typeof context === "object" ? { ...context } : null;
-    if (
-      (!contextToUse?.cargoList || (Array.isArray(contextToUse.cargoList) && contextToUse.cargoList.length === 0)) &&
-      auth?.login &&
-      auth?.password
-    ) {
-      try {
-        const appDomain = getAppDomain();
-        const now = new Date();
-        const today = now.toISOString().split("T")[0];
-        const t = (userMessage || "").toLowerCase();
-        let dateFrom = today;
-        let dateTo = today;
-        if (/\b(недел|за неделю|на неделю)\b/.test(t)) {
-          const from = new Date(now);
-          from.setDate(from.getDate() - 7);
-          dateFrom = from.toISOString().split("T")[0];
-        } else if (/\b(месяц|за месяц|на месяц)\b/.test(t)) {
-          const from = new Date(now);
-          from.setDate(from.getDate() - 30);
-          dateFrom = from.toISOString().split("T")[0];
-        }
-        const weekAgo = new Date(now);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        const monthAgo = new Date(now);
-        monthAgo.setDate(monthAgo.getDate() - 30);
-        const weekStartStr = weekAgo.toISOString().split("T")[0];
-        const monthStartStr = monthAgo.toISOString().split("T")[0];
-        const perevozkiRes = await fetch(`${appDomain}/api/perevozki`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            login: auth.login,
-            password: auth.password,
-            dateFrom,
-            dateTo,
-            ...(auth.inn ? { inn: auth.inn } : {}),
-          }),
-        });
-        if (perevozkiRes.ok) {
-          const data = await perevozkiRes.json().catch(() => ({}));
-          const list = Array.isArray(data) ? data : (data?.items ?? []);
-          const cargoList = (list as any[]).slice(0, 35).map((i: any) => ({
-            number: i.Number ?? i.number,
-            status: i.State ?? i.state,
-            datePrih: i.DatePrih ?? i.datePrih,
-            dateVr: i.DateVr ?? i.dateVr,
-            stateBill: i.StateBill ?? i.stateBill,
-            sum: i.Sum ?? i.sum,
-            pw: i.PW ?? i.pw,
-            mest: i.Mest ?? i.mest,
-            sender: i.Sender ?? i.sender,
-            receiver: i.Receiver ?? i.receiver,
-            customer: i.Customer ?? i.customer,
-          }));
-          contextToUse = {
-            ...(contextToUse || {}),
-            userLogin: auth.login,
-            customer: effectiveCustomer ?? customer ?? null,
-            todayDate: today,
-            weekStartDate: weekStartStr,
-            weekEndDate: today,
-            monthStartDate: monthStartStr,
-            monthEndDate: today,
-            activeCargoCount: cargoList.length,
-            cargoList,
-          };
-        }
-      } catch (e: any) {
-        console.warn("chat: perevozki fetch for context failed", e?.message || e);
-      }
-    }
-    if (contextToUse === null && context && typeof context === "object") contextToUse = { ...context };
-    if (preloadedCargo != null && contextToUse) {
-      (contextToUse as Record<string, unknown>).preloadedCargo = preloadedCargo;
-    }
-
     let ragContext = "";
     try {
       const topK = Number(process.env.RAG_TOP_K || 5);
@@ -642,20 +510,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } catch (error: any) {
       console.warn("RAG search failed:", error?.message || error);
-    }
-
-    let capabilitiesText = "";
-    try {
-      const capRes = await pool.query<{ title: string; content: string }>(
-        `select title, content from chat_capabilities order by slug`,
-      );
-      if (capRes.rows?.length) {
-        capabilitiesText = capRes.rows
-          .map((r) => `### ${r.title}\n${r.content}`)
-          .join("\n\n");
-      }
-    } catch (error: any) {
-      console.warn("chat_capabilities load failed:", error?.message || error);
     }
 
     const aliceRules = channel === "alice"
@@ -678,7 +532,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 - Особенности: Быстрая доставка, работа с B2B.
 
 КОНТЕКСТ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ:
-${contextToUse ? JSON.stringify(contextToUse, null, 2) : "Пользователь пока не авторизован или данных о перевозках нет."}
+${context ? JSON.stringify(context, null, 2) : "Пользователь пока не авторизован или данных о перевозках нет."}
 
 АКТИВНЫЙ ЗАКАЗЧИК:
 ${effectiveCustomer || "Не указан. В этой сессии компания не привязана — выберите компанию в приложении или попросите отвязать текущую."}
@@ -686,20 +540,13 @@ ${effectiveCustomer || "Не указан. В этой сессии компан
 ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ (из базы знаний):
 ${ragContext || "Нет дополнительных данных."}
 
-НАВЫКИ ГРУЗИКА (что умеет бот, примеры запросов — ориентируйся на это):
-${capabilitiesText || "Не загружено."}
-
 ПРАВИЛА ОТВЕТОВ:
-0. НИТЬ РАЗГОВОРА — главное. Всегда учитывай предыдущие реплики в диалоге. Местоимения и отсылки («их», «эти», «те перевозки», «номера», «список») понимай из контекста последнего обмена. Сначала опирайся на нить разговора, потом на ключевые фразы в текущем сообщении.
-1. Запросы по перевозкам за период — понимай широко. Считай одним и тем же запросом: «перевозки за неделю», «сводка за неделю», «саммари недели», «за период принято», «сколько перевозок за месяц», «итого за неделю», «сумма за месяц», «платный вес за период», «что за неделю», «грузы за месяц», «принято за неделю», «статистика за месяц», «сводка недели», «кратко за период» и любые похожие формулировки. На все такие запросы отвечай кратко и по одному формату: «За [неделю/месяц/сегодня] принято N перевозок на сумму X руб., платный вес Y кг» (при необходимости добавь мест или объём). Данные бери из cargoList и полей sum, PW (платный вес) в контексте: посчитай количество, сложи суммы и платный вес. Не перечисляй все перевозки подряд — только сводка. Если cargoList пустой — ответь, что за период перевозок не найдено.
-2. Если пользователь уже получил сводку (по периоду/перевозкам) и затем просит «напиши их номера», «выведи номера», «перечисли номера», «номера перевозок», «какие номера» — речь о перевозках из этой сводки. Возьми из cargoList в контексте поля number (или number из каждого элемента) и выведи в чат список номеров перевозок (через запятую или с новой строки). Не придумывай номера — только из cargoList.
-3. Если в контексте есть поле preloadedCargo — это полные данные по одной перевозке (из API Getperevozka). Используй их для ответа на вопрос по этой перевозке (номер, статус, даты, сумма, платный вес и т.д.).
-4. Если пользователь спрашивает про конкретную перевозку по номеру, ищи её в контексте или в preloadedCargo.
-5. Если данных в контексте нет по номеру, вежливо попроси уточнить номер перевозки.
-6. Можно использовать смайлики для дружелюбности, но не используй эмодзи грузовиков, машин и автомобилей (🚚 и т.п.).
-7. Если не знаешь ответа, предложи связаться с оператором.
-8. Не проси пароли и не повторяй их.
-9. Если вопрос на другом языке, всё равно отвечай по‑русски.`;
+1. Если пользователь спрашивает про конкретную перевозку, ищи её в предоставленном контексте.
+2. Если данных в контексте нет, вежливо попроси уточнить номер перевозки.
+3. Используй смайлики (грузовик, пакет, документы) для дружелюбности, но оставайся профессиональным.
+4. Если не знаешь ответа, предложи связаться с оператором.
+5. Не проси пароли и не повторяй их.
+6. Если вопрос на другом языке, всё равно отвечай по‑русски.`;
     const systemPrompt = aliceRules ? `${basePrompt}\n${aliceRules}` : basePrompt;
 
     // Используем историю из БД или переданные сообщения
@@ -709,8 +556,17 @@ ${capabilitiesText || "Не загружено."}
     ];
 
     const client = new OpenAI({ apiKey });
+    const allowedModels = new Set(["gpt-4o-mini", "gpt-4o"]);
+    const requestedModel = typeof model === "string" ? model : null;
+    const chosenModel =
+      channel === "alice"
+        ? "gpt-4o"
+        : requestedModel && allowedModels.has(requestedModel)
+          ? requestedModel
+          : "gpt-4o-mini";
+
     const completion = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: chosenModel,
       messages: chatMessages,
       temperature: 0.7,
       max_tokens: 500,
@@ -753,11 +609,9 @@ ${capabilitiesText || "Не загружено."}
     return res.status(200).json({ sessionId: sid, reply });
   } catch (err: any) {
     console.error("chat error:", err?.message || err);
-    const catchBody = coerceBody(req);
-    const sid = typeof catchBody?.sessionId === "string" ? catchBody.sessionId : null;
-    return res.status(200).json({
-      sessionId: sid,
-      reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже.",
+    return res.status(500).json({ 
+      error: "chat failed",
+      reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже."
     });
   }
 }
