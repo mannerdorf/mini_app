@@ -9,24 +9,6 @@ import {
 const MAX_BOT_TOKEN = process.env.MAX_BOT_TOKEN;
 const MAX_WEBHOOK_SECRET = process.env.MAX_WEBHOOK_SECRET;
 
-/** URL мини-приложения для кнопки "Открыть в MAX" (как в Telegram — открытие в контексте мессенджера для авторизации). */
-function getMaxAppUrl(): string {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
-  return base.replace(/\/$/, "");
-}
-
-/** Кнопка "Открыть приложение" — по аналогии с Telegram: открывает мини-апп в MAX, передаётся initData для авторизации. */
-function openAppAttachment() {
-  return {
-    type: "inline_keyboard" as const,
-    payload: {
-      buttons: [[{ type: "open_app" as const, text: "Открыть приложение", payload: getMaxAppUrl() }]],
-    },
-  };
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -246,7 +228,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           recipient: replyRecipient,
           recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
           text: replyText,
-          attachments: [openAppAttachment()],
         });
       } else {
         console.error("MAX webhook: /api/chat error", aiRes.status, aiRaw?.slice(0, 300));
@@ -256,7 +237,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           recipient: replyRecipient,
           recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
           text: "Временная ошибка чата. Попробуйте через минуту.",
-          attachments: [openAppAttachment()],
         });
       }
     } catch (error: any) {
@@ -268,7 +248,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           recipient: replyRecipient,
           recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
           text: "Добрый день! Напишите, пожалуйста, ваш вопрос — мы поможем.",
-          attachments: [openAppAttachment()],
         });
       } catch (e2: any) {
         console.error("MAX webhook: fallback send failed:", e2?.message || e2);
@@ -283,7 +262,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         recipient: replyRecipient,
         recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
         text: "Добрый день! Меня зовут Грузик, я AI-помощник HAULZ. Чем могу помочь? 😊",
-        attachments: [openAppAttachment()],
       });
     } catch (e) {}
   }
