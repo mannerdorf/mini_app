@@ -244,7 +244,9 @@ const HOLIDAYS_MM_DD = new Set([
 
 const parseDateOnly = (dateString: string | undefined): Date | null => {
     if (!dateString) return null;
-    const clean = dateString.split("T")[0].trim();
+    let clean = dateString.split("T")[0].trim();
+    const dayDateMatch = clean.match(/,\s*(\d{2}\.\d{2}\.\d{4})$/);
+    if (dayDateMatch) clean = dayDateMatch[1];
     if (!clean) return null;
     const isoMatch = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (isoMatch) {
@@ -268,17 +270,18 @@ const parseDateOnly = (dateString: string | undefined): Date | null => {
 const DAY_SHORT: Record<number, string> = { 0: "вс", 1: "пн", 2: "вт", 3: "ср", 4: "чт", 5: "пт", 6: "сб" };
 
 const getDateInfo = (dateString: string | undefined) => {
-    const text = formatDate(dateString);
     const date = parseDateOnly(dateString);
-    if (!date) return { text, dayShort: "", isWeekend: false, isHoliday: false };
+    if (!date) return { text: dateString || '-', dayShort: "", isWeekend: false, isHoliday: false };
     const day = date.getDay();
     const mm = String(date.getMonth() + 1).padStart(2, "0");
     const dd = String(date.getDate()).padStart(2, "0");
+    const yyyy = date.getFullYear();
+    const dateOnly = `${dd}.${mm}.${yyyy}`;
     const key = `${mm}-${dd}`;
     const isWeekend = day === 0 || day === 6;
     const isHoliday = HOLIDAYS_MM_DD.has(key);
     const dayShort = DAY_SHORT[day] ?? "";
-    return { text, dayShort, isWeekend, isHoliday };
+    return { text: dateOnly, dayShort, isWeekend, isHoliday };
 };
 
 const getDateTextColor = (dateString: string | undefined) => {
@@ -286,6 +289,7 @@ const getDateTextColor = (dateString: string | undefined) => {
     return info.isHoliday || info.isWeekend ? "#ef4444" : "var(--color-text-secondary)";
 };
 
+/** День недели 1 раз; выходные и праздники — день недели красным */
 const DateText = ({ value, className, style }: { value?: string; className?: string; style?: React.CSSProperties }) => {
     const info = getDateInfo(value);
     const isRedDay = info.isWeekend || info.isHoliday;
@@ -294,7 +298,7 @@ const DateText = ({ value, className, style }: { value?: string; className?: str
             {info.dayShort ? (
                 <>
                     <span style={isRedDay ? { color: "#ef4444" } : undefined}>{info.dayShort}</span>
-                    {" "}
+                    {", "}
                     {info.text}
                 </>
             ) : (
@@ -1163,7 +1167,6 @@ function DashboardPage({
     
     // Chart type selector: деньги / вес / объём (при !showSums доступны только вес и объём)
     const [chartType, setChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>(() => (showSums ? 'money' : 'paidWeight'));
-    const [stripExpanded, setStripExpanded] = useState(false);
     const [stripTab, setStripTab] = useState<'type' | 'sender' | 'receiver' | 'customer'>('type');
     /** true = показывать проценты, false = показывать в рублях/кг/м³/шт (по типу графика) */
     const [stripShowAsPercent, setStripShowAsPercent] = useState(true);
@@ -1479,7 +1482,7 @@ function DashboardPage({
             const dateKey = item.DatePrih.split('T')[0];
             const displayDate = formatDate(item.DatePrih);
             if (!dateKey || displayDate === '-') return;
-            const existing = dataMap.get(dateKey) || { date: displayDate, sum: 0, pw: 0, w: 0, mest: 0, vol: 0 };
+            const existing = dataMap.get(dateKey) || { date: displayDate, dateKey, sum: 0, pw: 0, w: 0, mest: 0, vol: 0 };
             existing.sum += typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
             existing.pw += typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
             existing.w += typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
@@ -1487,14 +1490,7 @@ function DashboardPage({
             existing.vol += typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
             dataMap.set(dateKey, existing);
         });
-        return Array.from(dataMap.values()).sort((a, b) => {
-            const partsA = a.date.split('.');
-            const partsB = b.date.split('.');
-            if (partsA.length !== 3 || partsB.length !== 3) return 0;
-            const dateA = new Date(parseInt(partsA[2]), parseInt(partsA[1]) - 1, parseInt(partsA[0]));
-            const dateB = new Date(parseInt(partsB[2]), parseInt(partsB[1]) - 1, parseInt(partsB[0]));
-            return dateA.getTime() - dateB.getTime();
-        });
+        return Array.from(dataMap.values()).sort((a, b) => (a.dateKey || a.date).localeCompare(b.dateKey || b.date));
     }, [filteredItems]);
 
     const DIAGRAM_COLORS = ['#06b6d4', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#3b82f6', '#ef4444', '#84cc16'];
@@ -1805,12 +1801,12 @@ function DashboardPage({
                                         </text>
                                     )}
                                     
-                                    {/* Дата вертикально под столбцом */}
+                                    {/* Дата вертикально под столбцом: день 1 раз, выходные/праздники — красным */}
                                     <text
                                         x={x + barWidth / 2}
                                         y={chartHeight - paddingBottom + 20}
                                         fontSize="10"
-                                        fill={getDateTextColor(d.date)}
+                                        fill={getDateTextColor((d as { dateKey?: string }).dateKey || d.date)}
                                         textAnchor="middle"
                                         transform={`rotate(-45 ${x + barWidth / 2} ${chartHeight - paddingBottom + 20})`}
                                     >
@@ -1952,6 +1948,21 @@ function DashboardPage({
                                                 monthWasLongPressRef.current = false;
                                                 return;
                                             }
+                                            if (key === 'период') {
+                                                let r: { dateFrom: string; dateTo: string };
+                                                if (dateFilter === "период") {
+                                                    r = { dateFrom: customDateFrom, dateTo: customDateTo };
+                                                } else if (dateFilter === "месяц" && selectedMonthForFilter) {
+                                                    const { year, month } = selectedMonthForFilter;
+                                                    const pad = (n: number) => String(n).padStart(2, '0');
+                                                    const lastDay = new Date(year, month, 0).getDate();
+                                                    r = { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
+                                                } else {
+                                                    r = getDateRange(dateFilter);
+                                                }
+                                                setCustomDateFrom(r.dateFrom);
+                                                setCustomDateTo(r.dateTo);
+                                            }
                                             setDateFilter(key as any);
                                             if (key === 'месяц') setSelectedMonthForFilter(null);
                                             setIsDateDropdownOpen(false);
@@ -2076,9 +2087,7 @@ function DashboardPage({
                     overflow: 'hidden',
                 }}
             >
-                <button
-                    type="button"
-                    onClick={() => setStripExpanded(!stripExpanded)}
+                <div
                     style={{
                         width: '100%',
                         display: 'flex',
@@ -2086,20 +2095,15 @@ function DashboardPage({
                         justifyContent: 'space-between',
                         gap: '0.5rem',
                         padding: '0.75rem 1rem',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--color-text-primary)',
-                        textAlign: 'left',
                         minWidth: 0,
                     }}
                 >
                     <span style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600 }}>
-                            {formatDate(apiDateRange.dateFrom)} – {formatDate(apiDateRange.dateTo)}
+                            <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
                         </Typography.Body>
                     </span>
-                    <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                    <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }}>
                         {showSums && (
                             <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Рубли"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                         )}
@@ -2108,9 +2112,8 @@ function DashboardPage({
                         <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'volume' ? '#f59e0b' : 'transparent', border: 'none' }} onClick={() => setChartType('volume')} title="Объём"><List className="w-4 h-4" style={{ color: chartType === 'volume' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                         <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'pieces' ? '#8b5cf6' : 'transparent', border: 'none' }} onClick={() => setChartType('pieces')} title="Шт"><Package className="w-4 h-4" style={{ color: chartType === 'pieces' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
                     </Flex>
-                    <ChevronDown className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', transform: stripExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
-                </button>
-                {stripExpanded && (
+                </div>
+                {(
                     <div style={{ padding: '1.25rem 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
                         <Flex align="center" gap="0.5rem" style={{ marginBottom: '1.25rem', flexWrap: 'wrap' }}>
                             <Typography.Body style={{ fontWeight: 600 }}>{formatStripValue()}</Typography.Body>
@@ -2322,31 +2325,31 @@ function DashboardPage({
                         
                         switch (chartType) {
                             case 'money':
-                                chartDataForType = chartData.map(d => ({ date: d.date, value: Math.round(d.sum) }));
+                                chartDataForType = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.sum) }));
                                 title = "Динамика в деньгах";
                                 color = "#6366f1";
                                 formatValue = (val) => `${Math.round(val).toLocaleString('ru-RU')} ₽`;
                                 break;
                             case 'paidWeight':
-                                chartDataForType = chartData.map(d => ({ date: d.date, value: Math.round(d.pw) }));
+                                chartDataForType = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.pw) }));
                                 title = "Динамика в платном весе";
                                 color = "#10b981";
                                 formatValue = (val) => `${Math.round(val)} кг`;
                                 break;
                             case 'weight':
-                                chartDataForType = chartData.map(d => ({ date: d.date, value: Math.round(d.w) }));
+                                chartDataForType = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.w) }));
                                 title = "Динамика по весу";
                                 color = "#0d9488";
                                 formatValue = (val) => `${Math.round(val)} кг`;
                                 break;
                             case 'volume':
-                                chartDataForType = chartData.map(d => ({ date: d.date, value: d.vol }));
+                                chartDataForType = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: d.vol }));
                                 title = "Динамика по объёму";
                                 color = "#f59e0b";
                                 formatValue = (val) => `${val.toFixed(2)} м³`;
                                 break;
                             case 'pieces':
-                                chartDataForType = chartData.map(d => ({ date: d.date, value: Math.round(d.mest) }));
+                                chartDataForType = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.mest) }));
                                 title = "Динамика по местам (шт)";
                                 color = "#8b5cf6";
                                 formatValue = (val) => `${Math.round(val)} шт`;
@@ -2471,7 +2474,7 @@ function DashboardPage({
                                                             title={expandedSlaCargoNumber === (item.Number ?? '') ? 'Свернуть статусы' : 'Показать статусы перевозки'}
                                                         >
                                                             <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
-                                                            <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
+                                                            <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                             <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
                                                             <td style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
@@ -2559,7 +2562,7 @@ function DashboardPage({
                                                 {sortedOutOfSlaFerry.map(({ item, sla }, idx) => (
                                                     <tr key={`ferry-${item.Number ?? idx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                         <td style={{ padding: '0.35rem 0.3rem', color: '#ef4444' }}>{item.Number ?? '—'}</td>
-                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
+                                                        <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
                                                         <td style={{ padding: '0.35rem 0.3rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo((item.Customer ?? (item as any).customer) || '')}>{stripOoo((item.Customer ?? (item as any).customer) || '') || '—'}</td>
                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
@@ -6032,6 +6035,21 @@ function CargoPage({
                                         onPointerLeave={isMonth ? () => { if (monthLongPressTimerRef.current) { clearTimeout(monthLongPressTimerRef.current); monthLongPressTimerRef.current = null; } } : undefined}
                                         onClick={() => {
                                             if (isMonth && monthWasLongPressRef.current) { monthWasLongPressRef.current = false; return; }
+                                            if (key === 'период') {
+                                                let r: { dateFrom: string; dateTo: string };
+                                                if (dateFilter === "период") {
+                                                    r = { dateFrom: customDateFrom, dateTo: customDateTo };
+                                                } else if (dateFilter === "месяц" && selectedMonthForFilter) {
+                                                    const { year, month } = selectedMonthForFilter;
+                                                    const pad = (n: number) => String(n).padStart(2, '0');
+                                                    const lastDay = new Date(year, month, 0).getDate();
+                                                    r = { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
+                                                } else {
+                                                    r = getDateRange(dateFilter);
+                                                }
+                                                setCustomDateFrom(r.dateFrom);
+                                                setCustomDateTo(r.dateTo);
+                                            }
                                             setDateFilter(key as any);
                                             if (key === 'месяц') setSelectedMonthForFilter(null);
                                             setIsDateDropdownOpen(false);
@@ -6126,46 +6144,51 @@ function CargoPage({
                 </div>
             </div>
 
-            {/* Суммирующая строка */}
+            {/* Суммирующая строка: 2 в ряд, по центру; при нечётном последний по центру */}
             <div className="cargo-card mb-4" style={{ padding: '0.75rem' }}>
-                <Flex justify="center" align="center">
-                    <Flex gap="1.5rem" align="center" style={{ flexWrap: 'wrap' }}>
-                        <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                {formatCurrency(summary.sum, true)}
-                            </Typography.Body>
-                        </Flex>
-                        <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Мест</Typography.Label>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                {Math.round(summary.mest)}
-                            </Typography.Body>
-                        </Flex>
-                        <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Плат. вес</Typography.Label>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                {Math.round(summary.pw)} кг
-                            </Typography.Body>
-                        </Flex>
-                        {useServiceRequest && (
-                            <>
-                                <Flex direction="column" align="center">
-                                    <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Вес</Typography.Label>
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                        {Math.round(summary.w)} кг
-                                    </Typography.Body>
-                                </Flex>
-                                <Flex direction="column" align="center">
-                                    <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Объём</Typography.Label>
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                                        {Math.round(summary.vol)} м³
-                                    </Typography.Body>
-                                </Flex>
-                                </>
-                        )}
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: '1.5rem',
+                    justifyItems: 'center',
+                    maxWidth: 'fit-content',
+                    margin: '0 auto',
+                }}>
+                    <Flex direction="column" align="center">
+                        <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
+                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                            {formatCurrency(summary.sum, true)}
+                        </Typography.Body>
                     </Flex>
-                </Flex>
+                    <Flex direction="column" align="center">
+                        <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Мест</Typography.Label>
+                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                            {Math.round(summary.mest)}
+                        </Typography.Body>
+                    </Flex>
+                    <Flex direction="column" align="center" style={!useServiceRequest ? { gridColumn: '1 / -1', justifySelf: 'center' } : undefined}>
+                        <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Плат. вес</Typography.Label>
+                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                            {Math.round(summary.pw)} кг
+                        </Typography.Body>
+                    </Flex>
+                    {useServiceRequest && (
+                        <>
+                            <Flex direction="column" align="center">
+                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Вес</Typography.Label>
+                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                    {Math.round(summary.w)} кг
+                                </Typography.Body>
+                            </Flex>
+                            <Flex direction="column" align="center" style={{ gridColumn: '1 / -1', justifySelf: 'center' }}>
+                                <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Объём</Typography.Label>
+                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                    {Math.round(summary.vol)} м³
+                                </Typography.Body>
+                            </Flex>
+                        </>
+                    )}
+                </div>
             </div>
             </div>
 
@@ -6271,7 +6294,7 @@ function CargoPage({
                                                                             {item.Number || '—'}
                                                                         </span>
                                                                     </td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem' }}>{formatDate(item.DatePrih)}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
@@ -7150,7 +7173,7 @@ function CargoDetailsModal({
                                                     <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{step.label}</Typography.Body>
                                                     {step.date && (
                                                         <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                            {formatDate(step.date)}
+                                                            <DateText value={step.date} />
                                                         </Typography.Body>
                                                     )}
                                                 </div>
