@@ -6994,7 +6994,7 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
 /** Эмоции Грузика: под каждую можно положить gruzik-{emotion}.gif / .webm / .png в public */
 export type GruzikEmotion = 'default' | 'typing' | 'thinking' | 'happy' | 'sad' | 'error' | 'wave' | 'ok' | string;
 
-/** Аватар Грузика: приоритет GIF, затем WebM, затем PNG. emotion задаёт вариант анимации (файлы gruzik-{emotion}.gif и т.д.) */
+/** Аватар Грузика: приоритет GIF, затем WebM, затем PNG (или JPG). Для анимации нужен файл gruzik.gif или gruzik.webm в public/ */
 function GruzikAvatar({
     size = 40,
     typing = false,
@@ -7009,7 +7009,7 @@ function GruzikAvatar({
 }) {
     const emotion = typing ? 'typing' : (emotionProp ?? 'default');
     const base = emotion === 'default' ? '' : `-${emotion}`;
-    const [source, setSource] = useState<'gif' | 'webm' | 'png'>('gif');
+    const [source, setSource] = useState<'gif' | 'webm' | 'png' | 'jpg'>('gif');
     const [currentBase, setCurrentBase] = useState(base);
     const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -7024,6 +7024,7 @@ function GruzikAvatar({
     const defaultGif = '/gruzik.gif';
     const defaultWebm = '/gruzik.webm';
     const defaultPng = '/gruzik.png';
+    const defaultJpg = '/gruzik.jpg';
 
     const onGifError = () => {
         if (currentBase) {
@@ -7044,6 +7045,8 @@ function GruzikAvatar({
         if (currentBase) {
             setCurrentBase('');
             setSource('png');
+        } else {
+            setSource('jpg');
         }
     };
 
@@ -7077,15 +7080,15 @@ function GruzikAvatar({
             }}
             aria-hidden
         >
-            {source === 'png' ? (
+            {source === 'png' || source === 'jpg' ? (
                 <img
-                    src={currentBase ? pngSrc : defaultPng}
+                    src={source === 'jpg' ? defaultJpg : (currentBase ? pngSrc : defaultPng)}
                     alt="Грузик"
                     width={size}
                     height={size}
                     style={{ width: size, height: size, objectFit: 'contain', display: 'block' }}
                     title="Грузик"
-                    onError={onPngError}
+                    onError={source === 'jpg' ? undefined : onPngError}
                 />
             ) : source === 'webm' ? (
                 <video
