@@ -77,6 +77,42 @@ function extractCargoNumber(text: string) {
   return match?.[1] || null;
 }
 
+const MONTH_NAMES: Record<string, number> = {
+  январ: 0, февраля: 1, марта: 2, апреля: 3, мая: 4, июня: 5,
+  июля: 6, августа: 7, сентября: 8, октября: 9, ноября: 10, декабря: 11,
+};
+
+/** Парсит явный период из сообщения: «со 2 по 8 февраля 2026», «с 02.02 по 08.02.2026» */
+function extractExplicitDateRange(text: string): { dateFrom: string; dateTo: string } | null {
+  const t = text.trim();
+  const yearMatch = t.match(/(?:20\d{2}|19\d{2})/);
+  const year = yearMatch ? parseInt(yearMatch[0], 10) : new Date().getFullYear();
+  for (const [monthName, month0] of Object.entries(MONTH_NAMES)) {
+    const re = new RegExp(`(?:с|со)\\s*(\\d{1,2})\\s*(?:по|до|-)\\s*(\\d{1,2})\\s*${monthName}`, "i");
+    const m = t.match(re);
+    if (m) {
+      const d1 = Math.min(31, Math.max(1, parseInt(m[1], 10)));
+      const d2 = Math.min(31, Math.max(1, parseInt(m[2], 10)));
+      const from = new Date(year, month0, Math.min(d1, d2));
+      const to = new Date(year, month0, Math.max(d1, d2));
+      return {
+        dateFrom: from.toISOString().split("T")[0],
+        dateTo: to.toISOString().split("T")[0],
+      };
+    }
+  }
+  const ddmm = t.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})?\s*(?:[-–—по]\s*)?(\d{1,2})\.(\d{1,2})\.(\d{4})?/);
+  if (ddmm) {
+    const d1 = parseInt(ddmm[1], 10), m1 = parseInt(ddmm[2], 10) - 1, y1 = ddmm[3] ? parseInt(ddmm[3], 10) : year;
+    const d2 = parseInt(ddmm[4], 10), m2 = parseInt(ddmm[5], 10) - 1, y2 = ddmm[6] ? parseInt(ddmm[6], 10) : year;
+    const from = new Date(y1, m1, d1), to = new Date(y2, m2, d2);
+    if (!isNaN(from.getTime()) && !isNaN(to.getTime())) {
+      return { dateFrom: from.toISOString().split("T")[0], dateTo: to.toISOString().split("T")[0] };
+    }
+  }
+  return null;
+}
+
 /** Сообщение — запрос по конкретному номеру перевозки (не сводка за период) */
 function isSpecificCargoNumberQuery(text: string) {
   const num = extractCargoNumber(text);
@@ -573,7 +609,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const t = (userMessage || "").toLowerCase();
         let dateFrom = today;
         let dateTo = today;
-        if (/\b(недел|за неделю|на неделю)\b/.test(t)) {
+        const explicitRange = extractExplicitDateRange(userMessage || "");
+        if (explicitRange) {
+          dateFrom = explicitRange.dateFrom;
+          dateTo = explicitRange.dateTo;
+        } else if (/\b(недел|за неделю|на неделю)\b/.test(t)) {
           const from = new Date(now);
           from.setDate(from.getDate() - 7);
           dateFrom = from.toISOString().split("T")[0];
@@ -610,7 +650,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             (list as any[]).forEach((i: any) => allItems.push({ ...i, _role: mode }));
           }
         }
-        if (allItems.length > 0) {
+        const cargoList = (() => {
+          if (allItems.length === 0) return [];
           const byNumber = new Map<string, any>();
           const rolePriority: Record<string, number> = { Customer: 3, Sender: 2, Receiver: 1 };
           for (const item of allItems) {
@@ -626,7 +667,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
           }
           const list = Array.from(byNumber.values());
-          const cargoList = list.slice(0, 35).map((i: any) => ({
+          return list.slice(0, 35).map((i: any) => ({
             number: i.Number ?? i.number,
             status: i.State ?? i.state,
             datePrih: i.DatePrih ?? i.datePrih,
@@ -639,19 +680,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             receiver: i.Receiver ?? i.receiver,
             customer: i.Customer ?? i.customer,
           }));
-          contextToUse = {
-            ...(contextToUse || {}),
-            userLogin: auth.login,
-            customer: effectiveCustomer ?? customer ?? null,
-            todayDate: today,
-            weekStartDate: weekStartStr,
-            weekEndDate: today,
-            monthStartDate: monthStartStr,
-            monthEndDate: today,
-            activeCargoCount: cargoList.length,
-            cargoList,
-          };
-        }
+        })();
+        contextToUse = {
+          ...(contextToUse || {}),
+          userLogin: auth.login,
+          customer: effectiveCustomer ?? customer ?? null,
+          todayDate: today,
+          weekStartDate: dateFrom,
+          weekEndDate: dateTo,
+          monthStartDate: monthStartStr,
+          monthEndDate: today,
+          activeCargoCount: cargoList.length,
+          cargoList,
+        };
       } catch (e: any) {
         console.warn("chat: perevozki fetch for context failed", e?.message || e);
       }
@@ -779,7 +820,7 @@ ${capabilitiesText || "Не загружено."}
 
 ПРАВИЛА ОТВЕТОВ:
 0. НИТЬ РАЗГОВОРА — главное. Всегда учитывай предыдущие реплики в диалоге. Местоимения и отсылки («их», «эти», «те перевозки», «номера», «список») понимай из контекста последнего обмена. Сначала опирайся на нить разговора, потом на ключевые фразы в текущем сообщении.
-1. Запросы по перевозкам за период — понимай широко. Считай одним и тем же запросом: «перевозки за неделю», «сводка за неделю», «саммари недели», «за период принято», «сколько перевозок за месяц», «итого за неделю», «сумма за месяц», «платный вес за период», «что за неделю», «грузы за месяц», «принято за неделю», «статистика за месяц», «сводка недели», «кратко за период» и любые похожие формулировки. На все такие запросы отвечай кратко и по одному формату: «За [неделю/месяц/сегодня] принято N перевозок на сумму X руб., платный вес Y кг» (при необходимости добавь мест или объём). Данные бери из cargoList и полей sum, PW (платный вес) в контексте: посчитай количество, сложи суммы и платный вес. Не перечисляй все перевозки подряд — только сводка. Если cargoList пустой — ответь, что за период перевозок не найдено.
+1. Запросы по перевозкам за период — понимай широко. Считай одним и тем же запросом: «перевозки за неделю», «сводка за неделю», «саммари недели», «за период принято», «сколько перевозок за месяц», «итого за неделю», «сумма за месяц», «платный вес за период», «что за неделю», «грузы за месяц», «принято за неделю», «статистика за месяц», «сводка недели», «кратко за период» и любые похожие формулировки. На все такие запросы отвечай кратко и по одному формату: «За [период] принято N перевозок на сумму X руб., платный вес Y кг» (при необходимости добавь мест или объём). ВАЖНО: Период всегда указывай из контекста — поля weekStartDate и weekEndDate (формат YYYY-MM-DD). Например: «с 2026-02-01 по 2026-02-08» или «с 1 по 8 февраля 2026». Никогда не придумывай даты. Данные бери из cargoList и полей sum, PW (платный вес): посчитай количество, сложи суммы и платный вес. Не перечисляй все перевозки подряд — только сводка. Если cargoList пустой — ответь «За период с [weekStartDate] по [weekEndDate] перевозок не найдено».
 2. Если пользователь уже получил сводку (по периоду/перевозкам) и затем просит «напиши их номера», «выведи номера», «перечисли номера», «номера перевозок», «какие номера» — речь о перевозках из этой сводки. Возьми из cargoList в контексте поля number (или number из каждого элемента) и выведи в чат список номеров перевозок (через запятую или с новой строки). Не придумывай номера — только из cargoList.
 3. Если в контексте есть поле preloadedCargo — это полные данные по одной перевозке (из API Getperevozka). Используй их для ответа на вопрос по этой перевозке (номер, статус, даты, сумма, платный вес и т.д.).
 4. Если пользователь спрашивает про конкретную перевозку по номеру, ищи её в контексте или в preloadedCargo.
