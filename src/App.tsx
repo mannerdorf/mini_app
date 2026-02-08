@@ -3047,7 +3047,8 @@ function AiChatProfilePage({
     customer,
     onOpenCargo,
     chatId,
-    onOpenTelegramBot
+    onOpenTelegramBot,
+    onOpenMaxBot
 }: {
     onBack: () => void;
     auth: AuthData | null;
@@ -3056,6 +3057,7 @@ function AiChatProfilePage({
     onOpenCargo: (cargoNumber: string) => void;
     chatId: string | null;
     onOpenTelegramBot?: () => Promise<void>;
+    onOpenMaxBot?: () => Promise<void>;
 }) {
     const [prefillMessage, setPrefillMessage] = useState<string | undefined>(undefined);
     const [tgLinkError, setTgLinkError] = useState<string | null>(null);
@@ -3103,6 +3105,21 @@ function AiChatProfilePage({
                         }}
                     >
                         Открыть в Telegram
+                    </Button>
+                )}
+                {onOpenMaxBot && (
+                    <Button
+                        className="filter-button"
+                        onClick={async () => {
+                            setTgLinkError(null);
+                            try {
+                                await onOpenMaxBot();
+                            } catch (e: any) {
+                                setTgLinkError(e?.message || "Не удалось открыть MAX.");
+                            }
+                        }}
+                    >
+                        Открыть в MAX
                     </Button>
                 )}
             </Flex>
@@ -9458,6 +9475,7 @@ export default function App() {
                             onOpenCargo={openCargoFromChat}
                             chatId={chatIdentity}
                             onOpenTelegramBot={openTelegramBotWithAccount}
+                            onOpenMaxBot={openMaxBotWithAccount}
                         />
                     )}
                     {showDashboard && activeTab === "profile" && (
@@ -9511,6 +9529,7 @@ export default function App() {
                             onOpenCargo={openCargoFromChat}
                             chatId={chatIdentity}
                             onOpenTelegramBot={openTelegramBotWithAccount}
+                            onOpenMaxBot={openMaxBotWithAccount}
                         />
                     )}
                     {!showDashboard && activeTab === "profile" && (
