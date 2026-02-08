@@ -77,6 +77,16 @@ function extractCargoNumber(text: string) {
   return match?.[1] || null;
 }
 
+/** Сообщение — запрос по конкретному номеру перевозки (не сводка за период) */
+function isSpecificCargoNumberQuery(text: string) {
+  const num = extractCargoNumber(text);
+  if (!num) return false;
+  const t = text.toLowerCase().trim();
+  const periodKeywords = /\b(недел|месяц|год|период|сегодня|вчера|сводк|итого|сколько перевозок|принято|статистика)\b/;
+  if (periodKeywords.test(t)) return false;
+  return true;
+}
+
 function extractLastCargoNumberFromHistory(rows: { role: ChatRole; content: string }[]) {
   for (let i = rows.length - 1; i >= 0; i -= 1) {
     const row = rows[i];
@@ -578,21 +588,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         monthAgo.setDate(monthAgo.getDate() - 30);
         const weekStartStr = weekAgo.toISOString().split("T")[0];
         const monthStartStr = monthAgo.toISOString().split("T")[0];
-        const perevozkiRes = await fetch(`${appDomain}/api/perevozki`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            login: auth.login,
-            password: auth.password,
-            dateFrom,
-            dateTo,
-            ...(auth.inn ? { inn: auth.inn } : {}),
-          }),
-        });
-        if (perevozkiRes.ok) {
-          const data = await perevozkiRes.json().catch(() => ({}));
-          const list = Array.isArray(data) ? data : (data?.items ?? []);
-          const cargoList = (list as any[]).slice(0, 35).map((i: any) => ({
+        // Как в приложении: запросы по всем ролям (Customer, Sender, Receiver) и объединение
+        const modes: Array<"Customer" | "Sender" | "Receiver"> = ["Customer", "Sender", "Receiver"];
+        const basePayload = {
+          login: auth.login,
+          password: auth.password,
+          dateFrom,
+          dateTo,
+          ...(auth.inn ? { inn: auth.inn } : {}),
+        };
+        const allItems: any[] = [];
+        for (const mode of modes) {
+          const perevozkiRes = await fetch(`${appDomain}/api/perevozki`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...basePayload, mode }),
+          });
+          if (perevozkiRes.ok) {
+            const data = await perevozkiRes.json().catch(() => ({}));
+            const list = Array.isArray(data) ? data : (data?.items ?? []);
+            (list as any[]).forEach((i: any) => allItems.push({ ...i, _role: mode }));
+          }
+        }
+        if (allItems.length > 0) {
+          const byNumber = new Map<string, any>();
+          const rolePriority: Record<string, number> = { Customer: 3, Sender: 2, Receiver: 1 };
+          for (const item of allItems) {
+            const num = String(item?.Number ?? item?.number ?? "").trim();
+            if (!num) continue;
+            const existing = byNumber.get(num);
+            const itemDate = (x: any) => {
+              const v = x?.DatePrih ?? x?.datePrih ?? x?.DateVr ?? x?.dateVr;
+              return v ? new Date(String(v)).getTime() : 0;
+            };
+            if (!existing || itemDate(item) >= itemDate(existing) || rolePriority[item._role] >= rolePriority[existing._role]) {
+              byNumber.set(num, item);
+            }
+          }
+          const list = Array.from(byNumber.values());
+          const cargoList = list.slice(0, 35).map((i: any) => ({
             number: i.Number ?? i.number,
             status: i.State ?? i.state,
             datePrih: i.DatePrih ?? i.datePrih,
@@ -622,9 +656,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.warn("chat: perevozki fetch for context failed", e?.message || e);
       }
     }
+    // Запрос по конкретному номеру — получаем данные из API Getperevozka
+    let fetchedPreloadedCargo: Record<string, unknown> | null = null;
+    if (
+      isSpecificCargoNumberQuery(userMessage) &&
+      auth?.login &&
+      auth?.password
+    ) {
+      const cargoNum =
+        extractCargoNumber(userMessage) ||
+        extractLastCargoNumberFromHistory(history.rows);
+      if (cargoNum) {
+        try {
+          const appDomain = getAppDomain();
+          const gpRes = await fetch(`${appDomain}/api/getperevozka`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              login: auth.login,
+              password: auth.password,
+              number: cargoNum,
+            }),
+          });
+          if (gpRes.ok) {
+            const gpData = await gpRes.json().catch(() => ({}));
+            if (gpData && typeof gpData === "object" && gpData.Success === false) {
+              // 1C вернула "не найдено" или ошибку — не подставляем preloadedCargo
+            } else {
+            const item = gpData?.item ?? gpData?.Item ?? gpData ?? (Array.isArray(gpData) ? gpData[0] : null);
+            if (item && typeof item === "object" && !Array.isArray(item)) {
+              fetchedPreloadedCargo = {
+                Number: item.Number ?? item.number ?? cargoNum,
+                State: item.State ?? item.state,
+                DatePrih: item.DatePrih ?? item.datePrih,
+                DateVr: item.DateVr ?? item.dateVr,
+                Sum: item.Sum ?? item.sum,
+                PW: item.PW ?? item.pw,
+                Mest: item.Mest ?? item.mest,
+                Sender: item.Sender ?? item.sender,
+                Receiver: item.Receiver ?? item.receiver,
+                Customer: item.Customer ?? item.customer,
+                StateBill: item.StateBill ?? item.stateBill,
+                W: item.W ?? item.w,
+                Value: item.Value ?? item.value,
+              } as Record<string, unknown>;
+            }
+            }
+          }
+        } catch (e: any) {
+          console.warn("chat: getperevozka fetch failed", e?.message || e);
+        }
+      }
+    }
+
     if (contextToUse === null && context && typeof context === "object") contextToUse = { ...context };
-    if (preloadedCargo != null && contextToUse) {
-      (contextToUse as Record<string, unknown>).preloadedCargo = preloadedCargo;
+    const finalPreloadedCargo = fetchedPreloadedCargo ?? (preloadedCargo != null && typeof preloadedCargo === "object" ? preloadedCargo : null);
+    if (finalPreloadedCargo != null && contextToUse) {
+      (contextToUse as Record<string, unknown>).preloadedCargo = finalPreloadedCargo;
     }
 
     let ragContext = "";
