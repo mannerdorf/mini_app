@@ -210,7 +210,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       parsed = null;
     }
     const chatIdStr = String(chatId);
+    const senderIdStr = senderId != null ? String(senderId) : null;
     const saved = await setRedisValue(`max:bind:${chatIdStr}`, raw, MAX_LINK_TTL_SECONDS);
+    if (senderIdStr && senderIdStr !== chatIdStr) {
+      await setRedisValue(`max:bind:${senderIdStr}`, raw, MAX_LINK_TTL_SECONDS);
+    }
     if (!saved) {
       await maxSendMessage({
         token: MAX_BOT_TOKEN,
@@ -297,9 +301,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const replyTarget = senderId ?? chatId;
       const chatIdStr = String(chatId);
-      // Берём привязанный аккаунт (login, password, customer) из Redis — иначе чат не знает, под кем искать перевозки
+      const senderIdStr = senderId != null ? String(senderId) : null;
+      // Берём привязанный аккаунт из Redis. В MAX при bot_started приходит chat_id, при message_created — часто только sender.user_id; ищем по обоим
       let maxAuth: { login?: string; password?: string; customer?: string } = {};
-      const bindRaw = await getRedisValue(`max:bind:${chatIdStr}`);
+      let bindRaw = await getRedisValue(`max:bind:${chatIdStr}`);
+      if (!bindRaw && senderIdStr && senderIdStr !== chatIdStr) {
+        bindRaw = await getRedisValue(`max:bind:${senderIdStr}`);
+      }
       if (bindRaw) {
         try {
           const parsed = JSON.parse(bindRaw);
@@ -314,7 +322,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (_) {}
       }
       if (!maxAuth.login && !maxAuth.password) {
-        console.log("MAX webhook: no linked account for chatId", chatIdStr);
+        console.log("MAX webhook: no linked account for chatId", chatIdStr, "senderId", senderIdStr);
       }
 
       const appDomain = process.env.NEXT_PUBLIC_APP_URL
