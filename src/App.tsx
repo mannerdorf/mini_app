@@ -1876,6 +1876,119 @@ function DashboardPage({
 
     return (
         <div className="w-full">
+            {/* Filters (такие же как на странице грузов) — над дашбордом */}
+            <div className="filters-container filters-row-scroll" style={{ marginBottom: '1rem' }}>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                        </Button>
+                    </div>
+                    <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
+                        {['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => (
+                            <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key === 'период') setIsCustomModalOpen(true); }}>
+                                <Typography.Body>{key === 'год' ? 'Год' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
+                            </div>
+                        ))}
+                    </FilterDropdownPortal>
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
+                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
+                        </Button>
+                    </div>
+                    <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen}>
+                        {Object.keys(STATUS_MAP).map(key => (
+                            <div key={key} className="dropdown-item" onClick={() => { setStatusFilter(key as any); setIsStatusDropdownOpen(false); }}>
+                                <Typography.Body>{STATUS_MAP[key as StatusFilter]}</Typography.Body>
+                            </div>
+                        ))}
+                    </FilterDropdownPortal>
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
+                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                        </Button>
+                    </div>
+                    <FilterDropdownPortal triggerRef={senderButtonRef} isOpen={isSenderDropdownOpen}>
+                        <div className="dropdown-item" onClick={() => { setSenderFilter(''); setIsSenderDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        {uniqueSenders.map(s => (
+                            <div key={s} className="dropdown-item" onClick={() => { setSenderFilter(s); setIsSenderDropdownOpen(false); }}><Typography.Body>{stripOoo(s)}</Typography.Body></div>
+                        ))}
+                    </FilterDropdownPortal>
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
+                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                        </Button>
+                    </div>
+                    <FilterDropdownPortal triggerRef={receiverButtonRef} isOpen={isReceiverDropdownOpen}>
+                        <div className="dropdown-item" onClick={() => { setReceiverFilter(''); setIsReceiverDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        {uniqueReceivers.map(r => (
+                            <div key={r} className="dropdown-item" onClick={() => { setReceiverFilter(r); setIsReceiverDropdownOpen(false); }}><Typography.Body>{stripOoo(r)}</Typography.Body></div>
+                        ))}
+                    </FilterDropdownPortal>
+                </div>
+                {!useServiceRequest && (
+                    <div className="filter-group" style={{ flexShrink: 0 }}>
+                        <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                                Заказчик: {customerFilter ? stripOoo(customerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal triggerRef={customerButtonRef} isOpen={isCustomerDropdownOpen}>
+                            <div className="dropdown-item" onClick={() => { setCustomerFilter(''); setIsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            {uniqueCustomers.map(c => (
+                                <div key={c} className="dropdown-item" onClick={() => { setCustomerFilter(c); setIsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
+                            ))}
+                        </FilterDropdownPortal>
+                    </div>
+                )}
+                {useServiceRequest && (
+                    <div className="filter-group" style={{ flexShrink: 0 }}>
+                        <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                                Статус счёта: {BILL_STATUS_MAP[billStatusFilter]} <ChevronDown className="w-4 h-4"/>
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal triggerRef={billStatusButtonRef} isOpen={isBillStatusDropdownOpen}>
+                            {(['all', 'paid', 'unpaid', 'partial', 'cancelled', 'unknown'] as const).map(key => (
+                                <div key={key} className="dropdown-item" onClick={() => { setBillStatusFilter(key); setIsBillStatusDropdownOpen(false); }}>
+                                    <Typography.Body>{BILL_STATUS_MAP[key]}</Typography.Body>
+                                </div>
+                            ))}
+                        </FilterDropdownPortal>
+                    </div>
+                )}
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
+                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
+                        </Button>
+                    </div>
+                    <FilterDropdownPortal triggerRef={typeButtonRef} isOpen={isTypeDropdownOpen}>
+                        <div className="dropdown-item" onClick={() => { setTypeFilter('all'); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setTypeFilter('ferry'); setIsTypeDropdownOpen(false); }}><Typography.Body>Паром</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setTypeFilter('auto'); setIsTypeDropdownOpen(false); }}><Typography.Body>Авто</Typography.Body></div>
+                    </FilterDropdownPortal>
+                </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
+                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                            Маршрут: {routeFilter === 'all' ? 'Все' : routeFilter} <ChevronDown className="w-4 h-4"/>
+                        </Button>
+                    </div>
+                    <FilterDropdownPortal triggerRef={routeButtonRef} isOpen={isRouteDropdownOpen}>
+                        <div className="dropdown-item" onClick={() => { setRouteFilter('all'); setIsRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setRouteFilter('MSK-KGD'); setIsRouteDropdownOpen(false); }}><Typography.Body>MSK – KGD</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setRouteFilter('KGD-MSK'); setIsRouteDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
+                    </FilterDropdownPortal>
+                </div>
+            </div>
+
             {showSums && (
             <>
             {/* Раскрывающаяся полоска: в свёрнутом виде — период + переключатели; в развёрнутом — переключатель и диаграммы */}
@@ -2112,119 +2225,6 @@ function DashboardPage({
             </>
             )}
 
-            {/* Filters (такие же как на странице грузов) */}
-            <div className="filters-container filters-row-scroll">
-                <div className="filter-group" style={{ flexShrink: 0 }}>
-                    <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
-                        </Button>
-                    </div>
-                    <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
-                        {['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => (
-                            <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key === 'период') setIsCustomModalOpen(true); }}>
-                                <Typography.Body>{key === 'год' ? 'Год' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
-                            </div>
-                        ))}
-                    </FilterDropdownPortal>
-                </div>
-                <div className="filter-group" style={{ flexShrink: 0 }}>
-                    <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
-                        </Button>
-                    </div>
-                    <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen}>
-                        {Object.keys(STATUS_MAP).map(key => (
-                            <div key={key} className="dropdown-item" onClick={() => { setStatusFilter(key as any); setIsStatusDropdownOpen(false); }}>
-                                <Typography.Body>{STATUS_MAP[key as StatusFilter]}</Typography.Body>
-                            </div>
-                        ))}
-                    </FilterDropdownPortal>
-                </div>
-                <div className="filter-group" style={{ flexShrink: 0 }}>
-                    <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                        </Button>
-                    </div>
-                    <FilterDropdownPortal triggerRef={senderButtonRef} isOpen={isSenderDropdownOpen}>
-                        <div className="dropdown-item" onClick={() => { setSenderFilter(''); setIsSenderDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        {uniqueSenders.map(s => (
-                            <div key={s} className="dropdown-item" onClick={() => { setSenderFilter(s); setIsSenderDropdownOpen(false); }}><Typography.Body>{stripOoo(s)}</Typography.Body></div>
-                        ))}
-                    </FilterDropdownPortal>
-                </div>
-                <div className="filter-group" style={{ flexShrink: 0 }}>
-                    <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                        </Button>
-                    </div>
-                    <FilterDropdownPortal triggerRef={receiverButtonRef} isOpen={isReceiverDropdownOpen}>
-                        <div className="dropdown-item" onClick={() => { setReceiverFilter(''); setIsReceiverDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        {uniqueReceivers.map(r => (
-                            <div key={r} className="dropdown-item" onClick={() => { setReceiverFilter(r); setIsReceiverDropdownOpen(false); }}><Typography.Body>{stripOoo(r)}</Typography.Body></div>
-                        ))}
-                    </FilterDropdownPortal>
-                </div>
-                {!useServiceRequest && (
-                    <div className="filter-group" style={{ flexShrink: 0 }}>
-                        <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                                Заказчик: {customerFilter ? stripOoo(customerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={customerButtonRef} isOpen={isCustomerDropdownOpen}>
-                            <div className="dropdown-item" onClick={() => { setCustomerFilter(''); setIsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            {uniqueCustomers.map(c => (
-                                <div key={c} className="dropdown-item" onClick={() => { setCustomerFilter(c); setIsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
-                            ))}
-                        </FilterDropdownPortal>
-                    </div>
-                )}
-                {useServiceRequest && (
-                    <div className="filter-group" style={{ flexShrink: 0 }}>
-                        <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                                Статус счёта: {BILL_STATUS_MAP[billStatusFilter]} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={billStatusButtonRef} isOpen={isBillStatusDropdownOpen}>
-                            {(['all', 'paid', 'unpaid', 'partial', 'cancelled', 'unknown'] as const).map(key => (
-                                <div key={key} className="dropdown-item" onClick={() => { setBillStatusFilter(key); setIsBillStatusDropdownOpen(false); }}>
-                                    <Typography.Body>{BILL_STATUS_MAP[key]}</Typography.Body>
-                                </div>
-                            ))}
-                        </FilterDropdownPortal>
-                    </div>
-                )}
-                <div className="filter-group" style={{ flexShrink: 0 }}>
-                    <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
-                        </Button>
-                    </div>
-                    <FilterDropdownPortal triggerRef={typeButtonRef} isOpen={isTypeDropdownOpen}>
-                        <div className="dropdown-item" onClick={() => { setTypeFilter('all'); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setTypeFilter('ferry'); setIsTypeDropdownOpen(false); }}><Typography.Body>Паром</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setTypeFilter('auto'); setIsTypeDropdownOpen(false); }}><Typography.Body>Авто</Typography.Body></div>
-                    </FilterDropdownPortal>
-                </div>
-                <div className="filter-group" style={{ flexShrink: 0 }}>
-                    <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
-                            Маршрут: {routeFilter === 'all' ? 'Все' : routeFilter} <ChevronDown className="w-4 h-4"/>
-                        </Button>
-                    </div>
-                    <FilterDropdownPortal triggerRef={routeButtonRef} isOpen={isRouteDropdownOpen}>
-                        <div className="dropdown-item" onClick={() => { setRouteFilter('all'); setIsRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setRouteFilter('MSK-KGD'); setIsRouteDropdownOpen(false); }}><Typography.Body>MSK – KGD</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setRouteFilter('KGD-MSK'); setIsRouteDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
-                    </FilterDropdownPortal>
-                </div>
-            </div>
-            
             {loading && (
                 <Flex justify="center" className="text-center py-8">
                     <Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" />
@@ -5840,30 +5840,6 @@ function CargoPage({
         });
     }, [groupedByCustomer, tableSortColumn, tableSortOrder]);
 
-    /** Динамика период к периоду по заказчику (для раскрытой таблицы, служебный режим) */
-    const customerDynamics = useMemo(() => {
-        if (!useServiceRequest || prevPeriodItems.length === 0) return new Map<string, { text: string; color: string }>();
-        const prevSumByCustomer = new Map<string, number>();
-        prevPeriodItems.forEach(item => {
-            const key = (item.Customer ?? (item as any).customer ?? '').trim() || '—';
-            const sum = typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
-            prevSumByCustomer.set(key, (prevSumByCustomer.get(key) || 0) + sum);
-        });
-        const map = new Map<string, { text: string; color: string }>();
-        groupedByCustomer.forEach(row => {
-            const prevSum = prevSumByCustomer.get(row.customer) ?? 0;
-            if (prevSum === 0) {
-                map.set(row.customer, row.sum > 0 ? { text: '+100%', color: 'var(--color-success-status)' } : { text: '—', color: 'var(--color-text-secondary)' });
-                return;
-            }
-            const percent = Math.round(((row.sum - prevSum) / prevSum) * 100);
-            const color = percent > 0 ? 'var(--color-success-status)' : percent < 0 ? '#ef4444' : 'var(--color-text-secondary)';
-            const text = percent > 0 ? `+${percent}%` : percent < 0 ? `${percent}%` : '0%';
-            map.set(row.customer, { text, color });
-        });
-        return map;
-    }, [useServiceRequest, groupedByCustomer, prevPeriodItems]);
-
     const handleTableSort = (column: typeof tableSortColumn) => {
         if (tableSortColumn === column) {
             setTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
@@ -6159,14 +6135,11 @@ function CargoPage({
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Мест</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Плат. вес</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Динамика</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {row.items.map((item, j) => {
-                                                                const dynamics = customerDynamics.get(row.customer);
-                                                                return (
+                                                            {row.items.map((item, j) => (
                                                                 <tr
                                                                     key={item.Number || j}
                                                                     style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
@@ -6182,16 +6155,9 @@ function CargoPage({
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>
-                                                                        {prevPeriodLoading ? (
-                                                                            <Loader2 className="w-3 h-3 animate-spin" style={{ display: 'inline-block', verticalAlign: 'middle', color: 'var(--color-primary-blue)' }} />
-                                                                        ) : dynamics ? (
-                                                                            <span style={{ color: dynamics.color, fontWeight: 600 }}>{dynamics.text}</span>
-                                                                        ) : '—'}
-                                                                    </td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
                                                                 </tr>
-                                                            ); })}
+                                                            ))}
                                                         </tbody>
                                                     </table>
                                                 </div>
