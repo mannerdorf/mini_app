@@ -329,16 +329,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
       const chatUrl = `${appDomain}/api/chat`;
 
+      // Сессия привязана к заказчику: при смене заказчика и повторной привязке — новая сессия, данные только по текущему заказчику
+      const sessionFingerprint = (maxAuth.customer || maxAuth.login || "anon").replace(/[^a-zA-Z0-9А-Яа-я._-]/g, "_").slice(0, 60);
+      const sessionId = `max_${replyTarget ?? chatId}_${sessionFingerprint}`;
+
       const aiRes = await fetch(chatUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sessionId: `max_${replyTarget ?? chatId}`,
+          sessionId,
           userId: String(replyTarget ?? chatId),
           message: userText,
           channel: "max",
           auth: maxAuth.login && maxAuth.password ? { login: maxAuth.login, password: maxAuth.password } : undefined,
-          customer: maxAuth.customer ?? undefined,
+          customer: maxAuth.customer != null && String(maxAuth.customer).trim() !== "" ? String(maxAuth.customer).trim() : undefined,
         }),
       });
 
