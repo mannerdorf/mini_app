@@ -102,6 +102,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     update?.message?.sender?.user_id ??
     update?.message?.sender?.userId ??
     update?.message?.sender?.id ??
+    update?.user?.user_id ??
+    update?.user?.userId ??
+    update?.user?.id ??
     update?.sender?.user_id ??
     update?.sender?.userId ??
     update?.sender?.id;
@@ -111,14 +114,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true });
   }
 
-  // Текст: по доке MAX в message_created текст в message.body (MessageBody). Поддержка body.parts и разных полей.
+  // Текст: message_created — из message.body; bot_started — из update.payload (диплинк ?start=...)
   let rawText: string =
+    update?.payload ??
     update?.message?.body?.text ??
     update?.message?.body?.content ??
     update?.message?.text ??
     update?.message?.content ??
     update?.text ??
-    update?.payload ??
     update?.start_param ??
     update?.startapp ??
     update?.start_app ??

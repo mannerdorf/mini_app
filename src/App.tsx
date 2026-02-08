@@ -8583,28 +8583,29 @@ export default function App() {
         if (!res.ok || !data?.token) {
             throw new Error(data?.error || "Не удалось создать ссылку для MAX.");
         }
+        // По доке MAX диплинк бота: https://max.ru/<botName>?start=<payload> (именно start, не startapp)
         const url = new URL(MAX_SUPPORT_BOT_URL);
-        url.searchParams.set("startapp", `haulz_auth_${data.token}`);
         url.searchParams.set("start", `haulz_auth_${data.token}`);
         openMaxBotLink(url.toString());
     };
 
     const openMaxBotLink = (url: string) => {
         const webApp = getWebApp();
-        // Используем метод openLink из Bridge, чтобы MAX открыл это именно как внешнюю ссылку (переход в чат)
+        const isMobile = typeof window !== "undefined" && (window.innerWidth < 768 || /Android|iPhone|iPad/i.test(navigator.userAgent || ""));
+        // На телефоне openLink в MAX часто не срабатывает — открываем в новом окне, чтобы сработал диплинк
+        if (isMobile) {
+            window.open(url, "_blank", "noopener,noreferrer");
+            return;
+        }
         if (webApp && typeof webApp.openLink === "function") {
-            console.log("[openMaxBotLink] Opening via Bridge.openLink:", url);
-            webApp.openLink(url);
-            
-            // Закрываем мини-апп через небольшую паузу, чтобы дать чату открыться
-            setTimeout(() => {
-                if (typeof (webApp as any).close === "function") {
-                    try { (webApp as any).close(); } catch { /* ignore */ }
-                }
-            }, 500);
+            try {
+                webApp.openLink(url);
+            } catch (e) {
+                console.warn("[openMaxBotLink] openLink failed:", e);
+                window.open(url, "_blank", "noopener,noreferrer");
+            }
         } else {
-            console.log("[openMaxBotLink] Bridge.openLink not available, using location.href");
-            window.location.href = url;
+            window.open(url, "_blank", "noopener,noreferrer");
         }
     };
 
