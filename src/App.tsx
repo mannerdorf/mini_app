@@ -7965,30 +7965,6 @@ function ChatPage({
                 )}
             </div>
 
-            {/* Статус/ошибка API — на экране для отладки */}
-            {(chatStatus || apiRequestInfo) && (
-                <div style={{
-                    borderTop: '1px solid var(--color-border)',
-                    fontSize: '0.8rem',
-                    color: 'var(--color-text-secondary)',
-                    background: 'var(--color-bg-secondary)',
-                }}>
-                    {chatStatus && (
-                        <div style={{ padding: '0.35rem 0.75rem', color: chatStatus.error ? 'var(--color-error-text)' : undefined, background: chatStatus.error ? 'var(--color-error-bg)' : undefined }}>
-                            {chatStatus.error ? (
-                                <>Ошибка API: {chatStatus.status != null ? `код ${chatStatus.status} — ` : ''}{chatStatus.error}</>
-                            ) : (
-                                <>Статус: {chatStatus.status ?? '—'}</>
-                            )}
-                        </div>
-                    )}
-                    {apiRequestInfo && (apiRequestInfo.context || apiRequestInfo.chat) && (
-                        <div style={{ padding: '0.35rem 0.75rem', borderTop: chatStatus ? '1px solid var(--color-border)' : undefined }}>
-                            Запрос по API: {[apiRequestInfo.context, apiRequestInfo.chat].filter(Boolean).join(' → ')}
-                        </div>
-                    )}
-                </div>
-            )}
             {/* Поле ввода — прижато к низу, без линии сверху */}
             <div className="chat-input-bar" style={{ padding: '0.75rem', background: 'var(--color-bg-primary)', width: '100%', boxSizing: 'border-box', flexShrink: 0 }}>
                 <form 
