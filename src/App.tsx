@@ -1301,11 +1301,11 @@ function DashboardPage({
         if (dateFilter === "период") return { dateFrom: customDateFrom, dateTo: customDateTo };
         if (dateFilter === "месяц" && selectedMonthForFilter) {
             const { year, month } = selectedMonthForFilter;
-            const from = new Date(year, month - 1, 1);
-            const to = new Date(year, month, 0);
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const lastDay = new Date(year, month, 0).getDate();
             return {
-                dateFrom: from.toISOString().split('T')[0],
-                dateTo: to.toISOString().split('T')[0],
+                dateFrom: `${year}-${pad(month)}-01`,
+                dateTo: `${year}-${pad(month)}-${pad(lastDay)}`,
             };
         }
         return getDateRange(dateFilter);
@@ -5515,9 +5515,12 @@ function CargoPage({
         if (dateFilter === "период") return { dateFrom: customDateFrom, dateTo: customDateTo };
         if (dateFilter === "месяц" && selectedMonthForFilter) {
             const { year, month } = selectedMonthForFilter;
-            const from = new Date(year, month - 1, 1);
-            const to = new Date(year, month, 0);
-            return { dateFrom: from.toISOString().split('T')[0], dateTo: to.toISOString().split('T')[0] };
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const lastDay = new Date(year, month, 0).getDate();
+            return {
+                dateFrom: `${year}-${pad(month)}-01`,
+                dateTo: `${year}-${pad(month)}-${pad(lastDay)}`,
+            };
         }
         return getDateRange(dateFilter);
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter]);
