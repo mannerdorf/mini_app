@@ -110,6 +110,16 @@ function extractExplicitDateRange(text: string): { dateFrom: string; dateTo: str
       return { dateFrom: from.toISOString().split("T")[0], dateTo: to.toISOString().split("T")[0] };
     }
   }
+  for (const [monthName, month0] of Object.entries(MONTH_NAMES)) {
+    const singleRe = new RegExp(`(?:за\\s+)?(\\d{1,2})\\s*${monthName}(?:\\s+${year})?`, "i");
+    const singleM = t.match(singleRe);
+    if (singleM) {
+      const day = Math.min(31, Math.max(1, parseInt(singleM[1], 10)));
+      const d = new Date(year, month0, day);
+      const iso = d.toISOString().split("T")[0];
+      return { dateFrom: iso, dateTo: iso };
+    }
+  }
   return null;
 }
 
@@ -613,6 +623,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (explicitRange) {
           dateFrom = explicitRange.dateFrom;
           dateTo = explicitRange.dateTo;
+        } else if (/\b(вчера|за вчера|на вчера)\b/.test(t)) {
+          const yesterday = new Date(now);
+          yesterday.setDate(yesterday.getDate() - 1);
+          dateFrom = dateTo = yesterday.toISOString().split("T")[0];
+        } else if (/\b(сегодня|за сегодня|на сегодня)\b/.test(t)) {
+          dateFrom = dateTo = today;
         } else if (/\b(недел|за неделю|на неделю)\b/.test(t)) {
           const from = new Date(now);
           from.setDate(from.getDate() - 7);
@@ -621,6 +637,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const from = new Date(now);
           from.setDate(from.getDate() - 30);
           dateFrom = from.toISOString().split("T")[0];
+        } else if (/\b(год|за год|на год|в этом году)\b/.test(t)) {
+          const y = now.getFullYear();
+          dateFrom = `${y}-01-01`;
         }
         const weekAgo = new Date(now);
         weekAgo.setDate(weekAgo.getDate() - 7);
