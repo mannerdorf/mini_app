@@ -1876,8 +1876,9 @@ function DashboardPage({
 
     return (
         <div className="w-full">
-            {/* Filters (такие же как на странице грузов) — над дашбордом */}
-            <div className="filters-container filters-row-scroll" style={{ marginBottom: '1rem' }}>
+            {/* Закреплённый блок: фильтры над дашбордом */}
+            <div className="cargo-page-sticky-header" style={{ marginBottom: '1rem' }}>
+            <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
@@ -1987,6 +1988,7 @@ function DashboardPage({
                         <div className="dropdown-item" onClick={() => { setRouteFilter('KGD-MSK'); setIsRouteDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
                     </FilterDropdownPortal>
                 </div>
+            </div>
             </div>
 
             {showSums && (
