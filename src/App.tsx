@@ -7295,7 +7295,7 @@ function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllT
             <TabBtn 
                 label="" 
                 icon={<Truck />} 
-                active={active === "cargo" || active === "dashboard"} 
+                active={active === "cargo"} 
                 onClick={() => {
                     onChange("cargo");
                 }}
