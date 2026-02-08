@@ -181,6 +181,7 @@ const getPreviousPeriodRange = (filter: DateFilter, currentFrom: string, current
 }
 
 const WEEKDAY_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'] as const;
+const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'] as const;
 
 const formatDate = (dateString: string | undefined): string => {
     if (!dateString) return '-';
@@ -1133,6 +1134,10 @@ function DashboardPage({
     const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
+    const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months'>('main');
+    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(null);
+    const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const monthWasLongPressRef = useRef(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
@@ -1292,12 +1297,19 @@ function DashboardPage({
         console.log("[testMaxMessage]", logs);
     };
 
-    const apiDateRange = useMemo(() => 
-        dateFilter === "период" 
-            ? { dateFrom: customDateFrom, dateTo: customDateTo } 
-            : getDateRange(dateFilter), 
-        [dateFilter, customDateFrom, customDateTo]
-    );
+    const apiDateRange = useMemo(() => {
+        if (dateFilter === "период") return { dateFrom: customDateFrom, dateTo: customDateTo };
+        if (dateFilter === "месяц" && selectedMonthForFilter) {
+            const { year, month } = selectedMonthForFilter;
+            const from = new Date(year, month - 1, 1);
+            const to = new Date(year, month, 0);
+            return {
+                dateFrom: from.toISOString().split('T')[0],
+                dateTo: to.toISOString().split('T')[0],
+            };
+        }
+        return getDateRange(dateFilter);
+    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter]);
     
     const loadCargo = useCallback(async (dateFrom: string, dateTo: string) => {
         if (!auth?.login || !auth?.password) {
@@ -1881,16 +1893,76 @@ function DashboardPage({
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
-                        {['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => (
-                            <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key === 'период') setIsCustomModalOpen(true); }}>
-                                <Typography.Body>{key === 'год' ? 'Год' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
-                            </div>
-                        ))}
+                        {dateDropdownMode === 'months' ? (
+                            <>
+                                <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>
+                                    ← Назад
+                                </div>
+                                {MONTH_NAMES.map((name, i) => (
+                                    <div
+                                        key={i}
+                                        className="dropdown-item"
+                                        onClick={() => {
+                                            const year = new Date().getFullYear();
+                                            setDateFilter('месяц');
+                                            setSelectedMonthForFilter({ year, month: i + 1 });
+                                            setIsDateDropdownOpen(false);
+                                            setDateDropdownMode('main');
+                                        }}
+                                    >
+                                        <Typography.Body>{name} {new Date().getFullYear()}</Typography.Body>
+                                    </div>
+                                ))}
+                            </>
+                        ) : (
+                            ['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => {
+                                const isMonth = key === 'месяц';
+                                return (
+                                    <div
+                                        key={key}
+                                        className="dropdown-item"
+                                        title={isMonth ? 'Клик — текущий месяц; удерживайте — выбор месяца' : undefined}
+                                        onPointerDown={isMonth ? () => {
+                                            monthWasLongPressRef.current = false;
+                                            monthLongPressTimerRef.current = setTimeout(() => {
+                                                monthLongPressTimerRef.current = null;
+                                                monthWasLongPressRef.current = true;
+                                                setDateDropdownMode('months');
+                                            }, 500);
+                                        } : undefined}
+                                        onPointerUp={isMonth ? () => {
+                                            if (monthLongPressTimerRef.current) {
+                                                clearTimeout(monthLongPressTimerRef.current);
+                                                monthLongPressTimerRef.current = null;
+                                            }
+                                        } : undefined}
+                                        onPointerLeave={isMonth ? () => {
+                                            if (monthLongPressTimerRef.current) {
+                                                clearTimeout(monthLongPressTimerRef.current);
+                                                monthLongPressTimerRef.current = null;
+                                            }
+                                        } : undefined}
+                                        onClick={() => {
+                                            if (isMonth && monthWasLongPressRef.current) {
+                                                monthWasLongPressRef.current = false;
+                                                return;
+                                            }
+                                            setDateFilter(key as any);
+                                            if (key === 'месяц') setSelectedMonthForFilter(null);
+                                            setIsDateDropdownOpen(false);
+                                            if (key === 'период') setIsCustomModalOpen(true);
+                                        }}
+                                    >
+                                        <Typography.Body>{key === 'год' ? 'Год' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
+                                    </div>
+                                );
+                            })
+                        )}
                     </FilterDropdownPortal>
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
@@ -5359,6 +5431,10 @@ function CargoPage({
     const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
+    const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months'>('main');
+    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(null);
+    const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const monthWasLongPressRef = useRef(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
@@ -5435,7 +5511,16 @@ function CargoPage({
         return cargoNumber ? favorites.has(cargoNumber) : false;
     }, [favorites]);
 
-    const apiDateRange = useMemo(() => dateFilter === "период" ? { dateFrom: customDateFrom, dateTo: customDateTo } : getDateRange(dateFilter), [dateFilter, customDateFrom, customDateTo]); // ИСПРАВЛЕНО: 'custom' на 'период'
+    const apiDateRange = useMemo(() => {
+        if (dateFilter === "период") return { dateFrom: customDateFrom, dateTo: customDateTo };
+        if (dateFilter === "месяц" && selectedMonthForFilter) {
+            const { year, month } = selectedMonthForFilter;
+            const from = new Date(year, month - 1, 1);
+            const to = new Date(year, month, 0);
+            return { dateFrom: from.toISOString().split('T')[0], dateTo: to.toISOString().split('T')[0] };
+        }
+        return getDateRange(dateFilter);
+    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter]);
 
     // Удалена функция findDeliveryDate, используем DateVr напрямую.
 
@@ -5914,16 +5999,46 @@ function CargoPage({
                         )}
                     </Button>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
-                        {['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => (
-                            <div key={key} className="dropdown-item" onClick={() => { setDateFilter(key as any); setIsDateDropdownOpen(false); if(key==='период') setIsCustomModalOpen(true); }}>
-                                <Typography.Body>{key === 'год' ? 'Год' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
-                            </div>
-                        ))}
+                        {dateDropdownMode === 'months' ? (
+                            <>
+                                <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                {MONTH_NAMES.map((name, i) => (
+                                    <div key={i} className="dropdown-item" onClick={() => {
+                                        const year = new Date().getFullYear();
+                                        setDateFilter('месяц');
+                                        setSelectedMonthForFilter({ year, month: i + 1 });
+                                        setIsDateDropdownOpen(false);
+                                        setDateDropdownMode('main');
+                                    }}>
+                                        <Typography.Body>{name} {new Date().getFullYear()}</Typography.Body>
+                                    </div>
+                                ))}
+                            </>
+                        ) : (
+                            ['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => {
+                                const isMonth = key === 'месяц';
+                                return (
+                                    <div key={key} className="dropdown-item" title={isMonth ? 'Клик — текущий месяц; удерживайте — выбор месяца' : undefined}
+                                        onPointerDown={isMonth ? () => { monthWasLongPressRef.current = false; monthLongPressTimerRef.current = setTimeout(() => { monthLongPressTimerRef.current = null; monthWasLongPressRef.current = true; setDateDropdownMode('months'); }, 500); } : undefined}
+                                        onPointerUp={isMonth ? () => { if (monthLongPressTimerRef.current) { clearTimeout(monthLongPressTimerRef.current); monthLongPressTimerRef.current = null; } } : undefined}
+                                        onPointerLeave={isMonth ? () => { if (monthLongPressTimerRef.current) { clearTimeout(monthLongPressTimerRef.current); monthLongPressTimerRef.current = null; } } : undefined}
+                                        onClick={() => {
+                                            if (isMonth && monthWasLongPressRef.current) { monthWasLongPressRef.current = false; return; }
+                                            setDateFilter(key as any);
+                                            if (key === 'месяц') setSelectedMonthForFilter(null);
+                                            setIsDateDropdownOpen(false);
+                                            if (key === 'период') setIsCustomModalOpen(true);
+                                        }}>
+                                        <Typography.Body>{key === 'год' ? 'Год' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
+                                    </div>
+                                );
+                            })
+                        )}
                     </FilterDropdownPortal>
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
