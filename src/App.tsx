@@ -6144,16 +6144,9 @@ function CargoPage({
                 </div>
             </div>
 
-            {/* Суммирующая строка: 2 в ряд, по центру; при нечётном последний по центру */}
+            {/* Суммирующая строка: 1 ряд если влазит, 2 в ряд только на телефонах */}
             <div className="cargo-card mb-4" style={{ padding: '0.75rem' }}>
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(2, 1fr)',
-                    gap: '1.5rem',
-                    justifyItems: 'center',
-                    maxWidth: 'fit-content',
-                    margin: '0 auto',
-                }}>
+                <div className="summary-metrics">
                     <Flex direction="column" align="center">
                         <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
                         <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
@@ -6166,7 +6159,7 @@ function CargoPage({
                             {Math.round(summary.mest)}
                         </Typography.Body>
                     </Flex>
-                    <Flex direction="column" align="center" style={!useServiceRequest ? { gridColumn: '1 / -1', justifySelf: 'center' } : undefined}>
+                    <Flex direction="column" align="center" className={!useServiceRequest ? 'summary-metrics-item-odd' : undefined}>
                         <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Плат. вес</Typography.Label>
                         <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                             {Math.round(summary.pw)} кг
@@ -6180,7 +6173,7 @@ function CargoPage({
                                     {Math.round(summary.w)} кг
                                 </Typography.Body>
                             </Flex>
-                            <Flex direction="column" align="center" style={{ gridColumn: '1 / -1', justifySelf: 'center' }}>
+                            <Flex direction="column" align="center" className="summary-metrics-item-odd">
                                 <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Объём</Typography.Label>
                                 <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                                     {Math.round(summary.vol)} м³
