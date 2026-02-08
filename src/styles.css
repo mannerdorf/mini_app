@@ -365,6 +365,22 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .tab-icon { margin-bottom: 0.1rem; }
 .tab-label { font-size: 0.7rem; }
 
+/* --- CHAT ICON BUTTONS (Telegram, MAX) --- */
+.chat-icon-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    cursor: pointer;
+    display: block;
+    flex-shrink: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
 /* --- CHAT STYLES (MAX-LIKE) --- */
 .chat-shell {
     background: var(--color-bg-primary);

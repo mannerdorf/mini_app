@@ -3108,7 +3108,7 @@ function AiChatProfilePage({
                             }
                         }}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (e.target as HTMLImageElement).click(); } }}
-                        style={{ width: 36, height: 36, cursor: 'pointer', display: 'block', flexShrink: 0, border: 'none', outline: 'none', background: 'transparent' }}
+                        className="chat-icon-btn"
                     />
                 )}
                 {onOpenMaxBot && (
@@ -3127,7 +3127,7 @@ function AiChatProfilePage({
                             }
                         }}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (e.target as HTMLImageElement).click(); } }}
-                        style={{ width: 36, height: 36, cursor: 'pointer', display: 'block', flexShrink: 0, border: 'none', outline: 'none', background: 'transparent' }}
+                        className="chat-icon-btn"
                     />
                 )}
             </Flex>
