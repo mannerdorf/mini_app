@@ -289,13 +289,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // Если это обычное текстовое сообщение — отвечаем через ИИ
+  // Если это обычное текстовое сообщение — отвечаем через ИИ, с авторизацией из привязки
   if (rawText) {
     const userText = rawText;
     console.log("MAX webhook: AI request for text:", userText.slice(0, 100));
 
     try {
       const replyTarget = senderId ?? chatId;
+      const chatIdStr = String(chatId);
+      // Берём привязанный аккаунт (login, password, customer) из Redis — иначе чат не знает, под кем искать перевозки
+      let maxAuth: { login?: string; password?: string; customer?: string } = {};
+      const bindRaw = await getRedisValue(`max:bind:${chatIdStr}`);
+      if (bindRaw) {
+        try {
+          const parsed = JSON.parse(bindRaw);
+          if (parsed?.login && parsed?.password) {
+            maxAuth = {
+              login: String(parsed.login).trim(),
+              password: String(parsed.password).trim(),
+              customer: typeof parsed.customer === "string" ? String(parsed.customer).trim() || undefined : undefined,
+            };
+            console.log("MAX webhook: using linked account, customer:", maxAuth.customer ?? "(none)");
+          }
+        } catch (_) {}
+      }
+      if (!maxAuth.login && !maxAuth.password) {
+        console.log("MAX webhook: no linked account for chatId", chatIdStr);
+      }
+
       const appDomain = process.env.NEXT_PUBLIC_APP_URL
         || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
       const chatUrl = `${appDomain}/api/chat`;
@@ -308,6 +329,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           userId: String(replyTarget ?? chatId),
           message: userText,
           channel: "max",
+          auth: maxAuth.login && maxAuth.password ? { login: maxAuth.login, password: maxAuth.password } : undefined,
+          customer: maxAuth.customer ?? undefined,
         }),
       });
 

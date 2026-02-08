@@ -8592,19 +8592,23 @@ export default function App() {
     const openMaxBotLink = (url: string) => {
         const webApp = getWebApp();
         const isMobile = typeof window !== "undefined" && (window.innerWidth < 768 || /Android|iPhone|iPad/i.test(navigator.userAgent || ""));
-        // На телефоне openLink в MAX часто не срабатывает — открываем в новом окне, чтобы сработал диплинк
-        if (isMobile) {
-            window.open(url, "_blank", "noopener,noreferrer");
-            return;
-        }
+        // Сначала пробуем Bridge.openLink (в MAX может передать ссылку в приложение)
         if (webApp && typeof webApp.openLink === "function") {
             try {
                 webApp.openLink(url);
             } catch (e) {
                 console.warn("[openMaxBotLink] openLink failed:", e);
-                window.open(url, "_blank", "noopener,noreferrer");
             }
-        } else {
+        }
+        // На телефоне openLink часто не срабатывает — через 100 мс пробуем открыть в этом же окне (уход из мини-аппа на диплинк)
+        if (isMobile) {
+            setTimeout(() => {
+                const w = window.open(url, "_blank", "noopener,noreferrer");
+                if (!w || w.closed) window.location.href = url;
+            }, 100);
+            return;
+        }
+        if (!webApp || typeof webApp.openLink !== "function") {
             window.open(url, "_blank", "noopener,noreferrer");
         }
     };
