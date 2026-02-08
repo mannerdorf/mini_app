@@ -34,37 +34,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Логируем весь update для диагностики
   console.log("MAX webhook received full update:", JSON.stringify(update, null, 2));
 
-  // Best-effort extraction of chat_id and payload.
-  // MAX Update shapes can vary; we handle common patterns.
+  // Игнорируем сообщения от бота (не отвечаем сами себе)
+  if (update?.message?.sender?.is_bot === true) {
+    return res.status(200).json({ ok: true });
+  }
+
+  // MAX Update (message_created): update_type, timestamp, message (Message), user_locale.
+  // Message: sender (User), recipient (Recipient), body (MessageBody). В диалоге chat_id нет — отвечаем по user_id отправителя.
   const chatId =
     update?.chat_id ??
     update?.chatId ??
-    update?.message?.chat_id ??
-    update?.message?.chatId ??
     update?.message?.recipient?.chat_id ??
     update?.message?.recipient?.chatId ??
+    update?.message?.chat_id ??
+    update?.message?.chatId ??
     update?.chat?.id ??
     update?.chat?.chat_id ??
+    update?.message?.sender?.user_id ??
+    update?.message?.sender?.userId ??
     update?.user?.id ??
     update?.user_id;
 
   const senderId =
     update?.message?.sender?.user_id ??
     update?.message?.sender?.userId ??
+    update?.message?.sender?.id ??
     update?.sender?.user_id ??
-    update?.sender?.userId;
+    update?.sender?.userId ??
+    update?.sender?.id;
 
   if (!chatId) {
     console.warn("MAX webhook: No chatId found in update:", JSON.stringify(update));
     return res.status(200).json({ ok: true });
   }
 
-  // Проверяем разные источники payload для startapp параметра и текста сообщения
+  // Текст: по доке MAX в message_created текст в message.body (MessageBody). Поддержка body.parts и разных полей.
   let rawText: string =
-    update?.message?.text ??
     update?.message?.body?.text ??
-    update?.message?.content ??
     update?.message?.body?.content ??
+    update?.message?.text ??
+    update?.message?.content ??
     update?.text ??
     update?.payload ??
     update?.start_param ??
@@ -78,6 +87,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     update?.data?.startapp ??
     update?.data?.text ??
     "";
+  if (!rawText && Array.isArray(update?.message?.body?.parts)) {
+    const part = update.message.body.parts.find((p: any) => p?.text ?? p?.content);
+    rawText = (part?.text ?? part?.content ?? "") as string;
+  }
   if (typeof rawText !== "string" && rawText != null) {
     if (typeof (rawText as any)?.text === "string") rawText = (rawText as any).text;
     else if (typeof (rawText as any)?.content === "string") rawText = (rawText as any).content;

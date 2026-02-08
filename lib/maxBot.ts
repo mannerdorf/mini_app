@@ -62,8 +62,14 @@ export async function maxSendMessage(args: {
     attachments: args.attachments,
   });
 
+  // MAX API: для лички можно передать user_id в query (документация POST /messages)
+  const queryUserId = recipient?.user_id ?? (recipient ? undefined : Number.isFinite(numericRecipientUserId) ? numericRecipientUserId : undefined);
+  const url = queryUserId != null
+    ? `${MAX_API_BASE}/messages?user_id=${Number(queryUserId)}`
+    : `${MAX_API_BASE}/messages`;
+
   const send = (authorization: string) =>
-    fetch(`${MAX_API_BASE}/messages`, {
+    fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
