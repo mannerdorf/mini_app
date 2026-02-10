@@ -8009,7 +8009,8 @@ function DocumentsPage({ auth, useServiceRequest = false, activeInn = '' }: { au
                         const dt = row.DateDoc ?? row.Date ?? row.date ?? row.Дата ?? '';
                         const cust = row.Customer ?? row.customer ?? row.Контрагент ?? row.Contractor ?? row.Organization ?? '';
                         const sum = row.SumDoc ?? row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0;
-                        const st = normalizeInvoiceStatus(row.Status ?? row.State ?? row.state ?? row.Статус) || row.Status ?? row.State ?? '';
+                        const rawStatus = row.Status ?? row.State ?? row.state ?? row.Статус ?? '';
+                        const st = (normalizeInvoiceStatus(rawStatus) || rawStatus) as string;
                         const isPaid = st === 'Оплачен';
                         const numberColor = isPaid ? '#22c55e' : undefined;
                         return (
