@@ -29,6 +29,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     password,
     dateFrom = "2024-01-01",
     dateTo = new Date().toISOString().split("T")[0],
+    inn,
+    serviceMode,
   } = body || {};
 
   if (!login || !password) {
@@ -45,6 +47,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const url = new URL(BASE_URL);
   url.searchParams.set("DateB", dateFrom);
   url.searchParams.set("DateE", dateTo);
+  if (!serviceMode && inn && String(inn).trim()) {
+    url.searchParams.set("INN", String(inn).trim());
+  }
 
   try {
     const upstream = await fetch(url.toString(), {
