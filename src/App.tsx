@@ -43,6 +43,11 @@ const isDateToday = (dateStr: string | undefined): boolean => {
     const d = dateStr.split('T')[0];
     return d === getTodayDate();
 };
+const isDateInRange = (dateStr: string | undefined, from: string, to: string): boolean => {
+    if (!dateStr) return false;
+    const d = dateStr.split('T')[0];
+    return d >= from && d <= to;
+};
 const getSixMonthsAgoDate = () => {
     const d = new Date();
     d.setMonth(d.getMonth() - 6); 
@@ -1616,13 +1621,23 @@ function DashboardPage({
         return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
     }, [chartType]);
 
-    /** Монитор доставки: Доставлено сегодня или В пути */
+    /** Монитор доставки: только статус «доставлено» с DateVr в выбранном периоде (без фильтра по заказчику) */
     const deliveryFilteredItems = useMemo(() => {
-        return filteredItems.filter(i => {
-            const key = getFilterKeyByStatus(i.State);
-            return (key === 'delivered' && isDateToday(i.DateVr)) || key === 'in_transit';
-        });
-    }, [filteredItems]);
+        let res = items.filter(i => !isReceivedInfoStatus(i.State));
+        if (statusFilter === 'favorites') {
+            const favorites = JSON.parse(localStorage.getItem('haulz.favorites') || '[]') as string[];
+            res = res.filter(i => i.Number && favorites.includes(i.Number));
+        }
+        res = res.filter(i => getFilterKeyByStatus(i.State) === 'delivered' && isDateInRange(i.DateVr, apiDateRange.dateFrom, apiDateRange.dateTo));
+        if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
+        if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
+        if (billStatusFilter !== 'all') res = res.filter(i => getPaymentFilterKey(i.StateBill) === billStatusFilter);
+        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
+        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
+        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
+        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
+        return res;
+    }, [items, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter, apiDateRange]);
     const deliveryStripTotals = useMemo(() => {
         let sum = 0, pw = 0, w = 0, vol = 0, mest = 0;
         deliveryFilteredItems.forEach(item => {
@@ -1635,16 +1650,16 @@ function DashboardPage({
         return { sum, pw, w, vol, mest };
     }, [deliveryFilteredItems]);
     const deliveryStripDiagramByType = useMemo(() => {
-        let deliveredVal = 0, inTransitVal = 0;
+        let autoVal = 0, ferryVal = 0;
         deliveryFilteredItems.forEach(item => {
             const v = getValForChart(item);
-            if (getFilterKeyByStatus(item.State) === 'delivered') deliveredVal += v;
-            else inTransitVal += v;
+            if (item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1) ferryVal += v;
+            else autoVal += v;
         });
-        const total = deliveredVal + inTransitVal || 1;
+        const total = autoVal + ferryVal || 1;
         return [
-            { label: 'Доставлено сегодня', value: deliveredVal, percent: Math.round((deliveredVal / total) * 100), color: DIAGRAM_COLORS[2] },
-            { label: 'В пути', value: inTransitVal, percent: Math.round((inTransitVal / total) * 100), color: DIAGRAM_COLORS[1] },
+            { label: 'Авто', value: autoVal, percent: Math.round((autoVal / total) * 100), color: DIAGRAM_COLORS[0] },
+            { label: 'Паром', value: ferryVal, percent: Math.round((ferryVal / total) * 100), color: DIAGRAM_COLORS[1] },
         ];
     }, [deliveryFilteredItems, chartType, getValForChart]);
     const deliveryStripDiagramBySender = useMemo(() => {
@@ -2252,6 +2267,9 @@ function DashboardPage({
 
             {showSums && (
             <>
+            {useServiceRequest && (
+                <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>Приемка</Typography.Body>
+            )}
             {/* Раскрывающаяся полоска: в свёрнутом виде — период + переключатели; в развёрнутом — переключатель и диаграммы */}
             <div
                 className="home-strip"
@@ -2476,11 +2494,14 @@ function DashboardPage({
                 )}
             </div>
 
-            {/* Монитор доставки: Доставлено сегодня / В пути */}
+            {/* Монитор доставки: только статус «доставлено» в выбранном периоде (только в служебном режиме, без заказчика) */}
+            {useServiceRequest && (
+            <>
+            <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.35rem', marginTop: '0.5rem' }}>Доставка</Typography.Body>
             <div className="home-strip" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: '12px', marginBottom: '1rem', overflow: 'hidden' }}>
                 <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0.75rem 1rem', minWidth: 0 }}>
                     <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600, fontSize: '0.6rem' }}>
-                        <DateText value={getTodayDate()} /> — Доставка
+                        <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} /> — Доставлено
                     </Typography.Body>
                     <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }}>
                         <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Рубли"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
@@ -2551,6 +2572,8 @@ function DashboardPage({
                     </div>
                 </div>
             </div>
+            </>
+            )}
             </>
             )}
 
