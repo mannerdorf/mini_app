@@ -118,12 +118,9 @@ const getDateRange = (filter: DateFilter) => {
         case 'вчера': (() => { const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1); const d = yesterday.toISOString().split('T')[0]; dateFrom = d; dateTo = d; })(); break;
         case 'неделя': {
             const d = new Date();
-            const day = d.getDay();
-            const daysToMonday = (day + 6) % 7;
-            d.setDate(d.getDate() - daysToMonday - 7);
+            d.setDate(d.getDate() - 6);
             dateFrom = d.toISOString().split('T')[0];
-            d.setDate(d.getDate() + 6);
-            dateTo = d.toISOString().split('T')[0];
+            dateTo = getTodayDate();
             break;
         }
         case 'месяц': today.setMonth(today.getMonth() - 1); dateFrom = today.toISOString().split('T')[0]; break;
