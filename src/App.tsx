@@ -38,6 +38,11 @@ const PROXY_API_GETPEREVOZKA_URL = '/api/getperevozka';
 
 // --- CONSTANTS ---
 const getTodayDate = () => new Date().toISOString().split('T')[0];
+const isDateToday = (dateStr: string | undefined): boolean => {
+    if (!dateStr) return false;
+    const d = dateStr.split('T')[0];
+    return d === getTodayDate();
+};
 const getSixMonthsAgoDate = () => {
     const d = new Date();
     d.setMonth(d.getMonth() - 6); 
@@ -45,6 +50,30 @@ const getSixMonthsAgoDate = () => {
 };
 const DEFAULT_DATE_FROM = getSixMonthsAgoDate();
 const DEFAULT_DATE_TO = getTodayDate();
+const DATE_FILTER_STORAGE_KEY = 'haulz.dateFilterState';
+
+type DateFilterState = {
+    dateFilter: DateFilter;
+    customDateFrom: string;
+    customDateTo: string;
+    selectedMonthForFilter: { year: number; month: number } | null;
+    selectedYearForFilter: number | null;
+    selectedWeekForFilter: string | null;
+};
+
+const loadDateFilterState = (): Partial<DateFilterState> | null => {
+    try {
+        const s = typeof localStorage !== 'undefined' && localStorage.getItem(DATE_FILTER_STORAGE_KEY);
+        if (s) return JSON.parse(s) as Partial<DateFilterState>;
+    } catch {}
+    return null;
+};
+
+const saveDateFilterState = (state: DateFilterState) => {
+    try {
+        typeof localStorage !== 'undefined' && localStorage.setItem(DATE_FILTER_STORAGE_KEY, JSON.stringify(state));
+    } catch {}
+};
 
 /** Плановые сроки доставки (дней): MSK-KGD авто 7 / паром 20; KGD-MSK авто и паром 60 */
 const AUTO_PLAN_DAYS = 7;
@@ -1186,17 +1215,21 @@ function DashboardPage({
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
-    // Filters State (такие же как на странице грузов)
-    const [dateFilter, setDateFilter] = useState<DateFilter>("год");
+    // Filters State (такие же как на странице грузов); при переключении вкладок восстанавливаем из localStorage
+    const initDate = () => loadDateFilterState();
+    const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-    const [customDateFrom, setCustomDateFrom] = useState(DEFAULT_DATE_FROM);
-    const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
+    const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
+    const [customDateTo, setCustomDateTo] = useState(() => initDate()?.customDateTo ?? DEFAULT_DATE_TO);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
-    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(null);
-    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(null);
-    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(null);
+    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(() => initDate()?.selectedMonthForFilter ?? null);
+    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDate()?.selectedYearForFilter ?? null);
+    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDate()?.selectedWeekForFilter ?? null);
+    useEffect(() => {
+        saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
+    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
     const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1229,8 +1262,10 @@ function DashboardPage({
     // Chart type selector: деньги / вес / объём (при !showSums доступны только вес и объём)
     const [chartType, setChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>(() => (showSums ? 'money' : 'paidWeight'));
     const [stripTab, setStripTab] = useState<'type' | 'sender' | 'receiver' | 'customer'>('type');
+    const [deliveryStripTab, setDeliveryStripTab] = useState<'type' | 'sender' | 'receiver'>('type');
     /** true = показывать проценты, false = показывать в рублях/кг/м³/шт (по типу графика) */
     const [stripShowAsPercent, setStripShowAsPercent] = useState(true);
+    const [deliveryStripShowAsPercent, setDeliveryStripShowAsPercent] = useState(true);
     /** Раскрытая строка в таблице «Перевозки вне SLA»: по клику показываем статусы в виде таблицы */
     const [expandedSlaCargoNumber, setExpandedSlaCargoNumber] = useState<string | null>(null);
     const [expandedSlaItem, setExpandedSlaItem] = useState<CargoItem | null>(null);
@@ -1580,6 +1615,60 @@ function DashboardPage({
         if (chartType === 'pieces') return typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
         return typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
     }, [chartType]);
+
+    /** Монитор доставки: Доставлено сегодня или В пути */
+    const deliveryFilteredItems = useMemo(() => {
+        return filteredItems.filter(i => {
+            const key = getFilterKeyByStatus(i.State);
+            return (key === 'delivered' && isDateToday(i.DateVr)) || key === 'in_transit';
+        });
+    }, [filteredItems]);
+    const deliveryStripTotals = useMemo(() => {
+        let sum = 0, pw = 0, w = 0, vol = 0, mest = 0;
+        deliveryFilteredItems.forEach(item => {
+            sum += typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+            pw += typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            w += typeof item.W === 'string' ? parseFloat(item.W) || 0 : (item.W || 0);
+            vol += typeof item.Value === 'string' ? parseFloat(item.Value) || 0 : (item.Value || 0);
+            mest += typeof item.Mest === 'string' ? parseFloat(item.Mest) || 0 : (item.Mest || 0);
+        });
+        return { sum, pw, w, vol, mest };
+    }, [deliveryFilteredItems]);
+    const deliveryStripDiagramByType = useMemo(() => {
+        let deliveredVal = 0, inTransitVal = 0;
+        deliveryFilteredItems.forEach(item => {
+            const v = getValForChart(item);
+            if (getFilterKeyByStatus(item.State) === 'delivered') deliveredVal += v;
+            else inTransitVal += v;
+        });
+        const total = deliveredVal + inTransitVal || 1;
+        return [
+            { label: 'Доставлено сегодня', value: deliveredVal, percent: Math.round((deliveredVal / total) * 100), color: DIAGRAM_COLORS[2] },
+            { label: 'В пути', value: inTransitVal, percent: Math.round((inTransitVal / total) * 100), color: DIAGRAM_COLORS[1] },
+        ];
+    }, [deliveryFilteredItems, chartType, getValForChart]);
+    const deliveryStripDiagramBySender = useMemo(() => {
+        const map = new Map<string, number>();
+        deliveryFilteredItems.forEach(item => {
+            const key = (item.Sender ?? '').trim() || '—';
+            map.set(key, (map.get(key) || 0) + getValForChart(item));
+        });
+        const total = [...map.values()].reduce((a, b) => a + b, 0) || 1;
+        return [...map.entries()]
+            .map(([name, value], i) => ({ name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length] }))
+            .sort((a, b) => b.value - a.value);
+    }, [deliveryFilteredItems, chartType, getValForChart]);
+    const deliveryStripDiagramByReceiver = useMemo(() => {
+        const map = new Map<string, number>();
+        deliveryFilteredItems.forEach(item => {
+            const key = (item.Receiver ?? (item as any).receiver ?? '').trim() || '—';
+            map.set(key, (map.get(key) || 0) + getValForChart(item));
+        });
+        const total = [...map.values()].reduce((a, b) => a + b, 0) || 1;
+        return [...map.entries()]
+            .map(([name, value], i) => ({ name: stripOoo(name), value, percent: Math.round((value / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length] }))
+            .sort((a, b) => b.value - a.value);
+    }, [deliveryFilteredItems, chartType, getValForChart]);
 
     const stripDiagramByType = useMemo(() => {
         let autoVal = 0, ferryVal = 0;
@@ -2385,6 +2474,82 @@ function DashboardPage({
                         </div>
                     </div>
                 )}
+            </div>
+
+            {/* Монитор доставки: Доставлено сегодня / В пути */}
+            <div className="home-strip" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: '12px', marginBottom: '1rem', overflow: 'hidden' }}>
+                <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', padding: '0.75rem 1rem', minWidth: 0 }}>
+                    <Typography.Body style={{ color: 'var(--color-primary-blue)', fontWeight: 600, fontSize: '0.6rem' }}>
+                        <DateText value={getTodayDate()} /> — Доставка
+                    </Typography.Body>
+                    <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }}>
+                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none' }} onClick={() => setChartType('money')} title="Рубли"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'paidWeight' ? '#10b981' : 'transparent', border: 'none' }} onClick={() => setChartType('paidWeight')} title="Платный вес"><Scale className="w-4 h-4" style={{ color: chartType === 'paidWeight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'weight' ? '#0d9488' : 'transparent', border: 'none' }} onClick={() => setChartType('weight')} title="Вес"><Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'volume' ? '#f59e0b' : 'transparent', border: 'none' }} onClick={() => setChartType('volume')} title="Объём"><List className="w-4 h-4" style={{ color: chartType === 'volume' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        <Button className="filter-button" style={{ padding: '0.35rem', minWidth: 'auto', background: chartType === 'pieces' ? '#8b5cf6' : 'transparent', border: 'none' }} onClick={() => setChartType('pieces')} title="Шт"><Package className="w-4 h-4" style={{ color: chartType === 'pieces' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                    </Flex>
+                </div>
+                <div style={{ padding: '1.25rem 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
+                    <Flex align="center" gap="0.5rem" style={{ marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.6rem' }}>
+                            {chartType === 'money' ? `${Math.round(deliveryStripTotals.sum || 0).toLocaleString('ru-RU')} ₽` : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(deliveryStripTotals.pw || 0).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(deliveryStripTotals.mest || 0).toLocaleString('ru-RU')} шт` : `${(deliveryStripTotals.vol || 0).toFixed(2).replace('.', ',')} м³`}
+                        </Typography.Body>
+                    </Flex>
+                    <div style={{ marginBottom: '0.75rem' }}>
+                        <Flex gap="0.5rem" style={{ flexWrap: 'nowrap', minWidth: 'min-content' }}>
+                            {(['type', 'sender', 'receiver'] as const).map((tab) => (
+                                <Button key={tab} className="filter-button" style={{ flexShrink: 0, padding: '0.5rem 0.75rem', background: deliveryStripTab === tab ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)', color: deliveryStripTab === tab ? 'white' : 'var(--color-text-primary)', border: deliveryStripTab === tab ? '1px solid var(--color-primary-blue)' : '1px solid var(--color-border)' }} onClick={() => setDeliveryStripTab(tab)}>
+                                    {tab === 'type' ? 'Тип' : tab === 'sender' ? 'Отправитель' : 'Получатель'}
+                                </Button>
+                            ))}
+                        </Flex>
+                    </div>
+                    <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                        {deliveryStripTab === 'type' && deliveryStripDiagramByType.map((row, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.color, flexShrink: 0 }} />
+                                <Typography.Body style={{ flexShrink: 0, width: 140 }}>{row.label}</Typography.Body>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                        <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4 }} />
+                                    </div>
+                                </div>
+                                <Typography.Body component="span" style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); setDeliveryStripShowAsPercent(p => !p); }} title={deliveryStripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}>
+                                    {deliveryStripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
+                                </Typography.Body>
+                            </div>
+                        ))}
+                        {deliveryStripTab === 'sender' && deliveryStripDiagramBySender.map((row, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.color, flexShrink: 0 }} />
+                                <Typography.Body style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={row.name}>{row.name}</Typography.Body>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                        <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4 }} />
+                                    </div>
+                                </div>
+                                <Typography.Body component="span" style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); setDeliveryStripShowAsPercent(p => !p); }}>
+                                    {deliveryStripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
+                                </Typography.Body>
+                            </div>
+                        ))}
+                        {deliveryStripTab === 'receiver' && deliveryStripDiagramByReceiver.map((row, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: row.color, flexShrink: 0 }} />
+                                <Typography.Body style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }} title={row.name}>{row.name}</Typography.Body>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                        <div style={{ width: `${row.percent}%`, height: '100%', background: row.color, borderRadius: 4 }} />
+                                    </div>
+                                </div>
+                                <Typography.Body component="span" style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); setDeliveryStripShowAsPercent(p => !p); }}>
+                                    {deliveryStripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
+                                </Typography.Body>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
             </>
             )}
@@ -5514,17 +5679,21 @@ function CargoPage({
     const [error, setError] = useState<string | null>(null);
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
     
-    // Filters State
-    const [dateFilter, setDateFilter] = useState<DateFilter>("год");
+    // Filters State; при переключении вкладок восстанавливаем из localStorage
+    const initDateCargo = () => loadDateFilterState();
+    const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDateCargo()?.dateFilter ?? "месяц");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-    const [customDateFrom, setCustomDateFrom] = useState(DEFAULT_DATE_FROM);
-    const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
+    const [customDateFrom, setCustomDateFrom] = useState(() => initDateCargo()?.customDateFrom ?? DEFAULT_DATE_FROM);
+    const [customDateTo, setCustomDateTo] = useState(() => initDateCargo()?.customDateTo ?? DEFAULT_DATE_TO);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
-    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(null);
-    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(null);
-    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(null);
+    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(() => initDateCargo()?.selectedMonthForFilter ?? null);
+    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDateCargo()?.selectedYearForFilter ?? null);
+    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDateCargo()?.selectedWeekForFilter ?? null);
+    useEffect(() => {
+        saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
+    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
     const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
