@@ -5401,7 +5401,7 @@ function CargoPage({
         };
     }, [filteredItems]);
 
-    /** Группировка по заказчику для табличного режима (только при useServiceRequest) */
+    /** Группировка по заказчику для табличного режима */
     const groupedByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: CargoItem[]; sum: number; mest: number; pw: number; w: number; vol: number }>();
         filteredItems.forEach(item => {
@@ -5460,20 +5460,18 @@ function CargoPage({
     return (
         <div className="w-full">
             <div className="cargo-page-sticky-header">
-            {/* Заголовок вкладки и переключатель «Таблица по заказчику» */}
+            {/* Заголовок вкладки и переключатель «Таблица» */}
             <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>Грузы</Typography.Headline>
-                {useServiceRequest && (
-                    <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                        <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица по заказчику</Typography.Body>
-                        <span className="roles-switch-wrap">
-                            <TapSwitch
-                                checked={tableModeByCustomer}
-                                onToggle={() => setTableModeByCustomer(v => !v)}
-                            />
-                        </span>
-                    </Flex>
-                )}
+                <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                    <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
+                    <span className="roles-switch-wrap">
+                        <TapSwitch
+                            checked={tableModeByCustomer}
+                            onToggle={() => setTableModeByCustomer(v => !v)}
+                        />
+                    </span>
+                </Flex>
             </Flex>
             {/* Filters */}
             <div className="filters-container filters-row-scroll">
@@ -5768,8 +5766,8 @@ function CargoPage({
                 </Panel>
             )}
 
-            {/* Табличный режим по заказчику (служебный режим) */}
-            {!loading && !error && useServiceRequest && tableModeByCustomer && groupedByCustomer.length > 0 && (
+            {/* Табличный режим по заказчику */}
+            {!loading && !error && tableModeByCustomer && groupedByCustomer.length > 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -5862,7 +5860,7 @@ function CargoPage({
             )}
             
             {/* List (карточки) — скрываем в табличном режиме */}
-            {filteredItems.length > 0 && !(useServiceRequest && tableModeByCustomer) && (
+            {filteredItems.length > 0 && !tableModeByCustomer && (
             <div className="cargo-list">
                 {filteredItems.map((item: CargoItem, idx: number) => {
                     const sla = getSlaInfo(item);
