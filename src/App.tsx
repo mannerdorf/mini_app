@@ -1,4 +1,4 @@
-import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect } from "react";
+import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect, Suspense, lazy } from "react";
 import {
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
     Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship
@@ -22,64 +22,26 @@ import { getWebApp, isMaxWebApp, isMaxDocsEnabled } from "./webApp";
 import { DOCUMENT_METHODS } from "./documentMethods";
 // import { NotificationsPage } from "./pages/NotificationsPage"; // temporarily disabled
 import { TapSwitch } from "./components/TapSwitch";
+import { FilterDropdownPortal } from "./components/ui/FilterDropdownPortal";
+import { DateText } from "./components/ui/DateText";
+import { FilterDialog } from "./components/shared/FilterDialog";
+import { StatusBadge, StatusBillBadge } from "./components/shared/StatusBadges";
+import { normalizeStatus, getFilterKeyByStatus, getPaymentFilterKey, getSumColorByPaymentStatus, isReceivedInfoStatus, getStatusClass, BILL_STATUS_MAP, STATUS_MAP } from "./lib/statusUtils";
+import type { BillStatusFilterKey } from "./lib/statusUtils";
+import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
+const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then(m => ({ default: m.DocumentsPage })));
+import * as dateUtils from "./lib/dateUtils";
+import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
+import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
+import { usePerevozki, usePerevozkiMulti, usePrevPeriodPerevozki } from "./hooks/useApi";
 import type {
     Account, ApiError, AuthData, CargoItem, CargoStat, CompanyRow, CustomerOption,
     DateFilter, HaulzOffice, HeaderCompanyRow, HomePeriodFilter, PerevozkaTimelineStep,
     PerevozkiRole, ProfileView, StatusFilter, Tab,
 } from "./types";
 
-// --- CONFIGURATION ---
-const PROXY_API_BASE_URL = '/api/perevozki';
-const PROXY_API_GETCUSTOMERS_URL = '/api/getcustomers';
-// GetPerevozki и Getcustomers — только для авторизации. Запрос данных перевозок — только GetPerevozki с DateB, DateE, INN (через PROXY_API_BASE_URL с auth.inn).
-const PROXY_API_DOWNLOAD_URL = '/api/download';
-const PROXY_API_SEND_DOC_URL = '/api/send-document';
-const PROXY_API_GETPEREVOZKA_URL = '/api/getperevozka';
-const PROXY_API_INVOICES_URL = '/api/invoices';
-
-// --- CONSTANTS ---
-const getTodayDate = () => new Date().toISOString().split('T')[0];
-const isDateToday = (dateStr: string | undefined): boolean => {
-    if (!dateStr) return false;
-    const d = dateStr.split('T')[0];
-    return d === getTodayDate();
-};
-const isDateInRange = (dateStr: string | undefined, from: string, to: string): boolean => {
-    if (!dateStr) return false;
-    const d = dateStr.split('T')[0];
-    return d >= from && d <= to;
-};
-const getSixMonthsAgoDate = () => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 6); 
-    return d.toISOString().split('T')[0];
-};
-const DEFAULT_DATE_FROM = getSixMonthsAgoDate();
-const DEFAULT_DATE_TO = getTodayDate();
-const DATE_FILTER_STORAGE_KEY = 'haulz.dateFilterState';
-
-type DateFilterState = {
-    dateFilter: DateFilter;
-    customDateFrom: string;
-    customDateTo: string;
-    selectedMonthForFilter: { year: number; month: number } | null;
-    selectedYearForFilter: number | null;
-    selectedWeekForFilter: string | null;
-};
-
-const loadDateFilterState = (): Partial<DateFilterState> | null => {
-    try {
-        const s = typeof localStorage !== 'undefined' && localStorage.getItem(DATE_FILTER_STORAGE_KEY);
-        if (s) return JSON.parse(s) as Partial<DateFilterState>;
-    } catch {}
-    return null;
-};
-
-const saveDateFilterState = (state: DateFilterState) => {
-    try {
-        typeof localStorage !== 'undefined' && localStorage.setItem(DATE_FILTER_STORAGE_KEY, JSON.stringify(state));
-    } catch {}
-};
+const { getTodayDate, isDateToday, isDateInRange, getSixMonthsAgoDate, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, loadDateFilterState, saveDateFilterState, getDateRange, MONTH_NAMES, getWeekRange, getPreviousPeriodRange, getWeeksList, getYearsList, formatDate, formatDateTime, formatTimelineDate, formatTimelineTime, getDateTextColor } = dateUtils;
+type DateFilterState = dateUtils.DateFilterState;
 
 /** Плановые сроки доставки (дней): MSK-KGD авто 7 / паром 20; KGD-MSK авто и паром 60 */
 const AUTO_PLAN_DAYS = 7;
@@ -140,517 +102,6 @@ const STATS_LEVEL_2: { [key: string]: CargoStat[] } = {
         { key: 'vol_boxes', label: 'Кол-во мест', icon: Layers, value: 125, unit: 'шт', bgColor: 'bg-teal-400' },
     ],
 };
-
-
-// --- HELPERS ---
-const getDateRange = (filter: DateFilter) => {
-    const today = new Date();
-    let dateTo = getTodayDate();
-    let dateFrom = getTodayDate();
-    switch (filter) {
-        case 'все': dateFrom = getSixMonthsAgoDate(); break;
-        case 'сегодня': dateFrom = getTodayDate(); break;
-        case 'вчера': (() => { const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1); const d = yesterday.toISOString().split('T')[0]; dateFrom = d; dateTo = d; })(); break;
-        case 'неделя': {
-            const d = new Date();
-            d.setDate(d.getDate() - 6);
-            dateFrom = d.toISOString().split('T')[0];
-            dateTo = getTodayDate();
-            break;
-        }
-        case 'месяц': today.setMonth(today.getMonth() - 1); dateFrom = today.toISOString().split('T')[0]; break;
-        case 'год': today.setDate(today.getDate() - 365); dateFrom = today.toISOString().split('T')[0]; break;
-        default: break;
-    }
-    return { dateFrom, dateTo };
-}
-
-/** Вычисляет предыдущий период для сравнения (неделя/месяц/год/период) */
-const getPreviousPeriodRange = (filter: DateFilter, currentFrom: string, currentTo: string): { dateFrom: string; dateTo: string } | null => {
-    const today = new Date();
-    let dateTo: string;
-    let dateFrom: string;
-    
-    switch (filter) {
-        case 'неделя': {
-            // Предыдущая неделя: 7 дней назад от начала текущей недели
-            const currentFromDate = new Date(currentFrom + 'T00:00:00');
-            const prevWeekEnd = new Date(currentFromDate);
-            prevWeekEnd.setDate(prevWeekEnd.getDate() - 1);
-            const prevWeekStart = new Date(prevWeekEnd);
-            prevWeekStart.setDate(prevWeekStart.getDate() - 6);
-            dateFrom = prevWeekStart.toISOString().split('T')[0];
-            dateTo = prevWeekEnd.toISOString().split('T')[0];
-            break;
-        }
-        case 'месяц': {
-            // Предыдущий месяц
-            const currentFromDate = new Date(currentFrom + 'T00:00:00');
-            const prevMonthEnd = new Date(currentFromDate);
-            prevMonthEnd.setDate(0); // Последний день предыдущего месяца
-            const prevMonthStart = new Date(prevMonthEnd.getFullYear(), prevMonthEnd.getMonth(), 1);
-            dateFrom = prevMonthStart.toISOString().split('T')[0];
-            dateTo = prevMonthEnd.toISOString().split('T')[0];
-            break;
-        }
-        case 'год': {
-            const currentFromDate = new Date(currentFrom + 'T00:00:00');
-            const currentToDate = new Date(currentTo + 'T00:00:00');
-            const daysDiff = Math.ceil((currentToDate.getTime() - currentFromDate.getTime()) / (1000 * 60 * 60 * 24));
-            if (daysDiff >= 350 && daysDiff <= 366) {
-                // 365 дней — предыдущий период той же длительности
-                const prevPeriodEnd = new Date(currentFromDate);
-                prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1);
-                const prevPeriodStart = new Date(prevPeriodEnd);
-                prevPeriodStart.setDate(prevPeriodStart.getDate() - daysDiff);
-                dateFrom = prevPeriodStart.toISOString().split('T')[0];
-                dateTo = prevPeriodEnd.toISOString().split('T')[0];
-            } else {
-                const currentYear = currentFromDate.getFullYear();
-                const prevYear = currentYear - 1;
-                dateFrom = `${prevYear}-01-01`;
-                dateTo = `${prevYear}-12-31`;
-            }
-            break;
-        }
-        case 'период': {
-            // Для кастомного периода: предыдущий период той же длительности
-            const currentFromDate = new Date(currentFrom + 'T00:00:00');
-            const currentToDate = new Date(currentTo + 'T00:00:00');
-            const daysDiff = Math.ceil((currentToDate.getTime() - currentFromDate.getTime()) / (1000 * 60 * 60 * 24));
-            const prevPeriodEnd = new Date(currentFromDate);
-            prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1);
-            const prevPeriodStart = new Date(prevPeriodEnd);
-            prevPeriodStart.setDate(prevPeriodStart.getDate() - daysDiff);
-            dateFrom = prevPeriodStart.toISOString().split('T')[0];
-            dateTo = prevPeriodEnd.toISOString().split('T')[0];
-            break;
-        }
-        default:
-            return null; // Для 'сегодня', 'вчера', 'все' не считаем предыдущий период
-    }
-    
-    return { dateFrom, dateTo };
-}
-
-const WEEKDAY_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'] as const;
-const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'] as const;
-const MONTH_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'] as const;
-
-/** Диапазон недели по понедельнику (пн–вс) */
-const getWeekRange = (mondayIso: string) => {
-    const mon = new Date(mondayIso + 'T00:00:00');
-    const sun = new Date(mon); sun.setDate(sun.getDate() + 6);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return {
-        dateFrom: `${mon.getFullYear()}-${pad(mon.getMonth() + 1)}-${pad(mon.getDate())}`,
-        dateTo: `${sun.getFullYear()}-${pad(sun.getMonth() + 1)}-${pad(sun.getDate())}`,
-    };
-};
-
-/** Список последних n недель (пн–вс) */
-const getWeeksList = (count: number) => {
-    const weeks: { monday: string; label: string }[] = [];
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    for (let i = 0; i < count; i++) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i * 7);
-        const day = d.getDay();
-        const daysToMonday = (day + 6) % 7;
-        d.setDate(d.getDate() - daysToMonday);
-        const monday = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-        const sun = new Date(d); sun.setDate(sun.getDate() + 6);
-        const label = `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} – ${sun.getDate()} ${MONTH_SHORT[sun.getMonth()]} ${sun.getFullYear()}`;
-        weeks.push({ monday, label });
-    }
-    return weeks;
-};
-
-/** Годы для выбора (текущий и несколько прошлых) */
-const getYearsList = (count: number) => {
-    const y = new Date().getFullYear();
-    return Array.from({ length: count }, (_, i) => y - i);
-};
-
-const formatDate = (dateString: string | undefined): string => {
-    if (!dateString) return '-';
-    try {
-        const cleanDateString = dateString.split('T')[0];
-        const date = new Date(cleanDateString);
-        if (!isNaN(date.getTime())) {
-            const dayShort = WEEKDAY_SHORT[date.getDay()] ?? '';
-            return dayShort ? `${dayShort}, ${date.toLocaleDateString('ru-RU')}` : date.toLocaleDateString('ru-RU');
-        }
-    } catch { }
-    return dateString;
-};
-
-/** Дата и время (день недели + DD.MM.YYYY, HH:mm) для статусов перевозки; withPlus — со знаком + перед временем (со 2-й строки) */
-const formatDateTime = (dateString: string | undefined, withPlus?: boolean): string => {
-    if (!dateString) return '-';
-    try {
-        const date = new Date(dateString);
-        if (!isNaN(date.getTime())) {
-            const dayShort = WEEKDAY_SHORT[date.getDay()] ?? '';
-            const d = dayShort ? `${dayShort}, ${date.toLocaleDateString('ru-RU')}` : date.toLocaleDateString('ru-RU');
-            const t = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: undefined });
-            return withPlus ? `${d}, +${t}` : `${d}, ${t}`;
-        }
-    } catch { }
-    return dateString;
-};
-
-/** Только дата (день недели + DD.MM.YYYY) для колонки «Дата доставки» в статусах перевозки */
-const formatTimelineDate = (dateString: string | undefined): string => {
-    if (!dateString) return '—';
-    try {
-        const date = new Date(dateString);
-        if (!isNaN(date.getTime())) {
-            const dayShort = WEEKDAY_SHORT[date.getDay()] ?? '';
-            return dayShort ? `${dayShort}, ${date.toLocaleDateString('ru-RU')}` : date.toLocaleDateString('ru-RU');
-        }
-    } catch { }
-    return dateString;
-};
-
-/** Только время (HH:mm) для колонки «Время доставки» в статусах перевозки; withPlus — со знаком + */
-const formatTimelineTime = (dateString: string | undefined, withPlus?: boolean): string => {
-    if (!dateString) return '—';
-    try {
-        const date = new Date(dateString);
-        if (!isNaN(date.getTime())) {
-            const t = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: undefined });
-            return withPlus ? `+${t}` : t;
-        }
-    } catch { }
-    return '—';
-};
-
-const HOLIDAYS_MM_DD = new Set([
-    "01-01", "01-02", "01-03", "01-04", "01-05", "01-06", "01-07", "01-08",
-    "02-23", "03-08", "05-01", "05-09", "06-12", "11-04",
-]);
-
-const parseDateOnly = (dateString: string | undefined): Date | null => {
-    if (!dateString) return null;
-    let clean = dateString.split("T")[0].trim();
-    const dayDateMatch = clean.match(/,\s*(\d{2}\.\d{2}\.\d{4})$/);
-    if (dayDateMatch) clean = dayDateMatch[1];
-    if (!clean) return null;
-    const isoMatch = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (isoMatch) {
-        const [, y, m, d] = isoMatch;
-        return new Date(Number(y), Number(m) - 1, Number(d));
-    }
-    const dotMatch = clean.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-    if (dotMatch) {
-        const [, d, m, y] = dotMatch;
-        return new Date(Number(y), Number(m) - 1, Number(d));
-    }
-    const slashMatch = clean.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (slashMatch) {
-        const [, d, m, y] = slashMatch;
-        return new Date(Number(y), Number(m) - 1, Number(d));
-    }
-    const parsed = new Date(clean);
-    return isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const DAY_SHORT: Record<number, string> = { 0: "вс", 1: "пн", 2: "вт", 3: "ср", 4: "чт", 5: "пт", 6: "сб" };
-
-const getDateInfo = (dateString: string | undefined) => {
-    const date = parseDateOnly(dateString);
-    if (!date) return { text: dateString || '-', dayShort: "", isWeekend: false, isHoliday: false };
-    const day = date.getDay();
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
-    const yyyy = date.getFullYear();
-    const dateOnly = `${dd}.${mm}.${yyyy}`;
-    const key = `${mm}-${dd}`;
-    const isWeekend = day === 0 || day === 6;
-    const isHoliday = HOLIDAYS_MM_DD.has(key);
-    const dayShort = DAY_SHORT[day] ?? "";
-    return { text: dateOnly, dayShort, isWeekend, isHoliday };
-};
-
-const getDateTextColor = (dateString: string | undefined) => {
-    const info = getDateInfo(dateString);
-    return info.isHoliday || info.isWeekend ? "#ef4444" : "var(--color-text-secondary)";
-};
-
-/** День недели 1 раз; выходные и праздники — день недели красным */
-const DateText = ({ value, className, style }: { value?: string; className?: string; style?: React.CSSProperties }) => {
-    const info = getDateInfo(value);
-    const isRedDay = info.isWeekend || info.isHoliday;
-    return (
-        <span className={className || undefined} style={style}>
-            {info.dayShort ? (
-                <>
-                    <span style={isRedDay ? { color: "#ef4444" } : undefined}>{info.dayShort}</span>
-                    {", "}
-                    {info.text}
-                </>
-            ) : (
-                info.text
-            )}
-        </span>
-    );
-};
-
-const formatCurrency = (value: number | string | undefined, integers?: boolean): string => {
-    if (value === undefined || value === null || (typeof value === 'string' && value.trim() === "")) return '-';
-    const num = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : value;
-    if (isNaN(num)) return String(value);
-    const rounded = integers ? Math.round(num) : num;
-    return new Intl.NumberFormat('ru-RU', {
-        style: 'currency',
-        currency: 'RUB',
-        minimumFractionDigits: integers ? 0 : 2,
-        maximumFractionDigits: integers ? 0 : 2,
-    }).format(rounded);
-};
-
-/** Все города Калининградской области → KGD; все города Московской области → MSK */
-const cityToCode = (city: string | number | undefined | null): string => {
-    if (city === undefined || city === null) return '';
-    const s = String(city).trim().toLowerCase();
-    // Калининградская область: область, Калининград и города области
-    if (/калининградская\s*область|калининград|кгд/.test(s)) return 'KGD';
-    if (/советск|черняховск|балтийск|гусев|светлый|гурьевск|зеленоградск|светлогорск|пионерский|багратионовск|нестеров|озёрск|правдинск|полесск|лаврово|мамоново|янтарный/.test(s)) return 'KGD';
-    // Московская область: область, Москва и города области
-    if (/московская\s*область|москва|мск|msk/.test(s)) return 'MSK';
-    if (/подольск|балашиха|химки|королёв|мытищи|люберцы|электросталь|коломна|одинцово|серпухов|орехово-зуево|раменское|жуковский|пушкино|сергиев\s*посад|воскресенск|лобня|клин|дубна|егорьевск|чехов|дмитров|ступино|ногинск|долгопрудный|реутов|андреевск|фрязино|троицк|ивантеевка|дзержинский|видное|красногорск|домодедово|железнодорожный|котельники/.test(s)) return 'MSK';
-    return String(city).trim();
-};
-
-/** Извлекает номера перевозок из текста (5–7 цифр или 0000-XXXX) для отображения со ссылками */
-const parseCargoNumbersFromText = (text: string): Array<{ type: 'text' | 'cargo'; value: string }> => {
-    if (!text || typeof text !== 'string') return [{ type: 'text', value: text || '' }];
-    const parts: Array<{ type: 'text' | 'cargo'; value: string }> = [];
-    const re = /(0000-\d{4,8}|\d{5,9})/g;
-    let lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) {
-        if (m.index > lastIndex) parts.push({ type: 'text', value: text.slice(lastIndex, m.index) });
-        const raw = m[1];
-        const normalized = raw.replace(/^0000-/, '');
-        parts.push({ type: 'cargo', value: normalized });
-        lastIndex = m.index + m[0].length;
-    }
-    if (lastIndex < text.length) parts.push({ type: 'text', value: text.slice(lastIndex) });
-    return parts.length ? parts : [{ type: 'text', value: text }];
-};
-
-/** Убирает префикс «0000-» из номера счёта для отображения */
-const formatInvoiceNumber = (s: string | undefined | null): string => {
-    const str = String(s ?? '').trim();
-    if (!str) return '—';
-    return str.replace(/^0000-/, '') || '—';
-};
-
-/** Убирает «ООО», «ИП», «(ИП)» из названия компании для отображения */
-const stripOoo = (name: string | undefined | null): string => {
-    if (!name || typeof name !== 'string') return name ?? '';
-    return name
-        .replace(/\s*ООО\s*«?/gi, ' ')
-        .replace(/»?\s*ООО\s*/gi, ' ')
-        .replace(/\s*\(\s*ИП\s*\)\s*/gi, ' ')
-        .replace(/(^|\s)ИП(\s|$)/gi, '$1$2')
-        .replace(/\s+/g, ' ')
-        .trim() || name;
-};
-
-/** Транслитерация кириллицы в латиницу для имени файла при скачивании */
-const TRANSLIT_MAP: Record<string, string> = {
-    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e', 'ж': 'zh', 'з': 'z',
-    'и': 'i', 'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 'о': 'o', 'п': 'p', 'р': 'r',
-    'с': 's', 'т': 't', 'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch', 'ш': 'sh', 'щ': 'shch',
-    'ъ': '', 'ы': 'y', 'ь': '', 'э': 'e', 'ю': 'yu', 'я': 'ya',
-};
-const transliterateFilename = (fileName: string): string => {
-    if (!fileName || typeof fileName !== 'string') return fileName || '';
-    let out = '';
-    for (let i = 0; i < fileName.length; i++) {
-        const c = fileName[i];
-        const lower = c.toLowerCase();
-        if (TRANSLIT_MAP[lower] !== undefined) {
-            out += c === c.toUpperCase() && c !== c.toLowerCase() ? TRANSLIT_MAP[lower].charAt(0).toUpperCase() + TRANSLIT_MAP[lower].slice(1) : TRANSLIT_MAP[lower];
-        } else {
-            out += c;
-        }
-    }
-    return out;
-};
-
-// Функция для нормализации статуса
-const normalizeStatus = (status: string | undefined): string => {
-    if (!status) return '-';
-    const lower = status.toLowerCase();
-    // Заменяем "поставлена на доставку в месте прибытия" на "На доставке"
-    if (lower.includes('поставлена на доставку в месте прибытия') || 
-        lower.includes('поставлена на доставку')) {
-        return 'На доставке';
-    }
-    return status;
-};
-
-const getStatusClass = (status: string | undefined) => {
-    const normalized = normalizeStatus(status);
-    const lower = (normalized || '').toLowerCase();
-    if (lower.includes('доставлен') || lower.includes('заверш')) return 'status-value success';
-    if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('доставке')) return 'status-value transit';
-    if (lower.includes('принят') || lower.includes('оформлен')) return 'status-value accepted';
-    if (lower.includes('готов')) return 'status-value ready';
-    return 'status-value';
-};
-
-// Компонент бейджа статуса с использованием MAX UI
-const StatusBadge = ({ status }: { status: string | undefined }) => {
-    const normalizedStatus = normalizeStatus(status);
-    const lower = (normalizedStatus || '').toLowerCase();
-    let badgeClass = 'max-badge';
-    
-    if (lower.includes('доставлен') || lower.includes('заверш')) {
-        badgeClass += ' max-badge-success';
-    } else if (lower.includes('доставке')) {
-        badgeClass += ' max-badge-purple';
-    } else if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('готов')) {
-        badgeClass += ' max-badge-warning';
-    } else if (lower.includes('отменен') || lower.includes('аннулирован')) {
-        badgeClass += ' max-badge-danger';
-    } else {
-        badgeClass += ' max-badge-default';
-    }
-    
-    return (
-        <span className={badgeClass}>
-            {normalizedStatus || '-'}
-        </span>
-    );
-};
-
-// Компонент бейджа статуса счета с использованием MAX UI
-const StatusBillBadge = ({ status }: { status: string | undefined }) => {
-    const lower = (status || '').toLowerCase().trim();
-    let badgeClass = 'max-badge';
-    
-    // Логика для статусов счета - сначала проверяем "не оплачен", чтобы не перехватить его другими условиями
-    if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
-        lower.includes('не оплачён') || lower.includes('неоплачён') ||
-        lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending') ||
-        lower === 'не оплачен' || lower === 'неоплачен') {
-        badgeClass += ' max-badge-danger'; // Красный для не оплачен
-    } else if (lower.includes('отменен') || lower.includes('аннулирован') || lower.includes('отменён') ||
-               lower.includes('cancelled') || lower.includes('canceled')) {
-        badgeClass += ' max-badge-danger'; // Красный для отменен
-    } else if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
-        badgeClass += ' max-badge-success'; // Зеленый для оплачен
-    } else if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) {
-        badgeClass += ' max-badge-warning'; // Желтый для частично оплачен
-    } else {
-        badgeClass += ' max-badge-default'; // Серый для остальных
-    }
-    
-    return (
-        <span className={badgeClass}>
-            {status || '-'}
-        </span>
-    );
-};
-
-// Функция для определения цвета суммы в зависимости от статуса оплаты
-const getSumColorByPaymentStatus = (stateBill: string | undefined): string => {
-    if (!stateBill) return 'var(--color-text-primary)';
-    const lower = stateBill.toLowerCase().trim();
-    
-    // Сначала проверяем "не оплачен", чтобы не перехватить его другими условиями
-    if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
-        lower.includes('не оплачён') || lower.includes('неоплачён') ||
-        lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending') ||
-        lower === 'не оплачен' || lower === 'неоплачен') {
-        return '#ef4444'; // Красный для не оплачен
-    } else if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
-        return 'var(--color-success-status)'; // Зеленый для оплачен
-    } else if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) {
-        return 'var(--color-pending-status)'; // Желтый для частично оплачен
-    }
-    
-    return 'var(--color-text-primary)'; // По умолчанию
-};
-
-const getPaymentFilterKey = (stateBill: string | undefined): 'unpaid' | 'cancelled' | 'paid' | 'partial' | 'unknown' => {
-    if (!stateBill) return "unknown";
-    const lower = stateBill.toLowerCase().trim();
-    if (lower.includes('не оплачен') || lower.includes('неоплачен') || 
-        lower.includes('не оплачён') || lower.includes('неоплачён') ||
-        lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending') ||
-        lower === 'не оплачен' || lower === 'неоплачен') {
-        return "unpaid";
-    }
-    if (lower.includes('отменен') || lower.includes('аннулирован') || lower.includes('отменён') ||
-        lower.includes('cancelled') || lower.includes('canceled')) {
-        return "cancelled";
-    }
-    if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) {
-        return "paid";
-    }
-    if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) {
-        return "partial";
-    }
-    return "unknown";
-};
-
-type BillStatusFilterKey = 'all' | ReturnType<typeof getPaymentFilterKey>;
-const BILL_STATUS_MAP: Record<BillStatusFilterKey, string> = {
-    all: 'Все',
-    paid: 'Оплачен',
-    unpaid: 'Не оплачен',
-    partial: 'Частично',
-    cancelled: 'Отменён',
-    unknown: 'Не указан',
-};
-
-/** Статус «получена информация» — исключаем из отображения и фильтров */
-const isReceivedInfoStatus = (s: string | undefined): boolean => {
-    if (!s) return false;
-    const l = normalizeStatus(s).toLowerCase();
-    return /получена\s*информация|полученаинформация/.test(l) || (l.includes('получена') && l.includes('информация'));
-};
-
-const getFilterKeyByStatus = (s: string | undefined): StatusFilter => { 
-    if (!s) return 'all'; 
-    const normalized = normalizeStatus(s);
-    const l = normalized.toLowerCase(); 
-    if (l.includes('доставлен') || l.includes('заверш')) return 'delivered'; 
-    if (l.includes('пути') || l.includes('отправлен')) return 'in_transit';
-    if (l.includes('готов')) return 'ready';
-    if (l.includes('доставке')) return 'delivering';
-    return 'all'; 
-}
-
-const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "in_transit": "В пути", "ready": "Готов к выдаче", "delivering": "На доставке", "delivered": "Доставлено", "favorites": "Избранные" };
-
-/** Выпадающее меню поверх всего — рендер в document.body, чтобы не обрезалось контейнером с overflow */
-function FilterDropdownPortal({ triggerRef, isOpen, children }: { triggerRef: React.RefObject<HTMLElement | null>; isOpen: boolean; children: React.ReactNode }) {
-    const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
-    useLayoutEffect(() => {
-        if (!isOpen || !triggerRef.current) {
-            setRect(null);
-            return;
-        }
-        const el = triggerRef.current;
-        const r = el.getBoundingClientRect();
-        setRect({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 160) });
-    }, [isOpen, triggerRef]);
-    if (!isOpen || !rect || typeof document === 'undefined') return null;
-    return createPortal(
-        <div className="filter-dropdown filter-dropdown-portal" style={{ top: rect.top, left: rect.left, minWidth: rect.width }}>
-            {children}
-        </div>,
-        document.body
-    );
-}
 
 const resolveChecked = (value: unknown): boolean => {
     if (typeof value === "boolean") return value;
@@ -1239,12 +690,7 @@ function DashboardPage({
     /** служебный режим: запрос перевозок только по датам (без INN и Mode) */
     useServiceRequest?: boolean;
 }) {
-    const [items, setItems] = useState<CargoItem[]>([]);
-    const [prevPeriodItems, setPrevPeriodItems] = useState<CargoItem[]>([]);
-    const [prevPeriodLoading, setPrevPeriodLoading] = useState(false);
     const [debugInfo, setDebugInfo] = useState<string>("");
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     
     // Filters State (такие же как на странице грузов); при переключении вкладок восстанавливаем из localStorage
     const initDate = () => loadDateFilterState();
@@ -1447,119 +893,24 @@ function DashboardPage({
         }
         return getDateRange(dateFilter);
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
-    
-    const loadCargo = useCallback(async (dateFrom: string, dateTo: string) => {
-        if (!auth?.login || !auth?.password) {
-            setItems([]);
-            setLoading(false);
-            setError(null);
-            return;
-        }
-        setLoading(true);
-        setError(null);
-        try {
-            const body: Record<string, unknown> = {
-                login: auth.login,
-                password: auth.password,
-                dateFrom,
-                dateTo,
-            };
-            if (!useServiceRequest && auth.inn) body.inn = auth.inn;
-            if (useServiceRequest) body.serviceMode = true;
-            const res = await fetch(PROXY_API_BASE_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            });
-            await ensureOk(res, "Ошибка загрузки данных");
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : data.items || [];
-            setItems(list.map((item: any) => ({
-                ...item,
-                Number: item.Number,
-                DatePrih: item.DatePrih,
-                DateVr: item.DateVr,
-                State: item.State,
-                Mest: item.Mest,
-                PW: item.PW,
-                W: item.W,
-                Value: item.Value,
-                Sum: item.Sum,
-                StateBill: item.StateBill,
-                Sender: item.Sender,
-                Customer: item.Customer ?? item.customer,
-            })));
-        } catch (e: any) {
-            setError(e.message);
-        } finally {
-            setLoading(false);
-        }
-    }, [auth, useServiceRequest]);
 
-    // Загрузка данных для предыдущего периода (только в служебном режиме)
-    const loadPrevPeriodCargo = useCallback(async (dateFrom: string, dateTo: string) => {
-        if (!auth?.login || !auth?.password || !useServiceRequest) {
-            setPrevPeriodItems([]);
-            return;
-        }
-        setPrevPeriodLoading(true);
-        try {
-            const body: Record<string, unknown> = {
-                login: auth.login,
-                password: auth.password,
-                dateFrom,
-                dateTo,
-                serviceMode: true,
-            };
-            const res = await fetch(PROXY_API_BASE_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-            });
-            await ensureOk(res, "Ошибка загрузки данных предыдущего периода");
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : data.items || [];
-            setPrevPeriodItems(list.map((item: any) => ({
-                ...item,
-                Number: item.Number,
-                DatePrih: item.DatePrih,
-                DateVr: item.DateVr,
-                State: item.State,
-                Mest: item.Mest,
-                PW: item.PW,
-                W: item.W,
-                Value: item.Value,
-                Sum: item.Sum,
-                StateBill: item.StateBill,
-                Sender: item.Sender,
-                Customer: item.Customer ?? item.customer,
-            })));
-        } catch (e: any) {
-            console.error("Ошибка загрузки предыдущего периода:", e);
-            setPrevPeriodItems([]);
-        } finally {
-            setPrevPeriodLoading(false);
-        }
-    }, [auth, useServiceRequest]);
-
-    // Всегда грузим данные по текущему выбранному аккаунту; при смене аккаунта или служебного режима — перезапрос
-    useEffect(() => {
-        loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo);
-    }, [apiDateRange, loadCargo, auth, useServiceRequest]);
-
-    // Загрузка данных предыдущего периода (только в служебном режиме)
-    useEffect(() => {
-        if (!useServiceRequest) {
-            setPrevPeriodItems([]);
-            return;
-        }
-        const prevRange = getPreviousPeriodRange(dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo);
-        if (prevRange) {
-            loadPrevPeriodCargo(prevRange.dateFrom, prevRange.dateTo);
-        } else {
-            setPrevPeriodItems([]);
-        }
-    }, [useServiceRequest, dateFilter, apiDateRange, loadPrevPeriodCargo]);
+    const prevRange = useMemo(() => getPreviousPeriodRange(dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo), [dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    const { items, error, loading } = usePerevozki({
+        auth,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        useServiceRequest,
+        inn: !useServiceRequest ? auth.inn : undefined,
+    });
+    const { items: prevPeriodItems, loading: prevPeriodLoading } = usePrevPeriodPerevozki({
+        auth,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        dateFromPrev: prevRange?.dateFrom ?? '',
+        dateToPrev: prevRange?.dateTo ?? '',
+        useServiceRequest: true,
+        enabled: !!useServiceRequest && !!prevRange,
+    });
 
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
@@ -5723,9 +5074,6 @@ function CargoPage({
     /** Служебный режим: один запрос только по датам (без INN и Mode) */
     useServiceRequest?: boolean;
 }) {
-    const [items, setItems] = useState<CargoItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
     
     // Filters State; при переключении вкладок восстанавливаем из localStorage
@@ -5768,9 +5116,6 @@ function CargoPage({
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     /** Развёрнутая строка таблицы по заказчику: показываем детальные перевозки */
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
-    /** Данные предыдущего периода (для динамики период к периоду в служебном режиме) */
-    const [prevPeriodItems, setPrevPeriodItems] = useState<CargoItem[]>([]);
-    const [prevPeriodLoading, setPrevPeriodLoading] = useState(false);
     const dateButtonRef = useRef<HTMLDivElement>(null);
     const statusButtonRef = useRef<HTMLDivElement>(null);
     const senderButtonRef = useRef<HTMLDivElement>(null);
@@ -5846,181 +5191,33 @@ function CargoPage({
         return getDateRange(dateFilter);
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
 
-    // Удалена функция findDeliveryDate, используем DateVr напрямую.
+    const prevRange = useMemo(() => getPreviousPeriodRange(dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo), [dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    const { items, error, loading } = usePerevozkiMulti({
+        auth,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        useServiceRequest,
+        roleCustomer,
+        roleSender,
+        roleReceiver,
+        inn: !useServiceRequest ? auth.inn : undefined,
+    });
+    const { items: prevPeriodItems, loading: prevPeriodLoading } = usePrevPeriodPerevozki({
+        auth,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        dateFromPrev: prevRange?.dateFrom ?? '',
+        dateToPrev: prevRange?.dateTo ?? '',
+        useServiceRequest: true,
+        enabled: !!useServiceRequest && !!prevRange,
+    });
 
-    const loadCargo = useCallback(async (dateFrom: string, dateTo: string) => {
-        if (!auth?.login || !auth?.password) {
-            setItems([]);
-            setLoading(false);
-            setError(null);
-            return;
-        }
-        setLoading(true); setError(null);
-        try {
-            if (useServiceRequest) {
-                const res = await fetch(PROXY_API_BASE_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        login: auth.login,
-                        password: auth.password,
-                        dateFrom,
-                        dateTo,
-                        serviceMode: true,
-                    }),
-                });
-                await ensureOk(res, "Ошибка загрузки данных");
-                const data = await res.json();
-                const list = Array.isArray(data) ? data : data.items || [];
-                const mapped = list.map((item: any) => ({
-                    ...item,
-                    Number: item.Number,
-                    DatePrih: item.DatePrih,
-                    DateVr: item.DateVr,
-                    State: item.State,
-                    Mest: item.Mest,
-                    PW: item.PW,
-                    W: item.W,
-                    Value: item.Value,
-                    Sum: item.Sum,
-                    StateBill: item.StateBill,
-                    Sender: item.Sender,
-                    Customer: item.Customer ?? item.customer,
-                    _role: "Customer" as PerevozkiRole,
-                }));
-                setItems(mapped);
-                const customerItem = mapped.find((item: CargoItem) => item.Customer);
-                if (customerItem?.Customer && onCustomerDetected) {
-                    onCustomerDetected(customerItem.Customer);
-                }
-                return;
-            }
-
-            const modesToRequest: PerevozkiRole[] = [];
-            if (roleCustomer) modesToRequest.push("Customer");
-            if (roleSender) modesToRequest.push("Sender");
-            if (roleReceiver) modesToRequest.push("Receiver");
-            if (modesToRequest.length === 0) {
-                setItems([]);
-                return;
-            }
-
-            const basePayload = { login: auth.login, password: auth.password, dateFrom, dateTo, ...(auth.inn ? { inn: auth.inn } : {}) };
-            const allMapped: CargoItem[] = [];
-            for (const mode of modesToRequest) {
-                const res = await fetch(PROXY_API_BASE_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ ...basePayload, mode }),
-                });
-                await ensureOk(res, "Ошибка загрузки данных");
-                const data = await res.json();
-                const list = Array.isArray(data) ? data : data.items || [];
-                const mapped = list.map((item: any) => ({
-                    ...item,
-                    Number: item.Number,
-                    DatePrih: item.DatePrih,
-                    DateVr: item.DateVr,
-                    State: item.State,
-                    Mest: item.Mest,
-                    PW: item.PW,
-                    W: item.W,
-                    Value: item.Value,
-                    Sum: item.Sum,
-                    StateBill: item.StateBill,
-                    Sender: item.Sender,
-                    Customer: item.Customer ?? item.customer,
-                    _role: mode,
-                }));
-                allMapped.push(...mapped);
-            }
-
-            const parseDateValue = (value: any): number => {
-                if (!value) return 0;
-                const d = new Date(String(value));
-                return isNaN(d.getTime()) ? 0 : d.getTime();
-            };
-            const rolePriority: Record<PerevozkiRole, number> = { Customer: 3, Sender: 2, Receiver: 1 };
-            const chooseBest = (a: CargoItem, b: CargoItem): CargoItem => {
-                const aDate = parseDateValue(a.DatePrih) || parseDateValue(a.DateVr);
-                const bDate = parseDateValue(b.DatePrih) || parseDateValue(b.DateVr);
-                if (aDate !== bDate) return aDate >= bDate ? a : b;
-                return (rolePriority[(a._role as PerevozkiRole) || "Receiver"] >= rolePriority[(b._role as PerevozkiRole) || "Receiver"]) ? a : b;
-            };
-
-            const byNumber = new Map<string, CargoItem>();
-            allMapped.forEach((item) => {
-                const key = String(item.Number || "").trim();
-                if (!key) return;
-                const existing = byNumber.get(key);
-                byNumber.set(key, existing ? chooseBest(existing, item) : item);
-            });
-
-            const deduped: CargoItem[] = Array.from(byNumber.values());
-
-            setItems(deduped);
-
-            const customerItem = allMapped.find((item: CargoItem) => item.Customer);
-            if (customerItem?.Customer && onCustomerDetected) {
-                onCustomerDetected(customerItem.Customer);
-            }
-        } catch (e: any) { setError(e.message); } finally { setLoading(false); }
-    }, [auth, roleCustomer, roleSender, roleReceiver, useServiceRequest]);
-
-    /** Загрузка предыдущего периода для динамики период к периоду (только в служебном режиме) */
-    const loadPrevPeriodCargo = useCallback(async (dateFrom: string, dateTo: string) => {
-        if (!auth?.login || !auth?.password || !useServiceRequest) {
-            setPrevPeriodItems([]);
-            return;
-        }
-        setPrevPeriodLoading(true);
-        try {
-            const res = await fetch(PROXY_API_BASE_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    login: auth.login,
-                    password: auth.password,
-                    dateFrom,
-                    dateTo,
-                    serviceMode: true,
-                }),
-            });
-            await ensureOk(res, "Ошибка загрузки данных предыдущего периода");
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : data.items || [];
-            setPrevPeriodItems(list.map((item: any) => ({
-                ...item,
-                Number: item.Number,
-                DatePrih: item.DatePrih,
-                State: item.State,
-                Mest: item.Mest,
-                PW: item.PW,
-                W: item.W,
-                Value: item.Value,
-                Sum: item.Sum,
-                Customer: item.Customer ?? item.customer,
-            })));
-        } catch (e: any) {
-            setPrevPeriodItems([]);
-        } finally {
-            setPrevPeriodLoading(false);
-        }
-    }, [auth, useServiceRequest]);
-
-    // При смене аккаунта или переключателя служебного запроса — перезапрос грузов
-    useEffect(() => { loadCargo(apiDateRange.dateFrom, apiDateRange.dateTo); }, [apiDateRange, loadCargo, auth, useServiceRequest]);
-
-    // Загрузка предыдущего периода для динамики по заказчикам (служебный режим)
     useEffect(() => {
-        if (!useServiceRequest) {
-            setPrevPeriodItems([]);
-            return;
+        const customerItem = items.find((item: CargoItem) => item.Customer);
+        if (customerItem?.Customer && onCustomerDetected) {
+            onCustomerDetected(customerItem.Customer);
         }
-        const prevRange = getPreviousPeriodRange(dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo);
-        if (!prevRange) return;
-        loadPrevPeriodCargo(prevRange.dateFrom, prevRange.dateTo);
-    }, [useServiceRequest, dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo, loadPrevPeriodCargo]);
+    }, [items, onCustomerDetected]);
 
     useEffect(() => {
         if (initialStatusFilter) setStatusFilter(initialStatusFilter);
@@ -6946,28 +6143,6 @@ function CargoPage({
 
 // --- SHARED COMPONENTS ---
 
-function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply }: { isOpen: boolean; onClose: () => void; dateFrom: string; dateTo: string; onApply: (from: string, to: string) => void; }) {
-    const [tempFrom, setTempFrom] = useState(dateFrom);
-    const [tempTo, setTempTo] = useState(dateTo);
-    useEffect(() => { if (isOpen) { setTempFrom(dateFrom); setTempTo(dateTo); } }, [isOpen, dateFrom, dateTo]);
-    if (!isOpen) return null;
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <Typography.Headline>Произвольный диапазон</Typography.Headline>
-                    <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></Button>
-                </div>
-                <form onSubmit={e => { e.preventDefault(); onApply(tempFrom, tempTo); onClose(); }}>
-                    <div style={{marginBottom: '1rem'}}><Typography.Label className="detail-item-label">Дата начала:</Typography.Label><Input type="date" className="login-input date-input" value={tempFrom} onChange={e => setTempFrom(e.target.value)} required /></div>
-                    <div style={{marginBottom: '1.5rem'}}><Typography.Label className="detail-item-label">Дата окончания:</Typography.Label><Input type="date" className="login-input date-input" value={tempTo} onChange={e => setTempTo(e.target.value)} required /></div>
-                    <Button className="button-primary" type="submit">Применить</Button>
-                </form>
-            </div>
-        </div>
-    );
-}
-
 /** Нормализация названия этапа из API для сопоставления */
 const normalizeStageKey = (s: string) => s.replace(/\s+/g, '').toLowerCase();
 
@@ -7737,7 +6912,7 @@ function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo }: { item: any;
                             key={k}
                             role="button"
                             tabIndex={0}
-                            onClick={(e) => { e.stopPropagation(); onOpenCargo?.(p.value); }}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpenCargo?.(p.value); }}
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenCargo?.(p.value); } }}
                             style={{ color: 'var(--color-primary)', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}
                             title="Открыть карточку перевозки"
@@ -7798,323 +6973,6 @@ const normalizeInvoiceStatus = (s: string | undefined): string => {
     if (lower.includes('не') || lower.includes('неоплачен')) return 'Не оплачен';
     return s;
 };
-
-/** Страница «Документы»: раздел «Счета» — карточки как в Грузах */
-function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', onOpenCargo }: { auth: AuthData; useServiceRequest?: boolean; activeInn?: string; onOpenCargo?: (cargoNumber: string) => void }) {
-    const [items, setItems] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const initDate = () => loadDateFilterState();
-    const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
-    const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
-    const [customDateTo, setCustomDateTo] = useState(() => initDate()?.customDateTo ?? DEFAULT_DATE_TO);
-    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(() => initDate()?.selectedMonthForFilter ?? null);
-    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDate()?.selectedYearForFilter ?? null);
-    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDate()?.selectedWeekForFilter ?? null);
-    const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
-    const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
-    const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
-    const [customerFilter, setCustomerFilter] = useState<string>('');
-    const [statusFilter, setStatusFilter] = useState<string>('');
-    const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
-    const [routeFilter, setRouteFilter] = useState<'all' | 'MSK-KGD' | 'KGD-MSK'>('all');
-    const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
-    const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
-    const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
-    const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
-    const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
-    const [sortBy, setSortBy] = useState<'date' | null>('date');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-    const dateButtonRef = useRef<HTMLDivElement | null>(null);
-    const customerButtonRef = useRef<HTMLDivElement | null>(null);
-    const statusButtonRef = useRef<HTMLDivElement | null>(null);
-    const typeButtonRef = useRef<HTMLDivElement | null>(null);
-    const routeButtonRef = useRef<HTMLDivElement | null>(null);
-    const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const monthWasLongPressRef = useRef(false);
-    const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const yearWasLongPressRef = useRef(false);
-    const weekLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const weekWasLongPressRef = useRef(false);
-
-    useEffect(() => {
-        saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
-    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
-
-    const apiDateRange = useMemo(() => {
-        if (dateFilter === "период") return { dateFrom: customDateFrom, dateTo: customDateTo };
-        if (dateFilter === "месяц" && selectedMonthForFilter) {
-            const { year, month } = selectedMonthForFilter;
-            const pad = (n: number) => String(n).padStart(2, '0');
-            const lastDay = new Date(year, month, 0).getDate();
-            return { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
-        }
-        if (dateFilter === "год" && selectedYearForFilter) {
-            const y = selectedYearForFilter;
-            return { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` };
-        }
-        if (dateFilter === "неделя" && selectedWeekForFilter) {
-            return getWeekRange(selectedWeekForFilter);
-        }
-        return getDateRange(dateFilter);
-    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
-
-    const loadInvoices = useCallback(async (dateFrom: string, dateTo: string) => {
-        if (!auth?.login || !auth?.password) {
-            setItems([]);
-            setLoading(false);
-            return;
-        }
-        setLoading(true);
-        setError(null);
-        try {
-            const res = await fetch(PROXY_API_INVOICES_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login: auth.login, password: auth.password, dateFrom, dateTo, inn: activeInn || undefined, serviceMode: useServiceRequest }),
-            });
-            await ensureOk(res, "Ошибка загрузки счетов");
-            const data = await res.json();
-            const list = Array.isArray(data) ? data : data.items ?? data.Invoices ?? data.invoices ?? [];
-            setItems(Array.isArray(list) ? list : []);
-        } catch (e: any) {
-            setError(e.message ?? "Ошибка загрузки");
-            setItems([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [auth?.login, auth?.password, activeInn, useServiceRequest]);
-
-    useEffect(() => {
-        loadInvoices(apiDateRange.dateFrom, apiDateRange.dateTo);
-    }, [apiDateRange, loadInvoices]);
-
-    const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
-
-    const filteredItems = useMemo(() => {
-        let res = [...items];
-        if (customerFilter) res = res.filter(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim()) === customerFilter);
-        if (statusFilter) res = res.filter(i => normalizeInvoiceStatus(i.Status ?? i.State ?? i.state ?? i.Статус ?? i.Status) === statusFilter);
-        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
-        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
-        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
-        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
-        const getDate = (r: any) => (r.Date ?? r.date ?? r.Дата ?? r.DateDoc ?? '').toString();
-        if (sortBy === 'date') {
-            res.sort((a, b) => {
-                const da = getDate(a);
-                const db = getDate(b);
-                const cmp = da.localeCompare(db);
-                return sortOrder === 'desc' ? -cmp : cmp;
-            });
-        }
-        return res;
-    }, [items, customerFilter, statusFilter, typeFilter, routeFilter, sortBy, sortOrder]);
-
-    const documentsSummary = useMemo(() => {
-        let sum = 0;
-        filteredItems.forEach(i => {
-            const v = i.SumDoc ?? i.Sum ?? i.sum ?? i.Сумма ?? i.Amount ?? 0;
-            sum += typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
-        });
-        return { sum, count: filteredItems.length };
-    }, [filteredItems]);
-
-    return (
-        <div className="w-full">
-            <div className="cargo-page-sticky-header">
-                <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
-                </Flex>
-                <div className="filters-container filters-row-scroll">
-                    <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
-                        <Button className="filter-button" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={() => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); }} title={sortOrder === 'desc' ? 'Дата по убыванию' : 'Дата по возрастанию'}>
-                            {sortOrder === 'desc' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
-                        </Button>
-                        <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                                Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8, 10)}.${r.dateFrom.slice(5, 7)} – ${r.dateTo.slice(8, 10)}.${r.dateTo.slice(5, 7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
-                            {dateDropdownMode === 'months' ? (
-                                <>
-                                    <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
-                                    {MONTH_NAMES.map((name, i) => (
-                                        <div key={i} className="dropdown-item" onClick={() => { setDateFilter('месяц'); setSelectedMonthForFilter({ year: new Date().getFullYear(), month: i + 1 }); setIsDateDropdownOpen(false); setDateDropdownMode('main'); }}>
-                                            <Typography.Body>{name} {new Date().getFullYear()}</Typography.Body>
-                                        </div>
-                                    ))}
-                                </>
-                            ) : dateDropdownMode === 'years' ? (
-                                <>
-                                    <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
-                                    {getYearsList(6).map(y => (
-                                        <div key={y} className="dropdown-item" onClick={() => { setDateFilter('год'); setSelectedYearForFilter(y); setIsDateDropdownOpen(false); setDateDropdownMode('main'); }}>
-                                            <Typography.Body>{y}</Typography.Body>
-                                        </div>
-                                    ))}
-                                </>
-                            ) : dateDropdownMode === 'weeks' ? (
-                                <>
-                                    <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
-                                    {getWeeksList(16).map(w => (
-                                        <div key={w.monday} className="dropdown-item" onClick={() => { setDateFilter('неделя'); setSelectedWeekForFilter(w.monday); setIsDateDropdownOpen(false); setDateDropdownMode('main'); }}>
-                                            <Typography.Body>{w.label}</Typography.Body>
-                                        </div>
-                                    ))}
-                                </>
-                            ) : (
-                                ['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => {
-                                    const isMonth = key === 'месяц', isYear = key === 'год', isWeek = key === 'неделя';
-                                    const timerRef = isMonth ? monthLongPressTimerRef : isYear ? yearLongPressTimerRef : weekLongPressTimerRef;
-                                    const wasLongPressRef = isMonth ? monthWasLongPressRef : isYear ? yearWasLongPressRef : weekWasLongPressRef;
-                                    const mode = isMonth ? 'months' : isYear ? 'years' : 'weeks';
-                                    return (
-                                        <div key={key} className="dropdown-item"
-                                            onPointerDown={isMonth || isYear || isWeek ? () => { wasLongPressRef.current = false; timerRef.current = setTimeout(() => { timerRef.current = null; wasLongPressRef.current = true; setDateDropdownMode(mode); }, 500); } : undefined}
-                                            onPointerUp={isMonth || isYear || isWeek ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
-                                            onPointerLeave={isMonth || isYear || isWeek ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
-                                            onClick={() => {
-                                                if ((isMonth || isYear || isWeek) && wasLongPressRef.current) { wasLongPressRef.current = false; return; }
-                                                if (isMonth) setDateDropdownMode('months');
-                                                else if (isYear) setDateDropdownMode('years');
-                                                else if (isWeek) setDateDropdownMode('weeks');
-                                                else if (key === 'период') { setIsCustomModalOpen(true); setIsDateDropdownOpen(false); }
-                                                else { setDateFilter(key as DateFilter); setIsDateDropdownOpen(false); }
-                                            }}>
-                                            <Typography.Body>{key === 'период' ? 'Период' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
-                                        </div>
-                                    );
-                                })
-                            )}
-                        </FilterDropdownPortal>
-                        {useServiceRequest && (
-                            <>
-                                <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                                        Заказчик: {customerFilter ? stripOoo(customerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                                    </Button>
-                                </div>
-                                <FilterDropdownPortal triggerRef={customerButtonRef} isOpen={isCustomerDropdownOpen}>
-                                    <div className="dropdown-item" onClick={() => { setCustomerFilter(''); setIsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {uniqueCustomers.map(c => (
-                                        <div key={c} className="dropdown-item" onClick={() => { setCustomerFilter(c); setIsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
-                                    ))}
-                                </FilterDropdownPortal>
-                            </>
-                        )}
-                        <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                                Статус счёта: {statusFilter ? statusFilter : 'Все'} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen}>
-                            <div className="dropdown-item" onClick={() => { setStatusFilter(''); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            {INVOICE_STATUS_OPTIONS.map(s => (
-                                <div key={s} className="dropdown-item" onClick={() => { setStatusFilter(s); setIsStatusDropdownOpen(false); }}><Typography.Body>{s}</Typography.Body></div>
-                            ))}
-                        </FilterDropdownPortal>
-                        {false && (
-                            <>
-                                <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); }}>Тип</Button>
-                                </div>
-                                <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); }}>Маршрут</Button>
-                                </div>
-                            </>
-                        )}
-                        <CustomPeriodModal
-                            isOpen={isCustomModalOpen}
-                            onClose={() => setIsCustomModalOpen(false)}
-                            dateFrom={customDateFrom}
-                            dateTo={customDateTo}
-                            onApply={(f, t) => { setCustomDateFrom(f); setCustomDateTo(t); setDateFilter('период'); }}
-                        />
-                    </div>
-                </div>
-            </div>
-            <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>Счета</Typography.Body>
-            {!loading && !error && filteredItems.length > 0 && (
-                <div className="cargo-card mb-4" style={{ padding: '0.75rem', marginBottom: '1rem' }}>
-                    <div className="summary-metrics">
-                        <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCurrency(documentsSummary.sum, true)}</Typography.Body>
-                        </Flex>
-                        <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Счетов</Typography.Label>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{documentsSummary.count}</Typography.Body>
-                        </Flex>
-                    </div>
-                </div>
-            )}
-            {loading && (
-                <Flex justify="center" className="py-8">
-                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--color-primary-blue)' }} />
-                </Flex>
-            )}
-            {error && (
-                <Flex align="center" className="mt-4" style={{ color: 'var(--color-error)' }}>
-                    <AlertTriangle className="w-5 h-5 mr-2" />
-                    <Typography.Body>{error}</Typography.Body>
-                </Flex>
-            )}
-            {!loading && !error && filteredItems.length > 0 && (
-                <div className="cargo-list">
-                    {filteredItems.map((row, idx) => {
-                        const num = row.Number ?? row.number ?? row.Номер ?? row.N ?? '';
-                        const dt = row.DateDoc ?? row.Date ?? row.date ?? row.Дата ?? '';
-                        const cust = row.Customer ?? row.customer ?? row.Контрагент ?? row.Contractor ?? row.Organization ?? '';
-                        const sum = row.SumDoc ?? row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0;
-                        const rawStatus = row.Status ?? row.State ?? row.state ?? row.Статус ?? '';
-                        const st = (normalizeInvoiceStatus(rawStatus) || rawStatus) as string;
-                        const badgeStyle = st === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : st === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : st === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
-                        return (
-                            <Panel key={num || idx} className="cargo-card" onClick={() => setSelectedInvoice(row)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
-                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
-                                    <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: badgeStyle.color }}>{formatInvoiceNumber(num)}</Typography.Body>
-                                        {useServiceRequest && cust && (
-                                            <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>Заказчик</span>
-                                        )}
-                                    </Flex>
-                                    <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
-                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); /* share */ }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
-                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); /* chat */ }} title="Чат"><MessageCircle className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
-                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); /* favorite */ }} title="В избранное"><Heart className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
-                                        <Calendar className="w-4 h-4 text-theme-secondary" />
-                                        <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
-                                            <DateText value={typeof dt === 'string' ? dt : dt ? String(dt) : undefined} />
-                                        </Typography.Label>
-                                    </Flex>
-                                </Flex>
-                                <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
-                                    {st && <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: badgeStyle.bg, color: badgeStyle.color, border: '1px solid var(--color-border)' }}>{st}</span>}
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sum != null ? formatCurrency(sum, true) : '—'}</Typography.Body>
-                                </Flex>
-                                <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                    <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={stripOoo(String(cust || ''))}>{stripOoo(String(cust || '—'))}</Typography.Label>
-                                    {(row.AK === true || row.AK === 'true' || row.AK === '1' || row.AK === 1) && <Ship className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Паром" />}
-                                    {!(row?.AK === true || row?.AK === 'true' || row?.AK === '1' || row?.AK === 1) && (row.CitySender || row.CityReceiver) && (
-                                        <Typography.Label style={{ fontSize: '0.85rem' }}>{[cityToCode(row.CitySender), cityToCode(row.CityReceiver)].filter(Boolean).join(' – ') || ''}</Typography.Label>
-                                    )}
-                                </Flex>
-                            </Panel>
-                        );
-                    })}
-                </div>
-            )}
-            {selectedInvoice && (
-                <InvoiceDetailModal item={selectedInvoice} isOpen={!!selectedInvoice} onClose={() => setSelectedInvoice(null)} onOpenCargo={onOpenCargo} />
-            )}
-            {!loading && !error && filteredItems.length === 0 && (
-                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
-            )}
-        </div>
-    );
-}
 
 /** Эмоции Грузика: под каждую можно положить gruzik-{emotion}.gif / .webm / .png в public */
 export type GruzikEmotion = 'default' | 'typing' | 'thinking' | 'happy' | 'sad' | 'error' | 'wave' | 'ok' | string;
@@ -10401,7 +9259,9 @@ export default function App() {
                         />
                     )}
                     {activeTab === "docs" && auth && (
-                        <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} onOpenCargo={openCargoFromChat} />
+                        <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} onOpenCargo={openCargoFromChat} onOpenChat={openAiChatDeepLink} />
+                        </Suspense>
                     )}
                     {showDashboard && activeTab === "support" && (
                         <AiChatProfilePage

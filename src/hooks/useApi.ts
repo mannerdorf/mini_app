@@ -1,0 +1,286 @@
+/**
+ * SWR-based API hooks for caching. Prevents re-fetching on tab switch
+ * when data is still fresh (staleTime 60s, cache 5min).
+ */
+import useSWR from "swr";
+import { useCallback } from "react";
+import { ensureOk } from "../utils";
+import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL } from "../constants/config";
+import type { AuthData, CargoItem, PerevozkiRole } from "../types";
+
+/** SWR config: 60s consider fresh, 5min cache */
+const SWR_OPTIONS = {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    dedupingInterval: 60 * 1000,
+    keepPreviousData: true,
+} as const;
+
+const mapNumber = (value: unknown): number => {
+    if (value === null || value === undefined) return 0;
+    if (typeof value === "number") return value;
+    const parsed = parseFloat(String(value).replace(",", "."));
+    return isNaN(parsed) ? 0 : parsed;
+};
+
+const mapCargoItem = (item: Record<string, unknown>, role?: PerevozkiRole): CargoItem => ({
+    ...item,
+    Number: item.Number as string,
+    DatePrih: item.DatePrih as string,
+    DateVr: item.DateVr as string,
+    State: item.State as string,
+    Mest: mapNumber(item.Mest),
+    PW: mapNumber(item.PW),
+    W: mapNumber(item.W),
+    Value: mapNumber(item.Value),
+    Sum: mapNumber(item.Sum),
+    StateBill: item.StateBill as string,
+    Sender: item.Sender as string,
+    Customer: (item.Customer ?? item.customer) as string,
+    ...(role ? { _role: role } : {}),
+} as CargoItem);
+
+type PerevozkiParams = {
+    auth: AuthData | null;
+    dateFrom: string;
+    dateTo: string;
+    useServiceRequest?: boolean;
+    inn?: string | null;
+    /** When false, no fetch (for conditional prev period) */
+    enabled?: boolean;
+};
+
+async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
+    const { auth, dateFrom, dateTo, useServiceRequest, inn } = params;
+    if (!auth?.login || !auth?.password) return [];
+    const body: Record<string, unknown> = {
+        login: auth.login,
+        password: auth.password,
+        dateFrom,
+        dateTo,
+        ...(useServiceRequest ? { serviceMode: true } : {}),
+        ...(inn ? { inn } : auth.inn ? { inn: auth.inn } : {}),
+    };
+    const res = await fetch(PROXY_API_BASE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    await ensureOk(res, "Ошибка загрузки данных");
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (data.items || []);
+    return list.map((item: Record<string, unknown>) => mapCargoItem(item, useServiceRequest ? "Customer" : undefined));
+}
+
+export function usePerevozki(params: PerevozkiParams) {
+    const { auth, dateFrom, dateTo, useServiceRequest, inn } = params;
+    const key = auth?.login && auth?.password
+        ? ["perevozki", auth.login, dateFrom, dateTo, !!useServiceRequest, inn ?? auth.inn ?? ""]
+        : null;
+    const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
+        key,
+        () => fetcherPerevozki(params),
+        SWR_OPTIONS
+    );
+    return {
+        items: data ?? [],
+        error: error?.message ?? null,
+        loading: isLoading,
+        mutate,
+    };
+}
+
+type PerevozkiMultiRoleParams = PerevozkiParams & {
+    roleCustomer?: boolean;
+    roleSender?: boolean;
+    roleReceiver?: boolean;
+};
+
+async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<CargoItem[]> {
+    const { auth, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver } = params;
+    if (!auth?.login || !auth?.password) return [];
+
+    if (useServiceRequest) {
+        const list = await fetcherPerevozki({
+            auth,
+            dateFrom,
+            dateTo,
+            useServiceRequest: true,
+        });
+        return list.map((i) => ({ ...i, _role: "Customer" as PerevozkiRole }));
+    }
+
+    const modes: PerevozkiRole[] = [];
+    if (roleCustomer) modes.push("Customer");
+    if (roleSender) modes.push("Sender");
+    if (roleReceiver) modes.push("Receiver");
+    if (modes.length === 0) return [];
+
+    const basePayload = {
+        login: auth.login,
+        password: auth.password,
+        dateFrom,
+        dateTo,
+        ...(auth.inn ? { inn: auth.inn } : {}),
+    };
+
+    const allMapped: CargoItem[] = [];
+    for (const mode of modes) {
+        const res = await fetch(PROXY_API_BASE_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...basePayload, mode }),
+        });
+        await ensureOk(res, "Ошибка загрузки данных");
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data.items || []);
+        allMapped.push(...list.map((item: Record<string, unknown>) => mapCargoItem(item, mode)));
+    }
+
+    const parseDateValue = (value: unknown): number => {
+        if (!value) return 0;
+        const d = new Date(String(value));
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+    };
+    const rolePriority: Record<PerevozkiRole, number> = { Customer: 3, Sender: 2, Receiver: 1 };
+    const chooseBest = (a: CargoItem, b: CargoItem): CargoItem => {
+        const aDate = parseDateValue(a.DatePrih) || parseDateValue(a.DateVr);
+        const bDate = parseDateValue(b.DatePrih) || parseDateValue(b.DateVr);
+        if (aDate !== bDate) return aDate >= bDate ? a : b;
+        return (rolePriority[(a._role as PerevozkiRole) || "Receiver"] >= rolePriority[(b._role as PerevozkiRole) || "Receiver"]) ? a : b;
+    };
+
+    const byNumber = new Map<string, CargoItem>();
+    allMapped.forEach((item) => {
+        const key = String(item.Number || "").trim();
+        if (!key) return;
+        const existing = byNumber.get(key);
+        byNumber.set(key, existing ? chooseBest(existing, item) : item);
+    });
+    return Array.from(byNumber.values());
+}
+
+export function usePerevozkiMulti(params: PerevozkiMultiRoleParams) {
+    const { auth, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver } = params;
+    const key = auth?.login && auth?.password
+        ? ["perevozki-multi", auth.login, dateFrom, dateTo, !!useServiceRequest, roleCustomer, roleSender, roleReceiver]
+        : null;
+    const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
+        key,
+        () => fetcherPerevozkiMulti(params),
+        SWR_OPTIONS
+    );
+    return {
+        items: data ?? [],
+        error: error?.message ?? null,
+        loading: isLoading,
+        mutate,
+    };
+}
+
+type InvoicesParams = {
+    auth: AuthData | null;
+    dateFrom: string;
+    dateTo: string;
+    activeInn?: string;
+    useServiceRequest?: boolean;
+};
+
+async function fetcherInvoices(params: InvoicesParams): Promise<unknown[]> {
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
+    if (!auth?.login || !auth?.password) return [];
+    const res = await fetch(PROXY_API_INVOICES_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            login: auth.login,
+            password: auth.password,
+            dateFrom,
+            dateTo,
+            inn: activeInn || undefined,
+            serviceMode: useServiceRequest,
+        }),
+    });
+    await ensureOk(res, "Ошибка загрузки счетов");
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (data.items ?? data.Invoices ?? data.invoices ?? []);
+    return Array.isArray(list) ? list : [];
+}
+
+export function useInvoices(params: InvoicesParams) {
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
+    const key = auth?.login && auth?.password
+        ? ["invoices", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest]
+        : null;
+    const { data, error, isLoading, mutate } = useSWR<unknown[]>(
+        key,
+        () => fetcherInvoices(params),
+        SWR_OPTIONS
+    );
+    return {
+        items: data ?? [],
+        error: error?.message ?? null,
+        loading: isLoading,
+        mutate,
+    };
+}
+
+type CustomersParams = { auth: AuthData | null };
+
+async function fetcherCustomers(params: CustomersParams): Promise<{ name: string; inn: string }[]> {
+    const { auth } = params;
+    if (!auth?.login || !auth?.password) return [];
+    const res = await fetch(PROXY_API_GETCUSTOMERS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login: auth.login, password: auth.password }),
+    });
+    await ensureOk(res, "Ошибка загрузки контрагентов");
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (data.customers ?? data.items ?? []);
+    return (list || []).map((c: Record<string, unknown>) => ({
+        name: String(c.name ?? c.Name ?? c.наименование ?? ""),
+        inn: String(c.inn ?? c.INN ?? c.ИНН ?? ""),
+    }));
+}
+
+export function useCustomers(params: CustomersParams) {
+    const { auth } = params;
+    const key = auth?.login && auth?.password ? ["customers", auth.login] : null;
+    const { data, error, isLoading, mutate } = useSWR(
+        key,
+        () => fetcherCustomers(params),
+        { ...SWR_OPTIONS, dedupingInterval: 2 * 60 * 1000 }
+    );
+    return {
+        customers: data ?? [],
+        error: error?.message ?? null,
+        loading: isLoading,
+        mutate,
+    };
+}
+
+type PrevPeriodParams = PerevozkiParams & {
+    dateFromPrev: string;
+    dateToPrev: string;
+    /** When false or no prev range, no fetch */
+    enabled?: boolean;
+};
+
+/** Previous period cargo for service mode comparison (Dashboard/Cargo) */
+export function usePrevPeriodPerevozki(params: PrevPeriodParams) {
+    const { auth, dateFromPrev, dateToPrev, enabled = true } = params;
+    const key = enabled && auth?.login && auth?.password
+        ? ["perevozki-prev", auth.login, dateFromPrev, dateToPrev]
+        : null;
+    const { data, error, isLoading } = useSWR<CargoItem[]>(
+        key,
+        () => fetcherPerevozki({ ...params, dateFrom: dateFromPrev, dateTo: dateToPrev, useServiceRequest: true }),
+        SWR_OPTIONS
+    );
+    return {
+        items: data ?? [],
+        error: error?.message ?? null,
+        loading: isLoading,
+    };
+}

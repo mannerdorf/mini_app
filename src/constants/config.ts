@@ -1,0 +1,6 @@
+export const PROXY_API_BASE_URL = '/api/perevozki';
+export const PROXY_API_GETCUSTOMERS_URL = '/api/getcustomers';
+export const PROXY_API_DOWNLOAD_URL = '/api/download';
+export const PROXY_API_SEND_DOC_URL = '/api/send-document';
+export const PROXY_API_GETPEREVOZKA_URL = '/api/getperevozka';
+export const PROXY_API_INVOICES_URL = '/api/invoices';

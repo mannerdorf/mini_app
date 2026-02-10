@@ -1,9 +1,16 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { SWRConfig } from "swr";
 import { MaxUI } from "@maxhub/max-ui";
 import "@maxhub/max-ui/dist/styles.css";
 import App from "./App";
 import "./styles.css";
+
+const swrConfig = {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    dedupingInterval: 60 * 1000,
+};
 
 const shouldShowDebug = () => {
   if (typeof window === "undefined") return false;
@@ -93,8 +100,10 @@ setupDebugOverlay();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <MaxUI>
-      <App />
-    </MaxUI>
+    <SWRConfig value={swrConfig}>
+      <MaxUI>
+        <App />
+      </MaxUI>
+    </SWRConfig>
   </React.StrictMode>
 );
