@@ -31,7 +31,7 @@ type DocumentsPageProps = {
     activeInn?: string;
     onOpenCargo?: (cargoNumber: string) => void;
     /** При клике на номер перевозки внутри счёта — открыть карточку в этом же окне (без перехода на вкладку грузы) */
-    onOpenCargoInPlace?: (cargoNumber: string) => void;
+    onOpenCargoInPlace?: (cargoNumber: string, inn?: string) => void;
     onOpenChat?: (context?: string) => void | Promise<void>;
 };
 
@@ -47,7 +47,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [customerFilter, setCustomerFilter] = useState<string>('');
-    const [statusFilter, setStatusFilter] = useState<string>('');
+    const [statusFilterSet, setStatusFilterSet] = useState<Set<string>>(() => new Set());
     const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
     const [routeFilter, setRouteFilter] = useState<'all' | 'MSK-KGD' | 'KGD-MSK'>('all');
     const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
@@ -61,9 +61,9 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
-    const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus'>('date');
+    const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [deliveryStatusFilter, setDeliveryStatusFilter] = useState<StatusFilter>('all');
+    const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
     const [isDeliveryStatusDropdownOpen, setIsDeliveryStatusDropdownOpen] = useState(false);
     const [favVersion, setFavVersion] = useState(0);
     const deliveryStatusButtonRef = useRef<HTMLDivElement | null>(null);
@@ -138,6 +138,19 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         return m;
     }, [perevozkiItems]);
 
+    const cargoRouteByNumber = useMemo(() => {
+        const m = new Map<string, string>();
+        (perevozkiItems || []).forEach((c: any) => {
+            const num = (c.Number ?? c.number ?? "").toString().replace(/^0000-/, "").trim();
+            if (!num) return;
+            const from = cityToCode(c.CitySender ?? c.citySender);
+            const to = cityToCode(c.CityReceiver ?? c.cityReceiver);
+            const route = [from, to].filter(Boolean).join(' – ') || '';
+            if (route) m.set(num, route);
+        });
+        return m;
+    }, [perevozkiItems]);
+
     const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
 
     const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
@@ -165,20 +178,23 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const filteredItems = useMemo(() => {
         let res = [...items];
         if (customerFilter) res = res.filter(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim()) === customerFilter);
-        if (statusFilter === INVOICE_FAVORITES_VALUE) {
-            res = res.filter(i => isInvoiceFavorite(String(i.Number ?? i.number ?? i.Номер ?? i.N ?? '')));
-        } else if (statusFilter) {
-            res = res.filter(i => normalizeInvoiceStatus(i.Status ?? i.State ?? i.state ?? i.Статус ?? i.Status) === statusFilter);
+        if (statusFilterSet.size > 0) {
+            res = res.filter((i) => {
+                const invStatus = normalizeInvoiceStatus(i.Status ?? i.State ?? i.state ?? i.Статус ?? i.Status);
+                const invNum = String(i.Number ?? i.number ?? i.Номер ?? i.N ?? '');
+                const isFav = isInvoiceFavorite(invNum);
+                return (statusFilterSet.has(INVOICE_FAVORITES_VALUE) && isFav) || statusFilterSet.has(invStatus);
+            });
         }
         if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
         if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
         if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
-        if (useServiceRequest && deliveryStatusFilter !== 'all') {
+        if (useServiceRequest && deliveryStatusFilterSet.size > 0) {
             res = res.filter((i) => {
                 const cargoNum = getFirstCargoNumberFromInvoice(i);
                 const state = cargoNum ? cargoStateByNumber.get(cargoNum) : undefined;
-                return getFilterKeyByStatus(state) === deliveryStatusFilter;
+                return deliveryStatusFilterSet.has(getFilterKeyByStatus(state));
             });
         }
         const getDate = (r: any) => (r.Date ?? r.date ?? r.Дата ?? r.DateDoc ?? '').toString();
@@ -191,7 +207,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             });
         }
         return res;
-    }, [items, customerFilter, statusFilter, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, useServiceRequest, deliveryStatusFilter, getFirstCargoNumberFromInvoice, cargoStateByNumber]);
+    }, [items, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, useServiceRequest, deliveryStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber]);
 
     const documentsSummary = useMemo(() => {
         let sum = 0;
@@ -233,7 +249,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         else { setTableSortColumn(column); setTableSortOrder('asc'); }
     };
 
-    const handleInnerTableSort = (column: 'number' | 'date' | 'status' | 'sum') => {
+    const handleInnerTableSort = (column: 'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route') => {
         if (innerTableSortColumn === column) setInnerTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
         else { setInnerTableSortColumn(column); setInnerTableSortOrder(column === 'date' ? 'desc' : 'asc'); }
     };
@@ -247,6 +263,10 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             const num = getFirstCargoNumberFromInvoice(inv);
             return (num ? cargoStateByNumber.get(num) : undefined) ?? '';
         };
+        const getRoute = (inv: any) => {
+            const num = getFirstCargoNumberFromInvoice(inv);
+            return (num ? cargoRouteByNumber.get(num) : undefined) ?? '';
+        };
         return [...items].sort((a, b) => {
             let cmp = 0;
             switch (innerTableSortColumn) {
@@ -255,10 +275,11 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                 case 'status': cmp = (getStatus(a) || '').localeCompare(getStatus(b) || ''); break;
                 case 'sum': cmp = getSum(a) - getSum(b); break;
                 case 'deliveryStatus': cmp = (getDeliveryState(a) || '').localeCompare(getDeliveryState(b) || ''); break;
+                case 'route': cmp = (getRoute(a) || '').localeCompare(getRoute(b) || ''); break;
             }
             return innerTableSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [innerTableSortColumn, innerTableSortOrder, getFirstCargoNumberFromInvoice, cargoStateByNumber]);
+    }, [innerTableSortColumn, innerTableSortOrder, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber]);
 
     return (
         <div className="w-full">
@@ -373,26 +394,33 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                         )}
                         <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); }}>
-                                Статус счёта: {statusFilter === INVOICE_FAVORITES_VALUE ? 'Избранные' : statusFilter ? statusFilter : 'Все'} <ChevronDown className="w-4 h-4"/>
+                                Статус счёта: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? (statusFilterSet.has(INVOICE_FAVORITES_VALUE) ? 'Избранные' : [...statusFilterSet][0]) : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
                         <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen}>
-                            <div className="dropdown-item" onClick={() => { setStatusFilter(''); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            <div className="dropdown-item" onClick={() => { setStatusFilterSet(new Set()); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
                             {INVOICE_STATUS_OPTIONS.map(s => (
-                                <div key={s} className="dropdown-item" onClick={() => { setStatusFilter(s); setIsStatusDropdownOpen(false); }}><Typography.Body>{s}</Typography.Body></div>
+                                <div key={s} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setStatusFilterSet(prev => { const next = new Set(prev); if (next.has(s)) next.delete(s); else next.add(s); return next; }); }} style={{ background: statusFilterSet.has(s) ? 'var(--color-bg-hover)' : undefined }}>
+                                    <Typography.Body>{s} {statusFilterSet.has(s) ? '✓' : ''}</Typography.Body>
+                                </div>
                             ))}
-                            <div className="dropdown-item" onClick={() => { setStatusFilter(INVOICE_FAVORITES_VALUE); setIsStatusDropdownOpen(false); }}><Typography.Body>Избранные</Typography.Body></div>
+                            <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setStatusFilterSet(prev => { const next = new Set(prev); if (next.has(INVOICE_FAVORITES_VALUE)) next.delete(INVOICE_FAVORITES_VALUE); else next.add(INVOICE_FAVORITES_VALUE); return next; }); }} style={{ background: statusFilterSet.has(INVOICE_FAVORITES_VALUE) ? 'var(--color-bg-hover)' : undefined }}>
+                                <Typography.Body>Избранные {statusFilterSet.has(INVOICE_FAVORITES_VALUE) ? '✓' : ''}</Typography.Body>
+                            </div>
                         </FilterDropdownPortal>
                         {useServiceRequest && (
                             <>
                                 <div ref={deliveryStatusButtonRef} style={{ display: 'inline-flex' }}>
                                     <Button className="filter-button" onClick={() => { setIsDeliveryStatusDropdownOpen(!isDeliveryStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                                        Статус перевозки: {STATUS_MAP[deliveryStatusFilter]} <ChevronDown className="w-4 h-4"/>
+                                        Статус перевозки: {deliveryStatusFilterSet.size === 0 ? 'Все' : deliveryStatusFilterSet.size === 1 ? STATUS_MAP[[...deliveryStatusFilterSet][0]] : `Выбрано: ${deliveryStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
                                 <FilterDropdownPortal triggerRef={deliveryStatusButtonRef} isOpen={isDeliveryStatusDropdownOpen}>
-                                    {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'favorites').map(key => (
-                                        <div key={key} className="dropdown-item" onClick={() => { setDeliveryStatusFilter(key); setIsDeliveryStatusDropdownOpen(false); }}><Typography.Body>{STATUS_MAP[key]}</Typography.Body></div>
+                                    <div className="dropdown-item" onClick={() => { setDeliveryStatusFilterSet(new Set()); setIsDeliveryStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                                    {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'favorites' && k !== 'all').map(key => (
+                                        <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setDeliveryStatusFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: deliveryStatusFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
+                                            <Typography.Body>{STATUS_MAP[key]} {deliveryStatusFilterSet.has(key) ? '✓' : ''}</Typography.Body>
+                                        </div>
                                     ))}
                                 </FilterDropdownPortal>
                             </>
@@ -464,6 +492,9 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                 {useServiceRequest && (
                                                                     <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('deliveryStatus'); }} title="Сортировка">Статус перевозки {innerTableSortColumn === 'deliveryStatus' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 )}
+                                                                {useServiceRequest && (
+                                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('route'); }} title="Сортировка">Маршрут {innerTableSortColumn === 'route' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                )}
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка">Сумма {innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                             </tr>
                                                         </thead>
@@ -485,6 +516,11 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                         {useServiceRequest && (
                                                                             <td style={{ padding: '0.35rem 0.3rem' }}>
                                                                                 <span className={deliveryStatusClass} style={{ fontSize: '0.7rem', padding: '0.15rem 0.35rem', borderRadius: '999px', fontWeight: 600 }}>{deliveryStateNorm || '—'}</span>
+                                                                            </td>
+                                                                        )}
+                                                                        {useServiceRequest && (
+                                                                            <td style={{ padding: '0.35rem 0.3rem' }}>
+                                                                                <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>{(firstCargoNum ? cargoRouteByNumber.get(firstCargoNum) : null) || '—'}</span>
                                                                             </td>
                                                                         )}
                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum) : '—'}</td>
@@ -557,7 +593,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                     onClose={() => setSelectedInvoice(null)}
                     onOpenCargo={(cargoNumber) => {
                         if (onOpenCargoInPlace) {
-                            onOpenCargoInPlace(cargoNumber);
+                            onOpenCargoInPlace(cargoNumber, activeInn || undefined);
                         } else {
                             setSelectedInvoice(null);
                             setTimeout(() => onOpenCargo?.(cargoNumber), 0);

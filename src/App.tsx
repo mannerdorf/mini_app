@@ -8504,29 +8504,35 @@ export default function App() {
         setActiveTab("cargo");
     };
 
-    const openCargoInPlace = (cargoNumber: string) => {
+    const [overlayCargoInn, setOverlayCargoInn] = useState<string | null>(null);
+
+    const openCargoInPlace = (cargoNumber: string, inn?: string) => {
         if (!cargoNumber) return;
         setOverlayCargoNumber(cargoNumber);
         setOverlayCargoItem(null);
+        setOverlayCargoInn(inn ?? null);
     };
 
     useEffect(() => {
         if (!overlayCargoNumber || !activeAccount?.login || !activeAccount?.password) {
             if (!overlayCargoNumber) {
                 setOverlayCargoItem(null);
+                setOverlayCargoInn(null);
             }
             return;
         }
         let cancelled = false;
         setOverlayCargoLoading(true);
-        const inn = activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn ?? undefined;
+        const inn = overlayCargoInn ?? activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn ?? undefined;
+        const numberRaw = String(overlayCargoNumber).replace(/^0+/, '') || overlayCargoNumber;
+        const numberForApi = /^\d{5,9}$/.test(numberRaw) ? numberRaw.padStart(9, '0') : overlayCargoNumber;
         fetch(PROXY_API_GETPEREVOZKA_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 login: activeAccount.login,
                 password: activeAccount.password,
-                number: overlayCargoNumber,
+                number: numberForApi,
                 ...(inn ? { inn } : {}),
             }),
         })
@@ -8534,12 +8540,15 @@ export default function App() {
             .then((data) => {
                 if (cancelled) return;
                 const raw = Array.isArray(data) ? data[0] : data;
+                const statuses = raw?.Statuses ?? raw?.statuses;
+                const lastStatus = Array.isArray(statuses) && statuses.length > 0 ? statuses[statuses.length - 1] : null;
+                const stateFromStatuses = lastStatus?.Status ?? lastStatus?.status ?? null;
                 const item: CargoItem = raw ? {
                     ...raw,
                     Number: raw?.Number ?? raw?.number ?? overlayCargoNumber,
                     DatePrih: raw?.DatePrih ?? raw?.datePrih,
                     DateVr: raw?.DateVr ?? raw?.dateVr,
-                    State: raw?.State ?? raw?.state,
+                    State: raw?.State ?? raw?.state ?? stateFromStatuses ?? undefined,
                     Mest: raw?.Mest ?? raw?.mest,
                     PW: raw?.PW ?? raw?.pw,
                     W: raw?.W ?? raw?.w,
@@ -8556,7 +8565,7 @@ export default function App() {
             .catch(() => { if (!cancelled) setOverlayCargoItem(null); })
             .finally(() => { if (!cancelled) setOverlayCargoLoading(false); });
         return () => { cancelled = true; };
-    }, [overlayCargoNumber, activeAccount?.login, activeAccount?.password, activeAccount?.activeCustomerInn, activeAccount?.customers]);
+    }, [overlayCargoNumber, overlayCargoInn, activeAccount?.login, activeAccount?.password, activeAccount?.activeCustomerInn, activeAccount?.customers]);
 
     const openCargoWithFilters = (filters: { status?: StatusFilter; search?: string }) => {
         setCargoQuickFilters(filters);
@@ -9515,7 +9524,7 @@ export default function App() {
             {/* Карточка перевозки поверх счёта (из раздела Документы) — zIndex 10000 чтобы быть выше InvoiceDetailModal (9998) */}
             {overlayCargoNumber && activeAccount && (
                 overlayCargoLoading ? (
-                    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); }}>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); setOverlayCargoInn(null); }}>
                         <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-primary)' }} />
                     </div>
                 ) : overlayCargoItem ? (
@@ -9523,8 +9532,8 @@ export default function App() {
                     <CargoDetailsModal
                         item={overlayCargoItem}
                         isOpen={true}
-                        onClose={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); }}
-                        auth={{ login: activeAccount.login, password: activeAccount.password, inn: activeAccount.activeCustomerInn ?? undefined }}
+                        onClose={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); setOverlayCargoInn(null); }}
+                        auth={{ login: activeAccount.login, password: activeAccount.password, inn: (overlayCargoInn ?? activeAccount.activeCustomerInn ?? undefined) || undefined }}
                         onOpenChat={openAiChatDeepLink}
                         isFavorite={(n) => { try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; return arr.includes(n); } catch { return false; } }}
                         onToggleFavorite={(n) => { if (!n) return; try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; const set = new Set(arr); if (set.has(n)) set.delete(n); else set.add(n); localStorage.setItem('haulz.favorites', JSON.stringify([...set])); setOverlayFavVersion(v => v + 1); } catch {} }}

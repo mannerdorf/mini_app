@@ -284,7 +284,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .status-value.success { background-color: rgba(52, 211, 153, 0.2); color: var(--color-success-status); } /* delivered, completed */
 .status-value.transit { background-color: rgba(250, 204, 21, 0.2); color: var(--color-transit-status); border: 1px solid rgba(250, 204, 21, 0.5); } /* В пути — жёлтый как на карточке */
 .status-value.accepted { background-color: rgba(59, 130, 246, 0.2); color: var(--color-accepted-status); } /* accepted */
-.status-value.ready { background-color: rgba(250, 204, 21, 0.2); color: var(--color-pending-status); } /* ready */
+.status-value.ready { background-color: rgba(16, 185, 129, 0.2); color: #059669; border: 1px solid rgba(16, 185, 129, 0.45); } /* Готов к выдаче — бирюзовый/изумрудный */
 
 /* --- CARGO PAGE STICKY HEADER --- */
 .cargo-page-sticky-header {
