@@ -21,6 +21,7 @@ import {
 import { useInvoices } from "../hooks/useApi";
 import type { AuthData, DateFilter } from "../types";
 
+const INVOICE_FAVORITES_VALUE = '__favorites__';
 const INVOICE_STATUS_OPTIONS = ['Оплачен', 'Не оплачен', 'Оплачен частично'] as const;
 
 type DocumentsPageProps = {
@@ -28,10 +29,12 @@ type DocumentsPageProps = {
     useServiceRequest?: boolean;
     activeInn?: string;
     onOpenCargo?: (cargoNumber: string) => void;
+    /** При клике на номер перевозки внутри счёта — открыть карточку в этом же окне (без перехода на вкладку грузы) */
+    onOpenCargoInPlace?: (cargoNumber: string) => void;
     onOpenChat?: (context?: string) => void | Promise<void>;
 };
 
-export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', onOpenCargo, onOpenChat }: DocumentsPageProps) {
+export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', onOpenCargo, onOpenCargoInPlace, onOpenChat }: DocumentsPageProps) {
     const initDate = () => loadDateFilterState();
     const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
     const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
@@ -102,35 +105,6 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
 
     const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
 
-    const filteredItems = useMemo(() => {
-        let res = [...items];
-        if (customerFilter) res = res.filter(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim()) === customerFilter);
-        if (statusFilter) res = res.filter(i => normalizeInvoiceStatus(i.Status ?? i.State ?? i.state ?? i.Статус ?? i.Status) === statusFilter);
-        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
-        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
-        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
-        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
-        const getDate = (r: any) => (r.Date ?? r.date ?? r.Дата ?? r.DateDoc ?? '').toString();
-        if (sortBy === 'date') {
-            res.sort((a, b) => {
-                const da = getDate(a);
-                const db = getDate(b);
-                const cmp = da.localeCompare(db);
-                return sortOrder === 'desc' ? -cmp : cmp;
-            });
-        }
-        return res;
-    }, [items, customerFilter, statusFilter, typeFilter, routeFilter, sortBy, sortOrder]);
-
-    const documentsSummary = useMemo(() => {
-        let sum = 0;
-        filteredItems.forEach(i => {
-            const v = i.SumDoc ?? i.Sum ?? i.sum ?? i.Сумма ?? i.Amount ?? 0;
-            sum += typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
-        });
-        return { sum, count: filteredItems.length };
-    }, [filteredItems]);
-
     const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
         if (!invNum) return;
         try {
@@ -152,6 +126,39 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             return arr.includes(invNum);
         } catch { return false; }
     }, []);
+
+    const filteredItems = useMemo(() => {
+        let res = [...items];
+        if (customerFilter) res = res.filter(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim()) === customerFilter);
+        if (statusFilter === INVOICE_FAVORITES_VALUE) {
+            res = res.filter(i => isInvoiceFavorite(String(i.Number ?? i.number ?? i.Номер ?? i.N ?? '')));
+        } else if (statusFilter) {
+            res = res.filter(i => normalizeInvoiceStatus(i.Status ?? i.State ?? i.state ?? i.Статус ?? i.Status) === statusFilter);
+        }
+        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
+        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
+        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
+        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
+        const getDate = (r: any) => (r.Date ?? r.date ?? r.Дата ?? r.DateDoc ?? '').toString();
+        if (sortBy === 'date') {
+            res.sort((a, b) => {
+                const da = getDate(a);
+                const db = getDate(b);
+                const cmp = da.localeCompare(db);
+                return sortOrder === 'desc' ? -cmp : cmp;
+            });
+        }
+        return res;
+    }, [items, customerFilter, statusFilter, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite]);
+
+    const documentsSummary = useMemo(() => {
+        let sum = 0;
+        filteredItems.forEach(i => {
+            const v = i.SumDoc ?? i.Sum ?? i.sum ?? i.Сумма ?? i.Amount ?? 0;
+            sum += typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
+        });
+        return { sum, count: filteredItems.length };
+    }, [filteredItems]);
 
     const groupedByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
@@ -189,14 +196,12 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             <div className="cargo-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
-                    {useServiceRequest && (
-                        <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                            <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица по заказчику</Typography.Body>
-                            <span className="roles-switch-wrap">
-                                <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
-                            </span>
-                        </Flex>
-                    )}
+                    <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                        <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
+                        <span className="roles-switch-wrap">
+                            <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
+                        </span>
+                    </Flex>
                 </Flex>
                 <div className="filters-container filters-row-scroll">
                     <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
@@ -299,11 +304,12 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                         )}
                         <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                                Статус счёта: {statusFilter ? statusFilter : 'Все'} <ChevronDown className="w-4 h-4"/>
+                                Статус счёта: {statusFilter === INVOICE_FAVORITES_VALUE ? 'Избранные' : statusFilter ? statusFilter : 'Все'} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
                         <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen}>
                             <div className="dropdown-item" onClick={() => { setStatusFilter(''); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            <div className="dropdown-item" onClick={() => { setStatusFilter(INVOICE_FAVORITES_VALUE); setIsStatusDropdownOpen(false); }}><Typography.Body>❤ Избранные</Typography.Body></div>
                             {INVOICE_STATUS_OPTIONS.map(s => (
                                 <div key={s} className="dropdown-item" onClick={() => { setStatusFilter(s); setIsStatusDropdownOpen(false); }}><Typography.Body>{s}</Typography.Body></div>
                             ))}
@@ -324,7 +330,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                     <div className="summary-metrics">
                         <Flex direction="column" align="center">
                             <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCurrency(documentsSummary.sum, true)}</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCurrency(documentsSummary.sum)}</Typography.Body>
                         </Flex>
                         <Flex direction="column" align="center">
                             <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Счетов</Typography.Label>
@@ -344,7 +350,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                     <Typography.Body>{error}</Typography.Body>
                 </Flex>
             )}
-            {!loading && !error && useServiceRequest && tableModeByCustomer && sortedGroupedByCustomer.length > 0 && (
+            {!loading && !error && tableModeByCustomer && sortedGroupedByCustomer.length > 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -359,7 +365,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 <React.Fragment key={i}>
                                     <tr style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }} onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)} title={expandedTableCustomer === row.customer ? 'Свернуть' : 'Показать счета'}>
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum, true)}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
                                     </tr>
                                     {expandedTableCustomer === row.customer && (
@@ -386,7 +392,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(inum)}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{ist || '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum, true) : '—'}</td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum) : '—'}</td>
                                                                     </tr>
                                                                 );
                                                             })}
@@ -402,7 +408,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                     </table>
                 </div>
             )}
-            {!loading && !error && filteredItems.length > 0 && !(useServiceRequest && tableModeByCustomer) && (
+            {!loading && !error && filteredItems.length > 0 && !tableModeByCustomer && (
                 <div className="cargo-list">
                     {filteredItems.map((row, idx) => {
                         const num = row.Number ?? row.number ?? row.Номер ?? row.N ?? '';
@@ -422,7 +428,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                         )}
                                     </Flex>
                                     <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
-                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); const lines = [`Счёт: ${formatInvoiceNumber(num)}`, cust && `Заказчик: ${stripOoo(String(cust))}`, sum != null && `Сумма: ${formatCurrency(sum, true)}`, dt && `Дата: ${typeof dt === 'string' ? dt : String(dt)}`].filter(Boolean); const text = lines.join('\n'); if (typeof navigator !== 'undefined' && (navigator as any).share) { (navigator as any).share({ title: `Счёт ${formatInvoiceNumber(num)}`, text }).catch(() => {}); } else { try { navigator.clipboard?.writeText(text); } catch {} } }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
+                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); const lines = [`Счёт: ${formatInvoiceNumber(num)}`, cust && `Заказчик: ${stripOoo(String(cust))}`, sum != null && `Сумма: ${formatCurrency(sum)}`, dt && `Дата: ${typeof dt === 'string' ? dt : String(dt)}`].filter(Boolean); const text = lines.join('\n'); if (typeof navigator !== 'undefined' && (navigator as any).share) { (navigator as any).share({ title: `Счёт ${formatInvoiceNumber(num)}`, text }).catch(() => {}); } else { try { navigator.clipboard?.writeText(text); } catch {} } }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
                                         <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); onOpenChat?.(`Счёт ${formatInvoiceNumber(num)}`); }} title="Чат"><MessageCircle className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
                                         <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); toggleInvoiceFavorite(String(num || '')); }} title={isInvoiceFavorite(String(num || '')) ? 'Удалить из избранного' : 'В избранное'}>
                                             <Heart className="w-4 h-4" style={{ fill: isInvoiceFavorite(String(num || '')) ? '#ef4444' : 'transparent', color: isInvoiceFavorite(String(num || '')) ? '#ef4444' : 'var(--color-text-secondary)' }} />
@@ -435,7 +441,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 </Flex>
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
                                     {st && <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: badgeStyle.bg, color: badgeStyle.color, border: '1px solid var(--color-border)' }}>{st}</span>}
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sum != null ? formatCurrency(sum, true) : '—'}</Typography.Body>
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sum != null ? formatCurrency(sum) : '—'}</Typography.Body>
                                 </Flex>
                                 <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                                     <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={stripOoo(String(cust || ''))}>{stripOoo(String(cust || '—'))}</Typography.Label>
@@ -455,8 +461,12 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                     isOpen={!!selectedInvoice}
                     onClose={() => setSelectedInvoice(null)}
                     onOpenCargo={(cargoNumber) => {
-                        setSelectedInvoice(null);
-                        setTimeout(() => onOpenCargo?.(cargoNumber), 0);
+                        if (onOpenCargoInPlace) {
+                            onOpenCargoInPlace(cargoNumber);
+                        } else {
+                            setSelectedInvoice(null);
+                            setTimeout(() => onOpenCargo?.(cargoNumber), 0);
+                        }
                     }}
                 />
             )}

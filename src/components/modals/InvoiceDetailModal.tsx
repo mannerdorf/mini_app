@@ -63,8 +63,8 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo }: Invoi
                                     <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 220 }} title={stripOoo(String(row.Operation ?? row.Name ?? ''))}>{renderServiceCell(String(row.Operation ?? row.Name ?? '—'))}</td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Quantity ?? '—'}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Price != null ? formatCurrency(row.Price, true) : '—'}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Sum != null ? formatCurrency(row.Sum, true) : '—'}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Price != null ? formatCurrency(row.Price) : '—'}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Sum != null ? formatCurrency(row.Sum) : '—'}</td>
                                     </tr>
                                 ))}
                             </tbody>

@@ -8126,7 +8126,11 @@ export default function App() {
         }
     }; 
     const [startParam, setStartParam] = useState<string | null>(null);
-    const [contextCargoNumber, setContextCargoNumber] = useState<string | null>(null); 
+    const [contextCargoNumber, setContextCargoNumber] = useState<string | null>(null);
+    const [overlayCargoNumber, setOverlayCargoNumber] = useState<string | null>(null);
+    const [overlayCargoItem, setOverlayCargoItem] = useState<CargoItem | null>(null);
+    const [overlayCargoLoading, setOverlayCargoLoading] = useState(false);
+    const [overlayFavVersion, setOverlayFavVersion] = useState(0);
     
     // ИНИЦИАЛИЗАЦИЯ ПУСТЫМИ СТРОКАМИ (данные берутся с фронта)
     const [login, setLogin] = useState(""); 
@@ -8492,6 +8496,58 @@ export default function App() {
         setContextCargoNumber(cargoNumber);
         setActiveTab("cargo");
     };
+
+    const openCargoInPlace = (cargoNumber: string) => {
+        if (!cargoNumber) return;
+        setOverlayCargoNumber(cargoNumber);
+        setOverlayCargoItem(null);
+    };
+
+    useEffect(() => {
+        if (!overlayCargoNumber || !activeAccount?.login || !activeAccount?.password) {
+            if (!overlayCargoNumber) {
+                setOverlayCargoItem(null);
+            }
+            return;
+        }
+        let cancelled = false;
+        setOverlayCargoLoading(true);
+        fetch(PROXY_API_GETPEREVOZKA_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                login: activeAccount.login,
+                password: activeAccount.password,
+                number: overlayCargoNumber,
+            }),
+        })
+            .then((r) => r.json())
+            .then((data) => {
+                if (cancelled) return;
+                const raw = Array.isArray(data) ? data[0] : data;
+                const item: CargoItem = raw ? {
+                    ...raw,
+                    Number: raw?.Number ?? raw?.number ?? overlayCargoNumber,
+                    DatePrih: raw?.DatePrih ?? raw?.datePrih,
+                    DateVr: raw?.DateVr ?? raw?.dateVr,
+                    State: raw?.State ?? raw?.state,
+                    Mest: raw?.Mest ?? raw?.mest,
+                    PW: raw?.PW ?? raw?.pw,
+                    W: raw?.W ?? raw?.w,
+                    Value: raw?.Value ?? raw?.value,
+                    Sum: raw?.Sum ?? raw?.sum,
+                    StateBill: raw?.StateBill ?? raw?.stateBill,
+                    Sender: raw?.Sender ?? raw?.sender,
+                    Customer: raw?.Customer ?? raw?.customer,
+                    Receiver: raw?.Receiver ?? raw?.receiver,
+                    _role: 'Customer',
+                } : { Number: overlayCargoNumber, _role: 'Customer' as PerevozkiRole };
+                setOverlayCargoItem(item);
+            })
+            .catch(() => { if (!cancelled) setOverlayCargoItem(null); })
+            .finally(() => { if (!cancelled) setOverlayCargoLoading(false); });
+        return () => { cancelled = true; };
+    }, [overlayCargoNumber, activeAccount?.login, activeAccount?.password]);
 
     const openCargoWithFilters = (filters: { status?: StatusFilter; search?: string }) => {
         setCargoQuickFilters(filters);
@@ -9260,7 +9316,7 @@ export default function App() {
                     )}
                     {activeTab === "docs" && auth && (
                         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
-                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} onOpenCargo={openCargoFromChat} onOpenChat={openAiChatDeepLink} />
+                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} onOpenCargo={openCargoFromChat} onOpenCargoInPlace={openCargoInPlace} onOpenChat={openAiChatDeepLink} />
                         </Suspense>
                     )}
                     {showDashboard && activeTab === "support" && (
@@ -9447,6 +9503,27 @@ export default function App() {
                 </div>
             )}
             
+            {/* Карточка перевозки поверх счёта (из раздела Документы) — zIndex 10000 чтобы быть выше InvoiceDetailModal (9998) */}
+            {overlayCargoNumber && activeAccount && (
+                overlayCargoLoading ? (
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); }}>
+                        <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--color-primary)' }} />
+                    </div>
+                ) : overlayCargoItem ? (
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 10000 }}>
+                    <CargoDetailsModal
+                        item={overlayCargoItem}
+                        isOpen={true}
+                        onClose={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); }}
+                        auth={{ login: activeAccount.login, password: activeAccount.password, inn: activeAccount.activeCustomerInn ?? undefined }}
+                        onOpenChat={openAiChatDeepLink}
+                        isFavorite={(n) => { try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; return arr.includes(n); } catch { return false; } }}
+                        onToggleFavorite={(n) => { if (!n) return; try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; const set = new Set(arr); if (set.has(n)) set.delete(n); else set.add(n); localStorage.setItem('haulz.favorites', JSON.stringify([...set])); setOverlayFavVersion(v => v + 1); } catch {} }}
+                    />
+                    </div>
+                ) : null
+            )}
+
             <ChatModal
                 isOpen={isChatOpen}
                 onClose={() => setIsChatOpen(false)}
