@@ -116,9 +116,18 @@ const getDateRange = (filter: DateFilter) => {
         case 'все': dateFrom = getSixMonthsAgoDate(); break;
         case 'сегодня': dateFrom = getTodayDate(); break;
         case 'вчера': (() => { const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1); const d = yesterday.toISOString().split('T')[0]; dateFrom = d; dateTo = d; })(); break;
-        case 'неделя': today.setDate(today.getDate() - 7); dateFrom = today.toISOString().split('T')[0]; break;
+        case 'неделя': {
+            const d = new Date();
+            const day = d.getDay();
+            const daysToMonday = (day + 6) % 7;
+            d.setDate(d.getDate() - daysToMonday - 7);
+            dateFrom = d.toISOString().split('T')[0];
+            d.setDate(d.getDate() + 6);
+            dateTo = d.toISOString().split('T')[0];
+            break;
+        }
         case 'месяц': today.setMonth(today.getMonth() - 1); dateFrom = today.toISOString().split('T')[0]; break;
-        case 'год': dateFrom = `${today.getFullYear()}-01-01`; break;
+        case 'год': today.setDate(today.getDate() - 365); dateFrom = today.toISOString().split('T')[0]; break;
         default: break;
     }
     return { dateFrom, dateTo };
@@ -153,11 +162,23 @@ const getPreviousPeriodRange = (filter: DateFilter, currentFrom: string, current
             break;
         }
         case 'год': {
-            // Предыдущий год
-            const currentYear = new Date(currentFrom + 'T00:00:00').getFullYear();
-            const prevYear = currentYear - 1;
-            dateFrom = `${prevYear}-01-01`;
-            dateTo = `${prevYear}-12-31`;
+            const currentFromDate = new Date(currentFrom + 'T00:00:00');
+            const currentToDate = new Date(currentTo + 'T00:00:00');
+            const daysDiff = Math.ceil((currentToDate.getTime() - currentFromDate.getTime()) / (1000 * 60 * 60 * 24));
+            if (daysDiff >= 350 && daysDiff <= 366) {
+                // 365 дней — предыдущий период той же длительности
+                const prevPeriodEnd = new Date(currentFromDate);
+                prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1);
+                const prevPeriodStart = new Date(prevPeriodEnd);
+                prevPeriodStart.setDate(prevPeriodStart.getDate() - daysDiff);
+                dateFrom = prevPeriodStart.toISOString().split('T')[0];
+                dateTo = prevPeriodEnd.toISOString().split('T')[0];
+            } else {
+                const currentYear = currentFromDate.getFullYear();
+                const prevYear = currentYear - 1;
+                dateFrom = `${prevYear}-01-01`;
+                dateTo = `${prevYear}-12-31`;
+            }
             break;
         }
         case 'период': {
@@ -182,6 +203,43 @@ const getPreviousPeriodRange = (filter: DateFilter, currentFrom: string, current
 
 const WEEKDAY_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'] as const;
 const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'] as const;
+const MONTH_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'] as const;
+
+/** Диапазон недели по понедельнику (пн–вс) */
+const getWeekRange = (mondayIso: string) => {
+    const mon = new Date(mondayIso + 'T00:00:00');
+    const sun = new Date(mon); sun.setDate(sun.getDate() + 6);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return {
+        dateFrom: `${mon.getFullYear()}-${pad(mon.getMonth() + 1)}-${pad(mon.getDate())}`,
+        dateTo: `${sun.getFullYear()}-${pad(sun.getMonth() + 1)}-${pad(sun.getDate())}`,
+    };
+};
+
+/** Список последних n недель (пн–вс) */
+const getWeeksList = (count: number) => {
+    const weeks: { monday: string; label: string }[] = [];
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    for (let i = 0; i < count; i++) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i * 7);
+        const day = d.getDay();
+        const daysToMonday = (day + 6) % 7;
+        d.setDate(d.getDate() - daysToMonday);
+        const monday = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        const sun = new Date(d); sun.setDate(sun.getDate() + 6);
+        const label = `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} – ${sun.getDate()} ${MONTH_SHORT[sun.getMonth()]} ${sun.getFullYear()}`;
+        weeks.push({ monday, label });
+    }
+    return weeks;
+};
+
+/** Годы для выбора (текущий и несколько прошлых) */
+const getYearsList = (count: number) => {
+    const y = new Date().getFullYear();
+    return Array.from({ length: count }, (_, i) => y - i);
+};
 
 const formatDate = (dateString: string | undefined): string => {
     if (!dateString) return '-';
@@ -1138,10 +1196,16 @@ function DashboardPage({
     const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
-    const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months'>('main');
+    const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
     const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(null);
+    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(null);
+    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(null);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
+    const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const yearWasLongPressRef = useRef(false);
+    const weekLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const weekWasLongPressRef = useRef(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
@@ -1311,8 +1375,15 @@ function DashboardPage({
                 dateTo: `${year}-${pad(month)}-${pad(lastDay)}`,
             };
         }
+        if (dateFilter === "год" && selectedYearForFilter) {
+            const y = selectedYearForFilter;
+            return { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` };
+        }
+        if (dateFilter === "неделя" && selectedWeekForFilter) {
+            return getWeekRange(selectedWeekForFilter);
+        }
         return getDateRange(dateFilter);
-    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter]);
+    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
     
     const loadCargo = useCallback(async (dateFrom: string, dateTo: string) => {
         if (!auth?.login || !auth?.password) {
@@ -1890,64 +1961,77 @@ function DashboardPage({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8,10)}.${r.dateFrom.slice(5,7)} – ${r.dateTo.slice(8,10)}.${r.dateTo.slice(5,7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
                         {dateDropdownMode === 'months' ? (
                             <>
-                                <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>
-                                    ← Назад
-                                </div>
+                                <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
                                 {MONTH_NAMES.map((name, i) => (
-                                    <div
-                                        key={i}
-                                        className="dropdown-item"
-                                        onClick={() => {
-                                            const year = new Date().getFullYear();
-                                            setDateFilter('месяц');
-                                            setSelectedMonthForFilter({ year, month: i + 1 });
-                                            setIsDateDropdownOpen(false);
-                                            setDateDropdownMode('main');
-                                        }}
-                                    >
+                                    <div key={i} className="dropdown-item" onClick={() => {
+                                        const year = new Date().getFullYear();
+                                        setDateFilter('месяц');
+                                        setSelectedMonthForFilter({ year, month: i + 1 });
+                                        setIsDateDropdownOpen(false);
+                                        setDateDropdownMode('main');
+                                    }}>
                                         <Typography.Body>{name} {new Date().getFullYear()}</Typography.Body>
+                                    </div>
+                                ))}
+                            </>
+                        ) : dateDropdownMode === 'years' ? (
+                            <>
+                                <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                {getYearsList(6).map(y => (
+                                    <div key={y} className="dropdown-item" onClick={() => {
+                                        setDateFilter('год');
+                                        setSelectedYearForFilter(y);
+                                        setIsDateDropdownOpen(false);
+                                        setDateDropdownMode('main');
+                                    }}>
+                                        <Typography.Body>{y}</Typography.Body>
+                                    </div>
+                                ))}
+                            </>
+                        ) : dateDropdownMode === 'weeks' ? (
+                            <>
+                                <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                {getWeeksList(16).map(w => (
+                                    <div key={w.monday} className="dropdown-item" onClick={() => {
+                                        setDateFilter('неделя');
+                                        setSelectedWeekForFilter(w.monday);
+                                        setIsDateDropdownOpen(false);
+                                        setDateDropdownMode('main');
+                                    }}>
+                                        <Typography.Body>{w.label}</Typography.Body>
                                     </div>
                                 ))}
                             </>
                         ) : (
                             ['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => {
                                 const isMonth = key === 'месяц';
+                                const isYear = key === 'год';
+                                const isWeek = key === 'неделя';
+                                const doLongPress = isMonth || isYear || isWeek;
+                                const timerRef = isMonth ? monthLongPressTimerRef : isYear ? yearLongPressTimerRef : weekLongPressTimerRef;
+                                const wasLongPressRef = isMonth ? monthWasLongPressRef : isYear ? yearWasLongPressRef : weekWasLongPressRef;
+                                const mode = isMonth ? 'months' : isYear ? 'years' : 'weeks';
+                                const title = isMonth ? 'Клик — текущий месяц; удерживайте — выбор месяца' : isYear ? 'Клик — 365 дней; удерживайте — выбор года' : isWeek ? 'Клик — предыдущая неделя; удерживайте — выбор недели (пн–вс)' : undefined;
                                 return (
-                                    <div
-                                        key={key}
-                                        className="dropdown-item"
-                                        title={isMonth ? 'Клик — текущий месяц; удерживайте — выбор месяца' : undefined}
-                                        onPointerDown={isMonth ? () => {
-                                            monthWasLongPressRef.current = false;
-                                            monthLongPressTimerRef.current = setTimeout(() => {
-                                                monthLongPressTimerRef.current = null;
-                                                monthWasLongPressRef.current = true;
-                                                setDateDropdownMode('months');
+                                    <div key={key} className="dropdown-item" title={title}
+                                        onPointerDown={doLongPress ? () => {
+                                            wasLongPressRef.current = false;
+                                            timerRef.current = setTimeout(() => {
+                                                timerRef.current = null;
+                                                wasLongPressRef.current = true;
+                                                setDateDropdownMode(mode);
                                             }, 500);
                                         } : undefined}
-                                        onPointerUp={isMonth ? () => {
-                                            if (monthLongPressTimerRef.current) {
-                                                clearTimeout(monthLongPressTimerRef.current);
-                                                monthLongPressTimerRef.current = null;
-                                            }
-                                        } : undefined}
-                                        onPointerLeave={isMonth ? () => {
-                                            if (monthLongPressTimerRef.current) {
-                                                clearTimeout(monthLongPressTimerRef.current);
-                                                monthLongPressTimerRef.current = null;
-                                            }
-                                        } : undefined}
+                                        onPointerUp={doLongPress ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
+                                        onPointerLeave={doLongPress ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
                                         onClick={() => {
-                                            if (isMonth && monthWasLongPressRef.current) {
-                                                monthWasLongPressRef.current = false;
-                                                return;
-                                            }
+                                            if (doLongPress && wasLongPressRef.current) { wasLongPressRef.current = false; return; }
                                             if (key === 'период') {
                                                 let r: { dateFrom: string; dateTo: string };
                                                 if (dateFilter === "период") {
@@ -1957,6 +2041,10 @@ function DashboardPage({
                                                     const pad = (n: number) => String(n).padStart(2, '0');
                                                     const lastDay = new Date(year, month, 0).getDate();
                                                     r = { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
+                                                } else if (dateFilter === "год" && selectedYearForFilter) {
+                                                    r = { dateFrom: `${selectedYearForFilter}-01-01`, dateTo: `${selectedYearForFilter}-12-31` };
+                                                } else if (dateFilter === "неделя" && selectedWeekForFilter) {
+                                                    r = getWeekRange(selectedWeekForFilter);
                                                 } else {
                                                     r = getDateRange(dateFilter);
                                                 }
@@ -1965,6 +2053,8 @@ function DashboardPage({
                                             }
                                             setDateFilter(key as any);
                                             if (key === 'месяц') setSelectedMonthForFilter(null);
+                                            if (key === 'год') setSelectedYearForFilter(null);
+                                            if (key === 'неделя') setSelectedWeekForFilter(null);
                                             setIsDateDropdownOpen(false);
                                             if (key === 'период') setIsCustomModalOpen(true);
                                         }}
@@ -5434,10 +5524,16 @@ function CargoPage({
     const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
-    const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months'>('main');
+    const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
     const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(null);
+    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(null);
+    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(null);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
+    const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const yearWasLongPressRef = useRef(false);
+    const weekLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const weekWasLongPressRef = useRef(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
@@ -5525,8 +5621,15 @@ function CargoPage({
                 dateTo: `${year}-${pad(month)}-${pad(lastDay)}`,
             };
         }
+        if (dateFilter === "год" && selectedYearForFilter) {
+            const y = selectedYearForFilter;
+            return { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` };
+        }
+        if (dateFilter === "неделя" && selectedWeekForFilter) {
+            return getWeekRange(selectedWeekForFilter);
+        }
         return getDateRange(dateFilter);
-    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter]);
+    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
 
     // Удалена функция findDeliveryDate, используем DateVr напрямую.
 
@@ -6006,7 +6109,7 @@ function CargoPage({
                     </Button>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                            Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8,10)}.${r.dateFrom.slice(5,7)} – ${r.dateTo.slice(8,10)}.${r.dateTo.slice(5,7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
@@ -6025,36 +6128,75 @@ function CargoPage({
                                     </div>
                                 ))}
                             </>
+                        ) : dateDropdownMode === 'years' ? (
+                            <>
+                                <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                {getYearsList(6).map(y => (
+                                    <div key={y} className="dropdown-item" onClick={() => {
+                                        setDateFilter('год');
+                                        setSelectedYearForFilter(y);
+                                        setIsDateDropdownOpen(false);
+                                        setDateDropdownMode('main');
+                                    }}>
+                                        <Typography.Body>{y}</Typography.Body>
+                                    </div>
+                                ))}
+                            </>
+                        ) : dateDropdownMode === 'weeks' ? (
+                            <>
+                                <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                {getWeeksList(16).map(w => (
+                                    <div key={w.monday} className="dropdown-item" onClick={() => {
+                                        setDateFilter('неделя');
+                                        setSelectedWeekForFilter(w.monday);
+                                        setIsDateDropdownOpen(false);
+                                        setDateDropdownMode('main');
+                                    }}>
+                                        <Typography.Body>{w.label}</Typography.Body>
+                                    </div>
+                                ))}
+                            </>
                         ) : (
                             ['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => {
                                 const isMonth = key === 'месяц';
+                                const isYear = key === 'год';
+                                const isWeek = key === 'неделя';
+                                const doLongPress = isMonth || isYear || isWeek;
+                                const timerRef = isMonth ? monthLongPressTimerRef : isYear ? yearLongPressTimerRef : weekLongPressTimerRef;
+                                const wasLongPressRef = isMonth ? monthWasLongPressRef : isYear ? yearWasLongPressRef : weekWasLongPressRef;
+                                const mode = isMonth ? 'months' : isYear ? 'years' : 'weeks';
+                                const title = isMonth ? 'Клик — текущий месяц; удерживайте — выбор месяца' : isYear ? 'Клик — 365 дней; удерживайте — выбор года' : isWeek ? 'Клик — предыдущая неделя; удерживайте — выбор недели (пн–вс)' : undefined;
                                 return (
-                                    <div key={key} className="dropdown-item" title={isMonth ? 'Клик — текущий месяц; удерживайте — выбор месяца' : undefined}
-                                        onPointerDown={isMonth ? () => { monthWasLongPressRef.current = false; monthLongPressTimerRef.current = setTimeout(() => { monthLongPressTimerRef.current = null; monthWasLongPressRef.current = true; setDateDropdownMode('months'); }, 500); } : undefined}
-                                        onPointerUp={isMonth ? () => { if (monthLongPressTimerRef.current) { clearTimeout(monthLongPressTimerRef.current); monthLongPressTimerRef.current = null; } } : undefined}
-                                        onPointerLeave={isMonth ? () => { if (monthLongPressTimerRef.current) { clearTimeout(monthLongPressTimerRef.current); monthLongPressTimerRef.current = null; } } : undefined}
+                                    <div key={key} className="dropdown-item" title={title}
+                                        onPointerDown={doLongPress ? () => { wasLongPressRef.current = false; timerRef.current = setTimeout(() => { timerRef.current = null; wasLongPressRef.current = true; setDateDropdownMode(mode); }, 500); } : undefined}
+                                        onPointerUp={doLongPress ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
+                                        onPointerLeave={doLongPress ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
                                         onClick={() => {
-                                            if (isMonth && monthWasLongPressRef.current) { monthWasLongPressRef.current = false; return; }
+                                            if (doLongPress && wasLongPressRef.current) { wasLongPressRef.current = false; return; }
                                             if (key === 'период') {
                                                 let r: { dateFrom: string; dateTo: string };
-                                                if (dateFilter === "период") {
-                                                    r = { dateFrom: customDateFrom, dateTo: customDateTo };
-                                                } else if (dateFilter === "месяц" && selectedMonthForFilter) {
+                                                if (dateFilter === "период") { r = { dateFrom: customDateFrom, dateTo: customDateTo }; }
+                                                else if (dateFilter === "месяц" && selectedMonthForFilter) {
                                                     const { year, month } = selectedMonthForFilter;
                                                     const pad = (n: number) => String(n).padStart(2, '0');
                                                     const lastDay = new Date(year, month, 0).getDate();
                                                     r = { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
-                                                } else {
-                                                    r = getDateRange(dateFilter);
-                                                }
+                                                } else if (dateFilter === "год" && selectedYearForFilter) {
+                                                    r = { dateFrom: `${selectedYearForFilter}-01-01`, dateTo: `${selectedYearForFilter}-12-31` };
+                                                } else if (dateFilter === "неделя" && selectedWeekForFilter) {
+                                                    r = getWeekRange(selectedWeekForFilter);
+                                                } else { r = getDateRange(dateFilter); }
                                                 setCustomDateFrom(r.dateFrom);
                                                 setCustomDateTo(r.dateTo);
                                             }
                                             setDateFilter(key as any);
                                             if (key === 'месяц') setSelectedMonthForFilter(null);
+                                            if (key === 'год') setSelectedYearForFilter(null);
+                                            if (key === 'неделя') setSelectedWeekForFilter(null);
                                             setIsDateDropdownOpen(false);
                                             if (key === 'период') setIsCustomModalOpen(true);
-                                        }}>
+                                        }}
+                                    >
                                         <Typography.Body>{key === 'год' ? 'Год' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
                                     </div>
                                 );
