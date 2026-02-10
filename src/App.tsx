@@ -5229,7 +5229,9 @@ function CargoPage({
 
     useEffect(() => {
         if (!contextCargoNumber) return;
-        const match = items.find(item => String(item.Number) === String(contextCargoNumber));
+        const norm = (s: string) => String(s).replace(/^0+/, '') || s;
+        const ctxNorm = norm(contextCargoNumber);
+        const match = items.find(item => norm(String(item.Number ?? '')) === ctxNorm);
         if (match) {
             setSelectedCargo(match);
             onClearContextCargo?.();
@@ -8498,7 +8500,10 @@ export default function App() {
 
     const openCargoFromChat = (cargoNumber: string) => {
         if (!cargoNumber) return;
-        setContextCargoNumber(cargoNumber);
+        const num = String(cargoNumber).trim();
+        setSearchText(num);
+        handleSearch(num);
+        setContextCargoNumber(num);
         setActiveTab("cargo");
     };
 
@@ -9332,7 +9337,7 @@ export default function App() {
                     )}
                     {activeTab === "docs" && auth && (
                         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
-                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} onOpenCargo={openCargoFromChat} onOpenCargoInPlace={openCargoInPlace} onOpenChat={openAiChatDeepLink} />
+                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} onOpenCargo={openCargoFromChat} onOpenChat={openAiChatDeepLink} />
                         </Suspense>
                     )}
                     {showDashboard && activeTab === "support" && (

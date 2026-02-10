@@ -29,13 +29,12 @@ type DocumentsPageProps = {
     auth: AuthData;
     useServiceRequest?: boolean;
     activeInn?: string;
+    /** При клике на перевозку в документах — переход на вкладку «Грузы» и открытие карточки */
     onOpenCargo?: (cargoNumber: string) => void;
-    /** При клике на номер перевозки внутри счёта — открыть карточку в этом же окне (без перехода на вкладку грузы) */
-    onOpenCargoInPlace?: (cargoNumber: string, inn?: string) => void;
     onOpenChat?: (context?: string) => void | Promise<void>;
 };
 
-export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', onOpenCargo, onOpenCargoInPlace, onOpenChat }: DocumentsPageProps) {
+export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', onOpenCargo, onOpenChat }: DocumentsPageProps) {
     const initDate = () => loadDateFilterState();
     const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
     const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
@@ -600,12 +599,8 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                     isOpen={!!selectedInvoice}
                     onClose={() => setSelectedInvoice(null)}
                     onOpenCargo={(cargoNumber) => {
-                        if (onOpenCargoInPlace) {
-                            onOpenCargoInPlace(cargoNumber, activeInn || undefined);
-                        } else {
-                            setSelectedInvoice(null);
-                            setTimeout(() => onOpenCargo?.(cargoNumber), 0);
-                        }
+                        setSelectedInvoice(null);
+                        setTimeout(() => onOpenCargo?.(cargoNumber), 0);
                     }}
                     auth={auth}
                 />
