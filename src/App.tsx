@@ -428,7 +428,7 @@ const cityToCode = (city: string | number | undefined | null): string => {
 const parseCargoNumbersFromText = (text: string): Array<{ type: 'text' | 'cargo'; value: string }> => {
     if (!text || typeof text !== 'string') return [{ type: 'text', value: text || '' }];
     const parts: Array<{ type: 'text' | 'cargo'; value: string }> = [];
-    const re = /(0000-\d{4,6}|\d{5,7})/g;
+    const re = /(0000-\d{4,8}|\d{5,9})/g;
     let lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = re.exec(text)) !== null) {
