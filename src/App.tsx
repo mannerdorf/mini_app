@@ -35,6 +35,7 @@ const PROXY_API_GETCUSTOMERS_URL = '/api/getcustomers';
 const PROXY_API_DOWNLOAD_URL = '/api/download';
 const PROXY_API_SEND_DOC_URL = '/api/send-document';
 const PROXY_API_GETPEREVOZKA_URL = '/api/getperevozka';
+const PROXY_API_INVOICES_URL = '/api/invoices';
 
 // --- CONSTANTS ---
 const getTodayDate = () => new Date().toISOString().split('T')[0];
@@ -7695,6 +7696,195 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
+/** Страница «Документы»: раздел «Счета» — по аналогии со стилем перевозок */
+function DocumentsPage({ auth }: { auth: AuthData }) {
+    const [items, setItems] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const initDate = () => loadDateFilterState();
+    const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
+    const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
+    const [customDateTo, setCustomDateTo] = useState(() => initDate()?.customDateTo ?? DEFAULT_DATE_TO);
+    const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(() => initDate()?.selectedMonthForFilter ?? null);
+    const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDate()?.selectedYearForFilter ?? null);
+    const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDate()?.selectedWeekForFilter ?? null);
+    const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
+    const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
+    const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
+    const dateButtonRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
+    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
+
+    const apiDateRange = useMemo(() => {
+        if (dateFilter === "период") return { dateFrom: customDateFrom, dateTo: customDateTo };
+        if (dateFilter === "месяц" && selectedMonthForFilter) {
+            const { year, month } = selectedMonthForFilter;
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const lastDay = new Date(year, month, 0).getDate();
+            return { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
+        }
+        if (dateFilter === "год" && selectedYearForFilter) {
+            const y = selectedYearForFilter;
+            return { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` };
+        }
+        if (dateFilter === "неделя" && selectedWeekForFilter) {
+            return getWeekRange(selectedWeekForFilter);
+        }
+        return getDateRange(dateFilter);
+    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
+
+    const loadInvoices = useCallback(async (dateFrom: string, dateTo: string) => {
+        if (!auth?.login || !auth?.password) {
+            setItems([]);
+            setLoading(false);
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch(PROXY_API_INVOICES_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ login: auth.login, password: auth.password, dateFrom, dateTo }),
+            });
+            await ensureOk(res, "Ошибка загрузки счетов");
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : data.items ?? data.Invoices ?? data.invoices ?? [];
+            setItems(Array.isArray(list) ? list : []);
+        } catch (e: any) {
+            setError(e.message ?? "Ошибка загрузки");
+            setItems([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [auth?.login, auth?.password]);
+
+    useEffect(() => {
+        loadInvoices(apiDateRange.dateFrom, apiDateRange.dateTo);
+    }, [apiDateRange, loadInvoices]);
+
+    return (
+        <div className="w-full">
+            <div className="cargo-page-sticky-header">
+                <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
+                </Flex>
+                <div className="filters-container filters-row-scroll">
+                    <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
+                        <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); }}>
+                                Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8, 10)}.${r.dateFrom.slice(5, 7)} – ${r.dateTo.slice(8, 10)}.${r.dateTo.slice(5, 7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal triggerRef={dateButtonRef} isOpen={isDateDropdownOpen}>
+                            {dateDropdownMode === 'months' ? (
+                                <>
+                                    <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                    {MONTH_NAMES.map((name, i) => (
+                                        <div key={i} className="dropdown-item" onClick={() => { setDateFilter('месяц'); setSelectedMonthForFilter({ year: new Date().getFullYear(), month: i + 1 }); setIsDateDropdownOpen(false); setDateDropdownMode('main'); }}>
+                                            <Typography.Body>{name} {new Date().getFullYear()}</Typography.Body>
+                                        </div>
+                                    ))}
+                                </>
+                            ) : dateDropdownMode === 'years' ? (
+                                <>
+                                    <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                    {getYearsList(6).map(y => (
+                                        <div key={y} className="dropdown-item" onClick={() => { setDateFilter('год'); setSelectedYearForFilter(y); setIsDateDropdownOpen(false); setDateDropdownMode('main'); }}>
+                                            <Typography.Body>{y}</Typography.Body>
+                                        </div>
+                                    ))}
+                                </>
+                            ) : dateDropdownMode === 'weeks' ? (
+                                <>
+                                    <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                    {getWeeksList(16).map(w => (
+                                        <div key={w.monday} className="dropdown-item" onClick={() => { setDateFilter('неделя'); setSelectedWeekForFilter(w.monday); setIsDateDropdownOpen(false); setDateDropdownMode('main'); }}>
+                                            <Typography.Body>{w.label}</Typography.Body>
+                                        </div>
+                                    ))}
+                                </>
+                            ) : (
+                                ['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => {
+                                    const isMonth = key === 'месяц', isYear = key === 'год', isWeek = key === 'неделя';
+                                    return (
+                                        <div key={key} className="dropdown-item" onClick={() => {
+                                            if (isMonth) setDateDropdownMode('months');
+                                            else if (isYear) setDateDropdownMode('years');
+                                            else if (isWeek) setDateDropdownMode('weeks');
+                                            else if (key === 'период') { setIsCustomModalOpen(true); setIsDateDropdownOpen(false); }
+                                            else { setDateFilter(key as DateFilter); setIsDateDropdownOpen(false); }
+                                        }}>
+                                            <Typography.Body>{key === 'период' ? 'Период' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </FilterDropdownPortal>
+                        <CustomPeriodModal
+                            isOpen={isCustomModalOpen}
+                            onClose={() => setIsCustomModalOpen(false)}
+                            dateFrom={customDateFrom}
+                            dateTo={customDateTo}
+                            onApply={(f, t) => { setCustomDateFrom(f); setCustomDateTo(t); setDateFilter('период'); }}
+                        />
+                    </div>
+                </div>
+            </div>
+            <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>Счета</Typography.Body>
+            {loading && (
+                <Flex justify="center" className="py-8">
+                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--color-primary-blue)' }} />
+                </Flex>
+            )}
+            {error && (
+                <Flex align="center" className="mt-4" style={{ color: 'var(--color-error)' }}>
+                    <AlertTriangle className="w-5 h-5 mr-2" />
+                    <Typography.Body>{error}</Typography.Body>
+                </Flex>
+            )}
+            {!loading && !error && items.length > 0 && (
+                <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <thead>
+                            <tr style={{ background: 'var(--color-bg-hover)' }}>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Контрагент</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {items.map((row, i) => {
+                                const num = row.Number ?? row.number ?? row.Номер ?? row.N ?? '';
+                                const dt = row.Date ?? row.date ?? row.Дата ?? row.DateDoc ?? '';
+                                const cust = row.Customer ?? row.customer ?? row.Контрагент ?? row.Contractor ?? row.Organization ?? '';
+                                const sum = row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0;
+                                const st = row.State ?? row.state ?? row.Статус ?? row.Status ?? '';
+                                return (
+                                    <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>{stripOoo(String(num || '—'))}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof dt === 'string' ? dt : dt ? String(dt) : undefined} /></td>
+                                        <td style={{ padding: '0.5rem 0.4rem', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(String(cust || ''))}>{stripOoo(String(cust || '—'))}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{sum != null ? formatCurrency(sum, true) : '—'}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>{stripOoo(String(st || '—'))}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            {!loading && !error && items.length === 0 && (
+                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
+            )}
+        </div>
+    );
+}
+
 /** Эмоции Грузика: под каждую можно положить gruzik-{emotion}.gif / .webm / .png в public */
 export type GruzikEmotion = 'default' | 'typing' | 'thinking' | 'happy' | 'sad' | 'error' | 'wave' | 'ok' | string;
 
@@ -9980,11 +10170,8 @@ export default function App() {
                             useServiceRequest={useServiceRequest}
                         />
                     )}
-                    {showDashboard && activeTab === "docs" && (
-                        <div className="w-full p-8 text-center">
-                            <Typography.Headline>Документы</Typography.Headline>
-                            <Typography.Body className="text-theme-secondary">Раздел в разработке</Typography.Body>
-                </div>
+                    {showDashboard && activeTab === "docs" && auth && (
+                        <DocumentsPage auth={auth} />
                     )}
                     {showDashboard && activeTab === "support" && (
                         <AiChatProfilePage
