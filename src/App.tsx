@@ -1132,7 +1132,7 @@ function DashboardPage({
     const [error, setError] = useState<string | null>(null);
     
     // Filters State (такие же как на странице грузов)
-    const [dateFilter, setDateFilter] = useState<DateFilter>("неделя");
+    const [dateFilter, setDateFilter] = useState<DateFilter>("год");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [customDateFrom, setCustomDateFrom] = useState(DEFAULT_DATE_FROM);
     const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
@@ -5428,7 +5428,7 @@ function CargoPage({
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
     
     // Filters State
-    const [dateFilter, setDateFilter] = useState<DateFilter>("неделя");
+    const [dateFilter, setDateFilter] = useState<DateFilter>("год");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [customDateFrom, setCustomDateFrom] = useState(DEFAULT_DATE_FROM);
     const [customDateTo, setCustomDateTo] = useState(DEFAULT_DATE_TO);
