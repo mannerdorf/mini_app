@@ -424,6 +424,31 @@ const cityToCode = (city: string | number | undefined | null): string => {
     return String(city).trim();
 };
 
+/** Извлекает номера перевозок из текста (5–7 цифр или 0000-XXXX) для отображения со ссылками */
+const parseCargoNumbersFromText = (text: string): Array<{ type: 'text' | 'cargo'; value: string }> => {
+    if (!text || typeof text !== 'string') return [{ type: 'text', value: text || '' }];
+    const parts: Array<{ type: 'text' | 'cargo'; value: string }> = [];
+    const re = /(0000-\d{4,6}|\d{5,7})/g;
+    let lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+        if (m.index > lastIndex) parts.push({ type: 'text', value: text.slice(lastIndex, m.index) });
+        const raw = m[1];
+        const normalized = raw.replace(/^0000-/, '');
+        parts.push({ type: 'cargo', value: normalized });
+        lastIndex = m.index + m[0].length;
+    }
+    if (lastIndex < text.length) parts.push({ type: 'text', value: text.slice(lastIndex) });
+    return parts.length ? parts : [{ type: 'text', value: text }];
+};
+
+/** Убирает префикс «0000-» из номера счёта для отображения */
+const formatInvoiceNumber = (s: string | undefined | null): string => {
+    const str = String(s ?? '').trim();
+    if (!str) return '—';
+    return str.replace(/^0000-/, '') || '—';
+};
+
 /** Убирает «ООО», «ИП», «(ИП)» из названия компании для отображения */
 const stripOoo = (name: string | undefined | null): string => {
     if (!name || typeof name !== 'string') return name ?? '';
@@ -7697,15 +7722,38 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
 }
 
 /** Модальное окно деталей счёта: табличная часть номенклатуры */
-function InvoiceDetailModal({ item, isOpen, onClose }: { item: any; isOpen: boolean; onClose: () => void }) {
+function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo }: { item: any; isOpen: boolean; onClose: () => void; onOpenCargo?: (cargoNumber: string) => void }) {
     if (!isOpen) return null;
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> = Array.isArray(item?.List) ? item.List : [];
     const num = item?.Number ?? item?.number ?? '—';
+    const renderServiceCell = (raw: string) => {
+        const s = stripOoo(raw || '—');
+        const parts = parseCargoNumbersFromText(s);
+        return (
+            <>
+                {parts.map((p, k) =>
+                    p.type === 'cargo' ? (
+                        <span
+                            key={k}
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => { e.stopPropagation(); onOpenCargo?.(p.value); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenCargo?.(p.value); } }}
+                            style={{ color: 'var(--color-primary)', textDecoration: 'underline', cursor: 'pointer', fontWeight: 600 }}
+                            title="Открыть карточку перевозки"
+                        >{p.value}</span>
+                    ) : (
+                        <span key={k}>{p.value}</span>
+                    )
+                )}
+            </>
+        );
+    };
     return createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
             <Panel className="cargo-card" style={{ maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto', padding: '1rem' }} onClick={e => e.stopPropagation()}>
             <Flex justify="space-between" align="center" style={{ marginBottom: '1rem' }}>
-                <Typography.Headline style={{ fontSize: '1.1rem' }}>Счёт {stripOoo(String(num))}</Typography.Headline>
+                <Typography.Headline style={{ fontSize: '1.1rem' }}>Счёт {formatInvoiceNumber(num)}</Typography.Headline>
                 <Button className="filter-button" onClick={onClose} style={{ padding: '0.35rem' }}><X className="w-5 h-5" /></Button>
             </Flex>
             {list.length > 0 ? (
@@ -7713,7 +7761,6 @@ function InvoiceDetailModal({ item, isOpen, onClose }: { item: any; isOpen: bool
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                         <thead>
                             <tr style={{ background: 'var(--color-bg-hover)' }}>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Наименование</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Услуга</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Цена</th>
@@ -7723,8 +7770,7 @@ function InvoiceDetailModal({ item, isOpen, onClose }: { item: any; isOpen: bool
                         <tbody>
                             {list.map((row, i) => (
                                 <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                    <td style={{ padding: '0.5rem 0.4rem' }}>{stripOoo(String(row.Name ?? '—'))}</td>
-                                    <td style={{ padding: '0.5rem 0.4rem', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(String(row.Operation ?? ''))}>{stripOoo(String(row.Operation ?? '—'))}</td>
+                                    <td style={{ padding: '0.5rem 0.4rem', maxWidth: 220 }} title={stripOoo(String(row.Operation ?? row.Name ?? ''))}>{renderServiceCell(String(row.Operation ?? row.Name ?? '—'))}</td>
                                     <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Quantity ?? '—'}</td>
                                     <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Price != null ? formatCurrency(row.Price, true) : '—'}</td>
                                     <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Sum != null ? formatCurrency(row.Sum, true) : '—'}</td>
@@ -7754,7 +7800,7 @@ const normalizeInvoiceStatus = (s: string | undefined): string => {
 };
 
 /** Страница «Документы»: раздел «Счета» — карточки как в Грузах */
-function DocumentsPage({ auth, useServiceRequest = false, activeInn = '' }: { auth: AuthData; useServiceRequest?: boolean; activeInn?: string }) {
+function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', onOpenCargo }: { auth: AuthData; useServiceRequest?: boolean; activeInn?: string; onOpenCargo?: (cargoNumber: string) => void }) {
     const [items, setItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -7865,6 +7911,15 @@ function DocumentsPage({ auth, useServiceRequest = false, activeInn = '' }: { au
         return res;
     }, [items, customerFilter, statusFilter, typeFilter, routeFilter, sortBy, sortOrder]);
 
+    const documentsSummary = useMemo(() => {
+        let sum = 0;
+        filteredItems.forEach(i => {
+            const v = i.SumDoc ?? i.Sum ?? i.sum ?? i.Сумма ?? i.Amount ?? 0;
+            sum += typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
+        });
+        return { sum, count: filteredItems.length };
+    }, [filteredItems]);
+
     return (
         <div className="w-full">
             <div className="cargo-page-sticky-header">
@@ -7960,26 +8015,16 @@ function DocumentsPage({ auth, useServiceRequest = false, activeInn = '' }: { au
                                 <div key={s} className="dropdown-item" onClick={() => { setStatusFilter(s); setIsStatusDropdownOpen(false); }}><Typography.Body>{s}</Typography.Body></div>
                             ))}
                         </FilterDropdownPortal>
-                        <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                                Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={typeButtonRef} isOpen={isTypeDropdownOpen}>
-                            <div className="dropdown-item" onClick={() => { setTypeFilter('all'); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            <div className="dropdown-item" onClick={() => { setTypeFilter('ferry'); setIsTypeDropdownOpen(false); }}><Typography.Body>Паром</Typography.Body></div>
-                            <div className="dropdown-item" onClick={() => { setTypeFilter('auto'); setIsTypeDropdownOpen(false); }}><Typography.Body>Авто</Typography.Body></div>
-                        </FilterDropdownPortal>
-                        <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
-                                Маршрут: {routeFilter === 'all' ? 'Все' : routeFilter} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={routeButtonRef} isOpen={isRouteDropdownOpen}>
-                            <div className="dropdown-item" onClick={() => { setRouteFilter('all'); setIsRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            <div className="dropdown-item" onClick={() => { setRouteFilter('MSK-KGD'); setIsRouteDropdownOpen(false); }}><Typography.Body>MSK – KGD</Typography.Body></div>
-                            <div className="dropdown-item" onClick={() => { setRouteFilter('KGD-MSK'); setIsRouteDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
-                        </FilterDropdownPortal>
+                        {false && (
+                            <>
+                                <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); }}>Тип</Button>
+                                </div>
+                                <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); }}>Маршрут</Button>
+                                </div>
+                            </>
+                        )}
                         <CustomPeriodModal
                             isOpen={isCustomModalOpen}
                             onClose={() => setIsCustomModalOpen(false)}
@@ -7991,6 +8036,20 @@ function DocumentsPage({ auth, useServiceRequest = false, activeInn = '' }: { au
                 </div>
             </div>
             <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>Счета</Typography.Body>
+            {!loading && !error && filteredItems.length > 0 && (
+                <div className="cargo-card mb-4" style={{ padding: '0.75rem', marginBottom: '1rem' }}>
+                    <div className="summary-metrics">
+                        <Flex direction="column" align="center">
+                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCurrency(documentsSummary.sum, true)}</Typography.Body>
+                        </Flex>
+                        <Flex direction="column" align="center">
+                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Счетов</Typography.Label>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{documentsSummary.count}</Typography.Body>
+                        </Flex>
+                    </div>
+                </div>
+            )}
             {loading && (
                 <Flex justify="center" className="py-8">
                     <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--color-primary-blue)' }} />
@@ -8011,18 +8070,20 @@ function DocumentsPage({ auth, useServiceRequest = false, activeInn = '' }: { au
                         const sum = row.SumDoc ?? row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0;
                         const rawStatus = row.Status ?? row.State ?? row.state ?? row.Статус ?? '';
                         const st = (normalizeInvoiceStatus(rawStatus) || rawStatus) as string;
-                        const isPaid = st === 'Оплачен';
-                        const numberColor = isPaid ? '#22c55e' : undefined;
+                        const badgeStyle = st === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : st === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : st === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                         return (
                             <Panel key={num || idx} className="cargo-card" onClick={() => setSelectedInvoice(row)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
                                 <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
                                     <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: numberColor }}>{stripOoo(String(num || '—'))}</Typography.Body>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: badgeStyle.color }}>{formatInvoiceNumber(num)}</Typography.Body>
                                         {useServiceRequest && cust && (
                                             <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>Заказчик</span>
                                         )}
                                     </Flex>
                                     <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); /* share */ }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
+                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); /* chat */ }} title="Чат"><MessageCircle className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
+                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); /* favorite */ }} title="В избранное"><Heart className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
                                         <Calendar className="w-4 h-4 text-theme-secondary" />
                                         <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
                                             <DateText value={typeof dt === 'string' ? dt : dt ? String(dt) : undefined} />
@@ -8030,7 +8091,7 @@ function DocumentsPage({ auth, useServiceRequest = false, activeInn = '' }: { au
                                     </Flex>
                                 </Flex>
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
-                                    {st && <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: isPaid ? 'rgba(34, 197, 94, 0.2)' : 'var(--color-panel-secondary)', color: isPaid ? '#22c55e' : 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>{st}</span>}
+                                    {st && <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: badgeStyle.bg, color: badgeStyle.color, border: '1px solid var(--color-border)' }}>{st}</span>}
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sum != null ? formatCurrency(sum, true) : '—'}</Typography.Body>
                                 </Flex>
                                 <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
@@ -8046,7 +8107,7 @@ function DocumentsPage({ auth, useServiceRequest = false, activeInn = '' }: { au
                 </div>
             )}
             {selectedInvoice && (
-                <InvoiceDetailModal item={selectedInvoice} isOpen={!!selectedInvoice} onClose={() => setSelectedInvoice(null)} />
+                <InvoiceDetailModal item={selectedInvoice} isOpen={!!selectedInvoice} onClose={() => setSelectedInvoice(null)} onOpenCargo={onOpenCargo} />
             )}
             {!loading && !error && filteredItems.length === 0 && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
@@ -10340,7 +10401,7 @@ export default function App() {
                         />
                     )}
                     {activeTab === "docs" && auth && (
-                        <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} />
+                        <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} onOpenCargo={openCargoFromChat} />
                     )}
                     {showDashboard && activeTab === "support" && (
                         <AiChatProfilePage
