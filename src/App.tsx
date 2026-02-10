@@ -9166,8 +9166,8 @@ export default function App() {
                             const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs", "support"];
                             const t = savedTab as Tab;
                             if (allowed.includes(t)) {
-                                // docs доступны только в секретном режиме — фоллбек на cargo
-                                if ((t === "docs") && !showDashboard) {
+                                // docs доступны в служебном или секретном режиме — фоллбек на cargo иначе
+                                if ((t === "docs") && !showDashboard && !serviceModeUnlocked) {
                                     setActiveTab("cargo");
                                 } else if (t === "home") {
                                     setActiveTab("dashboard");
@@ -10170,7 +10170,7 @@ export default function App() {
                             useServiceRequest={useServiceRequest}
                         />
                     )}
-                    {showDashboard && activeTab === "docs" && auth && (
+                    {(showDashboard || serviceModeUnlocked) && activeTab === "docs" && auth && (
                         <DocumentsPage auth={auth} />
                     )}
                     {showDashboard && activeTab === "support" && (
@@ -10284,7 +10284,7 @@ export default function App() {
                     }
                 }}
                 // вход в секретный режим теперь через "Уведомления" в профиле
-                showAllTabs={showDashboard}
+                showAllTabs={showDashboard || serviceModeUnlocked}
             />
 
             {/* Оферта/Согласие должны открываться и из раздела Профиль */}
