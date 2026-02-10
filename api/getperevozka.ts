@@ -16,6 +16,7 @@ export default async function handler(
   let login: string | undefined;
   let password: string | undefined;
   let number: string | undefined;
+  let inn: string | undefined;
 
   if (req.method === "GET") {
     login = typeof req.query.login === "string" ? req.query.login : undefined;
@@ -23,6 +24,7 @@ export default async function handler(
       typeof req.query.password === "string" ? req.query.password : undefined;
     number =
       typeof req.query.number === "string" ? req.query.number : undefined;
+    inn = typeof req.query.inn === "string" ? req.query.inn : undefined;
   } else {
     let body: any = req.body;
     if (typeof body === "string") {
@@ -32,7 +34,7 @@ export default async function handler(
         return res.status(400).json({ error: "Invalid JSON body" });
       }
     }
-    ({ login, password, number } = body ?? {});
+    ({ login, password, number, inn } = body ?? {});
   }
 
   if (!login || !password || !number) {
@@ -48,6 +50,9 @@ export default async function handler(
   const url = new URL(GETAPI_BASE);
   url.searchParams.set("metod", "Getperevozka");
   url.searchParams.set("Number", number);
+  if (inn && String(inn).trim()) {
+    url.searchParams.set("INN", String(inn).trim());
+  }
 
   try {
     const upstream = await fetch(url.toString(), {

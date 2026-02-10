@@ -1,20 +1,86 @@
-import React from "react";
+import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { X } from "lucide-react";
-import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency } from "../../lib/formatUtils";
+import { X, Download, Loader2 } from "lucide-react";
+import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, transliterateFilename } from "../../lib/formatUtils";
+import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
+import { DOCUMENT_METHODS } from "../../documentMethods";
+import type { AuthData } from "../../types";
+
+const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
 
 type InvoiceDetailModalProps = {
     item: any;
     isOpen: boolean;
     onClose: () => void;
     onOpenCargo?: (cargoNumber: string) => void;
+    auth?: AuthData | null;
 };
 
-export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo }: InvoiceDetailModalProps) {
+/** Номер перевозки из первой строки номенклатуры счёта (или из любой строки, если в первой нет) */
+function getFirstCargoNumberFromInvoice(item: any): string | null {
+    const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(item?.List) ? item.List : [];
+    for (let i = 0; i < list.length; i++) {
+        const text = String(list[i]?.Operation ?? list[i]?.Name ?? "").trim();
+        if (!text) continue;
+        const parts = parseCargoNumbersFromText(text);
+        const cargo = parts.find((p) => p.type === "cargo");
+        if (cargo?.value) return cargo.value;
+    }
+    return null;
+}
+
+export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth }: InvoiceDetailModalProps) {
+    const [downloading, setDownloading] = useState<string | null>(null);
+    const [downloadError, setDownloadError] = useState<string | null>(null);
+
     if (!isOpen) return null;
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> = Array.isArray(item?.List) ? item.List : [];
     const num = item?.Number ?? item?.number ?? '—';
+    const cargoNumber = getFirstCargoNumberFromInvoice(item);
+
+    const handleDownload = async (label: string) => {
+        if (!cargoNumber || !auth?.login || !auth?.password) {
+            setDownloadError(cargoNumber ? "Требуется авторизация" : "Номер перевозки не найден в счёте");
+            return;
+        }
+        const metod = DOCUMENT_METHODS[label] ?? label;
+        setDownloading(label);
+        setDownloadError(null);
+        try {
+            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    metod,
+                    number: cargoNumber,
+                }),
+            });
+            if (!res.ok) {
+                const msg = res.status === 404 ? "Документ не найден" : res.status >= 500 ? "Ошибка сервера" : "Не удалось получить документ";
+                throw new Error(msg);
+            }
+            const data = await res.json();
+            if (!data?.data || !data.name) throw new Error("Документ не найден");
+            const byteCharacters = atob(data.data);
+            const byteArray = new Uint8Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i);
+            const blob = new Blob([byteArray], { type: "application/pdf" });
+            const fileName = transliterateFilename(data.name || `${label}_${cargoNumber}.pdf`);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e: any) {
+            setDownloadError(e?.message ?? "Ошибка загрузки");
+        } finally {
+            setDownloading(null);
+        }
+    };
 
     const renderServiceCell = (raw: string) => {
         const s = stripOoo(raw || '—');
@@ -47,6 +113,26 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo }: Invoi
                     <Typography.Headline style={{ fontSize: '1.1rem' }}>Счёт {formatInvoiceNumber(num)}</Typography.Headline>
                     <Button className="filter-button" onClick={onClose} style={{ padding: '0.35rem' }}><X className="w-5 h-5" /></Button>
                 </Flex>
+                {auth && (
+                    <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: '1rem' }}>
+                        {DOC_BUTTONS.map((label) => (
+                            <Button
+                                key={label}
+                                className="filter-button"
+                                size="small"
+                                disabled={!cargoNumber || downloading !== null}
+                                onClick={() => handleDownload(label)}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                            >
+                                {downloading === label ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                {label}
+                            </Button>
+                        ))}
+                    </Flex>
+                )}
+                {downloadError && (
+                    <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{downloadError}</Typography.Body>
+                )}
                 {list.length > 0 ? (
                     <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>

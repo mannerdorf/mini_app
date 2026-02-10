@@ -6177,7 +6177,12 @@ async function fetchPerevozkaTimeline(auth: AuthData, number: string, item: Carg
     const res = await fetch(PROXY_API_GETPEREVOZKA_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ login: auth.login, password: auth.password, number }),
+        body: JSON.stringify({
+            login: auth.login,
+            password: auth.password,
+            number,
+            ...(auth.inn ? { inn: auth.inn } : {}),
+        }),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -8470,6 +8475,7 @@ export default function App() {
                 `Интересует информация по перевозке номер ${cargoNumber}`
             );
             if (activeAccount?.login && activeAccount?.password) {
+                const inn = activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn ?? undefined;
                 fetch(PROXY_API_GETPEREVOZKA_URL, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -8477,6 +8483,7 @@ export default function App() {
                         login: activeAccount.login,
                         password: activeAccount.password,
                         number: cargoNumber,
+                        ...(inn ? { inn } : {}),
                     }),
                 })
                     .then((r) => r.json())
@@ -8512,6 +8519,7 @@ export default function App() {
         }
         let cancelled = false;
         setOverlayCargoLoading(true);
+        const inn = activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn ?? undefined;
         fetch(PROXY_API_GETPEREVOZKA_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -8519,6 +8527,7 @@ export default function App() {
                 login: activeAccount.login,
                 password: activeAccount.password,
                 number: overlayCargoNumber,
+                ...(inn ? { inn } : {}),
             }),
         })
             .then((r) => r.json())
@@ -8547,7 +8556,7 @@ export default function App() {
             .catch(() => { if (!cancelled) setOverlayCargoItem(null); })
             .finally(() => { if (!cancelled) setOverlayCargoLoading(false); });
         return () => { cancelled = true; };
-    }, [overlayCargoNumber, activeAccount?.login, activeAccount?.password]);
+    }, [overlayCargoNumber, activeAccount?.login, activeAccount?.password, activeAccount?.activeCustomerInn, activeAccount?.customers]);
 
     const openCargoWithFilters = (filters: { status?: StatusFilter; search?: string }) => {
         setCargoQuickFilters(filters);

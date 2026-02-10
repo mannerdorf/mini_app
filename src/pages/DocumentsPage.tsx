@@ -6,7 +6,8 @@ import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { InvoiceDetailModal } from "../components/modals/InvoiceDetailModal";
 import { DateText } from "../components/ui/DateText";
-import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
+import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode, parseCargoNumbersFromText } from "../lib/formatUtils";
+import { normalizeStatus, getFilterKeyByStatus, getStatusClass, STATUS_MAP } from "../lib/statusUtils";
 import {
     loadDateFilterState,
     saveDateFilterState,
@@ -18,8 +19,8 @@ import {
     DEFAULT_DATE_FROM,
     DEFAULT_DATE_TO,
 } from "../lib/dateUtils";
-import { useInvoices } from "../hooks/useApi";
-import type { AuthData, DateFilter } from "../types";
+import { useInvoices, usePerevozki } from "../hooks/useApi";
+import type { AuthData, DateFilter, StatusFilter } from "../types";
 
 const INVOICE_FAVORITES_VALUE = '__favorites__';
 const INVOICE_STATUS_OPTIONS = ['Оплачен', 'Не оплачен', 'Оплачен частично'] as const;
@@ -60,7 +61,12 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
+    const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus'>('date');
+    const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [deliveryStatusFilter, setDeliveryStatusFilter] = useState<StatusFilter>('all');
+    const [isDeliveryStatusDropdownOpen, setIsDeliveryStatusDropdownOpen] = useState(false);
     const [favVersion, setFavVersion] = useState(0);
+    const deliveryStatusButtonRef = useRef<HTMLDivElement | null>(null);
     const dateButtonRef = useRef<HTMLDivElement | null>(null);
     const customerButtonRef = useRef<HTMLDivElement | null>(null);
     const statusButtonRef = useRef<HTMLDivElement | null>(null);
@@ -103,6 +109,35 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         useServiceRequest,
     });
 
+    const { items: perevozkiItems } = usePerevozki({
+        auth: useServiceRequest ? auth : null,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        useServiceRequest: true,
+    });
+
+    /** Номер первой перевозки в счёте (из первой строки номенклатуры) */
+    const getFirstCargoNumberFromInvoice = useCallback((inv: any): string | null => {
+        const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(inv?.List) ? inv.List : [];
+        for (let i = 0; i < list.length; i++) {
+            const text = String(list[i]?.Operation ?? list[i]?.Name ?? "").trim();
+            if (!text) continue;
+            const parts = parseCargoNumbersFromText(text);
+            const cargo = parts.find((p) => p.type === "cargo");
+            if (cargo?.value) return cargo.value;
+        }
+        return null;
+    }, []);
+
+    const cargoStateByNumber = useMemo(() => {
+        const m = new Map<string, string>();
+        (perevozkiItems || []).forEach((c: any) => {
+            const num = (c.Number ?? c.number ?? "").toString().replace(/^0000-/, "").trim();
+            if (num && c.State != null) m.set(num, String(c.State));
+        });
+        return m;
+    }, [perevozkiItems]);
+
     const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
 
     const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
@@ -139,6 +174,13 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
         if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
+        if (useServiceRequest && deliveryStatusFilter !== 'all') {
+            res = res.filter((i) => {
+                const cargoNum = getFirstCargoNumberFromInvoice(i);
+                const state = cargoNum ? cargoStateByNumber.get(cargoNum) : undefined;
+                return getFilterKeyByStatus(state) === deliveryStatusFilter;
+            });
+        }
         const getDate = (r: any) => (r.Date ?? r.date ?? r.Дата ?? r.DateDoc ?? '').toString();
         if (sortBy === 'date') {
             res.sort((a, b) => {
@@ -149,7 +191,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             });
         }
         return res;
-    }, [items, customerFilter, statusFilter, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite]);
+    }, [items, customerFilter, statusFilter, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, useServiceRequest, deliveryStatusFilter, getFirstCargoNumberFromInvoice, cargoStateByNumber]);
 
     const documentsSummary = useMemo(() => {
         let sum = 0;
@@ -191,6 +233,33 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         else { setTableSortColumn(column); setTableSortOrder('asc'); }
     };
 
+    const handleInnerTableSort = (column: 'number' | 'date' | 'status' | 'sum') => {
+        if (innerTableSortColumn === column) setInnerTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
+        else { setInnerTableSortColumn(column); setInnerTableSortOrder(column === 'date' ? 'desc' : 'asc'); }
+    };
+
+    const sortInvoices = useCallback((items: any[]) => {
+        const getNum = (inv: any) => (inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '').toString().replace(/^0000-/, '');
+        const getDate = (inv: any) => (inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '').toString();
+        const getStatus = (inv: any) => normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? '');
+        const getSum = (inv: any) => Number(inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0) || 0;
+        const getDeliveryState = (inv: any) => {
+            const num = getFirstCargoNumberFromInvoice(inv);
+            return (num ? cargoStateByNumber.get(num) : undefined) ?? '';
+        };
+        return [...items].sort((a, b) => {
+            let cmp = 0;
+            switch (innerTableSortColumn) {
+                case 'number': cmp = (getNum(a) || '').localeCompare(getNum(b) || '', undefined, { numeric: true }); break;
+                case 'date': cmp = (getDate(a) || '').localeCompare(getDate(b) || ''); break;
+                case 'status': cmp = (getStatus(a) || '').localeCompare(getStatus(b) || ''); break;
+                case 'sum': cmp = getSum(a) - getSum(b); break;
+                case 'deliveryStatus': cmp = (getDeliveryState(a) || '').localeCompare(getDeliveryState(b) || ''); break;
+            }
+            return innerTableSortOrder === 'asc' ? cmp : -cmp;
+        });
+    }, [innerTableSortColumn, innerTableSortOrder, getFirstCargoNumberFromInvoice, cargoStateByNumber]);
+
     return (
         <div className="w-full">
             <div className="cargo-page-sticky-header">
@@ -209,7 +278,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                             {sortOrder === 'desc' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
                         </Button>
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); }}>
                                 Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8, 10)}.${r.dateFrom.slice(5, 7)} – ${r.dateTo.slice(8, 10)}.${r.dateTo.slice(5, 7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -290,7 +359,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                         {useServiceRequest && (
                             <>
                                 <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); }}>
                                         Заказчик: {customerFilter ? stripOoo(customerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -303,17 +372,31 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                             </>
                         )}
                         <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); }}>
                                 Статус счёта: {statusFilter === INVOICE_FAVORITES_VALUE ? 'Избранные' : statusFilter ? statusFilter : 'Все'} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
                         <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen}>
                             <div className="dropdown-item" onClick={() => { setStatusFilter(''); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            <div className="dropdown-item" onClick={() => { setStatusFilter(INVOICE_FAVORITES_VALUE); setIsStatusDropdownOpen(false); }}><Typography.Body>❤ Избранные</Typography.Body></div>
                             {INVOICE_STATUS_OPTIONS.map(s => (
                                 <div key={s} className="dropdown-item" onClick={() => { setStatusFilter(s); setIsStatusDropdownOpen(false); }}><Typography.Body>{s}</Typography.Body></div>
                             ))}
+                            <div className="dropdown-item" onClick={() => { setStatusFilter(INVOICE_FAVORITES_VALUE); setIsStatusDropdownOpen(false); }}><Typography.Body>Избранные</Typography.Body></div>
                         </FilterDropdownPortal>
+                        {useServiceRequest && (
+                            <>
+                                <div ref={deliveryStatusButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => { setIsDeliveryStatusDropdownOpen(!isDeliveryStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                                        Статус перевозки: {STATUS_MAP[deliveryStatusFilter]} <ChevronDown className="w-4 h-4"/>
+                                    </Button>
+                                </div>
+                                <FilterDropdownPortal triggerRef={deliveryStatusButtonRef} isOpen={isDeliveryStatusDropdownOpen}>
+                                    {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'favorites').map(key => (
+                                        <div key={key} className="dropdown-item" onClick={() => { setDeliveryStatusFilter(key); setIsDeliveryStatusDropdownOpen(false); }}><Typography.Body>{STATUS_MAP[key]}</Typography.Body></div>
+                                    ))}
+                                </FilterDropdownPortal>
+                            </>
+                        )}
                         <CustomPeriodModal
                             isOpen={isCustomModalOpen}
                             onClose={() => setIsCustomModalOpen(false)}
@@ -375,23 +458,35 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
                                                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('number'); }} title="Сортировка">Номер {innerTableSortColumn === 'number' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('date'); }} title="Сортировка">Дата {innerTableSortColumn === 'date' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка">Статус {innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                {useServiceRequest && (
+                                                                    <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('deliveryStatus'); }} title="Сортировка">Статус перевозки {innerTableSortColumn === 'deliveryStatus' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                )}
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка">Сумма {innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {row.items.map((inv: any, j: number) => {
+                                                            {sortInvoices(row.items).map((inv: any, j: number) => {
                                                                 const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
                                                                 const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
                                                                 const isum = inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0;
                                                                 const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? '');
+                                                                const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
+                                                                const deliveryState = firstCargoNum ? cargoStateByNumber.get(firstCargoNum) : undefined;
+                                                                const deliveryStateNorm = normalizeStatus(deliveryState);
+                                                                const deliveryStatusClass = getStatusClass(deliveryState);
                                                                 return (
                                                                     <tr key={inum || j} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedInvoice(inv); }} title="Открыть счёт">
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(inum)}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{ist || '—'}</td>
+                                                                        {useServiceRequest && (
+                                                                            <td style={{ padding: '0.35rem 0.3rem' }}>
+                                                                                <span className={deliveryStatusClass} style={{ fontSize: '0.7rem', padding: '0.15rem 0.35rem', borderRadius: '999px', fontWeight: 600 }}>{deliveryStateNorm || '—'}</span>
+                                                                            </td>
+                                                                        )}
                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum) : '—'}</td>
                                                                     </tr>
                                                                 );
@@ -468,6 +563,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                             setTimeout(() => onOpenCargo?.(cargoNumber), 0);
                         }
                     }}
+                    auth={auth}
                 />
             )}
             {!loading && !error && filteredItems.length === 0 && (
