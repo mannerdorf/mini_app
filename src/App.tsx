@@ -7696,7 +7696,7 @@ function SupportRedirectPage({ onOpenSupport }: { onOpenSupport: () => void }) {
     );
 }
 
-/** Страница «Документы»: раздел «Счета» — по аналогии со стилем перевозок */
+/** Страница «Документы»: раздел «Счета» — карточки как в Грузах, те же фильтры */
 function DocumentsPage({ auth }: { auth: AuthData }) {
     const [items, setItems] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -7711,7 +7711,24 @@ function DocumentsPage({ auth }: { auth: AuthData }) {
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
+    const [customerFilter, setCustomerFilter] = useState<string>('');
+    const [statusFilter, setStatusFilter] = useState<string>('');
+    const [billStatusFilter, setBillStatusFilter] = useState<string>('');
+    const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+    const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
+    const [sortBy, setSortBy] = useState<'date' | null>('date');
+    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const dateButtonRef = useRef<HTMLDivElement | null>(null);
+    const customerButtonRef = useRef<HTMLDivElement | null>(null);
+    const statusButtonRef = useRef<HTMLDivElement | null>(null);
+    const billStatusButtonRef = useRef<HTMLDivElement | null>(null);
+    const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const monthWasLongPressRef = useRef(false);
+    const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const yearWasLongPressRef = useRef(false);
+    const weekLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const weekWasLongPressRef = useRef(false);
 
     useEffect(() => {
         saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
@@ -7765,6 +7782,27 @@ function DocumentsPage({ auth }: { auth: AuthData }) {
         loadInvoices(apiDateRange.dateFrom, apiDateRange.dateTo);
     }, [apiDateRange, loadInvoices]);
 
+    const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
+    const uniqueStatuses = useMemo(() => [...new Set(items.map(i => ((i.State ?? i.state ?? i.Статус ?? i.Status ?? '').trim())).filter(Boolean))].sort(), [items]);
+    const uniqueBillStatuses = useMemo(() => [...new Set(items.map(i => ((i.StateBill ?? i.stateBill ?? '').trim())).filter(Boolean))].sort(), [items]);
+
+    const filteredItems = useMemo(() => {
+        let res = [...items];
+        if (customerFilter) res = res.filter(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim()) === customerFilter);
+        if (statusFilter) res = res.filter(i => ((i.State ?? i.state ?? i.Статус ?? i.Status ?? '').trim()) === statusFilter);
+        if (billStatusFilter) res = res.filter(i => ((i.StateBill ?? i.stateBill ?? '').trim()) === billStatusFilter);
+        const getDate = (r: any) => (r.Date ?? r.date ?? r.Дата ?? r.DateDoc ?? '').toString();
+        if (sortBy === 'date') {
+            res.sort((a, b) => {
+                const da = getDate(a);
+                const db = getDate(b);
+                const cmp = da.localeCompare(db);
+                return sortOrder === 'desc' ? -cmp : cmp;
+            });
+        }
+        return res;
+    }, [items, customerFilter, statusFilter, billStatusFilter, sortBy, sortOrder]);
+
     return (
         <div className="w-full">
             <div className="cargo-page-sticky-header">
@@ -7772,9 +7810,12 @@ function DocumentsPage({ auth }: { auth: AuthData }) {
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
                 </Flex>
                 <div className="filters-container filters-row-scroll">
-                    <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
+                    <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
+                        <Button className="filter-button" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={() => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); }} title={sortOrder === 'desc' ? 'Дата по убыванию' : 'Дата по возрастанию'}>
+                            {sortOrder === 'desc' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
+                        </Button>
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); }}>
+                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsBillStatusDropdownOpen(false); }}>
                                 Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8, 10)}.${r.dateFrom.slice(5, 7)} – ${r.dateTo.slice(8, 10)}.${r.dateTo.slice(5, 7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -7809,20 +7850,65 @@ function DocumentsPage({ auth }: { auth: AuthData }) {
                             ) : (
                                 ['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => {
                                     const isMonth = key === 'месяц', isYear = key === 'год', isWeek = key === 'неделя';
+                                    const timerRef = isMonth ? monthLongPressTimerRef : isYear ? yearLongPressTimerRef : weekLongPressTimerRef;
+                                    const wasLongPressRef = isMonth ? monthWasLongPressRef : isYear ? yearWasLongPressRef : weekWasLongPressRef;
+                                    const mode = isMonth ? 'months' : isYear ? 'years' : 'weeks';
                                     return (
-                                        <div key={key} className="dropdown-item" onClick={() => {
-                                            if (isMonth) setDateDropdownMode('months');
-                                            else if (isYear) setDateDropdownMode('years');
-                                            else if (isWeek) setDateDropdownMode('weeks');
-                                            else if (key === 'период') { setIsCustomModalOpen(true); setIsDateDropdownOpen(false); }
-                                            else { setDateFilter(key as DateFilter); setIsDateDropdownOpen(false); }
-                                        }}>
+                                        <div key={key} className="dropdown-item"
+                                            onPointerDown={isMonth || isYear || isWeek ? () => { wasLongPressRef.current = false; timerRef.current = setTimeout(() => { timerRef.current = null; wasLongPressRef.current = true; setDateDropdownMode(mode); }, 500); } : undefined}
+                                            onPointerUp={isMonth || isYear || isWeek ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
+                                            onPointerLeave={isMonth || isYear || isWeek ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
+                                            onClick={() => {
+                                                if ((isMonth || isYear || isWeek) && wasLongPressRef.current) { wasLongPressRef.current = false; return; }
+                                                if (isMonth) setDateDropdownMode('months');
+                                                else if (isYear) setDateDropdownMode('years');
+                                                else if (isWeek) setDateDropdownMode('weeks');
+                                                else if (key === 'период') { setIsCustomModalOpen(true); setIsDateDropdownOpen(false); }
+                                                else { setDateFilter(key as DateFilter); setIsDateDropdownOpen(false); }
+                                            }}>
                                             <Typography.Body>{key === 'период' ? 'Период' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
                                         </div>
                                     );
                                 })
                             )}
                         </FilterDropdownPortal>
+                        <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsBillStatusDropdownOpen(false); }}>
+                                Заказчик: {customerFilter ? stripOoo(customerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal triggerRef={customerButtonRef} isOpen={isCustomerDropdownOpen}>
+                            <div className="dropdown-item" onClick={() => { setCustomerFilter(''); setIsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            {uniqueCustomers.map(c => (
+                                <div key={c} className="dropdown-item" onClick={() => { setCustomerFilter(c); setIsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
+                            ))}
+                        </FilterDropdownPortal>
+                        <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); }}>
+                                Статус: {statusFilter ? stripOoo(statusFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen}>
+                            <div className="dropdown-item" onClick={() => { setStatusFilter(''); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            {uniqueStatuses.map(s => (
+                                <div key={s} className="dropdown-item" onClick={() => { setStatusFilter(s); setIsStatusDropdownOpen(false); }}><Typography.Body>{stripOoo(s)}</Typography.Body></div>
+                            ))}
+                        </FilterDropdownPortal>
+                        {uniqueBillStatuses.length > 0 && (
+                            <>
+                                <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); }}>
+                                        Счёт: {billStatusFilter ? stripOoo(billStatusFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                                    </Button>
+                                </div>
+                                <FilterDropdownPortal triggerRef={billStatusButtonRef} isOpen={isBillStatusDropdownOpen}>
+                                    <div className="dropdown-item" onClick={() => { setBillStatusFilter(''); setIsBillStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                                    {uniqueBillStatuses.map(s => (
+                                        <div key={s} className="dropdown-item" onClick={() => { setBillStatusFilter(s); setIsBillStatusDropdownOpen(false); }}><Typography.Body>{stripOoo(s)}</Typography.Body></div>
+                                    ))}
+                                </FilterDropdownPortal>
+                            </>
+                        )}
                         <CustomPeriodModal
                             isOpen={isCustomModalOpen}
                             onClose={() => setIsCustomModalOpen(false)}
@@ -7845,40 +7931,42 @@ function DocumentsPage({ auth }: { auth: AuthData }) {
                     <Typography.Body>{error}</Typography.Body>
                 </Flex>
             )}
-            {!loading && !error && items.length > 0 && (
-                <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: '12px', overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                        <thead>
-                            <tr style={{ background: 'var(--color-bg-hover)' }}>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Контрагент</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {items.map((row, i) => {
-                                const num = row.Number ?? row.number ?? row.Номер ?? row.N ?? '';
-                                const dt = row.Date ?? row.date ?? row.Дата ?? row.DateDoc ?? '';
-                                const cust = row.Customer ?? row.customer ?? row.Контрагент ?? row.Contractor ?? row.Organization ?? '';
-                                const sum = row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0;
-                                const st = row.State ?? row.state ?? row.Статус ?? row.Status ?? '';
-                                return (
-                                    <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>{stripOoo(String(num || '—'))}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof dt === 'string' ? dt : dt ? String(dt) : undefined} /></td>
-                                        <td style={{ padding: '0.5rem 0.4rem', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(String(cust || ''))}>{stripOoo(String(cust || '—'))}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{sum != null ? formatCurrency(sum, true) : '—'}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>{stripOoo(String(st || '—'))}</td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+            {!loading && !error && filteredItems.length > 0 && (
+                <div className="cargo-list">
+                    {filteredItems.map((row, idx) => {
+                        const num = row.Number ?? row.number ?? row.Номер ?? row.N ?? '';
+                        const dt = row.Date ?? row.date ?? row.Дата ?? row.DateDoc ?? '';
+                        const cust = row.Customer ?? row.customer ?? row.Контрагент ?? row.Contractor ?? row.Organization ?? '';
+                        const sum = row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0;
+                        const st = row.State ?? row.state ?? row.Статус ?? row.Status ?? '';
+                        const stateBill = row.StateBill ?? row.stateBill ?? '';
+                        return (
+                            <Panel key={num || idx} className="cargo-card" style={{ cursor: 'default', marginBottom: '0.75rem', position: 'relative' }}>
+                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
+                                    <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>{stripOoo(String(num || '—'))}</Typography.Body>
+                                    </Flex>
+                                    <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                                        <Calendar className="w-4 h-4 text-theme-secondary" />
+                                        <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
+                                            <DateText value={typeof dt === 'string' ? dt : dt ? String(dt) : undefined} />
+                                        </Typography.Label>
+                                    </Flex>
+                                </Flex>
+                                <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
+                                    {st && <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>{stripOoo(String(st))}</span>}
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sum != null ? formatCurrency(sum, true) : '—'}</Typography.Body>
+                                </Flex>
+                                <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                    <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={stripOoo(String(cust || ''))}>{stripOoo(String(cust || '—'))}</Typography.Label>
+                                    {stateBill && <StatusBillBadge status={stateBill} />}
+                                </Flex>
+                            </Panel>
+                        );
+                    })}
                 </div>
             )}
-            {!loading && !error && items.length === 0 && (
+            {!loading && !error && filteredItems.length === 0 && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
             )}
         </div>
