@@ -5079,7 +5079,6 @@ function CargoPage({
     // Filters State; при переключении вкладок восстанавливаем из localStorage
     const initDateCargo = () => loadDateFilterState();
     const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDateCargo()?.dateFilter ?? "месяц");
-    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [customDateFrom, setCustomDateFrom] = useState(() => initDateCargo()?.customDateFrom ?? DEFAULT_DATE_FROM);
     const [customDateTo, setCustomDateTo] = useState(() => initDateCargo()?.customDateTo ?? DEFAULT_DATE_TO);
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
@@ -5100,9 +5099,10 @@ function CargoPage({
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
-    const [billStatusFilter, setBillStatusFilter] = useState<BillStatusFilterKey>('all');
-    const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
-    const [routeFilter, setRouteFilter] = useState<'all' | 'MSK-KGD' | 'KGD-MSK'>('all');
+    const [statusFilterSet, setStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
+    const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<BillStatusFilterKey>>(() => new Set());
+    const [typeFilterSet, setTypeFilterSet] = useState<Set<'ferry' | 'auto'>>(() => new Set());
+    const [routeFilterSet, setRouteFilterSet] = useState<Set<'MSK-KGD' | 'KGD-MSK'>>(() => new Set());
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
     const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
@@ -5220,7 +5220,7 @@ function CargoPage({
     }, [items, onCustomerDetected]);
 
     useEffect(() => {
-        if (initialStatusFilter) setStatusFilter(initialStatusFilter);
+        if (initialStatusFilter) setStatusFilterSet(new Set([initialStatusFilter]));
         setIsStatusDropdownOpen(false);
         if (initialStatusFilter) {
             onClearQuickFilters?.();
@@ -5248,11 +5248,12 @@ function CargoPage({
     // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
         let res = items.filter(i => !isReceivedInfoStatus(i.State));
-        if (statusFilter === 'favorites') {
-            // Фильтр избранных
-            res = res.filter(i => i.Number && favorites.has(i.Number));
-        } else if (statusFilter !== 'all') {
-            res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
+        if (statusFilterSet.size > 0) {
+            res = res.filter(i => {
+                const key = getFilterKeyByStatus(i.State);
+                const isFav = i.Number && favorites.has(i.Number);
+                return (statusFilterSet.has('favorites') && isFav) || (key !== 'favorites' && key !== 'all' && statusFilterSet.has(key));
+            });
         }
         if (searchText) {
             const lower = searchText.toLowerCase();
@@ -5261,11 +5262,16 @@ function CargoPage({
         }
         if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
         if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
-        if (useServiceRequest && billStatusFilter !== 'all') res = res.filter(i => getPaymentFilterKey(i.StateBill) === billStatusFilter);
-        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
-        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
-        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
-        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
+        if (useServiceRequest && billStatusFilterSet.size > 0) res = res.filter(i => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
+        if (typeFilterSet.size > 0) res = res.filter(i => {
+            const isFerry = i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1;
+            return (typeFilterSet.has('ferry') && isFerry) || (typeFilterSet.has('auto') && !isFerry);
+        });
+        if (routeFilterSet.size > 0) res = res.filter(i => {
+            const mskKgd = cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD';
+            const kgdMsk = cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK';
+            return (routeFilterSet.has('MSK-KGD') && mskKgd) || (routeFilterSet.has('KGD-MSK') && kgdMsk);
+        });
         
         // Применяем сортировку ТОЛЬКО по датам
         if (sortBy) {
@@ -5365,7 +5371,7 @@ function CargoPage({
         }
         
         return res;
-    }, [items, statusFilter, searchText, senderFilter, receiverFilter, billStatusFilter, useServiceRequest, typeFilter, routeFilter, sortBy, sortOrder, favorites]);
+    }, [items, statusFilterSet, searchText, senderFilter, receiverFilter, billStatusFilterSet, useServiceRequest, typeFilterSet, routeFilterSet, sortBy, sortOrder, favorites]);
 
     // Подсчет сумм из отфильтрованных элементов
     const summary = useMemo(() => {
@@ -5619,13 +5625,14 @@ function CargoPage({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
+                            Статус: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? STATUS_MAP[[...statusFilterSet][0]] : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen} onClose={() => setIsStatusDropdownOpen(false)}>
-                        {Object.keys(STATUS_MAP).map(key => (
-                            <div key={key} className="dropdown-item" onClick={() => { setStatusFilter(key as any); setIsStatusDropdownOpen(false); }}>
-                                <Typography.Body>{STATUS_MAP[key as StatusFilter]}</Typography.Body>
+                        <div className="dropdown-item" onClick={() => { setStatusFilterSet(new Set()); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'all').map(key => (
+                            <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setStatusFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: statusFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
+                                <Typography.Body>{STATUS_MAP[key]} {statusFilterSet.has(key) ? '✓' : ''}</Typography.Body>
                             </div>
                         ))}
                     </FilterDropdownPortal>
@@ -5660,13 +5667,14 @@ function CargoPage({
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                                Статус счёта: {BILL_STATUS_MAP[billStatusFilter]} <ChevronDown className="w-4 h-4"/>
+                                Статус счёта: {billStatusFilterSet.size === 0 ? 'Все' : billStatusFilterSet.size === 1 ? BILL_STATUS_MAP[[...billStatusFilterSet][0]] : `Выбрано: ${billStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
                         <FilterDropdownPortal triggerRef={billStatusButtonRef} isOpen={isBillStatusDropdownOpen} onClose={() => setIsBillStatusDropdownOpen(false)}>
-                            {(['all', 'paid', 'unpaid', 'partial', 'cancelled', 'unknown'] as const).map(key => (
-                                <div key={key} className="dropdown-item" onClick={() => { setBillStatusFilter(key); setIsBillStatusDropdownOpen(false); }}>
-                                    <Typography.Body>{BILL_STATUS_MAP[key]}</Typography.Body>
+                            <div className="dropdown-item" onClick={() => { setBillStatusFilterSet(new Set()); setIsBillStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            {(['paid', 'unpaid', 'partial', 'cancelled', 'unknown'] as const).map(key => (
+                                <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setBillStatusFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: billStatusFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
+                                    <Typography.Body>{BILL_STATUS_MAP[key]} {billStatusFilterSet.has(key) ? '✓' : ''}</Typography.Body>
                                 </div>
                             ))}
                         </FilterDropdownPortal>
@@ -5675,25 +5683,25 @@ function CargoPage({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
+                            Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={typeButtonRef} isOpen={isTypeDropdownOpen} onClose={() => setIsTypeDropdownOpen(false)}>
-                        <div className="dropdown-item" onClick={() => { setTypeFilter('all'); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setTypeFilter('ferry'); setIsTypeDropdownOpen(false); }}><Typography.Body>Паром</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setTypeFilter('auto'); setIsTypeDropdownOpen(false); }}><Typography.Body>Авто</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setTypeFilterSet(new Set()); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('ferry')) next.delete('ferry'); else next.add('ferry'); return next; }); }} style={{ background: typeFilterSet.has('ferry') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Паром {typeFilterSet.has('ferry') ? '✓' : ''}</Typography.Body></div>
+                        <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setTypeFilterSet(prev => { const next = new Set(prev); if (next.has('auto')) next.delete('auto'); else next.add('auto'); return next; }); }} style={{ background: typeFilterSet.has('auto') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>Авто {typeFilterSet.has('auto') ? '✓' : ''}</Typography.Body></div>
                     </FilterDropdownPortal>
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
-                            Маршрут: {routeFilter === 'all' ? 'Все' : routeFilter} <ChevronDown className="w-4 h-4"/>
+                            Маршрут: {routeFilterSet.size === 0 ? 'Все' : routeFilterSet.size === 2 ? 'Выбрано: 2' : [...routeFilterSet][0] === 'MSK-KGD' ? 'MSK – KGD' : 'KGD – MSK'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={routeButtonRef} isOpen={isRouteDropdownOpen} onClose={() => setIsRouteDropdownOpen(false)}>
-                        <div className="dropdown-item" onClick={() => { setRouteFilter('all'); setIsRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setRouteFilter('MSK-KGD'); setIsRouteDropdownOpen(false); }}><Typography.Body>MSK – KGD</Typography.Body></div>
-                        <div className="dropdown-item" onClick={() => { setRouteFilter('KGD-MSK'); setIsRouteDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
+                        <div className="dropdown-item" onClick={() => { setRouteFilterSet(new Set()); setIsRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setRouteFilterSet(prev => { const next = new Set(prev); if (next.has('MSK-KGD')) next.delete('MSK-KGD'); else next.add('MSK-KGD'); return next; }); }} style={{ background: routeFilterSet.has('MSK-KGD') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>MSK – KGD {routeFilterSet.has('MSK-KGD') ? '✓' : ''}</Typography.Body></div>
+                        <div className="dropdown-item" onClick={(e) => { e.stopPropagation(); setRouteFilterSet(prev => { const next = new Set(prev); if (next.has('KGD-MSK')) next.delete('KGD-MSK'); else next.add('KGD-MSK'); return next; }); }} style={{ background: routeFilterSet.has('KGD-MSK') ? 'var(--color-bg-hover)' : undefined }}><Typography.Body>KGD – MSK {routeFilterSet.has('KGD-MSK') ? '✓' : ''}</Typography.Body></div>
                     </FilterDropdownPortal>
                 </div>
             </div>

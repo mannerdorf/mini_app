@@ -41,11 +41,13 @@ export const parseCargoNumbersFromText = (text: string): Array<{ type: 'text' | 
     return parts.length ? parts : [{ type: 'text', value: text }];
 };
 
-/** Убирает префикс «0000-» из номера счёта */
+/** Номер счёта без ведущих нулей (000279 → 279) */
 export const formatInvoiceNumber = (s: string | undefined | null): string => {
     const str = String(s ?? '').trim();
     if (!str) return '—';
-    return str.replace(/^0000-/, '') || '—';
+    const withoutPrefix = str.replace(/^0000-/, '');
+    const withoutLeadingZeros = withoutPrefix.replace(/^0+/, '') || '0';
+    return withoutLeadingZeros;
 };
 
 /** Убирает «ООО», «ИП», «(ИП)» из названия компании */

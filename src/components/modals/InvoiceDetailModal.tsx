@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { X, Download, Loader2 } from "lucide-react";
 import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, transliterateFilename } from "../../lib/formatUtils";
+import { getPayTillDate } from "../../lib/dateUtils";
+import { DateText } from "../ui/DateText";
 import { normalizeStatus, getStatusClass } from "../../lib/statusUtils";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
@@ -57,6 +59,8 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
     if (!isOpen) return null;
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> = Array.isArray(item?.List) ? item.List : [];
     const num = item?.Number ?? item?.number ?? '—';
+    const dateDoc = item?.DateDoc ?? item?.Date ?? item?.date ?? item?.Дата ?? '';
+    const payTill = getPayTillDate(typeof dateDoc === 'string' ? dateDoc : dateDoc ? String(dateDoc) : undefined);
     const cargoNumber = getFirstCargoNumberFromInvoice(item);
 
     const handleDownload = async (label: string) => {
@@ -129,10 +133,16 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
     return createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
             <Panel className="cargo-card" style={{ minWidth: 'min(95vw, 900px)', maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1rem' }} onClick={e => e.stopPropagation()}>
-                <Flex justify="space-between" align="center" style={{ marginBottom: '1rem', flexShrink: 0 }}>
+                <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem', flexShrink: 0 }}>
                     <Typography.Headline style={{ fontSize: '1.1rem' }}>Счёт {formatInvoiceNumber(num)}</Typography.Headline>
                     <Button className="filter-button" onClick={onClose} style={{ padding: '0.35rem' }}><X className="w-5 h-5" /></Button>
                 </Flex>
+                {payTill && (
+                    <Flex align="center" gap="0.35rem" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '1rem', flexShrink: 0 }}>
+                        <Typography.Label>PayTill (план. доставки):</Typography.Label>
+                        <DateText value={payTill} />
+                    </Flex>
+                )}
                 {auth && (
                     <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: '1rem', flexShrink: 0 }}>
                         {DOC_BUTTONS.map((label) => (
@@ -155,12 +165,12 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                 )}
                 {list.length > 0 ? (
                     <div style={{ flex: 1, minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <table className="invoice-detail-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                             <thead>
                                 <tr style={{ background: 'var(--color-bg-hover)' }}>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Услуга</th>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус перевозки</th>
-                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
+                                    <th className="invoice-detail-table-route" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Цена</th>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
@@ -179,7 +189,7 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                                         <td style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : statusLabel != null ? <span className={statusClass} style={{ fontSize: '0.7rem', padding: '0.15rem 0.35rem', borderRadius: '999px', fontWeight: 600 }}>{statusLabel}</span> : '—'}
                                         </td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>
+                                        <td className="invoice-detail-table-route" style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : route ? <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>{route}</span> : '—'}
                                         </td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Quantity ?? '—'}</td>

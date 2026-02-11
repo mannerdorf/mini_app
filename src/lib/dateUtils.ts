@@ -252,6 +252,17 @@ export const parseDateOnly = (dateString: string | undefined): Date | null => {
 
 const DAY_SHORT: Record<number, string> = { 0: "вс", 1: "пн", 2: "вт", 3: "ср", 4: "чт", 5: "пт", 6: "сб" };
 
+/** Плановая дата доставки PayTill: DateDoc + 6 дней. Возвращает YYYY-MM-DD для DateText или undefined. */
+export const getPayTillDate = (dateDoc: string | undefined): string | undefined => {
+    const date = parseDateOnly(dateDoc);
+    if (!date) return undefined;
+    date.setDate(date.getDate() + 6);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+};
+
 export const getDateInfo = (dateString: string | undefined) => {
     const date = parseDateOnly(dateString);
     if (!date) return { text: dateString || '-', dayShort: "", isWeekend: false, isHoliday: false };
