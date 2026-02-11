@@ -5,7 +5,7 @@
 import useSWR from "swr";
 import { useCallback } from "react";
 import { ensureOk } from "../utils";
-import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL } from "../constants/config";
+import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL, PROXY_API_ACTS_URL } from "../constants/config";
 import type { AuthData, CargoItem, PerevozkiRole } from "../types";
 
 /** SWR config: 60s consider fresh, 5min cache */
@@ -216,6 +216,53 @@ export function useInvoices(params: InvoicesParams) {
     const { data, error, isLoading, mutate } = useSWR<unknown[]>(
         key,
         () => fetcherInvoices(params),
+        SWR_OPTIONS
+    );
+    return {
+        items: data ?? [],
+        error: error?.message ?? null,
+        loading: isLoading,
+        mutate,
+    };
+}
+
+type ActsParams = {
+    auth: AuthData | null;
+    dateFrom: string;
+    dateTo: string;
+    activeInn?: string;
+    useServiceRequest?: boolean;
+};
+
+async function fetcherActs(params: ActsParams): Promise<unknown[]> {
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
+    if (!auth?.login || !auth?.password) return [];
+    const res = await fetch(PROXY_API_ACTS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            login: auth.login,
+            password: auth.password,
+            dateFrom,
+            dateTo,
+            inn: activeInn || undefined,
+            serviceMode: useServiceRequest,
+        }),
+    });
+    await ensureOk(res, "Ошибка загрузки УПД");
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (data.items ?? data.Acts ?? data.acts ?? []);
+    return Array.isArray(list) ? list : [];
+}
+
+export function useActs(params: ActsParams) {
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
+    const key = auth?.login && auth?.password
+        ? ["acts", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest]
+        : null;
+    const { data, error, isLoading, mutate } = useSWR<unknown[]>(
+        key,
+        () => fetcherActs(params),
         SWR_OPTIONS
     );
     return {

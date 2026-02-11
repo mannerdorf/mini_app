@@ -4,3 +4,4 @@ export const PROXY_API_DOWNLOAD_URL = '/api/download';
 export const PROXY_API_SEND_DOC_URL = '/api/send-document';
 export const PROXY_API_GETPEREVOZKA_URL = '/api/getperevozka';
 export const PROXY_API_INVOICES_URL = '/api/invoices';
+export const PROXY_API_ACTS_URL = '/api/acts';

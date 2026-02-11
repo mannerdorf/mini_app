@@ -5,6 +5,7 @@ import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { InvoiceDetailModal } from "../components/modals/InvoiceDetailModal";
+import { ActDetailModal } from "../components/modals/ActDetailModal";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode, parseCargoNumbersFromText } from "../lib/formatUtils";
 import { normalizeStatus, getFilterKeyByStatus, getStatusClass, STATUS_MAP } from "../lib/statusUtils";
@@ -21,7 +22,7 @@ import {
     getPayTillDate,
 getPayTillDateColor,
 } from "../lib/dateUtils";
-import { useInvoices, usePerevozki } from "../hooks/useApi";
+import { useInvoices, usePerevozki, useActs } from "../hooks/useApi";
 import type { AuthData, DateFilter, StatusFilter } from "../types";
 
 const INVOICE_FAVORITES_VALUE = '__favorites__';
@@ -67,6 +68,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
+    const [selectedAct, setSelectedAct] = useState<any | null>(null);
     const [sortBy, setSortBy] = useState<'date' | null>('date');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [tableModeByCustomer, setTableModeByCustomer] = useState(false);
@@ -137,6 +139,14 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         useServiceRequest,
     });
 
+    const { items: actsItems, error: actsError, loading: actsLoading, mutate: mutateActs } = useActs({
+        auth,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        activeInn: activeInn || undefined,
+        useServiceRequest,
+    });
+
     const { items: perevozkiItems, loading: perevozkiLoading, mutate: mutatePerevozki } = usePerevozki({
         auth,
         dateFrom: perevozkiDateRange.dateFrom,
@@ -149,10 +159,11 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         const handler = () => {
             void mutateInvoices(undefined, { revalidate: true });
             void mutatePerevozki(undefined, { revalidate: true });
+            void mutateActs(undefined, { revalidate: true });
         };
         window.addEventListener('haulz-service-refresh', handler);
         return () => window.removeEventListener('haulz-service-refresh', handler);
-    }, [useServiceRequest, mutateInvoices, mutatePerevozki]);
+    }, [useServiceRequest, mutateInvoices, mutatePerevozki, mutateActs]);
 
     /** Канонический ключ для сопоставления номера перевозки (с/без ведущих нулей) */
     const normCargoKey = useCallback((num: string | null | undefined): string => {
@@ -277,6 +288,25 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         return { sum, count: filteredItems.length };
     }, [filteredItems]);
 
+    const sortedActs = useMemo(() => {
+        const list = [...(actsItems || [])];
+        const getDate = (a: any) => (a.DateDoc ?? a.Date ?? a.date ?? '').toString();
+        list.sort((a, b) => {
+            const cmp = getDate(a).localeCompare(getDate(b));
+            return sortOrder === 'desc' ? -cmp : cmp;
+        });
+        return list;
+    }, [actsItems, sortOrder]);
+
+    const actsSummary = useMemo(() => {
+        let sum = 0;
+        sortedActs.forEach(a => {
+            const v = a.SumDoc ?? a.Sum ?? a.sum ?? 0;
+            sum += typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
+        });
+        return { sum, count: sortedActs.length };
+    }, [sortedActs]);
+
     const groupedByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
         filteredItems.forEach(inv => {
@@ -312,6 +342,24 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         if (innerTableSortColumn === column) setInnerTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
         else { setInnerTableSortColumn(column); setInnerTableSortOrder(column === 'date' ? 'desc' : 'asc'); }
     };
+
+    /** УПД: сортировка по дате */
+    const sortedActs = useMemo(() => {
+        const getDate = (a: any) => (a.DateDoc ?? a.Date ?? a.date ?? "").toString();
+        return [...(actsItems || [])].sort((a, b) => {
+            const cmp = getDate(a).localeCompare(getDate(b));
+            return sortOrder === "desc" ? -cmp : cmp;
+        });
+    }, [actsItems, sortOrder]);
+
+    const actsSummary = useMemo(() => {
+        let sum = 0;
+        (actsItems || []).forEach((a: any) => {
+            const v = a.SumDoc ?? a.Sum ?? a.sum ?? 0;
+            sum += typeof v === "string" ? parseFloat(v) || 0 : (v || 0);
+        });
+        return { sum, count: (actsItems || []).length };
+    }, [actsItems]);
 
     const sortInvoices = useCallback((items: any[]) => {
         const getNum = (inv: any) => (inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '').toString().replace(/^0000-/, '');
@@ -405,7 +453,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                         })}
                     </Flex>
                 </div>
-                {docSection === 'Счета' && (
+                {(docSection === 'Счета' || docSection === 'УПД') && (
                 <div className="filters-container filters-row-scroll">
                     <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
                         <Button className="filter-button" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={() => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); }} title={sortOrder === 'desc' ? 'Дата по убыванию' : 'Дата по возрастанию'}>
@@ -490,7 +538,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 })
                             )}
                         </FilterDropdownPortal>
-                        {useServiceRequest && (
+                        {docSection === 'Счета' && useServiceRequest && (
                             <>
                                 <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
                                     <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); }}>
@@ -505,6 +553,8 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 </FilterDropdownPortal>
                             </>
                         )}
+                        {docSection === 'Счета' && (
+                        <>
                         <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); }}>
                                 Статус счёта: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? (statusFilterSet.has(INVOICE_FAVORITES_VALUE) ? 'Избранные' : [...statusFilterSet][0]) : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
@@ -544,6 +594,8 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                             <div className="dropdown-item" onClick={() => { setRouteFilterCargo('MSK – KGD'); setIsRouteCargoDropdownOpen(false); }}><Typography.Body>MSK – KGD</Typography.Body></div>
                             <div className="dropdown-item" onClick={() => { setRouteFilterCargo('KGD – MSK'); setIsRouteCargoDropdownOpen(false); }}><Typography.Body>KGD – MSK</Typography.Body></div>
                         </FilterDropdownPortal>
+                        </>
+                        )}
                         <CustomPeriodModal
                             isOpen={isCustomModalOpen}
                             onClose={() => setIsCustomModalOpen(false)}
@@ -724,7 +776,78 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             )}
             </>
             )}
-            {docSection !== 'Счета' && (
+            {docSection === 'УПД' && (
+            <>
+            <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>УПД</Typography.Body>
+            {!actsLoading && !actsError && sortedActs.length > 0 && (
+                <div className="cargo-card mb-4" style={{ padding: '0.75rem', marginBottom: '1rem' }}>
+                    <div className="summary-metrics">
+                        <Flex direction="column" align="center">
+                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCurrency(actsSummary.sum)}</Typography.Body>
+                        </Flex>
+                        <Flex direction="column" align="center">
+                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>УПД</Typography.Label>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{actsSummary.count}</Typography.Body>
+                        </Flex>
+                    </div>
+                </div>
+            )}
+            {actsLoading && (
+                <Flex justify="center" className="py-8">
+                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--color-primary-blue)' }} />
+                </Flex>
+            )}
+            {actsError && (
+                <Flex align="center" className="mt-4" style={{ color: 'var(--color-error)' }}>
+                    <AlertTriangle className="w-5 h-5 mr-2" />
+                    <Typography.Body>{actsError}</Typography.Body>
+                </Flex>
+            )}
+            {!actsLoading && !actsError && sortedActs.length > 0 && (
+                <div className="cargo-list">
+                    {sortedActs.map((act: any, idx: number) => {
+                        const num = act.Number ?? act.number ?? '';
+                        const dateDoc = act.DateDoc ?? act.Date ?? act.date ?? '';
+                        const sumDoc = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
+                        const invoiceNum = act.Invoice ?? act.invoice ?? '';
+                        return (
+                            <Panel key={num || idx} className="cargo-card" onClick={() => setSelectedAct(act)} style={{ cursor: 'pointer', marginBottom: '0.75rem' }}>
+                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-primary-blue)' }}>УПД {formatInvoiceNumber(String(num))}</Typography.Body>
+                                    <Flex align="center" gap="0.5rem">
+                                        <Calendar className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                                        <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                            <DateText value={typeof dateDoc === 'string' ? dateDoc : dateDoc ? String(dateDoc) : undefined} />
+                                        </Typography.Label>
+                                    </Flex>
+                                </Flex>
+                                <Flex justify="space-between" align="center" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>{sumDoc != null ? formatCurrency(sumDoc) : '—'}</Typography.Body>
+                                    {invoiceNum && (
+                                        <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Счёт {formatInvoiceNumber(String(invoiceNum))}</Typography.Label>
+                                    )}
+                                </Flex>
+                            </Panel>
+                        );
+                    })}
+                </div>
+            )}
+            {!actsLoading && !actsError && sortedActs.length === 0 && (
+                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет УПД за выбранный период</Typography.Body>
+            )}
+            {selectedAct && (
+                <ActDetailModal
+                    item={selectedAct}
+                    isOpen={!!selectedAct}
+                    onClose={() => setSelectedAct(null)}
+                    onOpenInvoice={(inv) => { setSelectedAct(null); setSelectedInvoice(inv); }}
+                    invoices={items}
+                />
+            )}
+            </>
+            )}
+            {docSection !== 'Счета' && docSection !== 'УПД' && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>
