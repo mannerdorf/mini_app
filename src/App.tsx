@@ -815,14 +815,6 @@ function DashboardPage({
         return () => { cancelled = true; };
     }, [expandedSlaCargoNumber, expandedSlaItem, auth?.login, auth?.password]);
 
-    const unpaidCount = useMemo(() => {
-        return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
-    }, [items]);
-
-    const readyCount = useMemo(() => {
-        return items.filter(item => !isReceivedInfoStatus(item.State) && getFilterKeyByStatus(item.State) === "ready").length;
-    }, [items]);
-    
     const testMaxMessage = async () => {
         const webApp = getWebApp();
         const logs: string[] = [];
@@ -911,6 +903,14 @@ function DashboardPage({
         useServiceRequest: true,
         enabled: !!useServiceRequest && !!prevRange,
     });
+
+    const unpaidCount = useMemo(() => {
+        return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
+    }, [items]);
+
+    const readyCount = useMemo(() => {
+        return items.filter(item => !isReceivedInfoStatus(item.State) && getFilterKeyByStatus(item.State) === "ready").length;
+    }, [items]);
 
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
