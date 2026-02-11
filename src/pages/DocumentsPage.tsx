@@ -343,24 +343,6 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         else { setInnerTableSortColumn(column); setInnerTableSortOrder(column === 'date' ? 'desc' : 'asc'); }
     };
 
-    /** УПД: сортировка по дате */
-    const sortedActs = useMemo(() => {
-        const getDate = (a: any) => (a.DateDoc ?? a.Date ?? a.date ?? "").toString();
-        return [...(actsItems || [])].sort((a, b) => {
-            const cmp = getDate(a).localeCompare(getDate(b));
-            return sortOrder === "desc" ? -cmp : cmp;
-        });
-    }, [actsItems, sortOrder]);
-
-    const actsSummary = useMemo(() => {
-        let sum = 0;
-        (actsItems || []).forEach((a: any) => {
-            const v = a.SumDoc ?? a.Sum ?? a.sum ?? 0;
-            sum += typeof v === "string" ? parseFloat(v) || 0 : (v || 0);
-        });
-        return { sum, count: (actsItems || []).length };
-    }, [actsItems]);
-
     const sortInvoices = useCallback((items: any[]) => {
         const getNum = (inv: any) => (inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '').toString().replace(/^0000-/, '');
         const getDate = (inv: any) => (inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '').toString();
@@ -674,6 +656,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                 const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
                                                                 const isum = inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0;
                                                                 const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
+                                                                const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                                                                 const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
                                                                 const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
                                                                 const deliveryStateNorm = normalizeStatus(deliveryState);
@@ -682,7 +665,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                     <tr key={inum || j} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedInvoice(inv); }} title="Открыть счёт">
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(inum)}</td>
                                                                         <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{ist || '—'}</td>
+                                                                        <td className="doc-inner-table-status" style={{ padding: '0.35rem 0.3rem' }}>{ist ? <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: istBadgeStyle.bg, color: istBadgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap', display: 'inline-block' }}>{ist}</span> : '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <span className={deliveryStatusClass} style={{ fontSize: '0.7rem', padding: '0.15rem 0.35rem', borderRadius: '999px', fontWeight: 600 }}>{deliveryStateNorm || '—'}</span>}
                                                                         </td>
@@ -735,7 +718,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                     </Flex>
                                 </Flex>
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
-                                    {st && <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: badgeStyle.bg, color: badgeStyle.color, border: '1px solid var(--color-border)' }}>{st}</span>}
+                                    {st && <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: badgeStyle.bg, color: badgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap' }}>{st}</span>}
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sum != null ? formatCurrency(sum) : '—'}</Typography.Body>
                                 </Flex>
                                 <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>

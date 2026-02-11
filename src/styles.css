@@ -287,11 +287,15 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .status-value.accepted { background-color: rgba(59, 130, 246, 0.2); color: var(--color-accepted-status); } /* accepted */
 .status-value.ready { background-color: rgba(16, 185, 129, 0.2); color: #059669; border: 1px solid rgba(16, 185, 129, 0.45); } /* Готов к выдаче — бирюзовый/изумрудный */
 
-/* Документы: внутренняя таблица (дата, маршрут) — на мобильной столбцы шире, данные без переноса */
+/* Документы: внутренняя таблица (дата, статус, маршрут) — на мобильной столбцы шире, данные без переноса */
 @media (max-width: 768px) {
     .doc-inner-table .doc-inner-table-date {
         white-space: nowrap;
         min-width: 4.25rem;
+    }
+    .doc-inner-table .doc-inner-table-status {
+        white-space: nowrap;
+        min-width: 6rem;
     }
     .doc-inner-table .doc-inner-table-route {
         white-space: nowrap;
