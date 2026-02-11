@@ -159,7 +159,7 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                             <thead>
                                 <tr style={{ background: 'var(--color-bg-hover)' }}>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Услуга</th>
-                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус доставки</th>
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус перевозки</th>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Цена</th>
