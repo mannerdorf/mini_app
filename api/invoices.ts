@@ -69,14 +69,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           "SELECT inn FROM account_companies WHERE login = $1",
           [String(login).trim().toLowerCase()]
         );
-        const userInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
-        if (inn && String(inn).trim()) userInns.add(String(inn).trim());
-        if (userInns.size > 0) {
+        const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
+        const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+        // Если выбран конкретный заказчик (inn) — отдаём только его счета; иначе — все доступные по логину
+        const filterInns = requestedInn
+          ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : allowedInns)
+          : allowedInns;
+        if (filterInns.size > 0) {
           const data = cacheRow.rows[0].data as any[];
           const list = Array.isArray(data) ? data : [];
           const filtered = list.filter((item) => {
             const itemInnVal = invoiceInn(item);
-            if (!userInns.has(itemInnVal)) return false;
+            if (!filterInns.has(itemInnVal)) return false;
             const d = invoiceDate(item);
             return d >= dateFrom && d <= dateTo;
           });
