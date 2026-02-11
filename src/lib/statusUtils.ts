@@ -52,7 +52,8 @@ export const getStatusClass = (status: string | undefined) => {
     const normalized = normalizeStatus(status);
     const lower = (normalized || '').toLowerCase();
     if (lower.includes('доставлен') || lower.includes('заверш')) return 'status-value success';
-    if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('доставке')) return 'status-value transit';
+    if (lower.includes('доставке')) return 'status-value delivering';
+    if (lower.includes('пути') || lower.includes('отправлен')) return 'status-value transit';
     if (lower.includes('принят') || lower.includes('оформлен')) return 'status-value accepted';
     if (lower.includes('готов')) return 'status-value ready';
     return 'status-value';

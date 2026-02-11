@@ -282,7 +282,8 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 /* --- STATUS BADGES --- */
 .status-value { padding: 0.2rem 0.4rem; border-radius: 0.5rem; font-size: 0.8rem; font-weight: 700; color: var(--color-text-primary); background-color: var(--color-bg-hover); }
 .status-value.success { background-color: rgba(52, 211, 153, 0.2); color: var(--color-success-status); } /* delivered, completed */
-.status-value.transit { background-color: rgba(250, 204, 21, 0.2); color: var(--color-transit-status); border: 1px solid rgba(250, 204, 21, 0.5); } /* В пути — жёлтый как на карточке */
+.status-value.transit { background-color: rgba(250, 204, 21, 0.2); color: var(--color-transit-status); border: 1px solid rgba(250, 204, 21, 0.5); } /* В пути — жёлтый */
+.status-value.delivering { background-color: rgba(139, 92, 246, 0.2); color: #6d28d9; border: 1px solid rgba(139, 92, 246, 0.45); } /* На доставке — фиолетовый */
 .status-value.accepted { background-color: rgba(59, 130, 246, 0.2); color: var(--color-accepted-status); } /* accepted */
 .status-value.ready { background-color: rgba(16, 185, 129, 0.2); color: #059669; border: 1px solid rgba(16, 185, 129, 0.45); } /* Готов к выдаче — бирюзовый/изумрудный */
 

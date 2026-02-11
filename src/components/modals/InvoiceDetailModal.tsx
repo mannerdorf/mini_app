@@ -128,13 +128,13 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
 
     return createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
-            <Panel className="cargo-card" style={{ minWidth: 'min(95vw, 900px)', maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto', padding: '1rem' }} onClick={e => e.stopPropagation()}>
-                <Flex justify="space-between" align="center" style={{ marginBottom: '1rem' }}>
+            <Panel className="cargo-card" style={{ minWidth: 'min(95vw, 900px)', maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1rem' }} onClick={e => e.stopPropagation()}>
+                <Flex justify="space-between" align="center" style={{ marginBottom: '1rem', flexShrink: 0 }}>
                     <Typography.Headline style={{ fontSize: '1.1rem' }}>Счёт {formatInvoiceNumber(num)}</Typography.Headline>
                     <Button className="filter-button" onClick={onClose} style={{ padding: '0.35rem' }}><X className="w-5 h-5" /></Button>
                 </Flex>
                 {auth && (
-                    <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: '1rem' }}>
+                    <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: '1rem', flexShrink: 0 }}>
                         {DOC_BUTTONS.map((label) => (
                             <Button
                                 key={label}
@@ -151,10 +151,10 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                     </Flex>
                 )}
                 {downloadError && (
-                    <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{downloadError}</Typography.Body>
+                    <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem', flexShrink: 0 }}>{downloadError}</Typography.Body>
                 )}
                 {list.length > 0 ? (
-                    <div style={{ overflowX: 'auto', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
+                    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                             <thead>
                                 <tr style={{ background: 'var(--color-bg-hover)' }}>
