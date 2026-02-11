@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { X, Download, Loader2 } from "lucide-react";
 import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, transliterateFilename } from "../../lib/formatUtils";
+import { normalizeStatus, getStatusClass } from "../../lib/statusUtils";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import type { AuthData } from "../../types";
@@ -15,6 +16,10 @@ type InvoiceDetailModalProps = {
     onClose: () => void;
     onOpenCargo?: (cargoNumber: string) => void;
     auth?: AuthData | null;
+    /** Карты статус/маршрут по номеру перевозки (для столбцов в таблице номенклатуры) */
+    cargoStateByNumber?: Map<string, string>;
+    cargoRouteByNumber?: Map<string, string>;
+    perevozkiLoading?: boolean;
 };
 
 /** Номер перевозки из первой строки номенклатуры счёта (или из любой строки, если в первой нет) */
@@ -30,7 +35,22 @@ function getFirstCargoNumberFromInvoice(item: any): string | null {
     return null;
 }
 
-export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth }: InvoiceDetailModalProps) {
+/** Номер перевозки из строки номенклатуры (Operation/Name) */
+function getCargoNumberFromRow(row: { Operation?: string; Name?: string }): string | null {
+    const text = String(row?.Operation ?? row?.Name ?? "").trim();
+    if (!text) return null;
+    const parts = parseCargoNumbersFromText(text);
+    const cargo = parts.find((p) => p.type === "cargo");
+    return cargo?.value ?? null;
+}
+
+function lookupNorm<T>(map: Map<string, T> | undefined, key: string): T | undefined {
+    if (!map || !key) return undefined;
+    const norm = (s: string) => String(s).replace(/^0+/, "") || s;
+    return map.get(key) ?? map.get(norm(key));
+}
+
+export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, cargoStateByNumber, cargoRouteByNumber, perevozkiLoading }: InvoiceDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -139,20 +159,35 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth }:
                             <thead>
                                 <tr style={{ background: 'var(--color-bg-hover)' }}>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Услуга</th>
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус доставки</th>
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Цена</th>
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {list.map((row, i) => (
+                                {list.map((row, i) => {
+                                    const cargoNum = getCargoNumberFromRow(row);
+                                    const deliveryState = cargoNum ? lookupNorm(cargoStateByNumber, cargoNum) : undefined;
+                                    const route = cargoNum ? lookupNorm(cargoRouteByNumber, cargoNum) : undefined;
+                                    const statusClass = getStatusClass(deliveryState);
+                                    const statusLabel = deliveryState != null ? normalizeStatus(deliveryState) : null;
+                                    return (
                                     <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 220 }} title={stripOoo(String(row.Operation ?? row.Name ?? ''))}>{renderServiceCell(String(row.Operation ?? row.Name ?? '—'))}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>
+                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : statusLabel != null ? <span className={statusClass} style={{ fontSize: '0.7rem', padding: '0.15rem 0.35rem', borderRadius: '999px', fontWeight: 600 }}>{statusLabel}</span> : '—'}
+                                        </td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>
+                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : route ? <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>{route}</span> : '—'}
+                                        </td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Quantity ?? '—'}</td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Price != null ? formatCurrency(row.Price) : '—'}</td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Sum != null ? formatCurrency(row.Sum) : '—'}</td>
                                     </tr>
-                                ))}
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

@@ -561,9 +561,6 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
                                     <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: badgeStyle.color }}>{formatInvoiceNumber(num)}</Typography.Body>
-                                        {useServiceRequest && cust && (
-                                            <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>Заказчик</span>
-                                        )}
                                     </Flex>
                                     <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
                                         <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); const lines = [`Счёт: ${formatInvoiceNumber(num)}`, cust && `Заказчик: ${stripOoo(String(cust))}`, sum != null && `Сумма: ${formatCurrency(sum)}`, dt && `Дата: ${typeof dt === 'string' ? dt : String(dt)}`].filter(Boolean); const text = lines.join('\n'); if (typeof navigator !== 'undefined' && (navigator as any).share) { (navigator as any).share({ title: `Счёт ${formatInvoiceNumber(num)}`, text }).catch(() => {}); } else { try { navigator.clipboard?.writeText(text); } catch {} } }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
@@ -603,6 +600,9 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                         setTimeout(() => onOpenCargo?.(cargoNumber), 0);
                     }}
                     auth={auth}
+                    cargoStateByNumber={cargoStateByNumber}
+                    cargoRouteByNumber={cargoRouteByNumber}
+                    perevozkiLoading={perevozkiLoading}
                 />
             )}
             {!loading && !error && filteredItems.length === 0 && (
