@@ -1,9 +1,14 @@
-import React from "react";
+import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { X } from "lucide-react";
-import { formatCurrency, formatInvoiceNumber, stripOoo } from "../../lib/formatUtils";
+import { X, Download, Loader2 } from "lucide-react";
+import { formatCurrency, formatInvoiceNumber, stripOoo, parseCargoNumbersFromText, transliterateFilename } from "../../lib/formatUtils";
 import { DateText } from "../ui/DateText";
+import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
+import { DOCUMENT_METHODS } from "../../documentMethods";
+import type { AuthData } from "../../types";
+
+const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
 
 type ActDetailModalProps = {
     item: any;
@@ -13,6 +18,9 @@ type ActDetailModalProps = {
     onOpenInvoice?: (invoiceItem: any) => void;
     /** Список счетов для поиска по номеру (чтобы открыть счёт по клику) */
     invoices?: any[];
+    /** При клике по номеру перевозки — открыть карточку перевозки */
+    onOpenCargo?: (cargoNumber: string) => void;
+    auth?: AuthData | null;
 };
 
 /** Нормализация номера для сравнения (0000-003544 и 3544) */
@@ -21,7 +29,23 @@ function normNum(s: string | undefined | null): string {
     return v;
 }
 
-export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices = [] }: ActDetailModalProps) {
+/** Первый номер перевозки из списка номенклатуры УПД */
+function getFirstCargoNumberFromAct(item: any): string | null {
+    const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(item?.List) ? item.List : [];
+    for (let i = 0; i < list.length; i++) {
+        const text = String(list[i]?.Operation ?? list[i]?.Name ?? "").trim();
+        if (!text) continue;
+        const parts = parseCargoNumbersFromText(text);
+        const cargo = parts.find((p) => p.type === "cargo");
+        if (cargo?.value) return cargo.value;
+    }
+    return null;
+}
+
+export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices = [], onOpenCargo, auth }: ActDetailModalProps) {
+    const [downloading, setDownloading] = useState<string | null>(null);
+    const [downloadError, setDownloadError] = useState<string | null>(null);
+
     if (!isOpen) return null;
 
     const num = item?.Number ?? item?.number ?? "—";
@@ -30,10 +54,78 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
     const invoiceNum = item?.Invoice ?? item?.invoice ?? item?.Счёт ?? "";
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> =
         Array.isArray(item?.List) ? item.List : [];
+    const cargoNumber = getFirstCargoNumberFromAct(item);
 
     const invoiceItem = invoiceNum && invoices.length > 0
         ? invoices.find((inv) => normNum(inv.Number ?? inv.number ?? inv.Номер) === normNum(invoiceNum))
         : null;
+
+    const handleDownload = async (label: string) => {
+        if (!cargoNumber || !auth?.login || !auth?.password) {
+            setDownloadError(cargoNumber ? "Требуется авторизация" : "Номер перевозки не найден в УПД");
+            return;
+        }
+        const metod = DOCUMENT_METHODS[label] ?? label;
+        setDownloading(label);
+        setDownloadError(null);
+        try {
+            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    login: auth.login,
+                    password: auth.password,
+                    metod,
+                    number: cargoNumber,
+                }),
+            });
+            if (!res.ok) {
+                const msg = res.status === 404 ? "Документ не найден" : res.status >= 500 ? "Ошибка сервера" : "Не удалось получить документ";
+                throw new Error(msg);
+            }
+            const data = await res.json();
+            if (!data?.data || !data.name) throw new Error("Документ не найден");
+            const byteCharacters = atob(data.data);
+            const byteArray = new Uint8Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i);
+            const blob = new Blob([byteArray], { type: "application/pdf" });
+            const fileName = transliterateFilename(data.name || `${label}_${cargoNumber}.pdf`);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e: any) {
+            setDownloadError(e?.message ?? "Ошибка загрузки");
+        } finally {
+            setDownloading(null);
+        }
+    };
+
+    const renderServiceCell = (raw: string) => {
+        const s = stripOoo(raw || "—");
+        const parts = parseCargoNumbersFromText(s);
+        return (
+            <>
+                {parts.map((p, k) =>
+                    p.type === "cargo" ? (
+                        <span
+                            key={k}
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpenCargo?.(p.value); }}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpenCargo?.(p.value); } }}
+                            style={{ color: "var(--color-primary)", textDecoration: "underline", cursor: "pointer", fontWeight: 600 }}
+                            title="Открыть карточку перевозки"
+                        >{p.value}</span>
+                    ) : (
+                        <span key={k}>{p.value}</span>
+                    )
+                )}
+            </>
+        );
+    };
 
     return createPortal(
         <div
@@ -107,6 +199,27 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
                     )}
                 </Flex>
 
+                {auth && (
+                    <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "1rem", flexShrink: 0 }}>
+                        {DOC_BUTTONS.map((label) => (
+                            <Button
+                                key={label}
+                                className="filter-button"
+                                size="small"
+                                disabled={!cargoNumber || downloading !== null}
+                                onClick={() => handleDownload(label)}
+                                style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
+                            >
+                                {downloading === label ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                {label}
+                            </Button>
+                        ))}
+                    </Flex>
+                )}
+                {downloadError && (
+                    <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.5rem", flexShrink: 0 }}>{downloadError}</Typography.Body>
+                )}
+
                 {list.length > 0 ? (
                     <div
                         style={{
@@ -130,7 +243,7 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
                                 {list.map((row, i) => (
                                     <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
                                         <td style={{ padding: "0.5rem 0.4rem", maxWidth: 320 }} title={stripOoo(String(row.Operation ?? row.Name ?? ""))}>
-                                            {stripOoo(String(row.Operation ?? row.Name ?? "—"))}
+                                            {renderServiceCell(String(row.Operation ?? row.Name ?? "—"))}
                                         </td>
                                         <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.Quantity ?? "—"}</td>
                                         <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.Price != null ? formatCurrency(row.Price) : "—"}</td>

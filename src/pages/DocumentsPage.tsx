@@ -43,12 +43,51 @@ type DocumentsPageProps = {
     auth: AuthData;
     useServiceRequest?: boolean;
     activeInn?: string;
+    /** Текст поиска — фильтрация по названиям и номенклатуре */
+    searchText?: string;
     /** При клике на перевозку в документах — переход на вкладку «Грузы» и открытие карточки */
     onOpenCargo?: (cargoNumber: string) => void;
     onOpenChat?: (context?: string) => void | Promise<void>;
 };
 
-export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', onOpenCargo, onOpenChat }: DocumentsPageProps) {
+/** Строка для поиска по счёту: номер, заказчик, дата, сумма, номенклатура */
+function getInvoiceSearchText(inv: any): string {
+    const parts: string[] = [
+        String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? ''),
+        stripOoo(String(inv?.Customer ?? inv?.customer ?? inv?.Контрагент ?? inv?.Contractor ?? inv?.Organization ?? '')),
+        String(inv?.DateDoc ?? inv?.Date ?? inv?.date ?? inv?.Дата ?? ''),
+        String(inv?.SumDoc ?? inv?.Sum ?? inv?.sum ?? inv?.Сумма ?? inv?.Amount ?? ''),
+    ];
+    const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(inv?.List) ? inv.List : [];
+    list.forEach((row) => {
+        parts.push(String(row?.Operation ?? row?.Name ?? ''));
+    });
+    return parts.join(' ').toLowerCase();
+}
+
+/** Строка для поиска по УПД: номер, счёт, заказчик, дата, сумма, номенклатура */
+function getActSearchText(act: any): string {
+    const parts: string[] = [
+        String(act?.Number ?? act?.number ?? ''),
+        String(act?.Invoice ?? act?.invoice ?? act?.Счёт ?? ''),
+        stripOoo(String(act?.Customer ?? act?.customer ?? act?.Контрагент ?? act?.Contractor ?? act?.Organization ?? '')),
+        String(act?.DateDoc ?? act?.Date ?? act?.date ?? ''),
+        String(act?.SumDoc ?? act?.Sum ?? act?.sum ?? ''),
+    ];
+    const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(act?.List) ? act.List : [];
+    list.forEach((row) => {
+        parts.push(String(row?.Operation ?? row?.Name ?? ''));
+    });
+    return parts.join(' ').toLowerCase();
+}
+
+/** Статус ЭДО из документа (счёт/УПД) — поддержка разных полей API */
+function getEdoStatus(item: any): string {
+    const v = item?.EdoStatus ?? item?.edoStatus ?? item?.EdoState ?? item?.EDO ?? item?.StatusEDO ?? item?.ЭДО ?? item?.DocumentStatus ?? item?.documentStatus ?? '';
+    return String(v ?? '').trim() || '';
+}
+
+export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', searchText = '', onOpenCargo, onOpenChat }: DocumentsPageProps) {
     const initDate = () => loadDateFilterState();
     const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
     const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
@@ -60,6 +99,8 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [customerFilter, setCustomerFilter] = useState<string>('');
+    const [actCustomerFilter, setActCustomerFilter] = useState<string>('');
+    const [edoStatusFilterSet, setEdoStatusFilterSet] = useState<Set<string>>(() => new Set());
     const [statusFilterSet, setStatusFilterSet] = useState<Set<string>>(() => new Set());
     const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
     const [routeFilter, setRouteFilter] = useState<'all' | 'MSK-KGD' | 'KGD-MSK'>('all');
@@ -73,18 +114,25 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [tableModeByCustomer, setTableModeByCustomer] = useState(false);
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
+    const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
     const [docSection, setDocSection] = useState<DocSectionKey>('Счета');
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [innerTableActSortColumn, setInnerTableActSortColumn] = useState<'number' | 'date' | 'invoice' | 'sum'>('date');
+    const [innerTableActSortOrder, setInnerTableActSortOrder] = useState<'asc' | 'desc'>('desc');
     const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
     const [routeFilterCargo, setRouteFilterCargo] = useState<string>('all');
     const [isDeliveryStatusDropdownOpen, setIsDeliveryStatusDropdownOpen] = useState(false);
     const [isRouteCargoDropdownOpen, setIsRouteCargoDropdownOpen] = useState(false);
+    const [isEdoStatusDropdownOpen, setIsEdoStatusDropdownOpen] = useState(false);
+    const [isActCustomerDropdownOpen, setIsActCustomerDropdownOpen] = useState(false);
     const [favVersion, setFavVersion] = useState(0);
     const deliveryStatusButtonRef = useRef<HTMLDivElement | null>(null);
     const routeCargoButtonRef = useRef<HTMLDivElement | null>(null);
+    const edoStatusButtonRef = useRef<HTMLDivElement | null>(null);
+    const actCustomerButtonRef = useRef<HTMLDivElement | null>(null);
     const dateButtonRef = useRef<HTMLDivElement | null>(null);
     const customerButtonRef = useRef<HTMLDivElement | null>(null);
     const statusButtonRef = useRef<HTMLDivElement | null>(null);
@@ -216,6 +264,17 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
 
     const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
 
+    const uniqueActCustomers = useMemo(() => [...new Set((actsItems || []).map((a: any) => ((a.Customer ?? a.customer ?? a.Контрагент ?? a.Contractor ?? a.Organization ?? '').trim())).filter(Boolean))].sort(), [actsItems]);
+
+    const uniqueEdoStatuses = useMemo(() => {
+        const set = new Set<string>();
+        [...items, ...(actsItems || [])].forEach((i: any) => {
+            const s = getEdoStatus(i);
+            if (s) set.add(s);
+        });
+        return [...set].sort();
+    }, [items, actsItems]);
+
     const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
         if (!invNum) return;
         try {
@@ -267,6 +326,16 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                 return route === routeFilterCargo;
             });
         }
+        if (searchText.trim()) {
+            const lower = searchText.trim().toLowerCase();
+            res = res.filter((i) => getInvoiceSearchText(i).includes(lower));
+        }
+        if (edoStatusFilterSet.size > 0) {
+            res = res.filter((i) => {
+                const edo = getEdoStatus(i);
+                return edo && edoStatusFilterSet.has(edo);
+            });
+        }
         const getDate = (r: any) => (r.Date ?? r.date ?? r.Дата ?? r.DateDoc ?? '').toString();
         if (sortBy === 'date') {
             res.sort((a, b) => {
@@ -277,7 +346,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             });
         }
         return res;
-    }, [items, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, routeFilterCargo, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, normCargoKey]);
+    }, [items, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, routeFilterCargo, searchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, normCargoKey]);
 
     const documentsSummary = useMemo(() => {
         let sum = 0;
@@ -298,14 +367,32 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         return list;
     }, [actsItems, sortOrder]);
 
+    const filteredActs = useMemo(() => {
+        let res = sortedActs;
+        if (actCustomerFilter) {
+            res = res.filter((a: any) => ((a.Customer ?? a.customer ?? a.Контрагент ?? a.Contractor ?? a.Organization ?? '').trim()) === actCustomerFilter);
+        }
+        if (searchText.trim()) {
+            const lower = searchText.trim().toLowerCase();
+            res = res.filter((a) => getActSearchText(a).includes(lower));
+        }
+        if (edoStatusFilterSet.size > 0) {
+            res = res.filter((a) => {
+                const edo = getEdoStatus(a);
+                return edo && edoStatusFilterSet.has(edo);
+            });
+        }
+        return res;
+    }, [sortedActs, actCustomerFilter, searchText, edoStatusFilterSet]);
+
     const actsSummary = useMemo(() => {
         let sum = 0;
-        sortedActs.forEach(a => {
+        filteredActs.forEach(a => {
             const v = a.SumDoc ?? a.Sum ?? a.sum ?? 0;
             sum += typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
         });
-        return { sum, count: sortedActs.length };
-    }, [sortedActs]);
+        return { sum, count: filteredActs.length };
+    }, [filteredActs]);
 
     const groupedByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
@@ -333,6 +420,32 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         });
     }, [groupedByCustomer, tableSortColumn, tableSortOrder]);
 
+    const groupedActsByCustomer = useMemo(() => {
+        const map = new Map<string, { customer: string; items: any[]; sum: number }>();
+        filteredActs.forEach((act: any) => {
+            const key = (act.Customer ?? act.customer ?? act.Контрагент ?? act.Contractor ?? act.Organization ?? '').trim() || '—';
+            const v = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
+            const sum = typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
+            const existing = map.get(key);
+            if (existing) {
+                existing.items.push(act);
+                existing.sum += sum;
+            } else map.set(key, { customer: key, items: [act], sum });
+        });
+        return Array.from(map.entries()).map(([, v]) => v);
+    }, [filteredActs]);
+
+    const sortedGroupedActsByCustomer = useMemo(() => {
+        const key = (row: { customer: string; sum: number; items: any[] }) =>
+            tableSortColumn === 'customer' ? (stripOoo(row.customer) || '').toLowerCase() : tableSortColumn === 'sum' ? row.sum : row.items.length;
+        return [...groupedActsByCustomer].sort((a, b) => {
+            const va = key(a);
+            const vb = key(b);
+            const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
+            return tableSortOrder === 'asc' ? cmp : -cmp;
+        });
+    }, [groupedActsByCustomer, tableSortColumn, tableSortOrder]);
+
     const handleTableSort = (column: 'customer' | 'sum' | 'count') => {
         if (tableSortColumn === column) setTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
         else { setTableSortColumn(column); setTableSortOrder('asc'); }
@@ -342,6 +455,28 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         if (innerTableSortColumn === column) setInnerTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
         else { setInnerTableSortColumn(column); setInnerTableSortOrder(column === 'date' ? 'desc' : 'asc'); }
     };
+
+    const handleInnerTableActSort = (column: 'number' | 'date' | 'invoice' | 'sum') => {
+        if (innerTableActSortColumn === column) setInnerTableActSortOrder(o => o === 'asc' ? 'desc' : 'asc');
+        else { setInnerTableActSortColumn(column); setInnerTableActSortOrder(column === 'date' ? 'desc' : 'asc'); }
+    };
+
+    const sortActs = useCallback((acts: any[]) => {
+        const getNum = (a: any) => (a.Number ?? a.number ?? '').toString().replace(/^0000-/, '');
+        const getDate = (a: any) => (a.DateDoc ?? a.Date ?? a.date ?? '').toString();
+        const getInvoice = (a: any) => (a.Invoice ?? a.invoice ?? a.Счёт ?? '').toString();
+        const getSum = (a: any) => Number(a.SumDoc ?? a.Sum ?? a.sum ?? 0) || 0;
+        return [...acts].sort((a, b) => {
+            let cmp = 0;
+            switch (innerTableActSortColumn) {
+                case 'number': cmp = (getNum(a) || '').localeCompare(getNum(b) || '', undefined, { numeric: true }); break;
+                case 'date': cmp = (getDate(a) || '').localeCompare(getDate(b) || ''); break;
+                case 'invoice': cmp = (getInvoice(a) || '').localeCompare(getInvoice(b) || '', undefined, { numeric: true }); break;
+                case 'sum': cmp = getSum(a) - getSum(b); break;
+            }
+            return innerTableActSortOrder === 'asc' ? cmp : -cmp;
+        });
+    }, [innerTableActSortColumn, innerTableActSortOrder]);
 
     const sortInvoices = useCallback((items: any[]) => {
         const getNum = (inv: any) => (inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '').toString().replace(/^0000-/, '');
@@ -442,7 +577,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                             {sortOrder === 'desc' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
                         </Button>
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
                                 Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8, 10)}.${r.dateFrom.slice(5, 7)} – ${r.dateTo.slice(8, 10)}.${r.dateTo.slice(5, 7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -523,7 +658,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                         {docSection === 'Счета' && useServiceRequest && (
                             <>
                                 <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
                                         Заказчик: {customerFilter ? stripOoo(customerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -535,10 +670,38 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 </FilterDropdownPortal>
                             </>
                         )}
+                        {docSection === 'УПД' && (
+                            <>
+                                <div ref={actCustomerButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => { setIsActCustomerDropdownOpen(!isActCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
+                                        Заказчик: {actCustomerFilter ? stripOoo(actCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                                    </Button>
+                                </div>
+                                <FilterDropdownPortal triggerRef={actCustomerButtonRef} isOpen={isActCustomerDropdownOpen} onClose={() => setIsActCustomerDropdownOpen(false)}>
+                                    <div className="dropdown-item" onClick={() => { setActCustomerFilter(''); setIsActCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                                    {uniqueActCustomers.map(c => (
+                                        <div key={c} className="dropdown-item" onClick={() => { setActCustomerFilter(c); setIsActCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
+                                    ))}
+                                </FilterDropdownPortal>
+                            </>
+                        )}
+                        <div ref={edoStatusButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsEdoStatusDropdownOpen(!isEdoStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); }}>
+                                Статус ЭДО: {edoStatusFilterSet.size === 0 ? 'Все' : edoStatusFilterSet.size === 1 ? [...edoStatusFilterSet][0] : `Выбрано: ${edoStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal triggerRef={edoStatusButtonRef} isOpen={isEdoStatusDropdownOpen} onClose={() => setIsEdoStatusDropdownOpen(false)}>
+                            <div className="dropdown-item" onClick={() => { setEdoStatusFilterSet(new Set()); setIsEdoStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            {uniqueEdoStatuses.map(s => (
+                                <div key={s} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setEdoStatusFilterSet(prev => { const next = new Set(prev); if (next.has(s)) next.delete(s); else next.add(s); return next; }); }} style={{ background: edoStatusFilterSet.has(s) ? 'var(--color-bg-hover)' : undefined }}>
+                                    <Typography.Body>{s} {edoStatusFilterSet.has(s) ? '✓' : ''}</Typography.Body>
+                                </div>
+                            ))}
+                        </FilterDropdownPortal>
                         {docSection === 'Счета' && (
                         <>
                         <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
                                 Статус счёта: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? (statusFilterSet.has(INVOICE_FAVORITES_VALUE) ? 'Избранные' : [...statusFilterSet][0]) : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -554,7 +717,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                             </div>
                         </FilterDropdownPortal>
                         <div ref={deliveryStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDeliveryStatusDropdownOpen(!isDeliveryStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRouteCargoDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsDeliveryStatusDropdownOpen(!isDeliveryStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
                                 Статус перевозки: {deliveryStatusFilterSet.size === 0 ? 'Все' : deliveryStatusFilterSet.size === 1 ? STATUS_MAP[[...deliveryStatusFilterSet][0]] : `Выбрано: ${deliveryStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -567,7 +730,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                             ))}
                         </FilterDropdownPortal>
                         <div ref={routeCargoButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
                                 Маршрут: {routeFilterCargo === 'all' ? 'Все' : routeFilterCargo} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -600,7 +763,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCurrency(documentsSummary.sum)}</Typography.Body>
                         </Flex>
                         <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Счетов</Typography.Label>
+                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', visibility: 'hidden' }}>—</Typography.Label>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{documentsSummary.count}</Typography.Body>
                         </Flex>
                     </div>
@@ -762,7 +925,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             {docSection === 'УПД' && (
             <>
             <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>УПД</Typography.Body>
-            {!actsLoading && !actsError && sortedActs.length > 0 && (
+            {!actsLoading && !actsError && filteredActs.length > 0 && (
                 <div className="cargo-card mb-4" style={{ padding: '0.75rem', marginBottom: '1rem' }}>
                     <div className="summary-metrics">
                         <Flex direction="column" align="center">
@@ -770,7 +933,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCurrency(actsSummary.sum)}</Typography.Body>
                         </Flex>
                         <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>УПД</Typography.Label>
+                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', visibility: 'hidden' }}>—</Typography.Label>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{actsSummary.count}</Typography.Body>
                         </Flex>
                     </div>
@@ -787,28 +950,100 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                     <Typography.Body>{actsError}</Typography.Body>
                 </Flex>
             )}
-            {!actsLoading && !actsError && sortedActs.length > 0 && (
+            {!actsLoading && !actsError && tableModeByCustomer && sortedGroupedActsByCustomer.length > 0 && (
+                <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка">УПД {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortedGroupedActsByCustomer.map((row, i) => (
+                                <React.Fragment key={i}>
+                                    <tr style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableActCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }} onClick={() => setExpandedTableActCustomer(prev => prev === row.customer ? null : row.customer)} title={expandedTableActCustomer === row.customer ? 'Свернуть' : 'Показать УПД'}>
+                                        <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
+                                    </tr>
+                                    {expandedTableActCustomer === row.customer && (
+                                        <tr key={`${i}-detail`}>
+                                            <td colSpan={3} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
+                                                    <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                        <thead>
+                                                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('number'); }} title="Сортировка">Номер {innerTableActSortColumn === 'number' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} className="doc-inner-table-date" onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('date'); }} title="Сортировка">Дата {innerTableActSortColumn === 'date' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('invoice'); }} title="Сортировка">Счёт {innerTableActSortColumn === 'invoice' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('sum'); }} title="Сортировка">Сумма {innerTableActSortColumn === 'sum' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {sortActs(row.items).map((act: any, j: number) => {
+                                                                const anum = act.Number ?? act.number ?? '';
+                                                                const adt = act.DateDoc ?? act.Date ?? act.date ?? '';
+                                                                const ainv = act.Invoice ?? act.invoice ?? act.Счёт ?? '';
+                                                                const asum = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
+                                                                return (
+                                                                    <tr key={anum || j} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedAct(act); }} title="Открыть УПД">
+                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(String(anum))}</td>
+                                                                        <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} /></td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{ainv ? formatInvoiceNumber(String(ainv)) : '—'}</td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            {!actsLoading && !actsError && filteredActs.length > 0 && !tableModeByCustomer && (
                 <div className="cargo-list">
-                    {sortedActs.map((act: any, idx: number) => {
+                    {filteredActs.map((act: any, idx: number) => {
                         const num = act.Number ?? act.number ?? '';
                         const dateDoc = act.DateDoc ?? act.Date ?? act.date ?? '';
                         const sumDoc = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
+                        const cust = act.Customer ?? act.customer ?? act.Контрагент ?? act.Contractor ?? act.Organization ?? '';
                         const invoiceNum = act.Invoice ?? act.invoice ?? '';
                         return (
-                            <Panel key={num || idx} className="cargo-card" onClick={() => setSelectedAct(act)} style={{ cursor: 'pointer', marginBottom: '0.75rem' }}>
-                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-primary-blue)' }}>УПД {formatInvoiceNumber(String(num))}</Typography.Body>
-                                    <Flex align="center" gap="0.5rem">
-                                        <Calendar className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                                        <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                            <Panel key={num || idx} className="cargo-card" onClick={() => setSelectedAct(act)} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
+                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
+                                    <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{formatInvoiceNumber(String(num))}</Typography.Body>
+                                    </Flex>
+                                    <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); const lines = [`УПД: ${formatInvoiceNumber(String(num))}`, cust && `Заказчик: ${stripOoo(String(cust))}`, sumDoc != null && `Сумма: ${formatCurrency(sumDoc)}`, dateDoc && `Дата: ${typeof dateDoc === 'string' ? dateDoc : String(dateDoc)}`, invoiceNum && `Счёт: ${formatInvoiceNumber(String(invoiceNum))}`].filter(Boolean); const text = lines.join('\n'); if (typeof navigator !== 'undefined' && (navigator as any).share) { (navigator as any).share({ title: `УПД ${formatInvoiceNumber(String(num))}`, text }).catch(() => {}); } else { try { navigator.clipboard?.writeText(text); } catch {} } }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
+                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); onOpenChat?.(`УПД ${formatInvoiceNumber(String(num))}`); }} title="Чат"><MessageCircle className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
+                                        <span style={{ padding: '0.25rem', display: 'flex', alignItems: 'center', color: 'var(--color-text-secondary)', opacity: 0.5 }} title="Избранное"><Heart className="w-4 h-4" /></span>
+                                        <Calendar className="w-4 h-4 text-theme-secondary" />
+                                        <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
                                             <DateText value={typeof dateDoc === 'string' ? dateDoc : dateDoc ? String(dateDoc) : undefined} />
                                         </Typography.Label>
                                     </Flex>
                                 </Flex>
-                                <Flex justify="space-between" align="center" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>{sumDoc != null ? formatCurrency(sumDoc) : '—'}</Typography.Body>
-                                    {invoiceNum && (
-                                        <Typography.Label style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>Счёт {formatInvoiceNumber(String(invoiceNum))}</Typography.Label>
+                                <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
+                                    <span />
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sumDoc != null ? formatCurrency(sumDoc) : '—'}</Typography.Body>
+                                </Flex>
+                                <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                    <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={stripOoo(String(cust || ''))}>{stripOoo(String(cust || '—'))}</Typography.Label>
+                                    {(act.AK === true || act.AK === 'true' || act.AK === '1' || act.AK === 1) && <Ship className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Паром" />}
+                                    {!(act?.AK === true || act?.AK === 'true' || act?.AK === '1' || act?.AK === 1) && (act.CitySender || act.CityReceiver) && (
+                                        <Typography.Label style={{ fontSize: '0.85rem' }}>{[cityToCode(act.CitySender), cityToCode(act.CityReceiver)].filter(Boolean).join(' – ') || ''}</Typography.Label>
+                                    )}
+                                    {!(act?.AK === true || act?.AK === 'true' || act?.AK === '1' || act?.AK === 1) && !(act.CitySender || act.CityReceiver) && invoiceNum && (
+                                        <Typography.Label style={{ fontSize: '0.85rem' }}>Счёт {formatInvoiceNumber(String(invoiceNum))}</Typography.Label>
                                     )}
                                 </Flex>
                             </Panel>
@@ -816,7 +1051,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                     })}
                 </div>
             )}
-            {!actsLoading && !actsError && sortedActs.length === 0 && (
+            {!actsLoading && !actsError && filteredActs.length === 0 && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет УПД за выбранный период</Typography.Body>
             )}
             {selectedAct && (
@@ -826,6 +1061,11 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                     onClose={() => setSelectedAct(null)}
                     onOpenInvoice={(inv) => { setSelectedAct(null); setSelectedInvoice(inv); }}
                     invoices={items}
+                    onOpenCargo={(cargoNumber) => {
+                        setSelectedAct(null);
+                        setTimeout(() => onOpenCargo?.(cargoNumber), 0);
+                    }}
+                    auth={auth}
                 />
             )}
             </>

@@ -6785,9 +6785,21 @@ function CargoDetailsModal({
                                     })}
                                 </div>
                                 {totalHours != null && (
-                                    <Typography.Body style={{ marginTop: '0.75rem', fontWeight: 600, fontSize: '0.9rem' }}>
-                                        Итого время в пути — {totalHours} ч
-                                    </Typography.Body>
+                                    <Flex align="center" gap="0.35rem" style={{ marginTop: '0.75rem' }}>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
+                                            Итого время в пути — {totalHours} ч
+                                        </Typography.Body>
+                                        <span
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={(e) => { e.stopPropagation(); }}
+                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.preventDefault(); }}
+                                            title="Срок не учитывает время дня получения груза"
+                                            style={{ display: 'inline-flex', cursor: 'help', color: 'var(--color-text-secondary)' }}
+                                        >
+                                            <Info className="w-4 h-4" />
+                                        </span>
+                                    </Flex>
                                 )}
                             </div>
                             );
@@ -9417,7 +9429,7 @@ export default function App() {
                     )}
                     {activeTab === "docs" && auth && (
                         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
-                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} onOpenCargo={openCargoFromChat} onOpenChat={openAiChatDeepLink} />
+                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} searchText={searchText} onOpenCargo={openCargoFromChat} onOpenChat={openAiChatDeepLink} />
                         </Suspense>
                     )}
                     {showDashboard && activeTab === "support" && (
