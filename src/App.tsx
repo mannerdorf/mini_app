@@ -61,10 +61,13 @@ function getPlanDays(item: CargoItem): number {
     return isFerry(item) ? FERRY_PLAN_DAYS : AUTO_PLAN_DAYS;
 }
 
+/** SLA: начало расчёта — дата приёмки + 1 день (не с даты приёмки). */
 function getSlaInfo(item: CargoItem): { planDays: number; actualDays: number; onTime: boolean; delayDays: number } | null {
-    const from = item?.DatePrih ? new Date(item.DatePrih).getTime() : NaN;
+    const fromDate = item?.DatePrih ? new Date(item.DatePrih) : null;
     const to = item?.DateVr ? new Date(item.DateVr).getTime() : NaN;
-    if (isNaN(from) || isNaN(to)) return null;
+    if (!fromDate || isNaN(fromDate.getTime()) || isNaN(to)) return null;
+    fromDate.setDate(fromDate.getDate() + 1);
+    const from = fromDate.getTime();
     const actualDays = Math.round((to - from) / (24 * 60 * 60 * 1000));
     const planDays = getPlanDays(item);
     const onTime = actualDays <= planDays;

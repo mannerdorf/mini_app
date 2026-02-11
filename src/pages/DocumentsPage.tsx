@@ -589,7 +589,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                     )}
                                 </Flex>
                                 {payTill && (
-                                    <Flex align="center" gap="0.35rem" style={{ fontSize: '0.8rem', color: getPayTillDateColor(payTill) ?? 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+                                    <Flex align="center" gap="0.35rem" style={{ fontSize: '0.8rem', color: getPayTillDateColor(payTill, st === 'Оплачен') ?? 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
                                         <Typography.Label>Оплата до:</Typography.Label>
                                         <DateText value={payTill} />
                                     </Flex>

@@ -263,9 +263,10 @@ export const getPayTillDate = (dateDoc: string | undefined): string | undefined 
     return `${y}-${m}-${d}`;
 };
 
-/** Цвет для даты «Оплата до»: красный если в прошлом, жёлтый если сегодня. */
-export const getPayTillDateColor = (payTill: string | undefined): string | undefined => {
+/** Цвет для даты «Оплата до»: зелёный если счёт оплачен, красный если в прошлом, жёлтый если сегодня. */
+export const getPayTillDateColor = (payTill: string | undefined, isPaid?: boolean): string | undefined => {
     if (!payTill) return undefined;
+    if (isPaid) return "#22c55e";
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     if (payTill < todayStr) return "#ef4444";
