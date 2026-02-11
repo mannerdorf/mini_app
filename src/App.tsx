@@ -1,7 +1,7 @@
 import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect, Suspense, lazy } from "react";
 import {
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
@@ -890,7 +890,7 @@ function DashboardPage({
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
 
     const prevRange = useMemo(() => getPreviousPeriodRange(dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo), [dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo]);
-    const { items, error, loading } = usePerevozki({
+    const { items, error, loading, mutate: mutatePerevozki } = usePerevozki({
         auth,
         dateFrom: apiDateRange.dateFrom,
         dateTo: apiDateRange.dateTo,
@@ -906,6 +906,13 @@ function DashboardPage({
         useServiceRequest: true,
         enabled: !!useServiceRequest && !!prevRange,
     });
+
+    useEffect(() => {
+        if (!useServiceRequest) return;
+        const handler = () => mutatePerevozki();
+        window.addEventListener('haulz-service-refresh', handler);
+        return () => window.removeEventListener('haulz-service-refresh', handler);
+    }, [useServiceRequest, mutatePerevozki]);
 
     const unpaidCount = useMemo(() => {
         return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
@@ -5119,6 +5126,10 @@ function CargoPage({
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     /** Развёрнутая строка таблицы по заказчику: показываем детальные перевозки */
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
+    /** Сортировка вложенной таблицы перевозок (Номер, Дата прихода, Статус, Мест, Плат. вес, Сумма) */
+    type InnerTableSortCol = 'number' | 'datePrih' | 'status' | 'mest' | 'pw' | 'sum';
+    const [innerTableSortColumn, setInnerTableSortColumn] = useState<InnerTableSortCol | null>(null);
+    const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const dateButtonRef = useRef<HTMLDivElement>(null);
     const statusButtonRef = useRef<HTMLDivElement>(null);
     const senderButtonRef = useRef<HTMLDivElement>(null);
@@ -5195,7 +5206,7 @@ function CargoPage({
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
 
     const prevRange = useMemo(() => getPreviousPeriodRange(dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo), [dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo]);
-    const { items, error, loading } = usePerevozkiMulti({
+    const { items, error, loading, mutate: mutatePerevozki } = usePerevozkiMulti({
         auth,
         dateFrom: apiDateRange.dateFrom,
         dateTo: apiDateRange.dateTo,
@@ -5214,6 +5225,13 @@ function CargoPage({
         useServiceRequest: true,
         enabled: !!useServiceRequest && !!prevRange,
     });
+
+    useEffect(() => {
+        if (!useServiceRequest) return;
+        const handler = () => mutatePerevozki();
+        window.addEventListener('haulz-service-refresh', handler);
+        return () => window.removeEventListener('haulz-service-refresh', handler);
+    }, [useServiceRequest, mutatePerevozki]);
 
     useEffect(() => {
         const customerItem = items.find((item: CargoItem) => item.Customer);
@@ -5466,6 +5484,36 @@ function CargoPage({
             setTableSortColumn(column);
             setTableSortOrder('asc');
         }
+    };
+
+    const handleInnerTableSort = (column: InnerTableSortCol) => {
+        if (innerTableSortColumn === column) {
+            setInnerTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
+        } else {
+            setInnerTableSortColumn(column);
+            setInnerTableSortOrder('asc');
+        }
+    };
+
+    /** Сортировка строк вложенной таблицы перевозок по выбранному столбцу */
+    const sortInnerItems = (items: CargoItem[]): CargoItem[] => {
+        if (!innerTableSortColumn) return items;
+        const col = innerTableSortColumn;
+        const order = innerTableSortOrder === 'asc' ? 1 : -1;
+        return [...items].sort((a, b) => {
+            let va: string | number, vb: string | number;
+            switch (col) {
+                case 'number': va = (a.Number || '').toString(); vb = (b.Number || '').toString(); break;
+                case 'datePrih': va = (a.DatePrih || '').toString(); vb = (b.DatePrih || '').toString(); break;
+                case 'status': va = normalizeStatus(a.State) || ''; vb = normalizeStatus(b.State) || ''; break;
+                case 'mest': va = typeof a.Mest === 'string' ? parseFloat(a.Mest) || 0 : (a.Mest ?? 0); vb = typeof b.Mest === 'string' ? parseFloat(b.Mest) || 0 : (b.Mest ?? 0); break;
+                case 'pw': va = typeof a.PW === 'string' ? parseFloat(a.PW) || 0 : (a.PW ?? 0); vb = typeof b.PW === 'string' ? parseFloat(b.PW) || 0 : (b.PW ?? 0); break;
+                case 'sum': va = typeof a.Sum === 'string' ? parseFloat(a.Sum) || 0 : (a.Sum ?? 0); vb = typeof b.Sum === 'string' ? parseFloat(b.Sum) || 0 : (b.Sum ?? 0); break;
+                default: return 0;
+            }
+            const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
+            return order * cmp;
+        });
     };
 
     return (
@@ -5831,16 +5879,16 @@ function CargoPage({
                                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
                                                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата прихода</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Мест</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Плат. вес</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('number'); }} title="Сортировка">Номер{innerTableSortColumn === 'number' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('datePrih'); }} title="Сортировка">Дата прихода{innerTableSortColumn === 'datePrih' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка">Статус{innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('mest'); }} title="Сортировка">Мест{innerTableSortColumn === 'mest' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('pw'); }} title="Сортировка">Плат. вес{innerTableSortColumn === 'pw' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка">Сумма{innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {row.items.map((item, j) => (
+                                                            {sortInnerItems(row.items).map((item, j) => (
                                                                 <tr
                                                                     key={item.Number || j}
                                                                     style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
@@ -5853,7 +5901,7 @@ function CargoPage({
                                                                         </span>
                                                                     </td>
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem' }}>{normalizeStatus(item.State) || '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem' }}><StatusBadge status={item.State} /></td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
@@ -9277,6 +9325,16 @@ export default function App() {
                                         onToggle={() => setUseServiceRequest(v => !v)}
                                     />
                                 </span>
+                                {useServiceRequest && (
+                                    <Button
+                                        className="search-toggle-button"
+                                        onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('haulz-service-refresh')); }}
+                                        title="Обновить данные"
+                                        aria-label="Обновить данные"
+                                    >
+                                        <RefreshCw className="w-4 h-4" />
+                                    </Button>
+                                )}
                             </Flex>
                         )}
                     </Flex>

@@ -105,7 +105,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         return getDateRange(dateFilter);
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
 
-    const { items, error, loading } = useInvoices({
+    const { items, error, loading, mutate: mutateInvoices } = useInvoices({
         auth,
         dateFrom: apiDateRange.dateFrom,
         dateTo: apiDateRange.dateTo,
@@ -113,12 +113,22 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         useServiceRequest,
     });
 
-    const { items: perevozkiItems, loading: perevozkiLoading } = usePerevozki({
+    const { items: perevozkiItems, loading: perevozkiLoading, mutate: mutatePerevozki } = usePerevozki({
         auth,
         dateFrom: apiDateRange.dateFrom,
         dateTo: apiDateRange.dateTo,
         useServiceRequest: !!useServiceRequest,
     });
+
+    useEffect(() => {
+        if (!useServiceRequest) return;
+        const handler = () => {
+            mutateInvoices();
+            mutatePerevozki();
+        };
+        window.addEventListener('haulz-service-refresh', handler);
+        return () => window.removeEventListener('haulz-service-refresh', handler);
+    }, [useServiceRequest, mutateInvoices, mutatePerevozki]);
 
     /** Номер первой перевозки в счёте (из первой строки номенклатуры) */
     const getFirstCargoNumberFromInvoice = useCallback((inv: any): string | null => {
