@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { X, Download, Loader2 } from "lucide-react";
 import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, transliterateFilename } from "../../lib/formatUtils";
-import { getPayTillDate } from "../../lib/dateUtils";
+import { getPayTillDate, getPayTillDateColor } from "../../lib/dateUtils";
 import { DateText } from "../ui/DateText";
 import { normalizeStatus, getStatusClass } from "../../lib/statusUtils";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
@@ -138,8 +138,8 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                     <Button className="filter-button" onClick={onClose} style={{ padding: '0.35rem' }}><X className="w-5 h-5" /></Button>
                 </Flex>
                 {payTill && (
-                    <Flex align="center" gap="0.35rem" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '1rem', flexShrink: 0 }}>
-                        <Typography.Label>PayTill (план. доставки):</Typography.Label>
+                    <Flex align="center" gap="0.35rem" style={{ fontSize: '0.85rem', color: getPayTillDateColor(payTill) ?? 'var(--color-text-secondary)', marginBottom: '1rem', flexShrink: 0 }}>
+                        <Typography.Label>Оплата до:</Typography.Label>
                         <DateText value={payTill} />
                     </Flex>
                 )}
