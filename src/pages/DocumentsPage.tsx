@@ -27,6 +27,17 @@ import type { AuthData, DateFilter, StatusFilter } from "../types";
 const INVOICE_FAVORITES_VALUE = '__favorites__';
 const INVOICE_STATUS_OPTIONS = ['Оплачен', 'Не оплачен', 'Оплачен частично'] as const;
 
+type DocSectionKey = 'Счета' | 'УПД' | 'Заявки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
+const DOC_SECTIONS: { key: DocSectionKey; label: string }[] = [
+    { key: 'Счета', label: 'Счета' },
+    { key: 'УПД', label: 'УПД' },
+    { key: 'Заявки', label: 'Заявки' },
+    { key: 'Претензии', label: 'Претензии' },
+    { key: 'Договоры', label: 'Договоры' },
+    { key: 'Акты сверок', label: 'Акты сверок' },
+    { key: 'Тарифы', label: 'Тарифы' },
+];
+
 type DocumentsPageProps = {
     auth: AuthData;
     useServiceRequest?: boolean;
@@ -60,6 +71,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [tableModeByCustomer, setTableModeByCustomer] = useState(false);
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
+    const [docSection, setDocSection] = useState<DocSectionKey>('Счета');
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
@@ -105,6 +117,18 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         return getDateRange(dateFilter);
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
 
+    /** Расширенный период для загрузки перевозок: ±1 месяц от фильтра дат, чтобы статус перевозки был доступен для счетов, у которых дата перевозки вне выбранного периода */
+    const perevozkiDateRange = useMemo(() => {
+        const from = new Date(apiDateRange.dateFrom + 'T12:00:00Z');
+        const to = new Date(apiDateRange.dateTo + 'T12:00:00Z');
+        from.setUTCMonth(from.getUTCMonth() - 1);
+        to.setUTCMonth(to.getUTCMonth() + 1);
+        return {
+            dateFrom: from.toISOString().slice(0, 10),
+            dateTo: to.toISOString().slice(0, 10),
+        };
+    }, [apiDateRange.dateFrom, apiDateRange.dateTo]);
+
     const { items, error, loading, mutate: mutateInvoices } = useInvoices({
         auth,
         dateFrom: apiDateRange.dateFrom,
@@ -115,8 +139,8 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
 
     const { items: perevozkiItems, loading: perevozkiLoading, mutate: mutatePerevozki } = usePerevozki({
         auth,
-        dateFrom: apiDateRange.dateFrom,
-        dateTo: apiDateRange.dateTo,
+        dateFrom: perevozkiDateRange.dateFrom,
+        dateTo: perevozkiDateRange.dateTo,
         useServiceRequest: !!useServiceRequest,
     });
 
@@ -328,6 +352,60 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                         </span>
                     </Flex>
                 </Flex>
+                {/* Кнопки разделов: ниже «Документы», выше фильтров */}
+                <div
+                    className="doc-sections-row"
+                    style={{
+                        marginBottom: '0.75rem',
+                        overflowX: 'auto',
+                        WebkitOverflowScrolling: 'touch',
+                        paddingBottom: '4px',
+                    }}
+                >
+                    <Flex align="center" gap="0.5rem" style={{ flexWrap: 'nowrap', minWidth: 'min-content' }}>
+                        {DOC_SECTIONS.map(({ key, label }) => {
+                            const isActive = docSection === key;
+                            return (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    className="doc-section-tab"
+                                    onClick={() => setDocSection(key)}
+                                    style={{
+                                        flexShrink: 0,
+                                        padding: '0.5rem 1rem',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 600,
+                                        borderRadius: 12,
+                                        border: isActive ? 'none' : '1px solid var(--color-border, #e5e7eb)',
+                                        background: isActive
+                                            ? 'var(--color-primary-blue, #2563eb)'
+                                            : 'var(--color-panel-secondary, #f3f4f6)',
+                                        color: isActive ? '#fff' : 'var(--color-text-secondary, #6b7280)',
+                                        cursor: 'pointer',
+                                        transition: 'background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s',
+                                        boxShadow: isActive ? '0 2px 8px rgba(37, 99, 235, 0.35)' : 'none',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (!isActive) {
+                                            e.currentTarget.style.background = 'var(--color-bg-hover, #e5e7eb)';
+                                            e.currentTarget.style.borderColor = 'var(--color-border, #d1d5db)';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (!isActive) {
+                                            e.currentTarget.style.background = 'var(--color-panel-secondary, #f3f4f6)';
+                                            e.currentTarget.style.borderColor = 'var(--color-border, #e5e7eb)';
+                                        }
+                                    }}
+                                >
+                                    {label}
+                                </button>
+                            );
+                        })}
+                    </Flex>
+                </div>
+                {docSection === 'Счета' && (
                 <div className="filters-container filters-row-scroll">
                     <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
                         <Button className="filter-button" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={() => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); }} title={sortOrder === 'desc' ? 'Дата по убыванию' : 'Дата по возрастанию'}>
@@ -475,7 +553,10 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                         />
                     </div>
                 </div>
+                )}
             </div>
+            {docSection === 'Счета' && (
+            <>
             <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>Счета</Typography.Body>
             {!loading && !error && filteredItems.length > 0 && (
                 <div className="cargo-card mb-4" style={{ padding: '0.75rem', marginBottom: '1rem' }}>
@@ -640,6 +721,13 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             )}
             {!loading && !error && filteredItems.length === 0 && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет счетов за выбранный период</Typography.Body>
+            )}
+            </>
+            )}
+            {docSection !== 'Счета' && (
+                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
+                    Раздел «{docSection}» в разработке.
+                </Typography.Body>
             )}
         </div>
     );

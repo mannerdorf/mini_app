@@ -5138,6 +5138,11 @@ function CargoPage({
     const billStatusButtonRef = useRef<HTMLDivElement>(null);
     const typeButtonRef = useRef<HTMLDivElement>(null);
     const routeButtonRef = useRef<HTMLDivElement>(null);
+    /** Расширяли ли уже фильтр дат для отображения перевозки по contextCargoNumber (из счёта) */
+    const contextCargoWidenedRef = useRef(false);
+    useEffect(() => {
+        if (contextCargoNumber) contextCargoWidenedRef.current = false;
+    }, [contextCargoNumber]);
     // Sort State
     const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>('datePrih');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -5256,11 +5261,19 @@ function CargoPage({
         const match = items.find(item => norm(String(item.Number ?? '')) === ctxNorm);
         if (match) {
             setSelectedCargo(match);
+            contextCargoWidenedRef.current = false;
             onClearContextCargo?.();
             return;
         }
         if (!loading) {
-            onClearContextCargo?.();
+            if (!contextCargoWidenedRef.current) {
+                contextCargoWidenedRef.current = true;
+                setDateFilter('год');
+                setSelectedYearForFilter(new Date().getFullYear());
+            } else {
+                contextCargoWidenedRef.current = false;
+                onClearContextCargo?.();
+            }
         }
     }, [contextCargoNumber, items, loading, onClearContextCargo]);
 
@@ -5937,7 +5950,7 @@ function CargoPage({
                             <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
                                 <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: numberColor }}>
-                                        {item.Number || '-'}
+                                        {item.Number || '—'}
                                     </Typography.Body>
                                     {item._role && (
                                         <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
@@ -6674,7 +6687,7 @@ function CargoDetailsModal({
                 
                 {/* Явно отображаемые поля (из API примера) */}
                 <div className="details-grid-modal">
-                    <DetailItem label="Номер" value={item.Number} />
+                    <DetailItem label="Номер" value={item.Number || '—'} />
                     <DetailItem label="Статус" value={normalizeStatus(item.State)} statusClass={getStatusClass(item.State)} />
                     <DetailItem label="Приход" value={<DateText value={item.DatePrih} />} />
                     <DetailItem label="Доставка" value={(() => {
