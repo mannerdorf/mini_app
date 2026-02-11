@@ -17,7 +17,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const secret = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
   const authHeader = req.headers.authorization;
   const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  if (secret && bearer !== secret) {
+  const querySecret = typeof req.query.secret === "string" ? req.query.secret : "";
+  const provided = bearer || querySecret;
+  if (secret && provided !== secret) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
