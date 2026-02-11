@@ -23,22 +23,29 @@ type ActDetailModalProps = {
     auth?: AuthData | null;
 };
 
-/** Нормализация номера для сравнения (0000-003544, 000279, 279 → 279) */
+/** Числовая часть номера без префикса и ведущих нулей (0000-000113, 000113, 113 → 113) */
 function normNum(s: string | undefined | null): string {
     const v = String(s ?? "").trim().replace(/^0000-/, "").replace(/^0+/, "") || "0";
     return v;
 }
 
-/** Проверка совпадения номеров счёта с учётом ведущих нулей и префикса 0000- */
+/** Канонический формат номера счёта по маске 0000-XXXXXX (113 → 0000-000113) */
+function toCanonicalInvoiceNum(s: string | undefined | null): string {
+    const n = normNum(s);
+    return "0000-" + n.padStart(6, "0");
+}
+
+/** Проверка совпадения номеров счёта: маска 0000-000113, учитываем все форматы */
 function invoiceNumbersMatch(a: string | undefined | null, b: string | undefined | null): boolean {
     if (!a && !b) return true;
     if (!a || !b) return false;
-    const na = normNum(a);
-    const nb = normNum(b);
-    if (na === nb) return true;
-    // Дополнительно: сравнение как чисел (279 === 000279)
-    const numA = parseInt(na, 10);
-    const numB = parseInt(nb, 10);
+    const sa = String(a).trim();
+    const sb = String(b).trim();
+    if (sa === sb) return true;
+    if (normNum(sa) === normNum(sb)) return true;
+    if (toCanonicalInvoiceNum(sa) === toCanonicalInvoiceNum(sb)) return true;
+    const numA = parseInt(normNum(sa), 10);
+    const numB = parseInt(normNum(sb), 10);
     return !isNaN(numA) && !isNaN(numB) && numA === numB;
 }
 
@@ -64,12 +71,12 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
     const num = item?.Number ?? item?.number ?? "—";
     const dateDoc = item?.DateDoc ?? item?.Date ?? item?.date ?? "";
     const sumDoc = item?.SumDoc ?? item?.Sum ?? item?.sum ?? 0;
-    const invoiceNum = item?.Invoice ?? item?.invoice ?? item?.Счёт ?? "";
+    const invoiceNum = item?.Invoice ?? item?.invoice ?? item?.Счёт ?? item?.Счет ?? item?.invoiceNumber ?? "";
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> =
         Array.isArray(item?.List) ? item.List : [];
     const cargoNumber = getFirstCargoNumberFromAct(item);
 
-    const getInvNum = (inv: any) => inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? "";
+    const getInvNum = (inv: any) => String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? inv?.numberDoc ?? "").trim();
     const invoiceItem = invoiceNum && invoices.length > 0
         ? invoices.find((inv) => invoiceNumbersMatch(getInvNum(inv), invoiceNum))
         : null;

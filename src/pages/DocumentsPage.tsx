@@ -754,7 +754,6 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             </div>
             {docSection === 'Счета' && (
             <>
-            <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>Счета</Typography.Body>
             {!loading && !error && filteredItems.length > 0 && (
                 <div className="cargo-card mb-4" style={{ padding: '0.75rem', marginBottom: '1rem' }}>
                     <div className="summary-metrics">
@@ -924,7 +923,6 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             )}
             {docSection === 'УПД' && (
             <>
-            <Typography.Body style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--color-text-secondary)' }}>УПД</Typography.Body>
             {!actsLoading && !actsError && filteredActs.length > 0 && (
                 <div className="cargo-card mb-4" style={{ padding: '0.75rem', marginBottom: '1rem' }}>
                     <div className="summary-metrics">
