@@ -162,8 +162,9 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
 
 export function usePerevozkiMulti(params: PerevozkiMultiRoleParams) {
     const { auth, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver } = params;
+    const inn = params.inn ?? auth?.inn ?? "";
     const key = auth?.login && auth?.password
-        ? ["perevozki-multi", auth.login, dateFrom, dateTo, !!useServiceRequest, roleCustomer, roleSender, roleReceiver]
+        ? ["perevozki-multi", auth.login, dateFrom, dateTo, !!useServiceRequest, roleCustomer, roleSender, roleReceiver, inn]
         : null;
     const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
         key,

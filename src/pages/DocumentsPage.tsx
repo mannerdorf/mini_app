@@ -123,12 +123,19 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     useEffect(() => {
         if (!useServiceRequest) return;
         const handler = () => {
-            mutateInvoices();
-            mutatePerevozki();
+            void mutateInvoices(undefined, { revalidate: true });
+            void mutatePerevozki(undefined, { revalidate: true });
         };
         window.addEventListener('haulz-service-refresh', handler);
         return () => window.removeEventListener('haulz-service-refresh', handler);
     }, [useServiceRequest, mutateInvoices, mutatePerevozki]);
+
+    /** Канонический ключ для сопоставления номера перевозки (с/без ведущих нулей) */
+    const normCargoKey = useCallback((num: string | null | undefined): string => {
+        if (num == null) return '';
+        const s = String(num).replace(/^0000-/, '').trim().replace(/^0+/, '') || '0';
+        return s;
+    }, []);
 
     /** Номер первой перевозки в счёте (из первой строки номенклатуры) */
     const getFirstCargoNumberFromInvoice = useCallback((inv: any): string | null => {
@@ -146,8 +153,11 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const cargoStateByNumber = useMemo(() => {
         const m = new Map<string, string>();
         (perevozkiItems || []).forEach((c: any) => {
-            const num = (c.Number ?? c.number ?? "").toString().replace(/^0000-/, "").trim();
-            if (num && c.State != null) m.set(num, String(c.State));
+            const raw = (c.Number ?? c.number ?? "").toString().replace(/^0000-/, "").trim();
+            if (!raw || c.State == null) return;
+            const key = raw.replace(/^0+/, '') || raw;
+            m.set(key, String(c.State));
+            if (key !== raw) m.set(raw, String(c.State));
         });
         return m;
     }, [perevozkiItems]);
@@ -155,12 +165,16 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const cargoRouteByNumber = useMemo(() => {
         const m = new Map<string, string>();
         (perevozkiItems || []).forEach((c: any) => {
-            const num = (c.Number ?? c.number ?? "").toString().replace(/^0000-/, "").trim();
-            if (!num) return;
+            const raw = (c.Number ?? c.number ?? "").toString().replace(/^0000-/, "").trim();
+            if (!raw) return;
+            const key = raw.replace(/^0+/, '') || raw;
             const from = cityToCode(c.CitySender ?? c.citySender);
             const to = cityToCode(c.CityReceiver ?? c.cityReceiver);
             const route = [from, to].filter(Boolean).join(' – ') || '';
-            if (route) m.set(num, route);
+            if (route) {
+                m.set(key, route);
+                if (key !== raw) m.set(raw, route);
+            }
         });
         return m;
     }, [perevozkiItems]);
@@ -194,7 +208,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         if (customerFilter) res = res.filter(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim()) === customerFilter);
         if (statusFilterSet.size > 0) {
             res = res.filter((i) => {
-                const invStatus = normalizeInvoiceStatus(i.Status ?? i.State ?? i.state ?? i.Статус ?? i.Status);
+                const invStatus = normalizeInvoiceStatus(i.Status ?? i.State ?? i.state ?? i.Статус ?? i.status ?? i.PaymentStatus ?? '');
                 const invNum = String(i.Number ?? i.number ?? i.Номер ?? i.N ?? '');
                 const isFav = isInvoiceFavorite(invNum);
                 return (statusFilterSet.has(INVOICE_FAVORITES_VALUE) && isFav) || statusFilterSet.has(invStatus);
@@ -207,14 +221,14 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         if (deliveryStatusFilterSet.size > 0) {
             res = res.filter((i) => {
                 const cargoNum = getFirstCargoNumberFromInvoice(i);
-                const state = cargoNum ? cargoStateByNumber.get(cargoNum) : undefined;
+                const state = cargoNum ? cargoStateByNumber.get(normCargoKey(cargoNum)) : undefined;
                 return deliveryStatusFilterSet.has(getFilterKeyByStatus(state));
             });
         }
         if (routeFilterCargo !== 'all') {
             res = res.filter((i) => {
                 const cargoNum = getFirstCargoNumberFromInvoice(i);
-                const route = cargoNum ? cargoRouteByNumber.get(cargoNum) : '';
+                const route = cargoNum ? cargoRouteByNumber.get(normCargoKey(cargoNum)) : '';
                 return route === routeFilterCargo;
             });
         }
@@ -228,7 +242,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             });
         }
         return res;
-    }, [items, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, routeFilterCargo, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber]);
+    }, [items, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, routeFilterCargo, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, normCargoKey]);
 
     const documentsSummary = useMemo(() => {
         let sum = 0;
@@ -278,15 +292,15 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const sortInvoices = useCallback((items: any[]) => {
         const getNum = (inv: any) => (inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '').toString().replace(/^0000-/, '');
         const getDate = (inv: any) => (inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '').toString();
-        const getStatus = (inv: any) => normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? '');
+        const getStatus = (inv: any) => normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
         const getSum = (inv: any) => Number(inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0) || 0;
         const getDeliveryState = (inv: any) => {
             const num = getFirstCargoNumberFromInvoice(inv);
-            return (num ? cargoStateByNumber.get(num) : undefined) ?? '';
+            return (num ? cargoStateByNumber.get(normCargoKey(num)) : undefined) ?? '';
         };
         const getRoute = (inv: any) => {
             const num = getFirstCargoNumberFromInvoice(inv);
-            return (num ? cargoRouteByNumber.get(num) : undefined) ?? '';
+            return (num ? cargoRouteByNumber.get(normCargoKey(num)) : undefined) ?? '';
         };
         return [...items].sort((a, b) => {
             let cmp = 0;
@@ -300,7 +314,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             }
             return innerTableSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [innerTableSortColumn, innerTableSortOrder, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber]);
+    }, [innerTableSortColumn, innerTableSortOrder, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, normCargoKey]);
 
     return (
         <div className="w-full">
@@ -526,9 +540,9 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                 const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
                                                                 const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
                                                                 const isum = inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0;
-                                                                const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? '');
+                                                                const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
                                                                 const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
-                                                                const deliveryState = firstCargoNum ? cargoStateByNumber.get(firstCargoNum) : undefined;
+                                                                const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
                                                                 const deliveryStateNorm = normalizeStatus(deliveryState);
                                                                 const deliveryStatusClass = getStatusClass(deliveryState);
                                                                 return (
@@ -540,7 +554,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <span className={deliveryStatusClass} style={{ fontSize: '0.7rem', padding: '0.15rem 0.35rem', borderRadius: '999px', fontWeight: 600 }}>{deliveryStateNorm || '—'}</span>}
                                                                         </td>
                                                                         <td className="doc-inner-table-route" style={{ padding: '0.35rem 0.3rem' }}>
-                                                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>{(firstCargoNum ? cargoRouteByNumber.get(firstCargoNum) : null) || '—'}</span>}
+                                                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</span>}
                                                                         </td>
                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum) : '—'}</td>
                                                                     </tr>

@@ -909,7 +909,7 @@ function DashboardPage({
 
     useEffect(() => {
         if (!useServiceRequest) return;
-        const handler = () => mutatePerevozki();
+        const handler = () => void mutatePerevozki(undefined, { revalidate: true });
         window.addEventListener('haulz-service-refresh', handler);
         return () => window.removeEventListener('haulz-service-refresh', handler);
     }, [useServiceRequest, mutatePerevozki]);
@@ -2310,7 +2310,8 @@ function CustomerSwitcher({
     const activeCompany = companies.find(
         (c) => c.login === activeLogin && (c.inn === '' || c.inn === activeInn)
     );
-    const displayName = activeCompany ? stripOoo(activeCompany.name) : stripOoo(activeAccount?.customer || activeAccount?.login || 'Компания');
+    // Не показываем логин: приоритет — компания из списка, имя заказчика, первый из списка заказчиков, иначе «Компания»
+    const displayName = activeCompany ? stripOoo(activeCompany.name) : stripOoo(activeAccount?.customer || activeAccount?.customers?.[0]?.name || 'Компания');
 
     const handleSelect = (c: HeaderCompanyRow) => {
         const acc = accounts.find((a) => a.login.trim().toLowerCase() === c.login);
@@ -5228,7 +5229,7 @@ function CargoPage({
 
     useEffect(() => {
         if (!useServiceRequest) return;
-        const handler = () => mutatePerevozki();
+        const handler = () => void mutatePerevozki(undefined, { revalidate: true });
         window.addEventListener('haulz-service-refresh', handler);
         return () => window.removeEventListener('haulz-service-refresh', handler);
     }, [useServiceRequest, mutatePerevozki]);
@@ -5842,7 +5843,7 @@ function CargoPage({
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('mest')} title="Сортировка: первый клик А–Я, второй Я–А">
                                     Мест {tableSortColumn === 'mest' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
                                 </th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('pw')} title="Сортировка: первый клик А–Я, второй Я–А">
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', minWidth: '4rem' }} onClick={() => handleTableSort('pw')} title="Сортировка: первый клик А–Я, второй Я–А">
                                     Плат. вес {tableSortColumn === 'pw' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
                                 </th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('w')} title="Сортировка: первый клик А–Я, второй Я–А">
@@ -5867,8 +5868,8 @@ function CargoPage({
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum, true)}</td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{Math.round(row.mest)}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{Math.round(row.pw)} кг</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{Math.round(row.w)} кг</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '4rem' }}>{Math.round(row.pw)} кг</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{Math.round(row.w)} кг</td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{Math.round(row.vol)} м³</td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
                                     </tr>
@@ -5883,7 +5884,7 @@ function CargoPage({
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('datePrih'); }} title="Сортировка">Дата прихода{innerTableSortColumn === 'datePrih' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка">Статус{innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('mest'); }} title="Сортировка">Мест{innerTableSortColumn === 'mest' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('pw'); }} title="Сортировка">Плат. вес{innerTableSortColumn === 'pw' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', minWidth: '4rem' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('pw'); }} title="Сортировка">Плат. вес{innerTableSortColumn === 'pw' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка">Сумма{innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                             </tr>
                                                         </thead>
@@ -5903,7 +5904,7 @@ function CargoPage({
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}><StatusBadge status={item.State} /></td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '4rem' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
                                                                 </tr>
                                                             ))}
@@ -8028,6 +8029,7 @@ export default function App() {
     // Служебный режим: активен если введён пароль в профиле; переключатель на вкладке «Грузы» включает запрос только по датам
     const [serviceModeUnlocked, setServiceModeUnlocked] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode') === '1');
     const [useServiceRequest, setUseServiceRequest] = useState(false);
+    const [serviceRefreshSpinning, setServiceRefreshSpinning] = useState(false);
     
     // Вычисляем текущий активный аккаунт
     const auth = useMemo(() => {
@@ -8289,8 +8291,12 @@ export default function App() {
             const savedTab = window.localStorage.getItem("haulz.lastTab");
             if (savedAccounts) {
                 try {
-                    const parsedAccounts = JSON.parse(savedAccounts) as Account[];
+                    let parsedAccounts = JSON.parse(savedAccounts) as Account[];
                     if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
+                        // При загрузке: если есть заказчики, но нет customer — подставляем имя первого (не показывать логин)
+                        parsedAccounts = parsedAccounts.map((acc) =>
+                            acc.customers?.length && !acc.customer ? { ...acc, customer: acc.customers[0].name } : acc
+                        );
                         setAccounts(parsedAccounts);
                         if (savedActiveId && parsedAccounts.find(acc => acc.id === savedActiveId)) {
                             setActiveAccountId(savedActiveId);
@@ -8740,19 +8746,21 @@ export default function App() {
                         return;
                     }
                     const existingAccount = accounts.find(acc => acc.login === login);
-                    const firstInn = customers[0].inn;
+                    const firstCustomer = customers[0];
+                    const firstInn = firstCustomer.inn;
+                    const firstName = firstCustomer.name;
                     if (existingAccount) {
                         setAccounts(prev =>
                             prev.map(acc =>
                                 acc.id === existingAccount.id
-                                    ? { ...acc, customers, activeCustomerInn: firstInn }
+                                    ? { ...acc, customers, activeCustomerInn: firstInn, customer: firstName }
                                     : acc
                             )
                         );
                         setActiveAccountId(existingAccount.id);
                     } else {
                         const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                        const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: firstInn };
+                        const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: firstInn, customer: firstName };
                         setAccounts(prev => [...prev, newAccount]);
                         setActiveAccountId(accountId);
                     }
@@ -8889,6 +8897,7 @@ export default function App() {
             const firstInn = customers?.length ? customers[0].inn : undefined;
             const existingAccount = accounts.find(acc => acc.login === pendingLogin.login);
             let accountId: string;
+            const firstCustomerName = customers?.length ? customers[0].name : undefined;
             if (existingAccount) {
                 accountId = existingAccount.id;
                 setAccounts(prev =>
@@ -8897,7 +8906,7 @@ export default function App() {
                             ? {
                                 ...acc,
                                 ...(detectedCustomer && acc.customer !== detectedCustomer ? { customer: detectedCustomer } : {}),
-                                ...(customers?.length ? { customers, activeCustomerInn: firstInn } : {}),
+                                ...(customers?.length ? { customers, activeCustomerInn: firstInn, customer: firstCustomerName ?? acc.customer } : {}),
                             }
                             : acc
                     )
@@ -8909,7 +8918,7 @@ export default function App() {
                     login: pendingLogin.login,
                     password: pendingLogin.password,
                     id: accountId,
-                    customer: detectedCustomer || undefined,
+                    customer: firstCustomerName ?? detectedCustomer ?? undefined,
                     ...(customers?.length ? { customers, activeCustomerInn: firstInn } : {}),
                 };
                 setAccounts(prev => [...prev, newAccount]);
@@ -9031,7 +9040,7 @@ export default function App() {
                     throw new Error("Компания уже в списке");
                 }
                 const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: customers[0].inn };
+                const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: customers[0].inn, customer: customers[0].name };
                 setAccounts(prev => [...prev, newAccount]);
                 setActiveAccountId(accountId);
                 fetch("/api/companies-save", {
@@ -9328,11 +9337,21 @@ export default function App() {
                                 {useServiceRequest && (
                                     <Button
                                         className="search-toggle-button"
-                                        onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('haulz-service-refresh')); }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setServiceRefreshSpinning(true);
+                                            window.setTimeout(() => setServiceRefreshSpinning(false), 1500);
+                                            window.dispatchEvent(new CustomEvent('haulz-service-refresh'));
+                                        }}
                                         title="Обновить данные"
                                         aria-label="Обновить данные"
+                                        disabled={serviceRefreshSpinning}
                                     >
-                                        <RefreshCw className="w-4 h-4" />
+                                        {serviceRefreshSpinning ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <RefreshCw className="w-4 h-4" />
+                                        )}
                                     </Button>
                                 )}
                             </Flex>
