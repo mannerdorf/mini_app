@@ -23,10 +23,23 @@ type ActDetailModalProps = {
     auth?: AuthData | null;
 };
 
-/** Нормализация номера для сравнения (0000-003544 и 3544) */
+/** Нормализация номера для сравнения (0000-003544, 000279, 279 → 279) */
 function normNum(s: string | undefined | null): string {
     const v = String(s ?? "").trim().replace(/^0000-/, "").replace(/^0+/, "") || "0";
     return v;
+}
+
+/** Проверка совпадения номеров счёта с учётом ведущих нулей и префикса 0000- */
+function invoiceNumbersMatch(a: string | undefined | null, b: string | undefined | null): boolean {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    const na = normNum(a);
+    const nb = normNum(b);
+    if (na === nb) return true;
+    // Дополнительно: сравнение как чисел (279 === 000279)
+    const numA = parseInt(na, 10);
+    const numB = parseInt(nb, 10);
+    return !isNaN(numA) && !isNaN(numB) && numA === numB;
 }
 
 /** Первый номер перевозки из списка номенклатуры УПД */
@@ -56,8 +69,9 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
         Array.isArray(item?.List) ? item.List : [];
     const cargoNumber = getFirstCargoNumberFromAct(item);
 
+    const getInvNum = (inv: any) => inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? "";
     const invoiceItem = invoiceNum && invoices.length > 0
-        ? invoices.find((inv) => normNum(inv.Number ?? inv.number ?? inv.Номер) === normNum(invoiceNum))
+        ? invoices.find((inv) => invoiceNumbersMatch(getInvNum(inv), invoiceNum))
         : null;
 
     const handleDownload = async (label: string) => {
