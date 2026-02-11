@@ -1,15 +1,27 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getPool } from "./_db.js";
 import { upsertDocument } from "../lib/rag.js";
 
 /**
  * Запрос данных перевозок — только этот метод:
  * GetPerevozki?DateB=...&DateE=...&INN=...
- * GetPerevozki и Getcustomers на фронте используются только для авторизации (добавление компаний с ИНН).
+ * Если в БД есть свежий кэш (обновлён кроном за последние 15 мин) и у пользователя есть INN в account_companies — отдаём из кэша.
  */
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
+const CACHE_FRESH_MINUTES = 15;
+
+function itemInn(item: any): string {
+  const v = item?.INN ?? item?.Inn ?? item?.inn ?? "";
+  return String(v).trim();
+}
+
+function itemDate(item: any): string {
+  const d = item?.DatePrih ?? item?.DateVr ?? "";
+  return String(d).split("T")[0];
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -43,6 +55,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)" });
+  }
+
+  // Попытка отдать из кэша: только если не serviceMode и есть БД
+  if (!serviceMode) {
+    try {
+      const pool = getPool();
+      const cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+        "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
+        [CACHE_FRESH_MINUTES]
+      );
+      if (cacheRow.rows.length > 0) {
+        const userInnsRow = await pool.query<{ inn: string }>(
+          "SELECT inn FROM account_companies WHERE login = $1",
+          [String(login).trim().toLowerCase()]
+        );
+        const userInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
+        // Если в запросе передан один INN — учитываем его вместе с привязанными к логину
+        if (inn && String(inn).trim()) userInns.add(String(inn).trim());
+        if (userInns.size > 0) {
+          const data = cacheRow.rows[0].data as any[];
+          const list = Array.isArray(data) ? data : [];
+          const filtered = list.filter((item) => {
+            const itemInnVal = itemInn(item);
+            if (!userInns.has(itemInnVal)) return false;
+            const d = itemDate(item);
+            return d >= dateFrom && d <= dateTo;
+          });
+          return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+        }
+      }
+    } catch {
+      // БД недоступна или кэш пустой — идём в 1С
+    }
   }
 
   // Запрос данных перевозок: DateB, DateE; при serviceMode не передаём INN и Mode

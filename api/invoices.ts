@@ -1,13 +1,25 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getPool } from "./_db.js";
 
 /**
- * Прокси для GetIinvoices: счета
- * https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices?DateB=...&DateE=...
+ * Прокси для GetIinvoices: счета.
+ * Если в БД есть свежий кэш (обновлён кроном за 15 мин) и у пользователя есть INN в account_companies — отдаём из кэша.
  */
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices";
 
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
+const CACHE_FRESH_MINUTES = 15;
+
+function invoiceInn(item: any): string {
+  const v = item?.INN ?? item?.Inn ?? item?.inn ?? "";
+  return String(v).trim();
+}
+
+function invoiceDate(item: any): string {
+  const d = item?.DateDoc ?? item?.Date ?? item?.dateDoc ?? item?.date ?? "";
+  return String(d).split("T")[0];
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -42,6 +54,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res
       .status(400)
       .json({ error: "Invalid date format (YYYY-MM-DD required)" });
+  }
+
+  // Попытка отдать из кэша (не в serviceMode)
+  if (!serviceMode) {
+    try {
+      const pool = getPool();
+      const cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+        "SELECT data, fetched_at FROM cache_invoices WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
+        [CACHE_FRESH_MINUTES]
+      );
+      if (cacheRow.rows.length > 0) {
+        const userInnsRow = await pool.query<{ inn: string }>(
+          "SELECT inn FROM account_companies WHERE login = $1",
+          [String(login).trim().toLowerCase()]
+        );
+        const userInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
+        if (inn && String(inn).trim()) userInns.add(String(inn).trim());
+        if (userInns.size > 0) {
+          const data = cacheRow.rows[0].data as any[];
+          const list = Array.isArray(data) ? data : [];
+          const filtered = list.filter((item) => {
+            const itemInnVal = invoiceInn(item);
+            if (!userInns.has(itemInnVal)) return false;
+            const d = invoiceDate(item);
+            return d >= dateFrom && d <= dateTo;
+          });
+          return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+        }
+      }
+    } catch {
+      // БД недоступна или кэш пустой — идём в 1С
+    }
   }
 
   const url = new URL(BASE_URL);
