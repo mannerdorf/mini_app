@@ -31,8 +31,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ошибка</title></head><body style="font-family:sans-serif;padding:2rem;"><h1 style="color:#c00;">Ошибка</h1><p>В Vercel не заданы PEREVOZKI_SERVICE_LOGIN и PEREVOZKI_SERVICE_PASSWORD.</p></body></html>');
   }
 
-  const dateTo = new Date().toISOString().split("T")[0];
-  const dateFrom = "2020-01-01";
+  const now = new Date();
+  const dateTo = now.toISOString().split("T")[0];
+  const fromDate = new Date(now);
+  fromDate.setDate(fromDate.getDate() - 90); // последние 90 дней — укладываемся в таймаут 300 с (Vercel)
+  const dateFrom = fromDate.toISOString().split("T")[0];
 
   let pool;
   try {
@@ -105,7 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const perevozkiCount = perevozkiList.length;
     const invoicesCount = Array.isArray(invoicesList) ? invoicesList.length : 0;
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:40rem;margin:0 auto;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiCount}</strong></p><p>Счетов: <strong>${invoicesCount}</strong></p><p style="color:#666;font-size:0.9rem;">Данные сохранены в БД. Мини-апп будет отдавать их из кэша в течение 15 минут.</p></body></html>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:40rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiCount}</strong></p><p>Счетов: <strong>${invoicesCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p></body></html>`;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(html);
   } catch (e: any) {

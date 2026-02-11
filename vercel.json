@@ -5,6 +5,6 @@
   "functions": {
     "api/chat.ts": { "maxDuration": 60 },
     "api/tg-webhook.ts": { "maxDuration": 60 },
-    "api/cron/refresh-cache.ts": { "maxDuration": 120 }
+    "api/cron/refresh-cache.ts": { "maxDuration": 300 }
   }
 }
