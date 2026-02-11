@@ -1871,8 +1871,8 @@ function DashboardPage({
                 )}
             </div>
 
-            {/* Монитор доставки: только статус «доставлено» в выбранном периоде (только в служебном режиме, без заказчика) */}
-            {useServiceRequest && (
+            {/* Монитор доставки: только статус «доставлено» в выбранном периоде (только в служебном режиме, без заказчика). Пока скрыт. */}
+            {false && useServiceRequest && (
             <>
             <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.35rem', marginTop: '0.5rem' }}>Доставка</Typography.Body>
             <div className="home-strip" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: '12px', marginBottom: '1rem', overflow: 'hidden' }}>
