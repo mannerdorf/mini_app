@@ -5292,8 +5292,14 @@ function CargoPage({
         }
         if (searchText) {
             const lower = searchText.toLowerCase();
-            // Обновлены поля поиска: PW вместо PV, добавлен Sender
-            res = res.filter(i => [i.Number, i.State, i.Sender, i.Customer, formatDate(i.DatePrih), formatCurrency(i.Sum), String(i.PW), String(i.Mest)].join(' ').toLowerCase().includes(lower));
+            const searchable = (i: typeof items[0]) => [
+                i.Number, i.State, i.Sender, i.Customer, i.Receiver ?? (i as any).receiver,
+                formatDate(i.DatePrih), formatCurrency(i.Sum), String(i.PW), String(i.Mest),
+                String((i as any).Order ?? ''),
+                cityToCode(i.CitySender), cityToCode(i.CityReceiver),
+                i.StateBill,
+            ].join(' ');
+            res = res.filter(i => searchable(i).toLowerCase().includes(lower));
         }
         if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
         if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
@@ -6719,6 +6725,7 @@ function CargoDetailsModal({
                 <div className="details-grid-modal">
                     {Object.entries(item)
                         .filter(([key]) => !EXCLUDED_KEYS.includes(key))
+                        .sort(([a], [b]) => (a === 'Order' ? 1 : b === 'Order' ? -1 : 0))
                         .map(([key, val]) => {
                             // Пропускаем, если значение пустое
                             if (val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "") || (typeof val === 'object' && val !== null && Object.keys(val).length === 0)) return null; 
