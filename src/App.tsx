@@ -6521,6 +6521,7 @@ function CargoDetailsModal({
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
+        Order: 'Номер заявки заказчика',
     };
 
     return (
