@@ -7639,8 +7639,6 @@ function ChatPage({
                     from.setDate(from.getDate() - 30);
                     dateFrom = from.toISOString().split('T')[0];
                 }
-                const perevozkiController = new AbortController();
-                const perevozkiTimeout = setTimeout(() => perevozkiController.abort(), 60000);
                 const perevozkiRes = await fetch('/api/perevozki', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -7652,9 +7650,7 @@ function ChatPage({
                         ...(customerOverride ? { customer: customerOverride } : {}),
                         ...(auth.inn ? { inn: auth.inn } : {}),
                     }),
-                    signal: perevozkiController.signal,
                 });
-                clearTimeout(perevozkiTimeout);
                 if (perevozkiRes.ok) {
                     const data = await perevozkiRes.json().catch(() => ({}));
                     const list = Array.isArray(data) ? data : (data?.items ?? []);
@@ -7730,17 +7726,6 @@ function ChatPage({
         };
 
         const CHAT_DEBUG = typeof window !== 'undefined' && window.localStorage?.getItem('haulz.chatDebug') === '1';
-        const CHAT_TIMEOUT_MS = 90000; // 90 сек — после этого снимаем «печатает» и показываем ошибку
-        const SAFETY_TYPING_MS = 92000; // страховка: принудительно снять «печатает», если что-то пошло не так
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
-            if (CHAT_DEBUG) console.warn('[chat] timeout: aborting request');
-            controller.abort();
-        }, CHAT_TIMEOUT_MS);
-        const safetyId = setTimeout(() => {
-            if (CHAT_DEBUG) console.warn('[chat] safety: forcing typing off');
-            setIsReady(false);
-        }, SAFETY_TYPING_MS);
 
         try {
             if (CHAT_DEBUG) console.log('[chat] send start', { sessionId, messageLen: messageText.length });
@@ -7767,11 +7752,7 @@ function ChatPage({
                     ...(preloadedCargo != null ? { preloadedCargo } : {}),
                     auth: auth?.login && auth?.password ? { login: auth.login, password: auth.password, ...(auth.inn ? { inn: auth.inn } : {}) } : undefined
                 }),
-                signal: controller.signal,
             });
-
-            clearTimeout(timeoutId);
-            clearTimeout(safetyId);
             const data = await res.json().catch((parseErr) => {
                 if (CHAT_DEBUG) console.warn('[chat] response json parse failed', parseErr);
                 return {};
@@ -7798,8 +7779,6 @@ function ChatPage({
             const emotion = typeof data?.emotion === "string" ? data.emotion : deriveEmotionFromReply(replyText);
             setMessages(prev => [...prev, { role: 'assistant', content: replyText || "(Нет ответа от сервера. Попробуйте ещё раз.)", emotion }]);
         } catch (e: any) {
-            clearTimeout(timeoutId);
-            clearTimeout(safetyId);
             const isAbort = e?.name === 'AbortError';
             const msg = isAbort ? 'Ответ занял слишком много времени. Попробуйте ещё раз.' : (e?.message || 'Не удалось получить ответ');
             setChatStatus({ error: msg });
