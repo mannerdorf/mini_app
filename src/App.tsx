@@ -31,6 +31,7 @@ import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then(m => ({ default: m.DocumentsPage })));
 import { AdminPage } from "./pages/AdminPage";
+import { CMSStandalonePage } from "./pages/CMSStandalonePage";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
 import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
@@ -3642,11 +3643,6 @@ function ProfilePage({
     const [googleSetupLoading, setGoogleSetupLoading] = useState(false);
     const [googleSetupError, setGoogleSetupError] = useState<string | null>(null);
     const [googleVerifyCode, setGoogleVerifyCode] = useState('');
-    const [adminToken, setAdminToken] = useState<string | null>(() => typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('haulz.adminToken') : null);
-    const [adminVerifyLoading, setAdminVerifyLoading] = useState(false);
-    const [adminVerifyError, setAdminVerifyError] = useState<string | null>(null);
-    const [adminLoginInput, setAdminLoginInput] = useState('');
-    const [adminPasswordInput, setAdminPasswordInput] = useState('');
 
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
@@ -3706,12 +3702,6 @@ function ProfilePage({
             label: 'Роли', 
             icon: <UserIcon className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('roles')
-        },
-        { 
-            id: 'admin', 
-            label: 'CMS', 
-            icon: <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => setCurrentView('admin')
         },
         { 
             id: 'voiceAssistants', 
@@ -3840,84 +3830,6 @@ function ProfilePage({
             onBack={() => setCurrentView('main')}
             onAddCompany={() => setCurrentView('addCompanyMethod')}
         />;
-    }
-
-    if (currentView === 'admin') {
-        const token = adminToken ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('haulz.adminToken') : null);
-        if (token) {
-            return (
-                <AdminPage
-                    adminToken={token}
-                    onBack={() => setCurrentView('main')}
-                    onLogout={() => {
-                        try { if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('haulz.adminToken'); } catch {}
-                        setAdminToken(null);
-                        setCurrentView('main');
-                    }}
-                />
-            );
-        }
-        const tryAdminAccess = async () => {
-            const login = adminLoginInput.trim();
-            const password = adminPasswordInput;
-            if (!login || !password) {
-                setAdminVerifyError('Введите логин и пароль');
-                return;
-            }
-            setAdminVerifyLoading(true);
-            setAdminVerifyError(null);
-            try {
-                const res = await fetch('/api/verify-admin-access', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ login, password }),
-                });
-                const data = await res.json();
-                if (res.ok && data.adminToken) {
-                    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('haulz.adminToken', data.adminToken);
-                    setAdminToken(data.adminToken);
-                } else {
-                    setAdminVerifyError(data?.error || 'Доступ запрещён');
-                }
-            } catch {
-                setAdminVerifyError('Ошибка проверки доступа');
-            } finally {
-                setAdminVerifyLoading(false);
-            }
-        };
-        return (
-            <div className="w-full">
-                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                    <Button className="filter-button" onClick={() => { setCurrentView('main'); setAdminVerifyError(null); }} style={{ padding: '0.5rem' }}>
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>CMS</Typography.Headline>
-                </Flex>
-                <Typography.Body style={{ color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
-                    Введите логин и пароль администратора.
-                </Typography.Body>
-                <Input
-                    type="text"
-                    value={adminLoginInput}
-                    onChange={(e) => { setAdminLoginInput(e.target.value); setAdminVerifyError(null); }}
-                    placeholder="Логин"
-                    style={{ marginBottom: '0.5rem' }}
-                    autoComplete="username"
-                />
-                <Input
-                    type="password"
-                    value={adminPasswordInput}
-                    onChange={(e) => { setAdminPasswordInput(e.target.value); setAdminVerifyError(null); }}
-                    placeholder="Пароль"
-                    style={{ marginBottom: '0.75rem' }}
-                    autoComplete="current-password"
-                />
-                {adminVerifyError && <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{adminVerifyError}</Typography.Body>}
-                <Button className="filter-button" disabled={adminVerifyLoading || !adminLoginInput.trim() || !adminPasswordInput} onClick={tryAdminAccess}>
-                    {adminVerifyLoading ? 'Проверка...' : 'Войти'}
-                </Button>
-            </div>
-        );
     }
 
     if (currentView === 'roles') {
@@ -4423,7 +4335,6 @@ function ProfilePage({
                 <Typography.Body style={{ marginBottom: '1.25rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Настройки</Typography.Body>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {settingsItems
-                        .filter((item) => item.id !== 'admin' || !activeAccount?.isRegisteredUser || activeAccount?.permissions?.cms_access)
                         .map((item) => (
                         <Panel
                             key={item.id}
@@ -9227,6 +9138,13 @@ export default function App() {
             body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }),
         }).catch(() => {});
     };
+
+    // CMS как отдельная ссылка ?tab=cms — без входа в мини-приложение
+    const isCmsStandalone =
+        typeof window !== "undefined" && new URL(window.location.href).searchParams.get("tab") === "cms";
+    if (isCmsStandalone) {
+        return <CMSStandalonePage />;
+    }
 
     if (!auth) {
         return (
