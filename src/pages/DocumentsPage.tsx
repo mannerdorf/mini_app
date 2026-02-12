@@ -24,7 +24,7 @@ import {
 getPayTillDateColor,
 } from "../lib/dateUtils";
 import { useInvoices, usePerevozki, useActs } from "../hooks/useApi";
-import type { AuthData, DateFilter, StatusFilter } from "../types";
+import type { AccountPermissions, AuthData, DateFilter, StatusFilter } from "../types";
 
 const INVOICE_FAVORITES_VALUE = '__favorites__';
 const INVOICE_STATUS_OPTIONS = ['Оплачен', 'Не оплачен', 'Оплачен частично'] as const;
@@ -40,15 +40,27 @@ const DOC_SECTIONS: { key: DocSectionKey; label: string }[] = [
     { key: 'Тарифы', label: 'Тарифы' },
 ];
 
+const DOC_SECTION_TO_PERMISSION: Record<DocSectionKey, keyof AccountPermissions> = {
+    'Счета': 'doc_invoices',
+    'УПД': 'doc_acts',
+    'Заявки': 'doc_orders',
+    'Претензии': 'doc_claims',
+    'Договоры': 'doc_contracts',
+    'Акты сверок': 'doc_acts_settlement',
+    'Тарифы': 'doc_tariffs',
+};
+
 type DocumentsPageProps = {
     auth: AuthData;
     useServiceRequest?: boolean;
     activeInn?: string;
-    /** Текст поиска — фильтрация по названиям и номенклатуре */
     searchText?: string;
-    /** При клике на перевозку в документах — переход на вкладку «Грузы» и открытие карточки */
     onOpenCargo?: (cargoNumber: string) => void;
     onOpenChat?: (context?: string) => void | Promise<void>;
+    /** Права доступа (для зарегистрированных пользователей) */
+    permissions?: AccountPermissions | null;
+    /** Показывать суммы (финансовые показатели) */
+    showSums?: boolean;
 };
 
 /** Строка для поиска по счёту: номер, заказчик, дата, сумма, номенклатура */
@@ -88,7 +100,7 @@ function getEdoStatus(item: any): string {
     return String(v ?? '').trim() || '';
 }
 
-export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', searchText = '', onOpenCargo, onOpenChat }: DocumentsPageProps) {
+export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', searchText = '', onOpenCargo, onOpenChat, permissions, showSums = true }: DocumentsPageProps) {
     const initDate = () => loadDateFilterState();
     const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
     const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
@@ -116,7 +128,16 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const [tableModeByCustomer, setTableModeByCustomer] = useState(false);
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
     const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
-    const [docSection, setDocSection] = useState<DocSectionKey>('Счета');
+    const allowedDocSections = useMemo(() => {
+        if (!permissions) return DOC_SECTIONS;
+        return DOC_SECTIONS.filter(({ key }) => permissions[DOC_SECTION_TO_PERMISSION[key]] !== false);
+    }, [permissions]);
+    const defaultDocSection = allowedDocSections[0]?.key ?? 'Счета';
+    const [docSection, setDocSection] = useState<DocSectionKey>(() => defaultDocSection);
+    useEffect(() => {
+        const isAllowed = allowedDocSections.some(({ key }) => key === docSection);
+        if (!isAllowed && allowedDocSections.length > 0) setDocSection(defaultDocSection);
+    }, [allowedDocSections, docSection, defaultDocSection]);
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
@@ -529,7 +550,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                     }}
                 >
                     <Flex align="center" gap="0.5rem" style={{ flexWrap: 'nowrap', minWidth: 'min-content' }}>
-                        {DOC_SECTIONS.map(({ key, label }) => {
+                        {allowedDocSections.map(({ key, label }) => {
                             const isActive = docSection === key;
                             return (
                                 <button
@@ -758,10 +779,12 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             {!loading && !error && filteredItems.length > 0 && (
                 <div className="cargo-card mb-4" style={{ padding: '0.75rem', marginBottom: '1rem' }}>
                     <div className="summary-metrics">
+                        {showSums && (
                         <Flex direction="column" align="center">
                             <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCurrency(documentsSummary.sum)}</Typography.Body>
                         </Flex>
+                        )}
                         <Flex direction="column" align="center">
                             <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', visibility: 'hidden' }}>—</Typography.Label>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{documentsSummary.count}</Typography.Body>
@@ -786,7 +809,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка">Счетов {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
                         </thead>
@@ -795,12 +818,12 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 <React.Fragment key={i}>
                                     <tr style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }} onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)} title={expandedTableCustomer === row.customer ? 'Свернуть' : 'Показать счета'}>
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>
+                                        {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
                                     </tr>
                                     {expandedTableCustomer === row.customer && (
                                         <tr key={`${i}-detail`}>
-                                            <td colSpan={3} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                            <td colSpan={showSums ? 3 : 2} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                 <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                     <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
@@ -810,7 +833,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка">Статус {innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('deliveryStatus'); }} title="Сортировка">Статус перевозки {innerTableSortColumn === 'deliveryStatus' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} className="doc-inner-table-route" onClick={(e) => { e.stopPropagation(); handleInnerTableSort('route'); }} title="Сортировка">Маршрут {innerTableSortColumn === 'route' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка">Сумма {innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                {showSums && <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка">Сумма {innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                                             </tr>
                                                         </thead>
                                                         <tbody>
@@ -833,7 +856,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                         <td className="doc-inner-table-route" style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</span>}
                                                                         </td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum) : '—'}</td>
+                                                                        {showSums && <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum) : '—'}</td>}
                                                                     </tr>
                                                                 );
                                                             })}
@@ -925,10 +948,12 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             {!actsLoading && !actsError && filteredActs.length > 0 && (
                 <div className="cargo-card mb-4" style={{ padding: '0.75rem', marginBottom: '1rem' }}>
                     <div className="summary-metrics">
+                        {showSums && (
                         <Flex direction="column" align="center">
                             <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCurrency(actsSummary.sum)}</Typography.Body>
                         </Flex>
+                        )}
                         <Flex direction="column" align="center">
                             <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', visibility: 'hidden' }}>—</Typography.Label>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{actsSummary.count}</Typography.Body>
@@ -953,7 +978,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка">УПД {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
                         </thead>
@@ -962,12 +987,12 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 <React.Fragment key={i}>
                                     <tr style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableActCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }} onClick={() => setExpandedTableActCustomer(prev => prev === row.customer ? null : row.customer)} title={expandedTableActCustomer === row.customer ? 'Свернуть' : 'Показать УПД'}>
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>
+                                        {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
                                     </tr>
                                     {expandedTableActCustomer === row.customer && (
                                         <tr key={`${i}-detail`}>
-                                            <td colSpan={3} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                            <td colSpan={showSums ? 3 : 2} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                 <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                     <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
@@ -975,7 +1000,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('number'); }} title="Сортировка">Номер {innerTableActSortColumn === 'number' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} className="doc-inner-table-date" onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('date'); }} title="Сортировка">Дата {innerTableActSortColumn === 'date' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('invoice'); }} title="Сортировка">Счёт {innerTableActSortColumn === 'invoice' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('sum'); }} title="Сортировка">Сумма {innerTableActSortColumn === 'sum' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                {showSums && <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableActSort('sum'); }} title="Сортировка">Сумма {innerTableActSortColumn === 'sum' && (innerTableActSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                                             </tr>
                                                         </thead>
                                                         <tbody>
@@ -989,7 +1014,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(String(anum))}</td>
                                                                         <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} /></td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{ainv ? formatInvoiceNumber(String(ainv)) : '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>
+                                                                        {showSums && <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>}
                                                                     </tr>
                                                                 );
                                                             })}
@@ -1029,10 +1054,12 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                         </Typography.Label>
                                     </Flex>
                                 </Flex>
+                                {showSums && (
                                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
                                     <span />
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sumDoc != null ? formatCurrency(sumDoc) : '—'}</Typography.Body>
                                 </Flex>
+                                )}
                                 <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                                     <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={stripOoo(String(cust || ''))}>{stripOoo(String(cust || '—'))}</Typography.Label>
                                     {(act.AK === true || act.AK === 'true' || act.AK === '1' || act.AK === 1) && <Ship className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Паром" />}

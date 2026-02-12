@@ -1,4 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getPool } from "./_db.js";
+import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 
 const GETAPI_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -18,6 +20,7 @@ export default async function handler(
   let number: string | undefined;
   let inn: string | undefined;
 
+  let isRegisteredUser = false;
   if (req.method === "GET") {
     login = typeof req.query.login === "string" ? req.query.login : undefined;
     password =
@@ -25,6 +28,7 @@ export default async function handler(
     number =
       typeof req.query.number === "string" ? req.query.number : undefined;
     inn = typeof req.query.inn === "string" ? req.query.inn : undefined;
+    isRegisteredUser = req.query.isRegisteredUser === "true";
   } else {
     let body: any = req.body;
     if (typeof body === "string") {
@@ -34,7 +38,7 @@ export default async function handler(
         return res.status(400).json({ error: "Invalid JSON body" });
       }
     }
-    ({ login, password, number, inn } = body ?? {});
+    ({ login, password, number, inn, isRegisteredUser } = body ?? {});
   }
 
   if (!login || !password || !number) {
@@ -45,6 +49,34 @@ export default async function handler(
 
   if (!/^[0-9A-Za-zА-Яа-я._-]{1,64}$/u.test(number)) {
     return res.status(400).json({ error: "Invalid number" });
+  }
+
+  if (isRegisteredUser) {
+    try {
+      const pool = getPool();
+      const verifiedInn = await verifyRegisteredUser(pool, login!, password!);
+      if (!verifiedInn) {
+        return res.status(401).json({ error: "Неверный email или пароль" });
+      }
+      const cacheRow = await pool.query<{ data: unknown[] }>(
+        "SELECT data FROM cache_perevozki WHERE id = 1"
+      );
+      if (cacheRow.rows.length > 0) {
+        const data = cacheRow.rows[0].data as any[];
+        const list = Array.isArray(data) ? data : [];
+        const norm = String(number).trim();
+        const item = list.find((i: any) => {
+          const n = String(i?.Number ?? i?.number ?? "").trim();
+          const itemInn = String(i?.INN ?? i?.Inn ?? i?.inn ?? "").trim();
+          return n === norm && itemInn === verifiedInn;
+        });
+        if (item) return res.status(200).json(item);
+      }
+      return res.status(404).json({ error: "Перевозка не найдена" });
+    } catch (e) {
+      console.error("getperevozka registered user error:", e);
+      return res.status(500).json({ error: "Ошибка запроса" });
+    }
   }
 
   const url = new URL(GETAPI_BASE);

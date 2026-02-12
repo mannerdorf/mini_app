@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 
 /**
  * Прокси для GetActs: УПД (универсальные передаточные документы).
@@ -43,6 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     dateTo = new Date().toISOString().split("T")[0],
     inn,
     serviceMode,
+    isRegisteredUser,
   } = body || {};
 
   if (!login || !password) {
@@ -54,6 +56,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res
       .status(400)
       .json({ error: "Invalid date format (YYYY-MM-DD required)" });
+  }
+
+  // Зарегистрированные пользователи — только кэш
+  if (isRegisteredUser) {
+    try {
+      const pool = getPool();
+      const verifiedInn = await verifyRegisteredUser(pool, login, password);
+      if (!verifiedInn) {
+        return res.status(401).json({ error: "Неверный email или пароль" });
+      }
+      const cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+        "SELECT data, fetched_at FROM cache_acts WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
+        [CACHE_FRESH_MINUTES]
+      );
+      if (cacheRow.rows.length > 0) {
+        const filterInns = new Set([verifiedInn]);
+        const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+        const finalInns = requestedInn && filterInns.has(requestedInn) ? new Set([requestedInn]) : filterInns;
+        const data = cacheRow.rows[0].data as any[];
+        const list = Array.isArray(data) ? data : [];
+        const filtered = list.filter((item) => {
+          const itemInnVal = actInn(item);
+          if (!finalInns.has(itemInnVal)) return false;
+          const d = actDate(item);
+          return d >= dateFrom && d <= dateTo;
+        });
+        return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+      }
+      return res.status(200).json([]);
+    } catch (e) {
+      console.error("acts registered user error:", e);
+      return res.status(200).json([]);
+    }
   }
 
   // Попытка отдать из кэша (не в serviceMode)

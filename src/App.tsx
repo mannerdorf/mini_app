@@ -1,7 +1,7 @@
 import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect, Suspense, lazy } from "react";
 import {
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
@@ -30,6 +30,7 @@ import { normalizeStatus, getFilterKeyByStatus, getPaymentFilterKey, getSumColor
 import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then(m => ({ default: m.DocumentsPage })));
+import { AdminPage } from "./pages/AdminPage";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
 import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
@@ -305,6 +306,7 @@ function HomePage({ auth }: { auth: AuthData }) {
                     dateFrom,
                     dateTo,
                     ...(auth.inn ? { inn: auth.inn } : {}),
+                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
                 }),
             });
             await ensureOk(res, "Ошибка загрузки данных");
@@ -3650,6 +3652,9 @@ function ProfilePage({
     });
     const [serviceModeError, setServiceModeError] = useState<string | null>(null);
     const [serviceModeVerifying, setServiceModeVerifying] = useState(false);
+    const [adminToken, setAdminToken] = useState<string | null>(() => typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('haulz.adminToken') : null);
+    const [adminVerifyLoading, setAdminVerifyLoading] = useState(false);
+    const [adminVerifyError, setAdminVerifyError] = useState<string | null>(null);
 
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
@@ -3715,6 +3720,12 @@ function ProfilePage({
             label: 'Служебный режим', 
             icon: <Shield className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('serviceMode')
+        },
+        { 
+            id: 'admin', 
+            label: 'Админка', 
+            icon: <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => setCurrentView('admin')
         },
         { 
             id: 'voiceAssistants', 
@@ -3865,13 +3876,13 @@ function ProfilePage({
                         <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
                             На вкладке «Грузы» рядом с выбором заказчика появится переключатель. Включите его для запроса по датам.
                         </Typography.Body>
-                        <Button className="filter-button" onClick={() => { localStorage.removeItem(SERVICE_MODE_STORAGE_KEY); if (typeof localStorage !== 'undefined') localStorage.removeItem('haulz.serviceMode'); setServiceModeActive(false); onServiceModeChange?.(); }}>
+                        <Button className="filter-button" onClick={() => { localStorage.removeItem(SERVICE_MODE_STORAGE_KEY); if (typeof localStorage !== 'undefined') { localStorage.removeItem('haulz.serviceMode'); } setServiceModeActive(false); onServiceModeChange?.(); }}>
                             Деактивировать
                         </Button>
                     </Panel>
                 ) : (
                     <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Пароль</Typography.Body>
+                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Пароль служебного режима</Typography.Body>
                         <Input
                             type="password"
                             value={serviceModePwd}
@@ -3916,6 +3927,62 @@ function ProfilePage({
                             {serviceModeVerifying ? 'Проверка...' : 'Активировать'}
                         </Button>
                     </Panel>
+                )}
+            </div>
+        );
+    }
+
+    if (currentView === 'admin') {
+        const token = adminToken ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('haulz.adminToken') : null);
+        if (token) {
+            return <AdminPage adminToken={token} onBack={() => setCurrentView('main')} />;
+        }
+        const tryAdminAccess = async () => {
+            if (!activeAccount?.login || !activeAccount?.password) {
+                setAdminVerifyError('Войдите в аккаунт приложения');
+                return;
+            }
+            setAdminVerifyLoading(true);
+            setAdminVerifyError(null);
+            try {
+                const res = await fetch('/api/verify-admin-access', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }),
+                });
+                const data = await res.json();
+                if (res.ok && data.adminToken) {
+                    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('haulz.adminToken', data.adminToken);
+                    setAdminToken(data.adminToken);
+                } else {
+                    setAdminVerifyError(data?.error || 'Доступ запрещён');
+                }
+            } catch {
+                setAdminVerifyError('Ошибка проверки доступа');
+            } finally {
+                setAdminVerifyLoading(false);
+            }
+        };
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={() => { setCurrentView('main'); setAdminVerifyError(null); }} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Админка</Typography.Headline>
+                </Flex>
+                <Typography.Body style={{ color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
+                    Доступ для пользователя, чей логин и пароль совпадают с ADMIN_LOGIN и ADMIN_PASSWORD.
+                </Typography.Body>
+                {!activeAccount?.login || !activeAccount?.password ? (
+                    <Typography.Body style={{ color: 'var(--color-error)' }}>Сначала войдите в аккаунт приложения.</Typography.Body>
+                ) : (
+                    <>
+                        {adminVerifyError && <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{adminVerifyError}</Typography.Body>}
+                        <Button className="filter-button" disabled={adminVerifyLoading} onClick={tryAdminAccess}>
+                            {adminVerifyLoading ? 'Проверка...' : 'Войти'}
+                        </Button>
+                    </>
                 )}
             </div>
         );
@@ -5094,6 +5161,7 @@ function CargoPage({
     roleSender = true,
     roleReceiver = true,
     useServiceRequest = false,
+    showSums = true,
 }: { 
     auth: AuthData; 
     searchText: string; 
@@ -5106,8 +5174,9 @@ function CargoPage({
     roleCustomer?: boolean;
     roleSender?: boolean;
     roleReceiver?: boolean;
-    /** Служебный режим: один запрос только по датам (без INN и Mode) */
     useServiceRequest?: boolean;
+    /** Скрыть финансовые данные (суммы, статус счёта) */
+    showSums?: boolean;
 }) {
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
     
@@ -5804,12 +5873,14 @@ function CargoPage({
             {/* Суммирующая строка: 1 ряд если влазит, 2 в ряд только на телефонах */}
             <div className="cargo-card mb-4" style={{ padding: '0.75rem' }}>
                 <div className="summary-metrics">
+                    {showSums && (
                     <Flex direction="column" align="center">
                         <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
                         <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
                             {formatCurrency(summary.sum, true)}
                         </Typography.Body>
                     </Flex>
+                    )}
                     <Flex direction="column" align="center">
                         <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Мест</Typography.Label>
                         <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>
@@ -5880,9 +5951,9 @@ function CargoPage({
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка: первый клик А–Я, второй Я–А">
                                     Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
                                 </th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка: первый клик А–Я, второй Я–А">
+                                {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка: первый клик А–Я, второй Я–А">
                                     Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
-                                </th>
+                                </th>}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('mest')} title="Сортировка: первый клик А–Я, второй Я–А">
                                     Мест {tableSortColumn === 'mest' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}
                                 </th>
@@ -5909,7 +5980,7 @@ function CargoPage({
                                         title={expandedTableCustomer === row.customer ? 'Свернуть детали' : 'Показать перевозки по строчно'}
                                     >
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum, true)}</td>
+                                        {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum, true)}</td>}
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{Math.round(row.mest)}</td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '4rem' }}>{Math.round(row.pw)} кг</td>
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{Math.round(row.w)} кг</td>
@@ -5918,7 +5989,7 @@ function CargoPage({
                                     </tr>
                                     {expandedTableCustomer === row.customer && (
                                         <tr key={`${i}-detail`}>
-                                            <td colSpan={7} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                            <td colSpan={showSums ? 7 : 6} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                 <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                         <thead>
@@ -5931,7 +6002,7 @@ function CargoPage({
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка">Статус{innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('mest'); }} title="Сортировка">Мест{innerTableSortColumn === 'mest' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', minWidth: '4rem' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('pw'); }} title="Сортировка">Плат. вес{innerTableSortColumn === 'pw' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка">Сумма{innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                {showSums && <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка">Сумма{innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                                             </tr>
                                                         </thead>
                                                         <tbody>
@@ -5954,7 +6025,7 @@ function CargoPage({
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}><StatusBadge status={item.State} /></td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', minWidth: '4rem' }}>{item.PW != null ? `${Math.round(Number(item.PW))} кг` : '—'}</td>
-                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>
+                                                                    {showSums && <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Sum != null ? formatCurrency(item.Sum as number, true) : '—'}</td>}
                                                                 </tr>
                                                             ))}
                                                         </tbody>
@@ -6196,7 +6267,7 @@ function CargoPage({
                         </Flex>
                             <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
                                 <StatusBadge status={item.State} />
-                                {item._role === 'Customer' && (
+                                {showSums && item._role === 'Customer' && (
                                     <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: getSumColorByPaymentStatus(item.StateBill) }}>
                                         {formatCurrency(item.Sum)}
                                     </Typography.Body>
@@ -6207,7 +6278,7 @@ function CargoPage({
                                     <Typography.Label>Мест: {item.Mest || '-'}</Typography.Label>
                                     <Typography.Label>Плат. вес: {item.PW ? `${item.PW} кг` : '-'}</Typography.Label>
                                 </Flex>
-                                {item._role === 'Customer' && <StatusBillBadge status={item.StateBill} />}
+                                {showSums && item._role === 'Customer' && <StatusBillBadge status={item.StateBill} />}
                             </Flex>
                             <Flex align="center" gap="0.5rem" style={{ marginTop: '0.5rem' }}>
                                 {(() => {
@@ -6243,6 +6314,7 @@ function CargoPage({
                     onOpenChat={onOpenChat}
                     isFavorite={isFavorite}
                     onToggleFavorite={toggleFavorite}
+                    showSums={showSums}
                 />
             )}
             <FilterDialog isOpen={isCustomModalOpen} onClose={() => setIsCustomModalOpen(false)} dateFrom={customDateFrom} dateTo={customDateTo} onApply={(f, t) => { setCustomDateFrom(f); setCustomDateTo(t); }} />
@@ -6291,6 +6363,7 @@ async function fetchPerevozkaTimeline(auth: AuthData, number: string, item: Carg
             password: auth.password,
             number,
             ...(auth.inn ? { inn: auth.inn } : {}),
+            ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         }),
     });
     if (!res.ok) {
@@ -6337,6 +6410,7 @@ function CargoDetailsModal({
     onOpenChat,
     isFavorite,
     onToggleFavorite,
+    showSums = true,
 }: {
     item: CargoItem;
     isOpen: boolean;
@@ -6345,6 +6419,7 @@ function CargoDetailsModal({
     onOpenChat: (cargoNumber?: string) => void | Promise<void>;
     isFavorite: (cargoNumber: string | undefined) => boolean;
     onToggleFavorite: (cargoNumber: string | undefined) => void;
+    showSums?: boolean;
 }) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -6744,8 +6819,8 @@ function CargoDetailsModal({
                         <>
                             <DetailItem label="Вес" value={renderValue(item.W, 'кг')} icon={<Weight className="w-4 h-4 mr-1 text-theme-primary"/>} />
                             <DetailItem label="Объем" value={renderValue(item.Value, 'м³')} icon={<List className="w-4 h-4 mr-1 text-theme-primary"/>} />
-                            <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
-                            <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
+                            {showSums && <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />}
+                            {showSums && <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />}
                         </>
                     )}
                 </div>
@@ -6949,22 +7024,30 @@ const DetailItem = ({ label, value, icon, statusClass, highlighted, textColor }:
 
 // УДАЛЕНО: function StubPage({ title }: { title: string }) { return <div className="w-full p-8 text-center"><h2 className="title">{title}</h2><p className="subtitle">Раздел в разработке</p></div>; }
 
-function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllTabs }: { active: Tab, onChange: (t: Tab) => void, onCargoPressStart?: () => void, onCargoPressEnd?: () => void, showAllTabs?: boolean }) {
+type TabBarPermissions = { cargo?: boolean; doc_invoices?: boolean; doc_acts?: boolean; doc_orders?: boolean; doc_claims?: boolean; doc_contracts?: boolean; doc_acts_settlement?: boolean; doc_tariffs?: boolean; chat?: boolean };
+function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllTabs, permissions }: { active: Tab, onChange: (t: Tab) => void, onCargoPressStart?: () => void, onCargoPressEnd?: () => void, showAllTabs?: boolean, permissions?: TabBarPermissions | null }) {
+    const showCargo = permissions ? (permissions.cargo !== false) : true;
+    const hasDocAccess = permissions ? (permissions.doc_invoices || permissions.doc_acts || permissions.doc_orders || permissions.doc_claims || permissions.doc_contracts || permissions.doc_acts_settlement || permissions.doc_tariffs) : true;
+    const showSupport = permissions ? (permissions.chat !== false) : true;
+
     if (showAllTabs) {
     return (
         <div className="tabbar-container">
                 <TabBtn label="" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
+                {showCargo && (
                 <TabBtn 
                     label="" 
                     icon={<Truck />} 
                     active={active === "cargo"} 
-                    onClick={() => {
-                        // Если секретный режим уже активирован, просто переключаемся на грузы
-                        onChange("cargo");
-                    }} 
+                    onClick={() => onChange("cargo")} 
                 />
+                )}
+                {hasDocAccess && (
                 <TabBtn label="" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />
+                )}
+                {showSupport && (
                 <TabBtn label="" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />
+                )}
                 <TabBtn label="" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
         </div>
     );
@@ -6972,22 +7055,23 @@ function TabBar({ active, onChange, onCargoPressStart, onCargoPressEnd, showAllT
     
     return (
         <div className="tabbar-container">
-            {/* Обычный режим: Главная(дашборд) + Грузы + Профиль */}
             <TabBtn label="" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
+            {showCargo && (
             <TabBtn 
                 label="" 
                 icon={<Truck />} 
                 active={active === "cargo"} 
-                onClick={() => {
-                    onChange("cargo");
-                }}
+                onClick={() => onChange("cargo")}
                 onMouseDown={onCargoPressStart}
                 onMouseUp={onCargoPressEnd}
                 onMouseLeave={onCargoPressEnd}
                 onTouchStart={onCargoPressStart}
                 onTouchEnd={onCargoPressEnd}
             />
+            )}
+            {showSupport && (
             <TabBtn label="" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />
+            )}
             <TabBtn label="" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
         </div>
     );
@@ -7865,7 +7949,7 @@ function ChatPage({
                     context: { ...context, customer: effectiveCustomer },
                     customer: effectiveCustomer,
                     ...(preloadedCargo != null ? { preloadedCargo } : {}),
-                    auth: auth?.login && auth?.password ? { login: auth.login, password: auth.password, ...(auth.inn ? { inn: auth.inn } : {}) } : undefined
+                    auth: auth?.login && auth?.password ? { login: auth.login, password: auth.password, ...(auth.inn ? { inn: auth.inn } : {}), ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}) } : undefined
                 }),
             });
             const data = await res.json().catch((parseErr) => {
@@ -8110,6 +8194,7 @@ export default function App() {
                 login: account.login,
                 password: account.password,
                 ...(account.activeCustomerInn ? { inn: account.activeCustomerInn } : {}),
+                ...(account.isRegisteredUser ? { isRegisteredUser: true } : {}),
             }
             : null;
     }, [accounts, activeAccountId]);
@@ -8598,6 +8683,7 @@ export default function App() {
                         password: activeAccount.password,
                         number: cargoNumber,
                         ...(inn ? { inn } : {}),
+                        ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
                     }),
                 })
                     .then((r) => r.json())
@@ -8651,6 +8737,7 @@ export default function App() {
                 password: activeAccount.password,
                 number: numberForApi,
                 ...(inn ? { inn } : {}),
+                ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}),
             }),
         })
             .then((r) => r.json())
@@ -8764,6 +8851,48 @@ export default function App() {
         try {
             setLoading(true);
             const loginKey = login.trim().toLowerCase();
+
+            // Зарегистрированные пользователи (админка): вход по email/паролю
+            const regRes = await fetch("/api/auth-registered-login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: loginKey, password }),
+            });
+            if (regRes.ok) {
+                const regData = await regRes.json().catch(() => ({}));
+                if (regData?.ok && regData?.user) {
+                    const u = regData.user;
+                    const existingAccount = accounts.find(acc => acc.login === loginKey);
+                    const customers: CustomerOption[] = u.inn ? [{ name: u.companyName || u.inn, inn: u.inn }] : [];
+                    if (existingAccount) {
+                        setAccounts(prev =>
+                            prev.map(acc =>
+                                acc.id === existingAccount.id
+                                    ? { ...acc, password, customers, activeCustomerInn: u.inn, customer: u.companyName, isRegisteredUser: true, permissions: u.permissions, financialAccess: u.financialAccess }
+                                    : acc
+                            )
+                        );
+                        setActiveAccountId(existingAccount.id);
+                    } else {
+                        const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                        const newAccount: Account = {
+                            login: loginKey,
+                            password,
+                            id: accountId,
+                            customers,
+                            activeCustomerInn: u.inn,
+                            customer: u.companyName,
+                            isRegisteredUser: true,
+                            permissions: u.permissions,
+                            financialAccess: u.financialAccess,
+                        };
+                        setAccounts(prev => [...prev, newAccount]);
+                        setActiveAccountId(accountId);
+                    }
+                    setActiveTab((prev) => prev || "cargo");
+                    return;
+                }
+            }
 
             // Способ 2 авторизации: Getcustomers (GETAPI?metod=Getcustomers)
             const customersRes = await fetch(PROXY_API_GETCUSTOMERS_URL, {
@@ -9452,7 +9581,7 @@ export default function App() {
                             auth={auth}
                             onClose={() => {}}
                             onOpenCargoFilters={openCargoWithFilters}
-                            showSums={activeAccount?.roleCustomer ?? true}
+                            showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : (activeAccount?.roleCustomer ?? true)}
                             useServiceRequest={useServiceRequest}
                         />
                     )}
@@ -9466,21 +9595,22 @@ export default function App() {
                             onClearContextCargo={() => setContextCargoNumber(null)}
                             initialStatusFilter={cargoQuickFilters?.status}
                             onClearQuickFilters={() => setCargoQuickFilters(null)}
-                            roleCustomer={activeAccount?.roleCustomer ?? true}
+                            roleCustomer={activeAccount?.isRegisteredUser ? true : (activeAccount?.roleCustomer ?? true)}
                             roleSender={activeAccount?.roleSender ?? true}
                             roleReceiver={activeAccount?.roleReceiver ?? true}
                             useServiceRequest={useServiceRequest}
+                            showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
                         />
                     )}
                     {activeTab === "docs" && auth && (
                         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
-                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} searchText={searchText} onOpenCargo={openCargoFromChat} onOpenChat={openAiChatDeepLink} />
+                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} searchText={searchText} onOpenCargo={openCargoFromChat} onOpenChat={openAiChatDeepLink} permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined} showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true} />
                         </Suspense>
                     )}
                     {showDashboard && activeTab === "support" && (
                         <AiChatProfilePage
                             onBack={() => setActiveTab("cargo")}
-                            auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password } : null}
+                            auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password, ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}) } : null}
                             accountId={activeAccountId}
                             customer={activeAccount?.customer || null}
                             onOpenCargo={openCargoFromChat}
@@ -9520,6 +9650,7 @@ export default function App() {
                             roleSender={activeAccount?.roleSender ?? true}
                             roleReceiver={activeAccount?.roleReceiver ?? true}
                             useServiceRequest={useServiceRequest}
+                            showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
                         />
                     )}
                     {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (
@@ -9534,7 +9665,7 @@ export default function App() {
                     {!showDashboard && activeTab === "support" && auth && (
                         <AiChatProfilePage
                             onBack={() => setActiveTab("cargo")}
-                            auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password } : null}
+                            auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password, ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}) } : null}
                             accountId={activeAccountId}
                             customer={activeAccount?.customer || null}
                             onOpenCargo={openCargoFromChat}
@@ -9589,6 +9720,7 @@ export default function App() {
                 }}
                 // вход в секретный режим теперь через "Уведомления" в профиле
                 showAllTabs={true}
+                permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions ?? undefined : undefined}
             />
 
             {/* Оферта/Согласие должны открываться и из раздела Профиль */}
@@ -9673,8 +9805,9 @@ export default function App() {
                         item={overlayCargoItem}
                         isOpen={true}
                         onClose={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); setOverlayCargoInn(null); }}
-                        auth={{ login: activeAccount.login, password: activeAccount.password, inn: (overlayCargoInn ?? activeAccount.activeCustomerInn ?? undefined) || undefined }}
+                        auth={{ login: activeAccount.login, password: activeAccount.password, inn: (overlayCargoInn ?? activeAccount.activeCustomerInn ?? undefined) || undefined, ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}) }}
                         onOpenChat={openAiChatDeepLink}
+                        showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
                         isFavorite={(n) => { try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; return arr.includes(n); } catch { return false; } }}
                         onToggleFavorite={(n) => { if (!n) return; try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; const set = new Set(arr); if (set.has(n)) set.delete(n); else set.add(n); localStorage.setItem('haulz.favorites', JSON.stringify([...set])); setOverlayFavVersion(v => v + 1); } catch {} }}
                     />

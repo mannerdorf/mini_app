@@ -2,12 +2,25 @@
 
 export type ApiError = { error?: string; [key: string]: unknown };
 
-export type AuthData = { login: string; password: string; id?: string; inn?: string };
+export type AuthData = { login: string; password: string; id?: string; inn?: string; isRegisteredUser?: boolean };
 
 export type CustomerOption = { name: string; inn: string };
 
 /** Режим запроса перевозок по ИНН: заказчик, отправитель, получатель */
 export type PerevozkiRole = "Customer" | "Sender" | "Receiver";
+
+/** Права доступа для зарегистрированных пользователей */
+export type AccountPermissions = {
+    cargo?: boolean;
+    doc_invoices?: boolean;
+    doc_acts?: boolean;
+    doc_orders?: boolean;
+    doc_claims?: boolean;
+    doc_contracts?: boolean;
+    doc_acts_settlement?: boolean;
+    doc_tariffs?: boolean;
+    chat?: boolean;
+};
 
 export type Account = {
     login: string;
@@ -16,6 +29,10 @@ export type Account = {
     customer?: string;
     customers?: CustomerOption[];
     activeCustomerInn?: string | null;
+    /** Зарегистрированный пользователь (вход по email/паролю из админки) */
+    isRegisteredUser?: boolean;
+    permissions?: AccountPermissions;
+    financialAccess?: boolean;
     /** Показывать перевозки, где вы заказчик (полные данные) */
     roleCustomer?: boolean;
     /** Показывать перевозки, где вы отправитель (без финансов) */
@@ -85,6 +102,7 @@ export type ProfileView =
     | "voiceAssistants"
     | "2fa"
     | "notifications"
+    | "admin"
     | "tinyurl-test";
 
 export type CompanyRow = { login: string; inn: string; name: string };

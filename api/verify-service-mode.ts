@@ -3,7 +3,8 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 /**
  * POST /api/verify-service-mode
  * Body: { password: string }
- * Проверяет пароль служебного режима. Пароль задаётся в Vercel: SERVICE_MODE_PASSWORD
+ * Проверяет пароль служебного режима (SERVICE_MODE_PASSWORD).
+ * Служебный режим — отдельно от админки. Админка проверяется через verify-admin-access.
  */
 export default async function handler(
   req: VercelRequest,
@@ -14,9 +15,9 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const expected = process.env.SERVICE_MODE_PASSWORD;
-  if (!expected || expected.trim() === "") {
-    return res.status(500).json({ error: "Сервис не настроен" });
+  const expected = process.env.SERVICE_MODE_PASSWORD?.trim();
+  if (!expected) {
+    return res.status(500).json({ error: "Сервис не настроен (SERVICE_MODE_PASSWORD)" });
   }
 
   let body: { password?: string } = req.body;

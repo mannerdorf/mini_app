@@ -60,6 +60,7 @@ async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
         dateTo,
         ...(useServiceRequest ? { serviceMode: true } : {}),
         ...(inn ? { inn } : auth.inn ? { inn: auth.inn } : {}),
+        ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
     };
     const res = await fetch(PROXY_API_BASE_URL, {
         method: "POST",
@@ -122,6 +123,7 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
         dateFrom,
         dateTo,
         ...(auth.inn ? { inn: auth.inn } : {}),
+        ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
     };
 
     const allMapped: CargoItem[] = [];
@@ -200,6 +202,7 @@ async function fetcherInvoices(params: InvoicesParams): Promise<unknown[]> {
             dateTo,
             inn: activeInn || undefined,
             serviceMode: useServiceRequest,
+            ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         }),
     });
     await ensureOk(res, "Ошибка загрузки счетов");
@@ -247,6 +250,7 @@ async function fetcherActs(params: ActsParams): Promise<unknown[]> {
             dateTo,
             inn: activeInn || undefined,
             serviceMode: useServiceRequest,
+            ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         }),
     });
     await ensureOk(res, "Ошибка загрузки УПД");

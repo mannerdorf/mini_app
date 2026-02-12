@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { upsertDocument } from "../lib/rag.js";
+import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 
 /**
  * Запрос данных перевозок — только этот метод:
@@ -46,6 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     inn,
     mode,
     serviceMode,
+    isRegisteredUser,
   } = body || {};
 
   if (!login || !password) {
@@ -55,6 +57,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)" });
+  }
+
+  // Зарегистрированные пользователи — только кэш, без 1С
+  if (isRegisteredUser) {
+    try {
+      const pool = getPool();
+      const verifiedInn = await verifyRegisteredUser(pool, login, password);
+      if (!verifiedInn) {
+        return res.status(401).json({ error: "Неверный email или пароль" });
+      }
+      const cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+        "SELECT data, fetched_at FROM cache_perevozki WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
+        [CACHE_FRESH_MINUTES]
+      );
+      if (cacheRow.rows.length > 0) {
+        const filterInns = new Set([verifiedInn]);
+        const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+        const finalInns = requestedInn && filterInns.has(requestedInn) ? new Set([requestedInn]) : filterInns;
+        const data = cacheRow.rows[0].data as any[];
+        const list = Array.isArray(data) ? data : [];
+        const filtered = list.filter((item) => {
+          const itemInnVal = itemInn(item);
+          if (!finalInns.has(itemInnVal)) return false;
+          const d = itemDate(item);
+          return d >= dateFrom && d <= dateTo;
+        });
+        return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+      }
+      return res.status(200).json([]);
+    } catch (e) {
+      console.error("perevozki registered user error:", e);
+      return res.status(200).json([]);
+    }
   }
 
   // Попытка отдать из кэша: только если не serviceMode и есть БД
