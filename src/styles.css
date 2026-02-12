@@ -1,3 +1,12 @@
+.light-mode .filter-dropdown .search-input,
+.light-mode .filter-dropdown input,
+.light-mode .filter-dropdown select,
+.light-mode .filter-dropdown textarea,
+.light-mode .filter-dropdown .admin-form-input {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border-color: #d1d5db !important;
+}
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
 
 * { box-sizing: border-box; }
