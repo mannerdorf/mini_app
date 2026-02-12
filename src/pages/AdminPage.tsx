@@ -121,6 +121,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   });
   const [formFinancial, setFormFinancial] = useState(true);
   const [formSendEmail, setFormSendEmail] = useState(true);
+  const [formPassword, setFormPassword] = useState("");
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formResult, setFormResult] = useState<{ password?: string; emailSent?: boolean } | null>(null);
 
@@ -191,6 +192,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     e.preventDefault();
     setFormSubmitting(true);
     setFormResult(null);
+    if (!formSendEmail && !formPassword) {
+      setError("Введите пароль вручную или включите отправку на email");
+      setFormSubmitting(false);
+      return;
+    }
     try {
       const res = await fetch("/api/admin-register-user", {
         method: "POST",
@@ -206,6 +212,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           permissions: formPermissions,
           financial_access: formFinancial,
           access_all_inns: formAccessAllInns,
+          password: formSendEmail ? undefined : formPassword,
         }),
       });
       const data = await res.json();
@@ -550,10 +557,32 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             </div>
             <div style={{ marginBottom: "1rem" }}>
               <Flex align="center">
-                <input type="checkbox" checked={formSendEmail} onChange={(e) => setFormSendEmail(e.target.checked)} id="sendEmail" />
+                <input
+                  type="checkbox"
+                  checked={formSendEmail}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setFormSendEmail(checked);
+                    if (checked) setFormPassword("");
+                  }}
+                  id="sendEmail"
+                />
                 <label htmlFor="sendEmail" style={{ marginLeft: "0.5rem", fontSize: "0.9rem" }}>Отправить пароль на email</label>
               </Flex>
             </div>
+            {!formSendEmail && (
+              <div style={{ marginBottom: "1rem" }}>
+                <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Пароль</Typography.Body>
+                <Input
+                  className="admin-form-input"
+                  type="password"
+                  value={formPassword}
+                  onChange={(e) => setFormPassword(e.target.value)}
+                  placeholder="Введите пароль вручную"
+                  style={{ width: "100%" }}
+                />
+              </div>
+            )}
             {formResult?.password && (
               <Typography.Body style={{ marginBottom: "1rem", color: "var(--color-success-status)", fontSize: "0.9rem" }}>
                 Пароль: {formResult.password}
