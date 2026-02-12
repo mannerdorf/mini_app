@@ -3644,14 +3644,6 @@ function ProfilePage({
     const [googleSetupLoading, setGoogleSetupLoading] = useState(false);
     const [googleSetupError, setGoogleSetupError] = useState<string | null>(null);
     const [googleVerifyCode, setGoogleVerifyCode] = useState('');
-    const [serviceModePwd, setServiceModePwd] = useState('');
-    const [serviceModeActive, setServiceModeActive] = useState(() => {
-        if (typeof localStorage === 'undefined') return false;
-        try { localStorage.removeItem('haulz.serviceMode'); } catch {}
-        return localStorage.getItem('haulz.serviceMode.v2') === '1';
-    });
-    const [serviceModeError, setServiceModeError] = useState<string | null>(null);
-    const [serviceModeVerifying, setServiceModeVerifying] = useState(false);
     const [adminToken, setAdminToken] = useState<string | null>(() => typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('haulz.adminToken') : null);
     const [adminVerifyLoading, setAdminVerifyLoading] = useState(false);
     const [adminVerifyError, setAdminVerifyError] = useState<string | null>(null);
@@ -3718,14 +3710,8 @@ function ProfilePage({
             onClick: () => setCurrentView('roles')
         },
         { 
-            id: 'serviceMode', 
-            label: 'Служебный режим', 
-            icon: <Shield className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => setCurrentView('serviceMode')
-        },
-        { 
             id: 'admin', 
-            label: 'Админка', 
+            label: 'CMS', 
             icon: <Settings className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('admin')
         },
@@ -3858,82 +3844,6 @@ function ProfilePage({
         />;
     }
 
-    const SERVICE_MODE_STORAGE_KEY = 'haulz.serviceMode.v2';
-
-    if (currentView === 'serviceMode') {
-        return (
-            <div className="w-full">
-                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Служебный режим</Typography.Headline>
-                </Flex>
-                <Typography.Body style={{ marginBottom: '1.75rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                    В служебном режиме на вкладке «Грузы» можно включить запрос перевозок только по датам (без ИНН и роли).
-                </Typography.Body>
-                {serviceModeActive ? (
-                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Режим активен</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
-                            На вкладке «Грузы» рядом с выбором заказчика появится переключатель. Включите его для запроса по датам.
-                        </Typography.Body>
-                        <Button className="filter-button" onClick={() => { localStorage.removeItem(SERVICE_MODE_STORAGE_KEY); if (typeof localStorage !== 'undefined') { localStorage.removeItem('haulz.serviceMode'); } setServiceModeActive(false); onServiceModeChange?.(); }}>
-                            Деактивировать
-                        </Button>
-                    </Panel>
-                ) : (
-                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Пароль служебного режима</Typography.Body>
-                        <Input
-                            type="password"
-                            value={serviceModePwd}
-                            onChange={(e) => { setServiceModePwd(e.target.value); setServiceModeError(null); }}
-                            placeholder="Введите пароль"
-                            style={{ marginBottom: '0.75rem' }}
-                            autoComplete="off"
-                        />
-                        {serviceModeError ? <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{serviceModeError}</Typography.Body> : null}
-                        <Button
-                            className="filter-button"
-                            disabled={serviceModeVerifying || !serviceModePwd.trim()}
-                            onClick={async () => {
-                                const pwd = serviceModePwd.trim();
-                                if (!pwd) return;
-                                setServiceModeVerifying(true);
-                                setServiceModeError(null);
-                                try {
-                                    const res = await fetch('/api/verify-service-mode', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ password: pwd }),
-                                    });
-                                    const data = await res.json();
-                                    if (res.ok && data.ok) {
-                                        localStorage.setItem(SERVICE_MODE_STORAGE_KEY, '1');
-                                        if (typeof localStorage !== 'undefined') localStorage.removeItem('haulz.serviceMode');
-                                        setServiceModeActive(true);
-                                        setServiceModePwd('');
-                                        setServiceModeError(null);
-                                        onServiceModeChange?.();
-                                    } else {
-                                        setServiceModeError(data?.error || 'Неверный пароль');
-                                    }
-                                } catch {
-                                    setServiceModeError('Ошибка проверки пароля');
-                                } finally {
-                                    setServiceModeVerifying(false);
-                                }
-                            }}
-                        >
-                            {serviceModeVerifying ? 'Проверка...' : 'Активировать'}
-                        </Button>
-                    </Panel>
-                )}
-            </div>
-        );
-    }
-
     if (currentView === 'admin') {
         const token = adminToken ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('haulz.adminToken') : null);
         if (token) {
@@ -3973,7 +3883,7 @@ function ProfilePage({
                     <Button className="filter-button" onClick={() => { setCurrentView('main'); setAdminVerifyError(null); }} style={{ padding: '0.5rem' }}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Админка</Typography.Headline>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>CMS</Typography.Headline>
                 </Flex>
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
                     Введите логин и пароль администратора.
@@ -4504,7 +4414,9 @@ function ProfilePage({
             <div style={{ marginBottom: '1.5rem' }}>
                 <Typography.Body style={{ marginBottom: '1.25rem', fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Настройки</Typography.Body>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {settingsItems.map((item) => (
+                    {settingsItems
+                        .filter((item) => item.id !== 'admin' || !activeAccount?.isRegisteredUser || activeAccount?.permissions?.cms_access)
+                        .map((item) => (
                         <Panel
                             key={item.id}
                             className="cargo-card"

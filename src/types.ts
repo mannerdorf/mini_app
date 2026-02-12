@@ -11,6 +11,7 @@ export type PerevozkiRole = "Customer" | "Sender" | "Receiver";
 
 /** Права доступа для зарегистрированных пользователей */
 export type AccountPermissions = {
+    cms_access?: boolean;
     cargo?: boolean;
     doc_invoices?: boolean;
     doc_acts?: boolean;
@@ -93,7 +94,6 @@ export type ProfileView =
     | "main"
     | "companies"
     | "roles"
-    | "serviceMode"
     | "addCompanyMethod"
     | "addCompanyByINN"
     | "addCompanyByLogin"

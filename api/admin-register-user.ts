@@ -5,6 +5,7 @@ import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 
 const DEFAULT_PERMISSIONS = {
+  cms_access: false,
   cargo: true,
   doc_invoices: true,
   doc_acts: true,

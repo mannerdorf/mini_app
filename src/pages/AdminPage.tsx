@@ -5,6 +5,7 @@ import { ArrowLeft, Users, Mail, Loader2, Plus, Settings } from "lucide-react";
 type CustomerSuggestion = { inn: string; customer_name: string; email: string };
 
 const PERMISSION_KEYS = [
+  { key: "cms_access", label: "Доступ в CMS" },
   { key: "cargo", label: "Грузы" },
   { key: "doc_invoices", label: "Счета" },
   { key: "doc_acts", label: "УПД" },
@@ -44,6 +45,7 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
   const [formName, setFormName] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formPermissions, setFormPermissions] = useState<Record<string, boolean>>({
+    cms_access: false,
     cargo: true,
     doc_invoices: true,
     doc_acts: true,
@@ -66,6 +68,8 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
   const [emailFrom, setEmailFrom] = useState("");
   const [emailFromName, setEmailFromName] = useState("HAULZ");
   const [emailSaving, setEmailSaving] = useState(false);
+  const [emailTestLoading, setEmailTestLoading] = useState(false);
+  const [emailTestResult, setEmailTestResult] = useState<{ ok: boolean; message?: string; error?: string } | null>(null);
 
   const [customersSuggestions, setCustomersSuggestions] = useState<CustomerSuggestion[]>([]);
   const [customersSearchLoading, setCustomersSearchLoading] = useState(false);
@@ -245,7 +249,7 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
         <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <Typography.Headline style={{ fontSize: "1.25rem" }}>Админка</Typography.Headline>
+        <Typography.Headline style={{ fontSize: "1.25rem" }}>CMS</Typography.Headline>
       </Flex>
 
       <Flex gap="0.5rem" style={{ marginBottom: "1rem", flexWrap: "wrap" }}>
@@ -396,10 +400,16 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
                               borderBottom: "1px solid var(--color-border)",
                             }}
                           >
-                            <Typography.Body style={{ fontWeight: 600 }}>{c.inn}</Typography.Body>
-                            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                            <Typography.Body style={{ fontSize: "0.9rem" }}>
+                              <span style={{ fontWeight: 600 }}>{c.inn}</span>
+                              {" · "}
                               {c.customer_name}
-                              {c.email ? ` · ${c.email}` : ""}
+                              {c.email ? (
+                                <>
+                                  {" · "}
+                                  {c.email}
+                                </>
+                              ) : null}
                             </Typography.Body>
                           </div>
                         ))
@@ -477,9 +487,54 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>От кого (имя)</Typography.Body>
               <Input className="admin-form-input" value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} placeholder="HAULZ" style={{ width: "100%" }} />
             </div>
-            <Button type="submit" className="filter-button" disabled={emailSaving}>
-              {emailSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить"}
-            </Button>
+            <Flex gap="0.5rem" style={{ flexWrap: "wrap" }}>
+              <Button type="submit" className="filter-button" disabled={emailSaving}>
+                {emailSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить"}
+              </Button>
+              <Button
+                type="button"
+                className="filter-button"
+                disabled={emailTestLoading || !emailHost.trim()}
+                onClick={async () => {
+                  setEmailTestResult(null);
+                  setEmailTestLoading(true);
+                  try {
+                    const res = await fetch("/api/admin-email-test", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${adminToken}`,
+                      },
+                      body: JSON.stringify({
+                        smtp_host: emailHost.trim(),
+                        smtp_port: emailPort ? parseInt(emailPort, 10) : 587,
+                        smtp_user: emailUser.trim() || undefined,
+                        smtp_password: emailPassword.trim() || undefined,
+                      }),
+                    });
+                    const data = await res.json();
+                    setEmailTestResult({ ok: data.ok, message: data.message, error: data.error });
+                  } catch (e: unknown) {
+                    setEmailTestResult({ ok: false, error: (e as Error).message || "Ошибка запроса" });
+                  } finally {
+                    setEmailTestLoading(false);
+                  }
+                }}
+              >
+                {emailTestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Тест"}
+              </Button>
+            </Flex>
+            {emailTestResult && (
+              <Typography.Body
+                style={{
+                  marginTop: "0.75rem",
+                  fontSize: "0.9rem",
+                  color: emailTestResult.ok ? "var(--color-success-status)" : "var(--color-error)",
+                }}
+              >
+                {emailTestResult.ok ? "✓ " + (emailTestResult.message || "Подключение успешно") : "✗ " + (emailTestResult.error || "Ошибка")}
+              </Typography.Body>
+            )}
           </form>
         </Panel>
       )}
