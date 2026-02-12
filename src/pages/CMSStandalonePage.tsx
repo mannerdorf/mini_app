@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button, Container, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
+import { Eye, EyeOff } from "lucide-react";
 import { AdminPage } from "./AdminPage";
 
 /** CMS как отдельная страница по ?tab=cms — без входа в мини-приложение */
@@ -16,6 +17,7 @@ export function CMSStandalonePage() {
   );
   const [adminLoginInput, setAdminLoginInput] = useState("");
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [adminVerifyLoading, setAdminVerifyLoading] = useState(false);
   const [adminVerifyError, setAdminVerifyError] = useState<string | null>(null);
 
@@ -88,35 +90,50 @@ export function CMSStandalonePage() {
         <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
           Введите логин и пароль администратора.
         </Typography.Body>
-        <Input
-          type="text"
-          value={adminLoginInput}
-          onChange={(e) => {
-            setAdminLoginInput(e.target.value);
-            setAdminVerifyError(null);
-          }}
-          placeholder="Логин"
-          style={{ marginBottom: "0.5rem", width: "100%" }}
-          autoComplete="username"
-        />
-        <Input
-          type="password"
-          value={adminPasswordInput}
-          onChange={(e) => {
-            setAdminPasswordInput(e.target.value);
-            setAdminVerifyError(null);
-          }}
-          placeholder="Пароль"
-          style={{ marginBottom: "0.75rem", width: "100%" }}
-          autoComplete="current-password"
-        />
+        <div className="field">
+          <Input
+            className="login-input"
+            type="text"
+            value={adminLoginInput}
+            onChange={(e) => {
+              setAdminLoginInput(e.target.value);
+              setAdminVerifyError(null);
+            }}
+            placeholder="Логин"
+            style={{ marginBottom: "0.5rem", width: "100%" }}
+            autoComplete="username"
+          />
+        </div>
+        <div className="field">
+          <div className="password-input-container">
+            <Input
+              className="login-input password"
+              type={showPassword ? "text" : "password"}
+              value={adminPasswordInput}
+              onChange={(e) => {
+                setAdminPasswordInput(e.target.value);
+                setAdminVerifyError(null);
+              }}
+              placeholder="Пароль"
+              style={{ marginBottom: "0.75rem", width: "100%" }}
+              autoComplete="current-password"
+            />
+            <Button
+              type="button"
+              className="toggle-password-visibility"
+              onClick={() => setShowPassword((prev) => !prev)}
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </Button>
+          </div>
+        </div>
         {adminVerifyError && (
           <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
             {adminVerifyError}
           </Typography.Body>
         )}
         <Button
-          className="filter-button"
+          className="button-primary"
           disabled={adminVerifyLoading || !adminLoginInput.trim() || !adminPasswordInput}
           onClick={tryAdminAccess}
         >
