@@ -40,6 +40,30 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     --color-modal-bg: rgba(255, 255, 255, 0.9);
 }
 
+.light-mode input,
+.light-mode textarea,
+.light-mode select,
+.light-mode .search-input,
+.light-mode .modal-input,
+.light-mode .login-input,
+.light-mode .filter-dropdown input,
+.light-mode .filter-dropdown select,
+.light-mode .doc-filter-input {
+    background-color: #ffffff;
+    color: #111827;
+    border-color: #d1d5db;
+}
+.light-mode input::placeholder,
+.light-mode textarea::placeholder,
+.light-mode select::placeholder,
+.light-mode .search-input::placeholder,
+.light-mode .modal-input::placeholder,
+.light-mode .login-input::placeholder,
+.light-mode .filter-dropdown input::placeholder,
+.light-mode .filter-dropdown select::placeholder {
+    color: #9ca3af;
+}
+
 /* --- UTILITY CLASSES --- */
 .flex { display: flex; }
 .justify-center { justify-content: center; }
