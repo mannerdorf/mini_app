@@ -3642,9 +3642,10 @@ function ProfilePage({
     const [googleSetupLoading, setGoogleSetupLoading] = useState(false);
     const [googleSetupError, setGoogleSetupError] = useState<string | null>(null);
     const [googleVerifyCode, setGoogleVerifyCode] = useState('');
-    const [serviceModePwd, setServiceModePwd] = useState('Haulz2026!/!');
-    const [serviceModeActive, setServiceModeActive] = useState(() => typeof localStorage !== 'undefined' && localStorage.getItem('haulz.serviceMode') === '1');
+    const [serviceModePwd, setServiceModePwd] = useState('');
+    const [serviceModeActive, setServiceModeActive] = useState(() => typeof localStorage !== 'undefined' && localStorage.getItem('haulz.serviceMode.v2') === '1');
     const [serviceModeError, setServiceModeError] = useState<string | null>(null);
+    const [serviceModeVerifying, setServiceModeVerifying] = useState(false);
 
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
@@ -3840,8 +3841,7 @@ function ProfilePage({
         />;
     }
 
-    const SERVICE_MODE_PASSWORD = 'Haulz2026!/!';
-    const SERVICE_MODE_STORAGE_KEY = 'haulz.serviceMode';
+    const SERVICE_MODE_STORAGE_KEY = 'haulz.serviceMode.v2';
 
     if (currentView === 'serviceMode') {
         return (
@@ -3861,7 +3861,7 @@ function ProfilePage({
                         <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
                             На вкладке «Грузы» рядом с выбором заказчика появится переключатель. Включите его для запроса по датам.
                         </Typography.Body>
-                        <Button className="filter-button" onClick={() => { localStorage.removeItem(SERVICE_MODE_STORAGE_KEY); setServiceModeActive(false); onServiceModeChange?.(); }}>
+                        <Button className="filter-button" onClick={() => { localStorage.removeItem(SERVICE_MODE_STORAGE_KEY); if (typeof localStorage !== 'undefined') localStorage.removeItem('haulz.serviceMode'); setServiceModeActive(false); onServiceModeChange?.(); }}>
                             Деактивировать
                         </Button>
                     </Panel>
@@ -3874,22 +3874,42 @@ function ProfilePage({
                             onChange={(e) => { setServiceModePwd(e.target.value); setServiceModeError(null); }}
                             placeholder="Введите пароль"
                             style={{ marginBottom: '0.75rem' }}
+                            autoComplete="off"
                         />
                         {serviceModeError ? <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{serviceModeError}</Typography.Body> : null}
                         <Button
                             className="filter-button"
-                            onClick={() => {
-                                if (serviceModePwd.trim() === SERVICE_MODE_PASSWORD) {
-                                    localStorage.setItem(SERVICE_MODE_STORAGE_KEY, '1');
-                                    setServiceModeActive(true);
-                                    setServiceModeError(null);
-                                    onServiceModeChange?.();
-                                } else {
-                                    setServiceModeError('Неверный пароль');
+                            disabled={serviceModeVerifying || !serviceModePwd.trim()}
+                            onClick={async () => {
+                                const pwd = serviceModePwd.trim();
+                                if (!pwd) return;
+                                setServiceModeVerifying(true);
+                                setServiceModeError(null);
+                                try {
+                                    const res = await fetch('/api/verify-service-mode', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ password: pwd }),
+                                    });
+                                    const data = await res.json();
+                                    if (res.ok && data.ok) {
+                                        localStorage.setItem(SERVICE_MODE_STORAGE_KEY, '1');
+                                        if (typeof localStorage !== 'undefined') localStorage.removeItem('haulz.serviceMode');
+                                        setServiceModeActive(true);
+                                        setServiceModePwd('');
+                                        setServiceModeError(null);
+                                        onServiceModeChange?.();
+                                    } else {
+                                        setServiceModeError(data?.error || 'Неверный пароль');
+                                    }
+                                } catch {
+                                    setServiceModeError('Ошибка проверки пароля');
+                                } finally {
+                                    setServiceModeVerifying(false);
                                 }
                             }}
                         >
-                            Активировать
+                            {serviceModeVerifying ? 'Проверка...' : 'Активировать'}
                         </Button>
                     </Panel>
                 )}
@@ -8069,7 +8089,7 @@ export default function App() {
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
     // Служебный режим: активен если введён пароль в профиле; переключатель на вкладке «Грузы» включает запрос только по датам
-    const [serviceModeUnlocked, setServiceModeUnlocked] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode') === '1');
+    const [serviceModeUnlocked, setServiceModeUnlocked] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode.v2') === '1');
     const [useServiceRequest, setUseServiceRequest] = useState(false);
     const [serviceRefreshSpinning, setServiceRefreshSpinning] = useState(false);
     
@@ -9475,7 +9495,7 @@ export default function App() {
                             onOpenTelegramBot={openTelegramBotWithAccount}
                             onOpenMaxBot={openMaxBotWithAccount}
                             onUpdateAccount={handleUpdateAccount}
-                            onServiceModeChange={() => setServiceModeUnlocked(typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode') === '1')}
+                            onServiceModeChange={() => setServiceModeUnlocked(typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode.v2') === '1')}
                         />
                     )}
                     {!showDashboard && activeTab === "cargo" && auth && (
@@ -9529,7 +9549,7 @@ export default function App() {
                             onOpenTelegramBot={openTelegramBotWithAccount}
                             onOpenMaxBot={openMaxBotWithAccount}
                             onUpdateAccount={handleUpdateAccount}
-                            onServiceModeChange={() => setServiceModeUnlocked(typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode') === '1')}
+                            onServiceModeChange={() => setServiceModeUnlocked(typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode.v2') === '1')}
                         />
                     )}
             </div>
