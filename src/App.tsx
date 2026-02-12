@@ -3643,7 +3643,11 @@ function ProfilePage({
     const [googleSetupError, setGoogleSetupError] = useState<string | null>(null);
     const [googleVerifyCode, setGoogleVerifyCode] = useState('');
     const [serviceModePwd, setServiceModePwd] = useState('');
-    const [serviceModeActive, setServiceModeActive] = useState(() => typeof localStorage !== 'undefined' && localStorage.getItem('haulz.serviceMode.v2') === '1');
+    const [serviceModeActive, setServiceModeActive] = useState(() => {
+        if (typeof localStorage === 'undefined') return false;
+        try { localStorage.removeItem('haulz.serviceMode'); } catch {}
+        return localStorage.getItem('haulz.serviceMode.v2') === '1';
+    });
     const [serviceModeError, setServiceModeError] = useState<string | null>(null);
     const [serviceModeVerifying, setServiceModeVerifying] = useState(false);
 
@@ -8089,7 +8093,11 @@ export default function App() {
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
     // Служебный режим: активен если введён пароль в профиле; переключатель на вкладке «Грузы» включает запрос только по датам
-    const [serviceModeUnlocked, setServiceModeUnlocked] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode.v2') === '1');
+    const [serviceModeUnlocked, setServiceModeUnlocked] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        try { window.localStorage.removeItem('haulz.serviceMode'); } catch {}
+        return window.localStorage.getItem('haulz.serviceMode.v2') === '1';
+    });
     const [useServiceRequest, setUseServiceRequest] = useState(false);
     const [serviceRefreshSpinning, setServiceRefreshSpinning] = useState(false);
     
