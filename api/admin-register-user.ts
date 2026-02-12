@@ -33,6 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     send_email?: boolean;
     permissions?: Record<string, boolean>;
     financial_access?: boolean;
+    access_all_inns?: boolean;
   } = req.body;
   if (typeof body === "string") {
     try {
@@ -42,6 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  const accessAllInns = !!body?.access_all_inns;
   const inn = typeof body?.inn === "string" ? body.inn.trim() : "";
   const companyName = typeof body?.company_name === "string" ? body.company_name.trim() : "";
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -51,8 +53,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     : DEFAULT_PERMISSIONS;
   const financialAccess = body?.financial_access !== false;
 
-  if (!inn || inn.length < 10) {
-    return res.status(400).json({ error: "ИНН обязателен (10 или 12 цифр)" });
+  if (!accessAllInns && (!inn || inn.length < 10)) {
+    return res.status(400).json({ error: "ИНН обязателен (10 или 12 цифр) или включите «Доступ ко всем заказчикам»" });
   }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: "Некорректный email" });
@@ -62,19 +64,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const password = generatePassword(8);
   const passwordHash = hashPassword(password);
 
+  const innForDb = accessAllInns ? "" : inn;
   try {
     const pool = getPool();
     await pool.query(
-      `INSERT INTO registered_users (login, password_hash, inn, company_name, permissions, financial_access)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [login, passwordHash, inn, companyName, JSON.stringify(permissions), financialAccess]
+      `INSERT INTO registered_users (login, password_hash, inn, company_name, permissions, financial_access, access_all_inns)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [login, passwordHash, innForDb, companyName, JSON.stringify(permissions), financialAccess, accessAllInns]
     );
 
-    await pool.query(
-      `INSERT INTO account_companies (login, inn, name) VALUES ($1, $2, $3)
-       ON CONFLICT (login, inn) DO UPDATE SET name = EXCLUDED.name`,
-      [login, inn, companyName]
-    );
+    if (!accessAllInns && inn) {
+      await pool.query(
+        `INSERT INTO account_companies (login, inn, name) VALUES ($1, $2, $3)
+         ON CONFLICT (login, inn) DO UPDATE SET name = EXCLUDED.name`,
+        [login, inn, companyName]
+      );
+    }
 
     if (sendEmail) {
       const sendResult = await sendRegistrationEmail(pool, email, login, password, companyName);

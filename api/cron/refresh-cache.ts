@@ -4,7 +4,39 @@ import { getPool } from "../_db.js";
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 const INVOICES_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices";
 const ACTS_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetActs";
+const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
+
+function normalizeCacheCustomers(raw: unknown): { inn: string; customer_name: string; email: string }[] {
+  if (!raw || typeof raw !== "object") return [];
+  let arr: any[] = [];
+  if (Array.isArray(raw)) arr = raw;
+  else {
+    const o = raw as Record<string, unknown>;
+    const items = o.Items ?? o.items ?? o.Customers ?? o.customers;
+    if (Array.isArray(items)) arr = items;
+    else if (o.INN != null || o.Inn != null || o.inn != null) arr = [o];
+    else {
+      const values = Object.values(o);
+      if (values.some((v: any) => v && typeof v === "object" && ("INN" in v || "Inn" in v || "inn" in v)))
+        arr = values.filter((v) => v && typeof v === "object") as any[];
+    }
+  }
+  const seen = new Set<string>();
+  return arr
+    .map((el: any) => {
+      const inn = String(el?.Inn ?? el?.INN ?? el?.inn ?? "").trim();
+      if (!inn || inn.length < 10) return null;
+      const name = String(el?.Name ?? el?.name ?? el?.Customer ?? el?.customer ?? "").trim() || inn;
+      const email = String(el?.Email ?? el?.email ?? "").trim() || "";
+      return { inn, customer_name: name, email };
+    })
+    .filter((x): x is { inn: string; customer_name: string; email: string } => {
+      if (!x || seen.has(x.inn)) return false;
+      seen.add(x.inn);
+      return true;
+    });
+}
 
 /** Кэш считается свежим 15 минут */
 const CACHE_FRESH_MINUTES = 15;
@@ -139,10 +171,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [JSON.stringify(Array.isArray(actsList) ? actsList : [])]
     );
 
+    // 4) Заказчики из Getcustomers (ИНН, Заказчик, email)
+    let customersCount = 0;
+    try {
+      const customersUrl = `${GETAPI_URL}?metod=Getcustomers`;
+      const customersRes = await fetch(customersUrl, {
+        method: "GET",
+        headers: {
+          Auth: `Basic ${login}:${password}`,
+          Authorization: SERVICE_AUTH,
+        },
+      });
+      const customersText = await customersRes.text();
+      if (customersRes.ok) {
+        try {
+          const json = JSON.parse(customersText);
+          const payload = json?.Success === false ? [] : (json?.Customers ?? json?.customers ?? json?.Items ?? json?.items ?? json ?? []);
+          const rows = normalizeCacheCustomers(payload);
+          await pool.query("delete from cache_customers");
+          for (const r of rows) {
+            await pool.query(
+              "insert into cache_customers (inn, customer_name, email, fetched_at) values ($1, $2, $3, now()) on conflict (inn) do update set customer_name = excluded.customer_name, email = excluded.email, fetched_at = now()",
+              [r.inn, r.customer_name, r.email]
+            );
+          }
+          customersCount = rows.length;
+        } catch {
+          // ignore
+        }
+      } else {
+        console.warn("refresh-cache Getcustomers non-ok:", customersRes.status, customersText.slice(0, 200));
+      }
+    } catch (e: any) {
+      console.error("refresh-cache Getcustomers fetch error:", e?.message || e);
+    }
+
     const perevozkiCount = perevozkiList.length;
     const invoicesCount = Array.isArray(invoicesList) ? invoicesList.length : 0;
     const actsCount = Array.isArray(actsList) ? actsList.length : 0;
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:40rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiCount}</strong></p><p>Счетов: <strong>${invoicesCount}</strong></p><p>УПД: <strong>${actsCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p></body></html>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:40rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiCount}</strong></p><p>Счетов: <strong>${invoicesCount}</strong></p><p>УПД: <strong>${actsCount}</strong></p><p>Заказчиков (Getcustomers): <strong>${customersCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p></body></html>`;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(html);
   } catch (e: any) {

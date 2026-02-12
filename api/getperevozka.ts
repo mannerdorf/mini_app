@@ -54,8 +54,8 @@ export default async function handler(
   if (isRegisteredUser) {
     try {
       const pool = getPool();
-      const verifiedInn = await verifyRegisteredUser(pool, login!, password!);
-      if (!verifiedInn) {
+      const verified = await verifyRegisteredUser(pool, login!, password!);
+      if (!verified) {
         return res.status(401).json({ error: "Неверный email или пароль" });
       }
       const cacheRow = await pool.query<{ data: unknown[] }>(
@@ -67,8 +67,10 @@ export default async function handler(
         const norm = String(number).trim();
         const item = list.find((i: any) => {
           const n = String(i?.Number ?? i?.number ?? "").trim();
+          if (n !== norm) return false;
+          if (verified.accessAllInns) return true;
           const itemInn = String(i?.INN ?? i?.Inn ?? i?.inn ?? "").trim();
-          return n === norm && itemInn === verifiedInn;
+          return itemInn === verified.inn;
         });
         if (item) return res.status(200).json(item);
       }

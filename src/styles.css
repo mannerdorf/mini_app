@@ -505,6 +505,18 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     color: #fff !important;
 }
 
+/* Поля ввода в админке: в светлом режиме не чёрные */
+.light-mode .admin-form-input,
+.light-mode .admin-form-input input {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border: 1px solid #d1d5db !important;
+}
+.light-mode .admin-form-input::placeholder,
+.light-mode .admin-form-input input::placeholder {
+    color: #9ca3af !important;
+}
+
 /* --- BITRIX PUBLIC CHAT (Support tab) --- */
 .bitrix-chat-fullbleed {
     width: 100vw;

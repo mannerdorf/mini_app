@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
 import { ArrowLeft, Users, Mail, Loader2, Plus, Settings } from "lucide-react";
+
+type CustomerSuggestion = { inn: string; customer_name: string; email: string };
 
 const PERMISSION_KEYS = [
   { key: "cargo", label: "Грузы" },
@@ -26,6 +28,7 @@ type User = {
   company_name: string;
   permissions: Record<string, boolean>;
   financial_access: boolean;
+  access_all_inns?: boolean;
   active: boolean;
   created_at: string;
 };
@@ -36,6 +39,7 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [formAccessAllInns, setFormAccessAllInns] = useState(false);
   const [formInn, setFormInn] = useState("");
   const [formName, setFormName] = useState("");
   const [formEmail, setFormEmail] = useState("");
@@ -62,6 +66,12 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
   const [emailFrom, setEmailFrom] = useState("");
   const [emailFromName, setEmailFromName] = useState("HAULZ");
   const [emailSaving, setEmailSaving] = useState(false);
+
+  const [customersSuggestions, setCustomersSuggestions] = useState<CustomerSuggestion[]>([]);
+  const [customersSearchLoading, setCustomersSearchLoading] = useState(false);
+  const [customersDropdownOpen, setCustomersDropdownOpen] = useState(false);
+  const customersSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const innInputRef = useRef<HTMLDivElement>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -120,6 +130,7 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
           send_email: formSendEmail,
           permissions: formPermissions,
           financial_access: formFinancial,
+          access_all_inns: formAccessAllInns,
         }),
       });
       const data = await res.json();
@@ -168,6 +179,57 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
   const togglePerm = (key: string) => {
     setFormPermissions((p) => ({ ...p, [key]: !p[key] }));
   };
+
+  const searchCustomers = useCallback(
+    async (query: string) => {
+      setCustomersSearchLoading(true);
+      try {
+        const res = await fetch(
+          `/api/admin-customers-search?q=${encodeURIComponent(query)}&limit=15`,
+          { headers: { Authorization: `Bearer ${adminToken}` } }
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        setCustomersSuggestions(data.customers || []);
+        setCustomersDropdownOpen(true);
+      } catch {
+        setCustomersSuggestions([]);
+      } finally {
+        setCustomersSearchLoading(false);
+      }
+    },
+    [adminToken]
+  );
+
+  const onInnChange = (value: string) => {
+    setFormInn(value);
+    if (formAccessAllInns) return;
+    if (customersSearchRef.current) clearTimeout(customersSearchRef.current);
+    if (value.trim().length >= 2) {
+      customersSearchRef.current = setTimeout(() => searchCustomers(value.trim()), 300);
+    } else {
+      setCustomersSuggestions([]);
+      setCustomersDropdownOpen(false);
+    }
+  };
+
+  const selectCustomer = (c: CustomerSuggestion) => {
+    setFormInn(c.inn);
+    setFormName(c.customer_name || c.inn);
+    if (c.email) setFormEmail(c.email);
+    setCustomersDropdownOpen(false);
+    setCustomersSuggestions([]);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (innInputRef.current && !innInputRef.current.contains(e.target as Node)) {
+        setCustomersDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <div className="w-full">
@@ -232,7 +294,7 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
                 >
                   <Typography.Body style={{ fontWeight: 600 }}>{u.company_name || u.login}</Typography.Body>
                   <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                    {u.login} · ИНН {u.inn} · {u.financial_access ? "Фин. да" : "Фин. нет"}
+                    {u.login} · {u.access_all_inns ? "все ИНН" : `ИНН ${u.inn}`} · {u.financial_access ? "Фин. да" : "Фин. нет"}
                   </Typography.Body>
                 </div>
               ))}
@@ -245,16 +307,75 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "1rem" }}>
           <form onSubmit={handleAddUser}>
             <div style={{ marginBottom: "1rem" }}>
+              <Flex align="center" style={{ marginBottom: "0.5rem" }}>
+                <input type="checkbox" checked={formAccessAllInns} onChange={(e) => setFormAccessAllInns(e.target.checked)} id="accessAllInns" />
+                <label htmlFor="accessAllInns" style={{ marginLeft: "0.5rem", fontSize: "0.9rem" }}>Доступ ко всем заказчикам (ко всем ИНН)</label>
+              </Flex>
+            </div>
+            <div ref={innInputRef} style={{ marginBottom: "1rem", position: "relative" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>ИНН</Typography.Body>
-              <Input value={formInn} onChange={(e) => setFormInn(e.target.value)} placeholder="10 или 12 цифр" required style={{ width: "100%" }} />
+              <Input
+                className="admin-form-input"
+                value={formInn}
+                onChange={(e) => onInnChange(e.target.value)}
+                onFocus={() => formInn.trim().length >= 2 && searchCustomers(formInn.trim())}
+                placeholder="Введите ИНН или наименование для поиска"
+                required={!formAccessAllInns}
+                disabled={formAccessAllInns}
+                style={{ width: "100%" }}
+              />
+              {customersDropdownOpen && (customersSuggestions.length > 0 || customersSearchLoading) && !formAccessAllInns && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    marginTop: 2,
+                    maxHeight: 220,
+                    overflowY: "auto",
+                    background: "var(--color-bg-card)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 8,
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    zIndex: 100,
+                  }}
+                >
+                  {customersSearchLoading ? (
+                    <div style={{ padding: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>Поиск...</div>
+                  ) : (
+                    customersSuggestions.map((c) => (
+                      <div
+                        key={c.inn}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => selectCustomer(c)}
+                        onKeyDown={(e) => e.key === "Enter" && selectCustomer(c)}
+                        style={{
+                          padding: "0.5rem 0.75rem",
+                          cursor: "pointer",
+                          fontSize: "0.9rem",
+                          borderBottom: "1px solid var(--color-border)",
+                        }}
+                      >
+                        <Typography.Body style={{ fontWeight: 600 }}>{c.inn}</Typography.Body>
+                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                          {c.customer_name}
+                          {c.email ? ` · ${c.email}` : ""}
+                        </Typography.Body>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Наименование</Typography.Body>
-              <Input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="ООО Ромашка" style={{ width: "100%" }} />
+              <Input className="admin-form-input" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="ООО Ромашка" style={{ width: "100%" }} />
             </div>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Email (логин)</Typography.Body>
-              <Input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="user@example.com" required style={{ width: "100%" }} />
+              <Input className="admin-form-input" type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="user@example.com" required style={{ width: "100%" }} />
             </div>
             <div style={{ marginBottom: "1rem" }}>
               <Flex align="center" style={{ marginBottom: "0.5rem" }}>
@@ -297,28 +418,28 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
           <form onSubmit={handleSaveEmail}>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>SMTP хост</Typography.Body>
-              <Input value={emailHost} onChange={(e) => setEmailHost(e.target.value)} placeholder="smtp.example.com" style={{ width: "100%" }} />
+              <Input className="admin-form-input" value={emailHost} onChange={(e) => setEmailHost(e.target.value)} placeholder="smtp.example.com" style={{ width: "100%" }} />
             </div>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>SMTP порт</Typography.Body>
-              <Input type="number" value={emailPort} onChange={(e) => setEmailPort(e.target.value)} placeholder="587" style={{ width: "100%" }} />
+              <Input className="admin-form-input" type="number" value={emailPort} onChange={(e) => setEmailPort(e.target.value)} placeholder="587" style={{ width: "100%" }} />
             </div>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>SMTP пользователь</Typography.Body>
-              <Input value={emailUser} onChange={(e) => setEmailUser(e.target.value)} placeholder="user@example.com" style={{ width: "100%" }} />
+              <Input className="admin-form-input" value={emailUser} onChange={(e) => setEmailUser(e.target.value)} placeholder="user@example.com" style={{ width: "100%" }} />
             </div>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>SMTP пароль</Typography.Body>
-              <Input type="password" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" style={{ width: "100%" }} />
+              <Input className="admin-form-input" type="password" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" style={{ width: "100%" }} />
               <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>Оставьте пустым, чтобы не менять</Typography.Body>
             </div>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>От кого (email)</Typography.Body>
-              <Input type="email" value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} placeholder="noreply@haulz.ru" style={{ width: "100%" }} />
+              <Input className="admin-form-input" type="email" value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} placeholder="noreply@haulz.ru" style={{ width: "100%" }} />
             </div>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>От кого (имя)</Typography.Body>
-              <Input value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} placeholder="HAULZ" style={{ width: "100%" }} />
+              <Input className="admin-form-input" value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} placeholder="HAULZ" style={{ width: "100%" }} />
             </div>
             <Button type="submit" className="filter-button" disabled={emailSaving}>
               {emailSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить"}

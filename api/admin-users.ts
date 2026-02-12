@@ -21,10 +21,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       company_name: string;
       permissions: Record<string, boolean>;
       financial_access: boolean;
+      access_all_inns: boolean;
       active: boolean;
       created_at: string;
     }>(
-      `SELECT id, login, inn, company_name, permissions, financial_access, active, created_at
+      `SELECT id, login, inn, company_name, permissions, financial_access, COALESCE(access_all_inns, false) as access_all_inns, active, created_at
        FROM registered_users ORDER BY created_at DESC`
     );
     return res.status(200).json({ users: rows });

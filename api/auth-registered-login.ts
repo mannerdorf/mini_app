@@ -34,8 +34,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       company_name: string;
       permissions: Record<string, boolean>;
       financial_access: boolean;
+      access_all_inns: boolean;
     }>(
-      `SELECT id, login, password_hash, inn, company_name, permissions, financial_access
+      `SELECT id, login, password_hash, inn, company_name, permissions, financial_access, COALESCE(access_all_inns, false) as access_all_inns
        FROM registered_users WHERE login = $1 AND active = true`,
       [email]
     );
@@ -60,14 +61,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             chat: true,
           };
 
+    const accessAllInns = !!user.access_all_inns;
     return res.status(200).json({
       ok: true,
       user: {
         login: user.login,
-        inn: user.inn,
+        inn: accessAllInns ? null : (user.inn?.trim() || null),
         companyName: user.company_name,
         permissions,
         financialAccess: !!user.financial_access,
+        accessAllInns,
       },
     });
   } catch (e) {

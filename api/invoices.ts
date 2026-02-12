@@ -62,8 +62,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (isRegisteredUser) {
     try {
       const pool = getPool();
-      const verifiedInn = await verifyRegisteredUser(pool, login, password);
-      if (!verifiedInn) {
+      const verified = await verifyRegisteredUser(pool, login, password);
+      if (!verified) {
         return res.status(401).json({ error: "Неверный email или пароль" });
       }
       const cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
@@ -71,14 +71,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [CACHE_FRESH_MINUTES]
       );
       if (cacheRow.rows.length > 0) {
-        const filterInns = new Set([verifiedInn]);
+        const filterInns = verified.accessAllInns ? null : new Set([verified.inn!]);
         const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-        const finalInns = requestedInn && filterInns.has(requestedInn) ? new Set([requestedInn]) : filterInns;
+        const finalInns = filterInns === null
+          ? null
+          : requestedInn && filterInns.has(requestedInn)
+            ? new Set([requestedInn])
+            : filterInns;
         const data = cacheRow.rows[0].data as any[];
         const list = Array.isArray(data) ? data : [];
         const filtered = list.filter((item) => {
-          const itemInnVal = invoiceInn(item);
-          if (!finalInns.has(itemInnVal)) return false;
+          if (finalInns !== null) {
+            const itemInnVal = invoiceInn(item);
+            if (!finalInns.has(itemInnVal)) return false;
+          }
           const d = invoiceDate(item);
           return d >= dateFrom && d <= dateTo;
         });
