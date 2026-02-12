@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Mail, Loader2, Plus, Settings, LogOut } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2 } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 
@@ -103,8 +103,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [error, setError] = useState<string | null>(null);
 
   const [formAccessAllInns, setFormAccessAllInns] = useState(false);
-  const [formInn, setFormInn] = useState("");
-  const [formName, setFormName] = useState("");
+  const [selectedCustomers, setSelectedCustomers] = useState<CustomerItem[]>([]);
   const [formEmail, setFormEmail] = useState("");
   const [formPermissions, setFormPermissions] = useState<Record<string, boolean>>({
     cms_access: false,
@@ -192,11 +191,25 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     e.preventDefault();
     setFormSubmitting(true);
     setFormResult(null);
+    setError(null);
+    if (!formAccessAllInns && selectedCustomers.length === 0) {
+      setError("Выберите заказчика из справочника или включите доступ ко всем ИНН");
+      setFormSubmitting(false);
+      return;
+    }
     if (!formSendEmail && !formPassword) {
       setError("Введите пароль вручную или включите отправку на email");
       setFormSubmitting(false);
       return;
     }
+
+    const primaryCustomer = selectedCustomers[0];
+    const innForBody = primaryCustomer?.inn.trim() ?? "";
+    const companyNameForBody = primaryCustomer?.customer_name?.trim() ?? "";
+    const customerPayload = selectedCustomers
+      .map((c) => ({ inn: c.inn.trim(), name: c.customer_name.trim() }))
+      .filter((c) => c.inn);
+
     try {
       const res = await fetch("/api/admin-register-user", {
         method: "POST",
@@ -205,22 +218,23 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           Authorization: `Bearer ${adminToken}`,
         },
         body: JSON.stringify({
-          inn: formInn.trim(),
-          company_name: formName.trim(),
+          inn: innForBody,
+          company_name: companyNameForBody,
           email: formEmail.trim(),
           send_email: formSendEmail,
           permissions: formPermissions,
           financial_access: formFinancial,
           access_all_inns: formAccessAllInns,
+          customers: customerPayload.length ? customerPayload : undefined,
           password: formSendEmail ? undefined : formPassword,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Ошибка");
       setFormResult({ password: data.password, emailSent: data.emailSent });
-      setFormInn("");
-      setFormName("");
+      setSelectedCustomers([]);
       setFormEmail("");
+      setFormPassword("");
       setCustomerPickModalOpen(false);
       fetchUsers();
       setTab("users");
@@ -279,15 +293,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     [adminToken]
   );
 
-  const selectCustomer = (c: CustomerItem) => {
-    setFormInn(c.inn);
-    setFormName(c.customer_name || c.inn);
-    if (c.email) setFormEmail(c.email);
+  const clearCustomerSelection = () => {
+    setSelectedCustomers([]);
   };
 
-  const clearCustomerSelection = () => {
-    setFormInn("");
-    setFormName("");
+  const addSelectedCustomer = (customer: CustomerItem) => {
+    setSelectedCustomers((prev) => {
+      if (prev.find((c) => c.inn === customer.inn)) return prev;
+      return [...prev, customer];
+    });
+  };
+
+  const removeSelectedCustomer = (inn: string) => {
+    setSelectedCustomers((prev) => prev.filter((c) => c.inn !== inn));
   };
 
   const openPermissionsEditor = (user: User) => {
@@ -496,42 +514,84 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               {formAccessAllInns ? (
                 <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Доступ ко всем заказчикам — выбор не требуется</Typography.Body>
               ) : (
-                <Flex gap="0.5rem" align="center" wrap="wrap">
+                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
                   <div
                     style={{
                       flex: 1,
-                      minWidth: 120,
+                      minHeight: 160,
+                      maxHeight: 260,
                       padding: "0.75rem",
                       background: "var(--color-bg-input)",
                       border: "1px solid var(--color-border)",
                       borderRadius: 8,
-                      color: formInn ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-                      fontSize: "0.9rem",
+                      overflowY: "auto",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.5rem",
                     }}
                   >
-                    {formInn
-                      ? `${formInn}${formName ? ` · ${formName}` : ""}${formEmail ? ` · ${formEmail}` : ""}`
-                      : "Не выбран"}
+                    {selectedCustomers.length === 0 ? (
+                      <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Не выбран</Typography.Body>
+                    ) : (
+                      selectedCustomers.map((cust) => (
+                        <div
+                          key={cust.inn}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "0.35rem 0.5rem",
+                            borderRadius: 6,
+                            background: "var(--color-bg-hover)",
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+                              {cust.inn} · {cust.customer_name}
+                            </Typography.Body>
+                            {cust.email && (
+                              <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
+                                {cust.email}
+                              </Typography.Body>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeSelectedCustomer(cust.inn)}
+                            style={{
+                              border: "none",
+                              background: "transparent",
+                              cursor: "pointer",
+                              color: "var(--color-text-secondary)",
+                            }}
+                            aria-label="Удалить заказчика"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      ))
+                    )}
                   </div>
-                  <Button
-                    className="filter-button"
-                    type="button"
-                    onClick={() => setCustomerPickModalOpen(true)}
-                    style={{ flexShrink: 0 }}
-                  >
-                    Подбор
-                  </Button>
-                  {formInn && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                     <Button
                       className="filter-button"
                       type="button"
-                      onClick={clearCustomerSelection}
-                      style={{ padding: "0.25rem 0.5rem", fontSize: "0.8rem" }}
+                      onClick={() => setCustomerPickModalOpen(true)}
                     >
-                      Очистить
+                      Подбор
                     </Button>
-                  )}
-                </Flex>
+                    {selectedCustomers.length > 0 && (
+                      <Button
+                        className="filter-button"
+                        type="button"
+                        onClick={clearCustomerSelection}
+                        style={{ padding: "0.4rem 0.75rem", fontSize: "0.8rem" }}
+                      >
+                        Очистить
+                      </Button>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
             <div style={{ marginBottom: "1rem" }}>
@@ -679,10 +739,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       <CustomerPickModal
         isOpen={customerPickModalOpen}
         onClose={() => setCustomerPickModalOpen(false)}
-        onSelect={(c) => {
-          selectCustomer(c);
-          setCustomerPickModalOpen(false);
-        }}
+        onSelect={(c) => addSelectedCustomer(c)}
         fetchCustomers={fetchCustomersForModal}
       />
     </div>

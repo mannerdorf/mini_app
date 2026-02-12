@@ -36,6 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     permissions?: Record<string, boolean>;
     financial_access?: boolean;
     access_all_inns?: boolean;
+    customers?: { inn?: string; name?: string }[];
   } = req.body;
   if (typeof body === "string") {
     try {
@@ -46,8 +47,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const accessAllInns = !!body?.access_all_inns;
-  const inn = typeof body?.inn === "string" ? body.inn.trim() : "";
-  const companyName = typeof body?.company_name === "string" ? body.company_name.trim() : "";
+  const definedCustomers =
+    Array.isArray(body?.customers) && body.customers.length > 0
+      ? body.customers
+          .map((c) => ({
+            inn: typeof c?.inn === "string" ? c.inn.trim() : "",
+            name: typeof c?.name === "string" ? c.name.trim() : "",
+          }))
+          .filter((c) => c.inn)
+      : [];
+  const fallbackInn = typeof body?.inn === "string" ? body.inn.trim() : "";
+  const fallbackCompanyName = typeof body?.company_name === "string" ? body.company_name.trim() : "";
+  const primaryCustomer = definedCustomers[0];
+  const inn = primaryCustomer?.inn || fallbackInn;
+  const companyName = primaryCustomer?.name || fallbackCompanyName;
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   const sendEmail = body?.send_email !== false;
   const permissions = body?.permissions && typeof body.permissions === "object"
@@ -75,12 +88,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [login, passwordHash, innForDb, companyName, JSON.stringify(permissions), financialAccess, accessAllInns]
     );
 
-    if (!accessAllInns && inn) {
-      await pool.query(
-        `INSERT INTO account_companies (login, inn, name) VALUES ($1, $2, $3)
-         ON CONFLICT (login, inn) DO UPDATE SET name = EXCLUDED.name`,
-        [login, inn, companyName]
-      );
+    if (!accessAllInns) {
+      const customersToInsert = definedCustomers.length
+        ? definedCustomers
+        : inn
+        ? [{ inn, name: companyName }]
+        : [];
+      for (const cust of customersToInsert) {
+        await pool.query(
+          `INSERT INTO account_companies (login, inn, name) VALUES ($1, $2, $3)
+           ON CONFLICT (login, inn) DO UPDATE SET name = EXCLUDED.name`,
+          [login, cust.inn, cust.name || companyName]
+        );
+      }
     }
 
     if (sendEmail) {

@@ -52,7 +52,6 @@ export function CustomerPickModal({ isOpen, onClose, onSelect, fetchCustomers }:
 
   const handleSelect = (c: CustomerItem) => {
     onSelect(c);
-    onClose();
   };
 
   return (
