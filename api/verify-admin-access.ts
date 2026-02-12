@@ -39,7 +39,7 @@ export default async function handler(
     return res.status(400).json({ error: "Войдите в аккаунт для доступа в админку" });
   }
 
-  if (login === adminLogin && password === adminPassword) {
+  if (login.toLowerCase() === adminLogin.toLowerCase() && password === adminPassword) {
     const adminToken = createAdminToken();
     return res.status(200).json({ ok: true, adminToken });
   }
