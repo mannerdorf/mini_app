@@ -3655,6 +3655,8 @@ function ProfilePage({
     const [adminToken, setAdminToken] = useState<string | null>(() => typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('haulz.adminToken') : null);
     const [adminVerifyLoading, setAdminVerifyLoading] = useState(false);
     const [adminVerifyError, setAdminVerifyError] = useState<string | null>(null);
+    const [adminLoginInput, setAdminLoginInput] = useState('');
+    const [adminPasswordInput, setAdminPasswordInput] = useState('');
 
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
@@ -3938,8 +3940,10 @@ function ProfilePage({
             return <AdminPage adminToken={token} onBack={() => setCurrentView('main')} />;
         }
         const tryAdminAccess = async () => {
-            if (!activeAccount?.login || !activeAccount?.password) {
-                setAdminVerifyError('Войдите в аккаунт приложения');
+            const login = adminLoginInput.trim();
+            const password = adminPasswordInput;
+            if (!login || !password) {
+                setAdminVerifyError('Введите логин и пароль');
                 return;
             }
             setAdminVerifyLoading(true);
@@ -3948,7 +3952,7 @@ function ProfilePage({
                 const res = await fetch('/api/verify-admin-access', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }),
+                    body: JSON.stringify({ login, password }),
                 });
                 const data = await res.json();
                 if (res.ok && data.adminToken) {
@@ -3972,18 +3976,28 @@ function ProfilePage({
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Админка</Typography.Headline>
                 </Flex>
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
-                    Доступ для пользователя, чей логин и пароль совпадают с ADMIN_LOGIN и ADMIN_PASSWORD.
+                    Введите логин и пароль администратора.
                 </Typography.Body>
-                {!activeAccount?.login || !activeAccount?.password ? (
-                    <Typography.Body style={{ color: 'var(--color-error)' }}>Сначала войдите в аккаунт приложения.</Typography.Body>
-                ) : (
-                    <>
-                        {adminVerifyError && <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{adminVerifyError}</Typography.Body>}
-                        <Button className="filter-button" disabled={adminVerifyLoading} onClick={tryAdminAccess}>
-                            {adminVerifyLoading ? 'Проверка...' : 'Войти'}
-                        </Button>
-                    </>
-                )}
+                <Input
+                    type="text"
+                    value={adminLoginInput}
+                    onChange={(e) => { setAdminLoginInput(e.target.value); setAdminVerifyError(null); }}
+                    placeholder="Логин"
+                    style={{ marginBottom: '0.5rem' }}
+                    autoComplete="username"
+                />
+                <Input
+                    type="password"
+                    value={adminPasswordInput}
+                    onChange={(e) => { setAdminPasswordInput(e.target.value); setAdminVerifyError(null); }}
+                    placeholder="Пароль"
+                    style={{ marginBottom: '0.75rem' }}
+                    autoComplete="current-password"
+                />
+                {adminVerifyError && <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{adminVerifyError}</Typography.Body>}
+                <Button className="filter-button" disabled={adminVerifyLoading || !adminLoginInput.trim() || !adminPasswordInput} onClick={tryAdminAccess}>
+                    {adminVerifyLoading ? 'Проверка...' : 'Войти'}
+                </Button>
             </div>
         );
     }
