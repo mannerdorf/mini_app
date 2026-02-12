@@ -70,9 +70,6 @@ function UserRow({
       <Flex justify="space-between" align="flex-start" wrap="wrap" gap="0.5rem">
         <div style={{ flex: 1, minWidth: 0 }}>
           <Typography.Body style={{ fontWeight: 600 }}>{user.login}</Typography.Body>
-          <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-            {user.access_all_inns ? "все ИНН" : `ИНН ${user.inn}`} · {user.financial_access ? "Фин. да" : "Фин. нет"}
-          </Typography.Body>
         </div>
         <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>Профиль</Typography.Body>
