@@ -44,32 +44,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const smtpHost = typeof body?.smtp_host === "string" ? body.smtp_host.trim() : null;
-    const smtpPort = typeof body?.smtp_port === "number" ? body.smtp_port : null;
-    const smtpUser = typeof body?.smtp_user === "string" ? body.smtp_user.trim() : null;
+    const smtpHost = typeof body?.smtp_host === "string" ? body.smtp_host.trim() || null : null;
+    const pr = body?.smtp_port;
+    const smtpPort =
+      typeof pr === "number" && !isNaN(pr) ? pr : typeof pr === "string" ? (parseInt(pr, 10) || null) : null;
+    const smtpUser = typeof body?.smtp_user === "string" ? body.smtp_user.trim() || null : null;
     const smtpPassword = typeof body?.smtp_password === "string" && body.smtp_password.trim()
       ? Buffer.from(body.smtp_password.trim()).toString("base64")
       : null;
-    const fromEmail = typeof body?.from_email === "string" ? body.from_email.trim() : null;
-    const fromName = typeof body?.from_name === "string" ? body.from_name.trim() : null;
+    const fromEmail = typeof body?.from_email === "string" ? body.from_email.trim() || null : null;
+    const fromName = typeof body?.from_name === "string" ? body.from_name.trim() || null : null;
 
+    // Upsert: создаём строку если нет, иначе обновляем
     if (smtpPassword) {
       await pool.query(
-        `UPDATE admin_email_settings SET
-          smtp_host = COALESCE($1, smtp_host), smtp_port = COALESCE($2, smtp_port),
-          smtp_user = COALESCE($3, smtp_user), smtp_password_encrypted = $4,
-          from_email = COALESCE($5, from_email), from_name = COALESCE($6, from_name),
-          updated_at = now() WHERE id = 1`,
-        [smtpHost, smtpPort, smtpUser, smtpPassword, fromEmail, fromName]
+        `INSERT INTO admin_email_settings (id, smtp_host, smtp_port, smtp_user, smtp_password_encrypted, from_email, from_name, updated_at)
+         VALUES (1, $1, $2, $3, $4, $5, $6, now())
+         ON CONFLICT (id) DO UPDATE SET
+          smtp_host = COALESCE(EXCLUDED.smtp_host, admin_email_settings.smtp_host),
+          smtp_port = COALESCE(EXCLUDED.smtp_port, admin_email_settings.smtp_port),
+          smtp_user = COALESCE(EXCLUDED.smtp_user, admin_email_settings.smtp_user),
+          smtp_password_encrypted = EXCLUDED.smtp_password_encrypted,
+          from_email = COALESCE(EXCLUDED.from_email, admin_email_settings.from_email),
+          from_name = COALESCE(EXCLUDED.from_name, admin_email_settings.from_name),
+          updated_at = now()`,
+        [smtpHost, smtpPort, smtpUser, smtpPassword, fromEmail, fromName || "HAULZ"]
       );
     } else {
       await pool.query(
-        `UPDATE admin_email_settings SET
-          smtp_host = COALESCE($1, smtp_host), smtp_port = COALESCE($2, smtp_port),
-          smtp_user = COALESCE($3, smtp_user),
-          from_email = COALESCE($4, from_email), from_name = COALESCE($5, from_name),
-          updated_at = now() WHERE id = 1`,
-        [smtpHost, smtpPort, smtpUser, fromEmail, fromName]
+        `INSERT INTO admin_email_settings (id, smtp_host, smtp_port, smtp_user, from_email, from_name, updated_at)
+         VALUES (1, $1, $2, $3, $4, $5, now())
+         ON CONFLICT (id) DO UPDATE SET
+          smtp_host = COALESCE(EXCLUDED.smtp_host, admin_email_settings.smtp_host),
+          smtp_port = COALESCE(EXCLUDED.smtp_port, admin_email_settings.smtp_port),
+          smtp_user = COALESCE(EXCLUDED.smtp_user, admin_email_settings.smtp_user),
+          from_email = COALESCE(EXCLUDED.from_email, admin_email_settings.from_email),
+          from_name = COALESCE(EXCLUDED.from_name, admin_email_settings.from_name),
+          updated_at = now()`,
+        [smtpHost, smtpPort, smtpUser, fromEmail, fromName || "HAULZ"]
       );
     }
 
