@@ -35,7 +35,7 @@ import { CMSStandalonePage } from "./pages/CMSStandalonePage";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
 import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
-import { usePerevozki, usePerevozkiMulti, usePrevPeriodPerevozki } from "./hooks/useApi";
+import { usePerevozki, usePerevozkiMulti, usePerevozkiMultiAccounts, usePrevPeriodPerevozki } from "./hooks/useApi";
 import type {
     Account, ApiError, AuthData, CargoItem, CargoStat, CompanyRow, CustomerOption,
     DateFilter, HaulzOffice, HeaderCompanyRow, HomePeriodFilter, PerevozkaTimelineStep,
@@ -2267,12 +2267,16 @@ function DashboardPage({
 function CustomerSwitcher({
     accounts,
     activeAccountId,
+    selectedAccountIds,
     onSwitchAccount,
+    onToggleSelectedAccount,
     onUpdateAccount,
 }: {
     accounts: Account[];
     activeAccountId: string | null;
+    selectedAccountIds: string[];
     onSwitchAccount: (accountId: string) => void;
+    onToggleSelectedAccount: (accountId: string) => void;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
 }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -2283,6 +2287,7 @@ function CustomerSwitcher({
     const activeAccount = accounts.find((acc) => acc.id === activeAccountId) || null;
     const activeLogin = activeAccount?.login?.trim().toLowerCase() ?? "";
     const activeInn = activeAccount?.activeCustomerInn ?? activeAccount?.customers?.[0]?.inn ?? "";
+    const selectedSet = new Set(selectedAccountIds);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -2313,10 +2318,31 @@ function CustomerSwitcher({
     const activeCompany = companies.find(
         (c) => c.login === activeLogin && (c.inn === '' || c.inn === activeInn)
     );
-    // Не показываем логин: приоритет — компания из списка, имя заказчика, первый из списка заказчиков, иначе «Компания»
-    const displayName = activeCompany ? stripOoo(activeCompany.name) : stripOoo(activeAccount?.customer || activeAccount?.customers?.[0]?.name || 'Компания');
+    const selectedAccounts = selectedAccountIds.map((id) => accounts.find((a) => a.id === id)).filter(Boolean) as Account[];
+    const displayNames = selectedAccounts.map((acc) => {
+        const c = companies.find((x) => x.login === acc?.login?.trim().toLowerCase() && (x.inn === '' || x.inn === (acc?.activeCustomerInn ?? acc?.customers?.[0]?.inn ?? '')));
+        return c ? stripOoo(c.name) : stripOoo(acc?.customer || acc?.customers?.[0]?.name || 'Компания');
+    });
+    const displayLabel =
+        displayNames.length === 0
+            ? stripOoo(activeCompany?.name || activeAccount?.customer || 'Компания')
+            : displayNames.length === 1
+              ? displayNames[0]
+              : displayNames.length === 2
+                ? `${displayNames[0]}, ${displayNames[1]}`
+                : `${displayNames[0]}, ${displayNames[1]} +${displayNames.length - 2}`;
 
-    const handleSelect = (c: HeaderCompanyRow) => {
+    const handleRowClick = (c: HeaderCompanyRow) => {
+        const acc = accounts.find((a) => a.login.trim().toLowerCase() === c.login);
+        if (!acc) return;
+        if (c.inn !== undefined && c.inn !== null) {
+            onUpdateAccount(acc.id, { activeCustomerInn: c.inn });
+        }
+        onToggleSelectedAccount(acc.id);
+    };
+
+    const handleSelectOnly = (c: HeaderCompanyRow, e: React.MouseEvent) => {
+        e.stopPropagation();
         const acc = accounts.find((a) => a.login.trim().toLowerCase() === c.login);
         if (!acc) return;
         onSwitchAccount(acc.id);
@@ -2340,10 +2366,10 @@ function CustomerSwitcher({
                 className="filter-button"
                 onClick={() => setIsOpen(!isOpen)}
                 style={{ padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}
-                title="Выбрать компанию"
+                title="Выбрать компании"
             >
                 <Typography.Body style={{ fontSize: '0.9rem' }}>
-                    {displayName}
+                    {displayLabel}
                 </Typography.Body>
                 <ChevronDown className="w-4 h-4" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </Button>
@@ -2351,7 +2377,7 @@ function CustomerSwitcher({
                 <div
                     className="filter-dropdown"
                     style={{
-                        minWidth: '220px',
+                        minWidth: '260px',
                         maxHeight: 'min(60vh, 320px)',
                         overflowY: 'auto',
                     }}
@@ -2374,29 +2400,61 @@ function CustomerSwitcher({
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     style={{ fontSize: '0.9rem', padding: '0.4rem 0.5rem' }}
                                 />
+                                <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+                                    Отметьте несколько компаний — перевозки покажутся по всем выбранным
+                                </Typography.Body>
                             </div>
                             {filteredCompanies.length === 0 ? (
                                 <div style={{ padding: '0.75rem 1rem' }}>
                                     <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Ничего не найдено</Typography.Body>
                                 </div>
                             ) : filteredCompanies.map((c) => {
+                            const acc = accounts.find((a) => a.login.trim().toLowerCase() === c.login);
+                            const isSelected = acc ? selectedSet.has(acc.id) : false;
                             const isActive = activeLogin === c.login && (c.inn === '' || c.inn === activeInn);
                             return (
                                 <div
                                     key={`${c.login}-${c.inn}`}
-                                    className={`dropdown-item ${isActive ? 'active' : ''}`}
-                                    onClick={() => handleSelect(c)}
+                                    className={`dropdown-item ${isSelected ? 'active' : ''}`}
+                                    onClick={() => handleRowClick(c)}
                                     style={{
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'space-between',
-                                        backgroundColor: isActive ? 'var(--color-bg-hover)' : 'transparent',
+                                        gap: '0.5rem',
+                                        backgroundColor: isSelected ? 'var(--color-bg-hover)' : 'transparent',
                                     }}
                                 >
-                                    <Typography.Body style={{ fontSize: '0.9rem', fontWeight: isActive ? 'bold' : 'normal' }}>
-                                        {stripOoo(c.name)}
-                                    </Typography.Body>
-                                    {isActive && <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />}
+                                    <Flex align="center" style={{ gap: '0.5rem', minWidth: 0, flex: 1 }}>
+                                        <span
+                                            role="checkbox"
+                                            aria-checked={isSelected}
+                                            style={{
+                                                width: 18,
+                                                height: 18,
+                                                borderRadius: 4,
+                                                border: '2px solid var(--color-border)',
+                                                backgroundColor: isSelected ? 'var(--color-primary)' : 'transparent',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            {isSelected && <Check className="w-3 h-3" style={{ color: '#fff' }} />}
+                                        </span>
+                                        <Typography.Body style={{ fontSize: '0.9rem', fontWeight: isActive ? 'bold' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {stripOoo(c.name)}
+                                        </Typography.Body>
+                                    </Flex>
+                                    <Button
+                                        className="filter-button"
+                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', flexShrink: 0 }}
+                                        onClick={(e) => handleSelectOnly(c, e)}
+                                        title="Только эта компания"
+                                    >
+                                        Только
+                                    </Button>
                                 </div>
                             );
                         })}
@@ -4994,7 +5052,7 @@ function CompaniesListPage({
 const PEREVOZKI_MODES: PerevozkiRole[] = ["Customer", "Sender", "Receiver"];
 
 function CargoPage({ 
-    auth, 
+    auths, 
     searchText, 
     onOpenChat, 
     onCustomerDetected,
@@ -5008,7 +5066,8 @@ function CargoPage({
     useServiceRequest = false,
     showSums = true,
 }: { 
-    auth: AuthData; 
+    /** Один или несколько аккаунтов — перевозки объединяются */
+    auths: AuthData[]; 
     searchText: string; 
     onOpenChat: (cargoNumber?: string) => void | Promise<void>; 
     onCustomerDetected?: (customer: string) => void;
@@ -5023,6 +5082,7 @@ function CargoPage({
     /** Скрыть финансовые данные (суммы, статус счёта) */
     showSums?: boolean;
 }) {
+    const primaryAuth = auths.length > 0 ? auths[0] : null;
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
     
     // Filters State; при переключении вкладок восстанавливаем из localStorage
@@ -5150,24 +5210,23 @@ function CargoPage({
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
 
     const prevRange = useMemo(() => getPreviousPeriodRange(dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo), [dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo]);
-    const { items, error, loading, mutate: mutatePerevozki } = usePerevozkiMulti({
-        auth,
+    const { items, error, loading, mutate: mutatePerevozki } = usePerevozkiMultiAccounts({
+        auths,
         dateFrom: apiDateRange.dateFrom,
         dateTo: apiDateRange.dateTo,
         useServiceRequest,
         roleCustomer,
         roleSender,
         roleReceiver,
-        inn: !useServiceRequest ? auth.inn : undefined,
     });
     const { items: prevPeriodItems, loading: prevPeriodLoading } = usePrevPeriodPerevozki({
-        auth,
+        auth: primaryAuth,
         dateFrom: apiDateRange.dateFrom,
         dateTo: apiDateRange.dateTo,
         dateFromPrev: prevRange?.dateFrom ?? '',
         dateToPrev: prevRange?.dateTo ?? '',
         useServiceRequest: true,
-        enabled: !!useServiceRequest && !!prevRange,
+        enabled: !!useServiceRequest && !!prevRange && !!primaryAuth,
     });
 
     useEffect(() => {
@@ -5934,8 +5993,8 @@ function CargoPage({
                                             const longUrls: Record<string, string> = {};
                                             for (const { label, metod } of docTypesList) {
                                                 const params = new URLSearchParams({
-                                                    login: auth.login,
-                                                    password: auth.password,
+                                                    login: primaryAuth.login,
+                                                    password: primaryAuth.password,
                                                     metod,
                                                     number: item.Number!,
                                                 });
@@ -5955,8 +6014,8 @@ function CargoPage({
                                                         method: 'POST',
                                                         headers: { 'Content-Type': 'application/json' },
                                                         body: JSON.stringify({
-                                                            login: auth.login,
-                                                            password: auth.password,
+                                                            login: primaryAuth.login,
+                                                            password: primaryAuth.password,
                                                             metod,
                                                             number: item.Number,
                                                         }),
@@ -6150,12 +6209,12 @@ function CargoPage({
             </div>
             )}
 
-            {selectedCargo && (
+            {selectedCargo && primaryAuth && (
                 <CargoDetailsModal
                     item={selectedCargo}
                     isOpen={!!selectedCargo}
                     onClose={() => setSelectedCargo(null)}
-                    auth={auth}
+                    auth={primaryAuth}
                     onOpenChat={onOpenChat}
                     isFavorite={isFavorite}
                     onToggleFavorite={toggleFavorite}
@@ -6198,8 +6257,44 @@ function getTimelineStepColor(label: string): 'success' | 'warning' | 'danger' |
     return 'default';
 }
 
-/** Загрузка и сортировка статусов перевозки (общая логика для модалки и дашборда) */
-async function fetchPerevozkaTimeline(auth: AuthData, number: string, item: CargoItem): Promise<PerevozkaTimelineStep[] | null> {
+/** Результат запроса Getperevozka: статусы и табличная часть номенклатуры */
+type PerevozkaDetailsResult = {
+    steps: PerevozkaTimelineStep[] | null;
+    nomenclature: Record<string, unknown>[];
+};
+
+const STEPS_KEYS = ['items', 'Steps', 'stages', 'Statuses'];
+const NOMENCLATURE_KEYS = ['Nomenclature', 'Goods', 'CargoNomenclature', 'ПринятыйГруз', 'Номенклатура', 'TablePart', 'CargoItems', 'Items', 'GoodsList', 'Nomenklatura'];
+
+function extractNomenclatureFromPerevozka(data: any): Record<string, unknown>[] {
+    const tryExtract = (obj: any): Record<string, unknown>[] => {
+        if (!obj || typeof obj !== 'object') return [];
+        for (const key of NOMENCLATURE_KEYS) {
+            const val = obj[key];
+            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0] !== null) {
+                return val as Record<string, unknown>[];
+            }
+        }
+        for (const key of Object.keys(obj)) {
+            if (STEPS_KEYS.includes(key)) continue;
+            const val = obj[key];
+            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0] !== null && !Array.isArray(val[0])) {
+                return val as Record<string, unknown>[];
+            }
+        }
+        return [];
+    };
+    const fromRoot = tryExtract(data);
+    if (fromRoot.length > 0) return fromRoot;
+    for (const nest of ['Response', 'Data', 'Result', 'result', 'data']) {
+        const fromNest = tryExtract(data?.[nest]);
+        if (fromNest.length > 0) return fromNest;
+    }
+    return [];
+}
+
+/** Загрузка статусов перевозки и номенклатуры принятого груза (один запрос Getperevozka) */
+async function fetchPerevozkaDetails(auth: AuthData, number: string, item: CargoItem): Promise<PerevozkaDetailsResult> {
     const res = await fetch(PROXY_API_GETPEREVOZKA_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -6217,14 +6312,15 @@ async function fetchPerevozkaTimeline(auth: AuthData, number: string, item: Carg
     }
     const data = await res.json();
     const raw = Array.isArray(data) ? data : (data?.items ?? data?.Steps ?? data?.stages ?? data?.Statuses ?? []);
-    if (!Array.isArray(raw)) return null;
-    const steps: PerevozkaTimelineStep[] = raw.map((el: any) => {
-        const rawLabel = el?.Stage ?? el?.Name ?? el?.Status ?? el?.label ?? String(el);
-        const labelStr = typeof rawLabel === 'string' ? rawLabel : String(rawLabel);
-        const date = el?.Date ?? el?.date ?? el?.DatePrih ?? el?.DateVr;
-        const displayLabel = mapTimelineStageLabel(labelStr, item);
-        return { label: displayLabel, date, completed: true };
-    });
+    const steps: PerevozkaTimelineStep[] = Array.isArray(raw)
+        ? raw.map((el: any) => {
+            const rawLabel = el?.Stage ?? el?.Name ?? el?.Status ?? el?.label ?? String(el);
+            const labelStr = typeof rawLabel === 'string' ? rawLabel : String(rawLabel);
+            const date = el?.Date ?? el?.date ?? el?.DatePrih ?? el?.DateVr;
+            const displayLabel = mapTimelineStageLabel(labelStr, item);
+            return { label: displayLabel, date, completed: true };
+        })
+        : [];
     const fromCity = cityToCode(item.CitySender) || '—';
     const toCity = cityToCode(item.CityReceiver) || '—';
     const senderLabel = `Получена в ${fromCity}`;
@@ -6243,8 +6339,15 @@ async function fetchPerevozkaTimeline(auth: AuthData, number: string, item: Carg
     };
     const sorted = steps.map((s, i) => ({ s, key: orderOf(s.label, i) }))
         .sort((a, b) => a.key - b.key)
-        .map(x => x.s);
-    return sorted.length ? sorted : null;
+        .map((x) => x.s);
+    const nomenclature = extractNomenclatureFromPerevozka(data);
+    return { steps: sorted.length ? sorted : null, nomenclature };
+}
+
+/** Загрузка только таймлайна (для дашборда — обратная совместимость) */
+async function fetchPerevozkaTimeline(auth: AuthData, number: string, item: CargoItem): Promise<PerevozkaTimelineStep[] | null> {
+    const { steps } = await fetchPerevozkaDetails(auth, number, item);
+    return steps;
 }
 
 function CargoDetailsModal({
@@ -6270,21 +6373,28 @@ function CargoDetailsModal({
     const [downloadError, setDownloadError] = useState<string | null>(null);
     const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string; docType: string; blob?: Blob; downloadFileName?: string } | null>(null);
     const [perevozkaTimeline, setPerevozkaTimeline] = useState<PerevozkaTimelineStep[] | null>(null);
+    const [perevozkaNomenclature, setPerevozkaNomenclature] = useState<Record<string, unknown>[]>([]);
     const [perevozkaLoading, setPerevozkaLoading] = useState(false);
     const [perevozkaError, setPerevozkaError] = useState<string | null>(null);
 
-    // Загрузка таймлайна перевозки при открытии карточки
+    // Загрузка статусов и номенклатуры перевозки при открытии карточки (один запрос Getperevozka)
     useEffect(() => {
         if (!isOpen || !item?.Number || !auth?.login || !auth?.password) {
             setPerevozkaTimeline(null);
+            setPerevozkaNomenclature([]);
             setPerevozkaError(null);
             return;
         }
         let cancelled = false;
         setPerevozkaLoading(true);
         setPerevozkaError(null);
-        fetchPerevozkaTimeline(auth, item.Number, item)
-            .then((sorted) => { if (!cancelled) setPerevozkaTimeline(sorted); })
+        fetchPerevozkaDetails(auth, item.Number, item)
+            .then(({ steps, nomenclature }) => {
+                if (!cancelled) {
+                    setPerevozkaTimeline(steps);
+                    setPerevozkaNomenclature(nomenclature || []);
+                }
+            })
             .catch((e: any) => { if (!cancelled) setPerevozkaError(e?.message || 'Не удалось загрузить статусы'); })
             .finally(() => { if (!cancelled) setPerevozkaLoading(false); });
         return () => { cancelled = true; };
@@ -6765,6 +6875,52 @@ function CargoDetailsModal({
                             </div>
                             );
                         })()}
+                    </div>
+                )}
+
+                {/* Табличная часть номенклатуры принятого груза */}
+                {!perevozkaLoading && perevozkaNomenclature.length > 0 && (
+                    <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                        <Typography.Headline style={{ marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: 600 }}>
+                            Номенклатура принятого груза
+                        </Typography.Headline>
+                        <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                <thead>
+                                    <tr style={{ backgroundColor: 'var(--color-bg-hover)' }}>
+                                        {Object.keys(perevozkaNomenclature[0]).map((col) => (
+                                            <th
+                                                key={col}
+                                                style={{
+                                                    padding: '0.5rem 0.75rem',
+                                                    textAlign: 'left',
+                                                    fontWeight: 600,
+                                                    borderBottom: '1px solid var(--color-border)',
+                                                }}
+                                            >
+                                                {col}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {perevozkaNomenclature.map((row, idx) => (
+                                        <tr key={idx} style={{ borderBottom: idx < perevozkaNomenclature.length - 1 ? '1px solid var(--color-border)' : undefined }}>
+                                            {Object.keys(perevozkaNomenclature[0]).map((col) => (
+                                                <td
+                                                    key={col}
+                                                    style={{ padding: '0.5rem 0.75rem', verticalAlign: 'top' }}
+                                                >
+                                                    {row[col] !== undefined && row[col] !== null && String(row[col]).trim() !== ''
+                                                        ? String(row[col])
+                                                        : '—'}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
 
@@ -8021,6 +8177,8 @@ export default function App() {
     // Множественные аккаунты
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+    /** Выбранные компании для отображения перевозок (можно несколько) */
+    const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
     const [useServiceRequest, setUseServiceRequest] = useState(false);
     const [serviceRefreshSpinning, setServiceRefreshSpinning] = useState(false);
     
@@ -8041,6 +8199,27 @@ export default function App() {
         if (!activeAccountId) return null;
         return accounts.find(acc => acc.id === activeAccountId) || null;
     }, [accounts, activeAccountId]);
+
+    /** Аккаунты для отображения перевозок (один или несколько) */
+    const selectedAuths = useMemo((): AuthData[] => {
+        return selectedAccountIds
+            .map((id) => accounts.find((acc) => acc.id === id))
+            .filter((acc): acc is Account => !!acc)
+            .map((acc) => ({
+                login: acc.login,
+                password: acc.password,
+                ...(acc.activeCustomerInn ? { inn: acc.activeCustomerInn } : {}),
+                ...(acc.isRegisteredUser ? { isRegisteredUser: true } : {}),
+            }));
+    }, [accounts, selectedAccountIds]);
+
+    // Если выбранных компаний нет, но есть активный аккаунт — подставляем его
+    useEffect(() => {
+        if (accounts.length > 0 && selectedAccountIds.length === 0 && activeAccountId && accounts.some((a) => a.id === activeAccountId)) {
+            setSelectedAccountIds([activeAccountId]);
+        }
+    }, [accounts.length, activeAccountId, selectedAccountIds.length]);
+
     // Служебный режим: доступен зарегистрированным пользователям с правом service_mode (галочка в CMS)
     const serviceModeUnlocked = useMemo(() => {
         return !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
@@ -8301,6 +8480,26 @@ export default function App() {
                         } else {
                             setActiveAccountId(parsedAccounts[0].id);
                         }
+                        const savedSelectedIds = window.localStorage.getItem("haulz.selectedAccountIds");
+                        let didSetSelected = false;
+                        if (savedSelectedIds) {
+                            try {
+                                const ids = JSON.parse(savedSelectedIds) as string[];
+                                if (Array.isArray(ids) && ids.length > 0) {
+                                    const valid = ids.filter((id) => parsedAccounts.some((acc) => acc.id === id));
+                                    if (valid.length > 0) {
+                                        setSelectedAccountIds(valid);
+                                        didSetSelected = true;
+                                    }
+                                }
+                            } catch {
+                                // ignore
+                            }
+                        }
+                        if (!didSetSelected) {
+                            const firstId = (savedActiveId && parsedAccounts.find(acc => acc.id === savedActiveId) ? savedActiveId : parsedAccounts[0].id) ?? null;
+                            setSelectedAccountIds(firstId ? [firstId] : []);
+                        }
                         // Восстанавливаем последнюю вкладку (без сохранения секретного режима)
                         if (savedTab && !hasUrlTabOverrideRef.current) {
                             const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs", "support"];
@@ -8349,7 +8548,7 @@ export default function App() {
         }
     }, [activeTab]);
     
-    // Сохранение аккаунтов в localStorage
+    // Сохранение аккаунтов и выбранных компаний в localStorage
     useEffect(() => {
         if (typeof window === "undefined" || accounts.length === 0) return;
         try {
@@ -8357,10 +8556,13 @@ export default function App() {
             if (activeAccountId) {
                 window.localStorage.setItem("haulz.activeAccountId", activeAccountId);
             }
+            if (selectedAccountIds.length > 0) {
+                window.localStorage.setItem("haulz.selectedAccountIds", JSON.stringify(selectedAccountIds));
+            }
         } catch {
             // игнорируем ошибки записи
         }
-    }, [accounts, activeAccountId]);
+    }, [accounts, activeAccountId, selectedAccountIds]);
     const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
 
@@ -9022,9 +9224,12 @@ export default function App() {
     const handleRemoveAccount = (accountId: string) => {
         const newAccounts = accounts.filter(acc => acc.id !== accountId);
         setAccounts(newAccounts);
-        
+        setSelectedAccountIds((prev) => {
+            const next = prev.filter((id) => id !== accountId);
+            if (next.length === 0 && newAccounts.length > 0) return [newAccounts[0].id];
+            return next;
+        });
         if (activeAccountId === accountId) {
-            // Если удалили активный аккаунт, переключаемся на первый доступный
             if (newAccounts.length > 0) {
                 setActiveAccountId(newAccounts[0].id);
             } else {
@@ -9034,10 +9239,28 @@ export default function App() {
         }
     };
     
-    // Переключение аккаунта
+    // Переключение аккаунта (одна компания — подставляем как единственную выбранную)
     const handleSwitchAccount = (accountId: string) => {
         setActiveAccountId(accountId);
+        setSelectedAccountIds([accountId]);
     };
+
+    // Подключить/отключить компанию в мультивыборе (для списка перевозок)
+    const handleToggleSelectedAccount = (accountId: string) => {
+        setSelectedAccountIds((prev) => {
+            const has = prev.includes(accountId);
+            if (has) {
+                if (prev.length <= 1) return prev;
+                const next = prev.filter((id) => id !== accountId);
+                setActiveAccountId(next[0] ?? null);
+                return next;
+            }
+            const next = [...prev, accountId];
+            if (prev.length === 0) setActiveAccountId(accountId);
+            return next;
+        });
+    };
+
 
     // Обновление полей аккаунта (например, 2FA настройки)
     const handleUpdateAccount = (accountId: string, patch: Partial<Account>) => {
@@ -9370,7 +9593,9 @@ export default function App() {
                             <CustomerSwitcher
                                 accounts={accounts}
                                 activeAccountId={activeAccountId}
+                                selectedAccountIds={selectedAccountIds}
                                 onSwitchAccount={handleSwitchAccount}
+                                onToggleSelectedAccount={handleToggleSelectedAccount}
                                 onUpdateAccount={handleUpdateAccount}
                             />
                         )}
@@ -9435,9 +9660,9 @@ export default function App() {
                             useServiceRequest={useServiceRequest}
                         />
                     )}
-                    {showDashboard && activeTab === "cargo" && auth && (
+                    {showDashboard && activeTab === "cargo" && selectedAuths.length > 0 && (
                         <CargoPage
-                            auth={auth}
+                            auths={selectedAuths}
                             searchText={searchText}
                             onOpenChat={openAiChatDeepLink}
                             onCustomerDetected={updateActiveAccountCustomer}
@@ -9485,9 +9710,9 @@ export default function App() {
                             onUpdateAccount={handleUpdateAccount}
                         />
                     )}
-                    {!showDashboard && activeTab === "cargo" && auth && (
+                    {!showDashboard && activeTab === "cargo" && selectedAuths.length > 0 && (
                         <CargoPage
-                            auth={auth}
+                            auths={selectedAuths}
                             searchText={searchText}
                             onOpenChat={openAiChatDeepLink}
                             onCustomerDetected={updateActiveAccountCustomer}

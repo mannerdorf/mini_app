@@ -181,6 +181,101 @@ export function usePerevozkiMulti(params: PerevozkiMultiRoleParams) {
     };
 }
 
+/** Параметры загрузки перевозок по нескольким аккаунтам (объединённый список) */
+type PerevozkiMultiAccountsParams = {
+    auths: AuthData[];
+    dateFrom: string;
+    dateTo: string;
+    useServiceRequest?: boolean;
+    roleCustomer?: boolean;
+    roleSender?: boolean;
+    roleReceiver?: boolean;
+};
+
+const parseDateValueForMerge = (value: unknown): number => {
+    if (!value) return 0;
+    const d = new Date(String(value));
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+};
+const rolePriorityForMerge: Record<PerevozkiRole, number> = { Customer: 3, Sender: 2, Receiver: 1 };
+const chooseBestItem = (a: CargoItem, b: CargoItem): CargoItem => {
+    const aDate = parseDateValueForMerge(a.DatePrih) || parseDateValueForMerge(a.DateVr);
+    const bDate = parseDateValueForMerge(b.DatePrih) || parseDateValueForMerge(b.DateVr);
+    if (aDate !== bDate) return aDate >= bDate ? a : b;
+    return (rolePriorityForMerge[(a._role as PerevozkiRole) || "Receiver"] >= rolePriorityForMerge[(b._role as PerevozkiRole) || "Receiver"]) ? a : b;
+};
+
+async function fetcherPerevozkiMultiAccounts(params: PerevozkiMultiAccountsParams): Promise<CargoItem[]> {
+    const { auths, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver } = params;
+    if (!auths.length) return [];
+    const validAuths = auths.filter((a) => a?.login && a?.password);
+    if (!validAuths.length) return [];
+    if (validAuths.length === 1) {
+        return fetcherPerevozkiMulti({
+            auth: validAuths[0],
+            dateFrom,
+            dateTo,
+            useServiceRequest,
+            roleCustomer,
+            roleSender,
+            roleReceiver,
+            inn: validAuths[0].inn ?? undefined,
+        });
+    }
+    const results = await Promise.all(
+        validAuths.map((auth) =>
+            fetcherPerevozkiMulti({
+                auth,
+                dateFrom,
+                dateTo,
+                useServiceRequest,
+                roleCustomer,
+                roleSender,
+                roleReceiver,
+                inn: auth.inn ?? undefined,
+            })
+        )
+    );
+    const byNumber = new Map<string, CargoItem>();
+    for (const list of results) {
+        for (const item of list) {
+            const key = String(item.Number || "").trim();
+            if (!key) continue;
+            const existing = byNumber.get(key);
+            byNumber.set(key, existing ? chooseBestItem(existing, item) : item);
+        }
+    }
+    return Array.from(byNumber.values());
+}
+
+export function usePerevozkiMultiAccounts(params: PerevozkiMultiAccountsParams) {
+    const { auths, dateFrom, dateTo, useServiceRequest, roleCustomer, roleSender, roleReceiver } = params;
+    const key =
+        auths.length > 0 && auths.every((a) => a?.login && a?.password)
+            ? [
+                  "perevozki-multi-accounts",
+                  auths.map((a) => a.login).sort().join(","),
+                  dateFrom,
+                  dateTo,
+                  !!useServiceRequest,
+                  roleCustomer,
+                  roleSender,
+                  roleReceiver,
+              ]
+            : null;
+    const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
+        key,
+        () => fetcherPerevozkiMultiAccounts(params),
+        SWR_OPTIONS
+    );
+    return {
+        items: data ?? [],
+        error: error?.message ?? null,
+        loading: isLoading,
+        mutate,
+    };
+}
+
 type InvoicesParams = {
     auth: AuthData | null;
     dateFrom: string;
