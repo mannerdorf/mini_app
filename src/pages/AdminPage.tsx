@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
 import { ArrowLeft, Users, Mail, Loader2, Plus, Settings } from "lucide-react";
+import { TapSwitch } from "../components/TapSwitch";
 
 type CustomerSuggestion = { inn: string; customer_name: string; email: string };
 
@@ -15,6 +16,7 @@ const PERMISSION_KEYS = [
   { key: "doc_acts_settlement", label: "Акты сверок" },
   { key: "doc_tariffs", label: "Тарифы" },
   { key: "chat", label: "Чат" },
+  { key: "service_mode", label: "Служебный режим" },
 ] as const;
 
 type AdminPageProps = {
@@ -33,6 +35,52 @@ type User = {
   active: boolean;
   created_at: string;
 };
+
+function UserRow({
+  user,
+  adminToken,
+  onToggleActive,
+}: {
+  user: User;
+  adminToken: string;
+  onToggleActive: () => Promise<void>;
+}) {
+  const [loading, setLoading] = useState(false);
+  const handleToggle = async () => {
+    setLoading(true);
+    try {
+      await onToggleActive();
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <div
+      style={{
+        padding: "0.75rem",
+        border: "1px solid var(--color-border)",
+        borderRadius: "8px",
+        background: user.active ? "var(--color-bg-hover)" : "var(--color-bg-input)",
+        opacity: user.active ? 1 : 0.85,
+      }}
+    >
+      <Flex justify="space-between" align="flex-start" wrap="wrap" gap="0.5rem">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Typography.Body style={{ fontWeight: 600 }}>{user.company_name || user.login}</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+            {user.login} · {user.access_all_inns ? "все ИНН" : `ИНН ${user.inn}`} · {user.financial_access ? "Фин. да" : "Фин. нет"}
+          </Typography.Body>
+        </div>
+        <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>Профиль</Typography.Body>
+          <span onClick={(e) => e.stopPropagation()} style={{ cursor: loading ? "wait" : "pointer" }}>
+            <TapSwitch checked={user.active} onToggle={handleToggle} />
+          </span>
+        </Flex>
+      </Flex>
+    </div>
+  );
+}
 
 export function AdminPage({ adminToken, onBack }: AdminPageProps) {
   const [tab, setTab] = useState<"users" | "add" | "email">("users");
@@ -55,6 +103,7 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
     doc_acts_settlement: false,
     doc_tariffs: false,
     chat: true,
+    service_mode: false,
   });
   const [formFinancial, setFormFinancial] = useState(true);
   const [formSendEmail, setFormSendEmail] = useState(true);
@@ -74,6 +123,7 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
   const [customersSuggestions, setCustomersSuggestions] = useState<CustomerSuggestion[]>([]);
   const [customersSearchLoading, setCustomersSearchLoading] = useState(false);
   const [customersDropdownOpen, setCustomersDropdownOpen] = useState(false);
+  const [customersDirectoryError, setCustomersDirectoryError] = useState<string | null>(null);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const customersSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const customerSelectRef = useRef<HTMLDivElement>(null);
@@ -191,16 +241,25 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
   const loadCustomersFromDirectory = useCallback(
     async (query: string) => {
       setCustomersSearchLoading(true);
+      setCustomersDirectoryError(null);
       try {
         const res = await fetch(
           `/api/admin-customers-search?q=${encodeURIComponent(query)}&limit=100`,
           { headers: { Authorization: `Bearer ${adminToken}` } }
         );
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setCustomersDirectoryError((data?.error as string) || "Ошибка загрузки справочника");
+          setCustomersSuggestions([]);
+          return;
+        }
         setCustomersSuggestions(data.customers || []);
         setCustomersDropdownOpen(true);
-      } catch {
+        if (!query && (!data.customers || data.customers.length === 0)) {
+          setCustomersDirectoryError("Справочник пуст. Запустите крон refresh-cache или проверьте таблицу cache_customers.");
+        }
+      } catch (e: unknown) {
+        setCustomersDirectoryError((e as Error)?.message || "Ошибка загрузки справочника");
         setCustomersSuggestions([]);
       } finally {
         setCustomersSearchLoading(false);
@@ -295,20 +354,25 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               {users.map((u) => (
-                <div
+                <UserRow
                   key={u.id}
-                  style={{
-                    padding: "0.75rem",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "8px",
-                    background: "var(--color-bg-hover)",
+                  user={u}
+                  adminToken={adminToken}
+                  onToggleActive={async () => {
+                    const next = !u.active;
+                    try {
+                      const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                        body: JSON.stringify({ active: next }),
+                      });
+                      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
+                      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: next } : x)));
+                    } catch (e: unknown) {
+                      setError((e as Error)?.message || "Ошибка обновления");
+                    }
                   }}
-                >
-                  <Typography.Body style={{ fontWeight: 600 }}>{u.company_name || u.login}</Typography.Body>
-                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                    {u.login} · {u.access_all_inns ? "все ИНН" : `ИНН ${u.inn}`} · {u.financial_access ? "Фин. да" : "Фин. нет"}
-                  </Typography.Body>
-                </div>
+                />
               ))}
             </div>
           )}
@@ -335,6 +399,9 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
             </div>
             <div ref={customerSelectRef} style={{ marginBottom: "1rem", position: "relative" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик (из справочника)</Typography.Body>
+              {!formAccessAllInns && customersDirectoryError && (
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-error)", marginBottom: "0.5rem" }}>{customersDirectoryError}</Typography.Body>
+              )}
               {formAccessAllInns ? (
                 <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Доступ ко всем заказчикам — выбор не требуется</Typography.Body>
               ) : formInn ? (

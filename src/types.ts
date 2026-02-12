@@ -21,6 +21,7 @@ export type AccountPermissions = {
     doc_acts_settlement?: boolean;
     doc_tariffs?: boolean;
     chat?: boolean;
+    service_mode?: boolean;
 };
 
 export type Account = {

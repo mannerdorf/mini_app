@@ -3609,8 +3609,7 @@ function ProfilePage({
     onOpenCargo,
     onOpenTelegramBot,
     onOpenMaxBot,
-    onUpdateAccount,
-    onServiceModeChange
+    onUpdateAccount
 }: { 
     accounts: Account[]; 
     activeAccountId: string | null; 
@@ -3624,7 +3623,6 @@ function ProfilePage({
     onOpenTelegramBot?: () => Promise<void>;
     onOpenMaxBot?: () => Promise<void>;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
-    onServiceModeChange?: () => void;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
@@ -8102,12 +8100,6 @@ export default function App() {
     // Множественные аккаунты
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
-    // Служебный режим: активен если введён пароль в профиле; переключатель на вкладке «Грузы» включает запрос только по датам
-    const [serviceModeUnlocked, setServiceModeUnlocked] = useState(() => {
-        if (typeof window === 'undefined') return false;
-        try { window.localStorage.removeItem('haulz.serviceMode'); } catch {}
-        return window.localStorage.getItem('haulz.serviceMode.v2') === '1';
-    });
     const [useServiceRequest, setUseServiceRequest] = useState(false);
     const [serviceRefreshSpinning, setServiceRefreshSpinning] = useState(false);
     
@@ -8128,6 +8120,10 @@ export default function App() {
         if (!activeAccountId) return null;
         return accounts.find(acc => acc.id === activeAccountId) || null;
     }, [accounts, activeAccountId]);
+    // Служебный режим: доступен зарегистрированным пользователям с правом service_mode (галочка в CMS)
+    const serviceModeUnlocked = useMemo(() => {
+        return !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
+    }, [activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
     const persistTwoFactorSettings = useCallback(async (account: Account, patch: Partial<Account>) => {
         const login = account.login;
         if (!login) return;
@@ -9559,7 +9555,6 @@ export default function App() {
                             onOpenTelegramBot={openTelegramBotWithAccount}
                             onOpenMaxBot={openMaxBotWithAccount}
                             onUpdateAccount={handleUpdateAccount}
-                            onServiceModeChange={() => setServiceModeUnlocked(typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode.v2') === '1')}
                         />
                     )}
                     {!showDashboard && activeTab === "cargo" && auth && (
@@ -9614,7 +9609,6 @@ export default function App() {
                             onOpenTelegramBot={openTelegramBotWithAccount}
                             onOpenMaxBot={openMaxBotWithAccount}
                             onUpdateAccount={handleUpdateAccount}
-                            onServiceModeChange={() => setServiceModeUnlocked(typeof window !== 'undefined' && window.localStorage.getItem('haulz.serviceMode.v2') === '1')}
                         />
                     )}
             </div>
