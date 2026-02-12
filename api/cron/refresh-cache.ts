@@ -3,6 +3,7 @@ import { getPool } from "../_db.js";
 
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 const INVOICES_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices";
+const ACTS_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetActs";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 /** Кэш считается свежим 15 минут */
@@ -106,9 +107,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [JSON.stringify(Array.isArray(invoicesList) ? invoicesList : [])]
     );
 
+    // 3) Запрос УПД за весь период
+    let actsList: unknown[] = [];
+    try {
+      const actsUrl = `${ACTS_URL}?DateB=${dateFrom}&DateE=${dateTo}`;
+      const actsRes = await fetch(actsUrl, {
+        method: "GET",
+        headers: {
+          Auth: `Basic ${login}:${password}`,
+          Authorization: SERVICE_AUTH,
+        },
+      });
+      const actsText = await actsRes.text();
+      if (actsRes.ok) {
+        try {
+          const json = JSON.parse(actsText);
+          if (json && typeof json === "object" && json.Success !== false) {
+            actsList = Array.isArray(json) ? json : json.items ?? json.Acts ?? json.acts ?? [];
+          }
+        } catch {
+          // ignore
+        }
+      } else {
+        console.warn("refresh-cache acts non-ok:", actsRes.status, actsText.slice(0, 200));
+      }
+    } catch (e: any) {
+      console.error("refresh-cache acts fetch error:", e?.message || e);
+    }
+    await pool.query(
+      "update cache_acts set data = $1, fetched_at = now() where id = 1",
+      [JSON.stringify(Array.isArray(actsList) ? actsList : [])]
+    );
+
     const perevozkiCount = perevozkiList.length;
     const invoicesCount = Array.isArray(invoicesList) ? invoicesList.length : 0;
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:40rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiCount}</strong></p><p>Счетов: <strong>${invoicesCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p></body></html>`;
+    const actsCount = Array.isArray(actsList) ? actsList.length : 0;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:40rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiCount}</strong></p><p>Счетов: <strong>${invoicesCount}</strong></p><p>УПД: <strong>${actsCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p></body></html>`;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(html);
   } catch (e: any) {
