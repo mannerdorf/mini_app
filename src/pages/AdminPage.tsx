@@ -465,18 +465,20 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Typography.Body style={{ fontSize: "0.9rem" }}>Доступ ко всем ИНН</Typography.Body>
             <TapSwitch checked={editorAccessAllInns} onToggle={() => setEditorAccessAllInns((prev) => !prev)} />
           </Flex>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.5rem", marginBottom: "1rem" }}>
-            {PERMISSION_KEYS.map((perm) => (
-              <Flex
-                key={perm.key}
-                justify="space-between"
-                align="center"
-                style={{ padding: "0.5rem", border: "1px solid var(--color-border)", borderRadius: "0.5rem", background: "var(--color-bg-card)" }}
-              >
-                <Typography.Body style={{ fontSize: "0.85rem" }}>{perm.label}</Typography.Body>
-                <TapSwitch checked={editorPermissions[perm.key]} onToggle={() => handlePermissionsToggle(perm.key)} />
-              </Flex>
-            ))}
+          <div className="admin-form-section" style={{ marginBottom: "0.5rem" }}>
+            <div className="admin-form-section-header">Разделы</div>
+            <div className="admin-permissions-toolbar">
+              {PERMISSION_KEYS.map((perm) => (
+                <button
+                  key={perm.key}
+                  type="button"
+                  className={`permission-button ${editorPermissions[perm.key] ? "active" : ""}`}
+                  onClick={() => handlePermissionsToggle(perm.key)}
+                >
+                  {perm.label}
+                </button>
+              ))}
+            </div>
           </div>
           {editorError && (
             <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
@@ -645,14 +647,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <label htmlFor="fin" style={{ marginLeft: "0.5rem", fontSize: "0.9rem" }}>Финансовые показатели</label>
               </Flex>
             </div>
-            <div style={{ marginBottom: "1rem" }}>
-              <Typography.Body style={{ marginBottom: "0.5rem", fontSize: "0.85rem" }}>Разделы</Typography.Body>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+            <div className="admin-form-section">
+              <div className="admin-form-section-header">Разделы</div>
+              <div className="admin-permissions-toolbar">
                 {PERMISSION_KEYS.map(({ key, label }) => (
-                  <Flex key={key} align="center" style={{ minWidth: "120px" }}>
-                    <input type="checkbox" checked={!!formPermissions[key]} onChange={() => togglePerm(key)} id={`perm-${key}`} />
-                    <label htmlFor={`perm-${key}`} style={{ marginLeft: "0.35rem", fontSize: "0.8rem" }}>{label}</label>
-                  </Flex>
+                  <button
+                    type="button"
+                    key={key}
+                    className={`permission-button ${formPermissions[key] ? "active" : ""}`}
+                    onClick={() => togglePerm(key)}
+                  >
+                    {label}
+                  </button>
                 ))}
               </div>
             </div>

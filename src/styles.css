@@ -565,6 +565,43 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .admin-form-input {
     border-radius: 8px;
 }
+.admin-form-section {
+    background: var(--color-bg-card);
+    padding: 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--color-border);
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+.admin-form-section-header {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--color-text-primary);
+}
+.admin-permissions-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.permission-button {
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-text-primary);
+    padding: 0.25rem 0.75rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.permission-button:hover {
+    border-color: var(--color-primary-blue);
+}
+.permission-button.active {
+    background: var(--color-primary-blue);
+    color: white;
+    border-color: var(--color-primary-blue);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
 .light-mode .admin-form-input::placeholder,
 .light-mode .admin-form-input input::placeholder {
     color: #9ca3af !important;
