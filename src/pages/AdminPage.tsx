@@ -41,10 +41,12 @@ function UserRow({
   user,
   adminToken,
   onToggleActive,
+  onEditPermissions,
 }: {
   user: User;
   adminToken: string;
   onToggleActive: () => Promise<void>;
+  onEditPermissions: (user: User) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const handleToggle = async () => {
@@ -67,9 +69,9 @@ function UserRow({
     >
       <Flex justify="space-between" align="flex-start" wrap="wrap" gap="0.5rem">
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Typography.Body style={{ fontWeight: 600 }}>{user.company_name || user.login}</Typography.Body>
+          <Typography.Body style={{ fontWeight: 600 }}>{user.login}</Typography.Body>
           <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-            {user.login} · {user.access_all_inns ? "все ИНН" : `ИНН ${user.inn}`} · {user.financial_access ? "Фин. да" : "Фин. нет"}
+            {user.access_all_inns ? "все ИНН" : `ИНН ${user.inn}`} · {user.financial_access ? "Фин. да" : "Фин. нет"}
           </Typography.Body>
         </div>
         <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
@@ -77,6 +79,17 @@ function UserRow({
           <span onClick={(e) => e.stopPropagation()} style={{ cursor: loading ? "wait" : "pointer" }}>
             <TapSwitch checked={user.active} onToggle={handleToggle} />
           </span>
+          <Button
+            className="filter-button"
+            style={{ padding: "0.25rem 0.75rem" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditPermissions(user);
+            }}
+            disabled={loading}
+          >
+            Права
+          </Button>
         </Flex>
       </Flex>
     </div>
@@ -122,6 +135,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [emailTestResult, setEmailTestResult] = useState<{ ok: boolean; message?: string; error?: string } | null>(null);
 
   const [customerPickModalOpen, setCustomerPickModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [editorPermissions, setEditorPermissions] = useState<Record<string, boolean>>(() =>
+    PERMISSION_KEYS.reduce((acc, perm) => ({ ...acc, [perm.key]: false }), {})
+  );
+  const [editorFinancial, setEditorFinancial] = useState(true);
+  const [editorAccessAllInns, setEditorAccessAllInns] = useState(false);
+  const [editorLoading, setEditorLoading] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -262,6 +283,58 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setFormName("");
   };
 
+  const openPermissionsEditor = (user: User) => {
+    setSelectedUser(user);
+  };
+
+  const closePermissionsEditor = () => {
+    setSelectedUser(null);
+  };
+
+  const handlePermissionsToggle = (key: string) => {
+    setEditorPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSaveUserPermissions = async () => {
+    if (!selectedUser) return;
+    setEditorLoading(true);
+    setEditorError(null);
+    try {
+      const res = await fetch(`/api/admin-user-update?id=${selectedUser.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          permissions: editorPermissions,
+          financial_access: editorFinancial,
+          access_all_inns: editorAccessAllInns,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Ошибка сохранения");
+      await fetchUsers();
+      setSelectedUser(null);
+    } catch (e: unknown) {
+      setEditorError((e as Error)?.message || "Ошибка сохранения");
+    } finally {
+      setEditorLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedUser) return;
+    const nextPermissions = PERMISSION_KEYS.reduce<Record<string, boolean>>((acc, perm) => {
+      acc[perm.key] = Boolean(selectedUser.permissions?.[perm.key]);
+      return acc;
+    }, {});
+    setEditorPermissions(nextPermissions);
+    setEditorFinancial(Boolean(selectedUser.financial_access));
+    setEditorAccessAllInns(Boolean(selectedUser.access_all_inns));
+    setEditorError(null);
+  }, [selectedUser]);
+
   return (
     <div className="w-full">
       <Flex align="center" justify="space-between" style={{ marginBottom: "1rem", gap: "0.75rem", flexWrap: "wrap" }}>
@@ -310,6 +383,51 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Typography.Body style={{ color: "var(--color-error)", marginBottom: "1rem", fontSize: "0.9rem" }}>{error}</Typography.Body>
       )}
 
+      {tab === "users" && selectedUser && (
+        <Panel className="cargo-card" style={{ padding: "1rem", marginTop: "1rem" }}>
+          <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
+            <Typography.Body style={{ fontWeight: 600 }}>Права — {selectedUser.login}</Typography.Body>
+            <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={closePermissionsEditor}>
+              Закрыть
+            </Button>
+          </Flex>
+          <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
+            <Typography.Body style={{ fontSize: "0.9rem" }}>Финансовый доступ</Typography.Body>
+            <TapSwitch checked={editorFinancial} onToggle={() => setEditorFinancial((prev) => !prev)} />
+          </Flex>
+          <Flex justify="space-between" align="center" style={{ marginBottom: "1rem" }}>
+            <Typography.Body style={{ fontSize: "0.9rem" }}>Доступ ко всем ИНН</Typography.Body>
+            <TapSwitch checked={editorAccessAllInns} onToggle={() => setEditorAccessAllInns((prev) => !prev)} />
+          </Flex>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.5rem", marginBottom: "1rem" }}>
+            {PERMISSION_KEYS.map((perm) => (
+              <Flex
+                key={perm.key}
+                justify="space-between"
+                align="center"
+                style={{ padding: "0.5rem", border: "1px solid var(--color-border)", borderRadius: "0.5rem", background: "var(--color-bg-card)" }}
+              >
+                <Typography.Body style={{ fontSize: "0.85rem" }}>{perm.label}</Typography.Body>
+                <TapSwitch checked={editorPermissions[perm.key]} onToggle={() => handlePermissionsToggle(perm.key)} />
+              </Flex>
+            ))}
+          </div>
+          {editorError && (
+            <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
+              {editorError}
+            </Typography.Body>
+          )}
+          <Flex gap="0.5rem">
+            <Button className="button-primary" disabled={editorLoading} onClick={handleSaveUserPermissions}>
+              {editorLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Сохранить права"}
+            </Button>
+            <Button className="filter-button" onClick={closePermissionsEditor} style={{ padding: "0.5rem 0.75rem" }}>
+              Отмена
+            </Button>
+          </Flex>
+        </Panel>
+      )}
+
       {tab === "users" && (
         <Panel className="cargo-card" style={{ padding: "1rem" }}>
           {loading ? (
@@ -340,6 +458,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       setError((e as Error)?.message || "Ошибка обновления");
                     }
                   }}
+                  onEditPermissions={openPermissionsEditor}
                 />
               ))}
             </div>
