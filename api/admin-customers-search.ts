@@ -22,8 +22,8 @@ export default async function handler(
 
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const limit = Math.min(
-    50,
-    Math.max(5, parseInt(String(req.query.limit || 20), 10) || 20)
+    200,
+    Math.max(5, parseInt(String(req.query.limit || 50), 10) || 50)
   );
 
   try {

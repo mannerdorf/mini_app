@@ -70,8 +70,9 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
   const [customersSuggestions, setCustomersSuggestions] = useState<CustomerSuggestion[]>([]);
   const [customersSearchLoading, setCustomersSearchLoading] = useState(false);
   const [customersDropdownOpen, setCustomersDropdownOpen] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const customersSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const innInputRef = useRef<HTMLDivElement>(null);
+  const customerSelectRef = useRef<HTMLDivElement>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -139,6 +140,9 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
       setFormInn("");
       setFormName("");
       setFormEmail("");
+      setCustomerSearchQuery("");
+      setCustomersDropdownOpen(false);
+      setCustomersSuggestions([]);
       fetchUsers();
       setTab("users");
     } catch (e: unknown) {
@@ -180,12 +184,12 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
     setFormPermissions((p) => ({ ...p, [key]: !p[key] }));
   };
 
-  const searchCustomers = useCallback(
+  const loadCustomersFromDirectory = useCallback(
     async (query: string) => {
       setCustomersSearchLoading(true);
       try {
         const res = await fetch(
-          `/api/admin-customers-search?q=${encodeURIComponent(query)}&limit=15`,
+          `/api/admin-customers-search?q=${encodeURIComponent(query)}&limit=100`,
           { headers: { Authorization: `Bearer ${adminToken}` } }
         );
         if (!res.ok) return;
@@ -201,16 +205,11 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
     [adminToken]
   );
 
-  const onInnChange = (value: string) => {
-    setFormInn(value);
+  const onCustomerSearchChange = (value: string) => {
     if (formAccessAllInns) return;
+    setCustomerSearchQuery(value);
     if (customersSearchRef.current) clearTimeout(customersSearchRef.current);
-    if (value.trim().length >= 2) {
-      customersSearchRef.current = setTimeout(() => searchCustomers(value.trim()), 300);
-    } else {
-      setCustomersSuggestions([]);
-      setCustomersDropdownOpen(false);
-    }
+    customersSearchRef.current = setTimeout(() => loadCustomersFromDirectory(value.trim()), 250);
   };
 
   const selectCustomer = (c: CustomerSuggestion) => {
@@ -219,11 +218,20 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
     if (c.email) setFormEmail(c.email);
     setCustomersDropdownOpen(false);
     setCustomersSuggestions([]);
+    setCustomerSearchQuery("");
+  };
+
+  const clearCustomerSelection = () => {
+    setFormInn("");
+    setFormName("");
+    setCustomersDropdownOpen(false);
+    setCustomersSuggestions([]);
+    setCustomerSearchQuery("");
   };
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (innInputRef.current && !innInputRef.current.contains(e.target as Node)) {
+      if (customerSelectRef.current && !customerSelectRef.current.contains(e.target as Node)) {
         setCustomersDropdownOpen(false);
       }
     };
@@ -308,70 +316,98 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
           <form onSubmit={handleAddUser}>
             <div style={{ marginBottom: "1rem" }}>
               <Flex align="center" style={{ marginBottom: "0.5rem" }}>
-                <input type="checkbox" checked={formAccessAllInns} onChange={(e) => setFormAccessAllInns(e.target.checked)} id="accessAllInns" />
+                <input
+                  type="checkbox"
+                  checked={formAccessAllInns}
+                  onChange={(e) => {
+                    const v = e.target.checked;
+                    setFormAccessAllInns(v);
+                    if (v) clearCustomerSelection();
+                  }}
+                  id="accessAllInns"
+                />
                 <label htmlFor="accessAllInns" style={{ marginLeft: "0.5rem", fontSize: "0.9rem" }}>Доступ ко всем заказчикам (ко всем ИНН)</label>
               </Flex>
             </div>
-            <div ref={innInputRef} style={{ marginBottom: "1rem", position: "relative" }}>
-              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>ИНН</Typography.Body>
-              <Input
-                className="admin-form-input"
-                value={formInn}
-                onChange={(e) => onInnChange(e.target.value)}
-                onFocus={() => formInn.trim().length >= 2 && searchCustomers(formInn.trim())}
-                placeholder="Введите ИНН или наименование для поиска"
-                required={!formAccessAllInns}
-                disabled={formAccessAllInns}
-                style={{ width: "100%" }}
-              />
-              {customersDropdownOpen && (customersSuggestions.length > 0 || customersSearchLoading) && !formAccessAllInns && (
+            <div ref={customerSelectRef} style={{ marginBottom: "1rem", position: "relative" }}>
+              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик (из справочника)</Typography.Body>
+              {formAccessAllInns ? (
+                <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Доступ ко всем заказчикам — выбор не требуется</Typography.Body>
+              ) : formInn ? (
                 <div
                   style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    marginTop: 2,
-                    maxHeight: 220,
-                    overflowY: "auto",
-                    background: "var(--color-bg-card)",
+                    padding: "0.75rem",
+                    background: "var(--color-bg-input)",
                     border: "1px solid var(--color-border)",
                     borderRadius: 8,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                    zIndex: 100,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                   }}
                 >
-                  {customersSearchLoading ? (
-                    <div style={{ padding: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>Поиск...</div>
-                  ) : (
-                    customersSuggestions.map((c) => (
-                      <div
-                        key={c.inn}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => selectCustomer(c)}
-                        onKeyDown={(e) => e.key === "Enter" && selectCustomer(c)}
-                        style={{
-                          padding: "0.5rem 0.75rem",
-                          cursor: "pointer",
-                          fontSize: "0.9rem",
-                          borderBottom: "1px solid var(--color-border)",
-                        }}
-                      >
-                        <Typography.Body style={{ fontWeight: 600 }}>{c.inn}</Typography.Body>
-                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                          {c.customer_name}
-                          {c.email ? ` · ${c.email}` : ""}
-                        </Typography.Body>
-                      </div>
-                    ))
-                  )}
+                  <Typography.Body style={{ fontWeight: 500 }}>{formInn} · {formName}</Typography.Body>
+                  <Button className="filter-button" type="button" onClick={clearCustomerSelection} style={{ padding: "0.25rem 0.5rem", fontSize: "0.8rem" }}>
+                    Изменить
+                  </Button>
                 </div>
+              ) : (
+                <>
+                  <Input
+                    className="admin-form-input"
+                    value={customerSearchQuery}
+                    onChange={(e) => onCustomerSearchChange(e.target.value)}
+                    onFocus={() => !customersDropdownOpen && loadCustomersFromDirectory(customerSearchQuery.trim())}
+                    placeholder="Выберите заказчика: введите ИНН или наименование для поиска"
+                    style={{ width: "100%" }}
+                  />
+                  {customersDropdownOpen && (customersSuggestions.length > 0 || customersSearchLoading) && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        right: 0,
+                        marginTop: 2,
+                        maxHeight: 260,
+                        overflowY: "auto",
+                        background: "var(--color-bg-card)",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: 8,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                        zIndex: 100,
+                      }}
+                    >
+                      {customersSearchLoading ? (
+                        <div style={{ padding: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>Загрузка справочника...</div>
+                      ) : customersSuggestions.length === 0 ? (
+                        <div style={{ padding: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>Нет совпадений. Справочник обновляется по крону каждые 15 мин.</div>
+                      ) : (
+                        customersSuggestions.map((c) => (
+                          <div
+                            key={c.inn}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => selectCustomer(c)}
+                            onKeyDown={(e) => e.key === "Enter" && selectCustomer(c)}
+                            style={{
+                              padding: "0.5rem 0.75rem",
+                              cursor: "pointer",
+                              fontSize: "0.9rem",
+                              borderBottom: "1px solid var(--color-border)",
+                            }}
+                          >
+                            <Typography.Body style={{ fontWeight: 600 }}>{c.inn}</Typography.Body>
+                            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                              {c.customer_name}
+                              {c.email ? ` · ${c.email}` : ""}
+                            </Typography.Body>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
               )}
-            </div>
-            <div style={{ marginBottom: "1rem" }}>
-              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Наименование</Typography.Body>
-              <Input className="admin-form-input" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="ООО Ромашка" style={{ width: "100%" }} />
             </div>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Email (логин)</Typography.Body>
