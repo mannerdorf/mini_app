@@ -254,7 +254,7 @@ export function usePerevozkiMultiAccounts(params: PerevozkiMultiAccountsParams) 
         auths.length > 0 && auths.every((a) => a?.login && a?.password)
             ? [
                   "perevozki-multi-accounts",
-                  auths.map((a) => a.login).sort().join(","),
+                  auths.map((a) => `${a.login}:${a.inn ?? ""}`).sort().join(","),
                   dateFrom,
                   dateTo,
                   !!useServiceRequest,
