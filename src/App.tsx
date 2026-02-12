@@ -16,7 +16,6 @@ import {
     extractCustomerFromPerevozki,
     extractInnFromPerevozki,
     getExistingInns,
-    dedupeCustomersByInn,
 } from "./utils";
 import { getWebApp, isMaxWebApp, isMaxDocsEnabled } from "./webApp";
 import { DOCUMENT_METHODS } from "./documentMethods";
@@ -34,7 +33,7 @@ import { AdminPage } from "./pages/AdminPage";
 import { CMSStandalonePage } from "./pages/CMSStandalonePage";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
-import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
+import { PROXY_API_BASE_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
 import { usePerevozki, usePerevozkiMulti, usePerevozkiMultiAccounts, usePrevPeriodPerevozki } from "./hooks/useApi";
 import type {
     Account, ApiError, AuthData, CargoItem, CargoStat, CompanyRow, CustomerOption,
@@ -8846,6 +8845,60 @@ export default function App() {
         setActiveTab("support");
     };
 
+    const upsertRegisteredAccount = (user: any, loginKey: string, password: string): string => {
+        const customers: CustomerOption[] = user.inn ? [{ name: user.companyName || user.inn, inn: user.inn }] : [];
+        const existingAccount = accounts.find(acc => acc.login === loginKey);
+        const normalizedPermissions =
+            user.permissions && typeof user.permissions === "object"
+                ? user.permissions
+                : {
+                    cargo: true,
+                    doc_invoices: true,
+                    doc_acts: true,
+                    doc_orders: false,
+                    doc_claims: false,
+                    doc_contracts: false,
+                    doc_acts_settlement: false,
+                    doc_tariffs: false,
+                    chat: true,
+                };
+
+        if (existingAccount) {
+            setAccounts(prev =>
+                prev.map(acc =>
+                    acc.id === existingAccount.id
+                        ? {
+                            ...acc,
+                            password,
+                            customers,
+                            activeCustomerInn: user.inn ?? acc.activeCustomerInn,
+                            customer: user.companyName ?? acc.customer,
+                            isRegisteredUser: true,
+                            permissions: normalizedPermissions,
+                            financialAccess: user.financialAccess ?? acc.financialAccess,
+                        }
+                        : acc
+                )
+            );
+            return existingAccount.id;
+        }
+
+        const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const newAccount: Account = {
+            login: loginKey,
+            password,
+            id: accountId,
+            customers,
+            activeCustomerInn: user.inn ?? undefined,
+            customer: user.companyName ?? undefined,
+            isRegisteredUser: true,
+            permissions: normalizedPermissions,
+            financialAccess: user.financialAccess ?? false,
+        };
+        setAccounts(prev => [...prev, newAccount]);
+        return accountId;
+    };
+
     const handleLoginSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setError(null);
@@ -8857,211 +8910,24 @@ export default function App() {
             setLoading(true);
             const loginKey = login.trim().toLowerCase();
 
-            // Зарегистрированные пользователи (админка): вход по email/паролю
             const regRes = await fetch("/api/auth-registered-login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: loginKey, password }),
             });
-            if (regRes.ok) {
-                const regData = await regRes.json().catch(() => ({}));
-                if (regData?.ok && regData?.user) {
-                    const u = regData.user;
-                    const existingAccount = accounts.find(acc => acc.login === loginKey);
-                    const customers: CustomerOption[] = u.inn ? [{ name: u.companyName || u.inn, inn: u.inn }] : [];
-                    if (existingAccount) {
-                        setAccounts(prev =>
-                            prev.map(acc =>
-                                acc.id === existingAccount.id
-                                    ? { ...acc, password, customers, activeCustomerInn: u.inn, customer: u.companyName, isRegisteredUser: true, permissions: u.permissions, financialAccess: u.financialAccess }
-                                    : acc
-                            )
-                        );
-                        setActiveAccountId(existingAccount.id);
-                    } else {
-                        const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                        const newAccount: Account = {
-                            login: loginKey,
-                            password,
-                            id: accountId,
-                            customers,
-                            activeCustomerInn: u.inn,
-                            customer: u.companyName,
-                            isRegisteredUser: true,
-                            permissions: u.permissions,
-                            financialAccess: u.financialAccess,
-                        };
-                        setAccounts(prev => [...prev, newAccount]);
-                        setActiveAccountId(accountId);
-                    }
-                    setActiveTab((prev) => prev || "cargo");
-                    return;
-                }
+            if (!regRes.ok) {
+                const payload = await readJsonOrText(regRes);
+                const message = extractErrorMessage(payload) || "Неверный логин или пароль";
+                throw new Error(message);
             }
 
-            // Способ 2 авторизации: Getcustomers (GETAPI?metod=Getcustomers)
-            const customersRes = await fetch(PROXY_API_GETCUSTOMERS_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login, password }),
-            });
-            if (customersRes.ok) {
-                const customersData = await customersRes.json().catch(() => ({}));
-                const rawList = Array.isArray(customersData?.customers) ? customersData.customers : Array.isArray(customersData?.Customers) ? customersData.Customers : [];
-                const customers: CustomerOption[] = dedupeCustomersByInn(
-                    rawList.map((c: any) => ({
-                        name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
-                        inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
-                    })).filter((c: CustomerOption) => c.inn.length > 0)
-                );
-                if (customers.length > 0) {
-                    const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
-                    const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
-                    if (alreadyAdded) {
-                        setError("Компания уже в списке");
-                        return;
-                    }
-                    const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
-                    const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
-                    const twoFaSettings = twoFaJson?.settings;
-                    const twoFaEnabled = !!twoFaSettings?.enabled;
-                    const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
-                    const twoFaLinked = !!twoFaSettings?.telegramLinked;
-                    const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
-                    if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
-                        const sendRes = await fetch("/api/2fa-telegram", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ login: loginKey, action: "send" }),
-                        });
-                        if (!sendRes.ok) {
-                            const err = await readJsonOrText(sendRes);
-                            throw new Error(err?.error || "Не удалось отправить код");
-                        }
-                        setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "telegram" });
-                        setTwoFactorPending(true);
-                        setTwoFactorCode("");
-                        return;
-                    }
-                    if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
-                        setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "google" });
-                        setTwoFactorPending(true);
-                        setTwoFactorCode("");
-                        return;
-                    }
-                    const existingAccount = accounts.find(acc => acc.login === login);
-                    const firstCustomer = customers[0];
-                    const firstInn = firstCustomer.inn;
-                    const firstName = firstCustomer.name;
-                    if (existingAccount) {
-                        setAccounts(prev =>
-                            prev.map(acc =>
-                                acc.id === existingAccount.id
-                                    ? { ...acc, customers, activeCustomerInn: firstInn, customer: firstName }
-                                    : acc
-                            )
-                        );
-                        setActiveAccountId(existingAccount.id);
-                    } else {
-                        const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                        const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: firstInn, customer: firstName };
-                        setAccounts(prev => [...prev, newAccount]);
-                        setActiveAccountId(accountId);
-                    }
-                    setActiveTab((prev) => prev || "cargo");
-                    // Сначала заполняем БД, потом данные берём из БД (раздел «Мои компании»)
-                    fetch("/api/companies-save", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ login: loginKey, customers }),
-                    })
-                        .then((r) => r.json())
-                        .then((data) => { if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning); })
-                        .catch((err) => console.warn("companies-save error:", err));
-                    return;
-                }
+            const regData = await regRes.json().catch(() => ({}));
+            if (!regData?.ok || !regData?.user) {
+                throw new Error("Неверный логин или пароль");
             }
 
-            // Способ 1 авторизации: GetPerevozki (перевозки)
-            const { dateFrom, dateTo } = getDateRange("все");
-            const res = await fetch(PROXY_API_BASE_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login, password, dateFrom, dateTo }),
-            });
-            await ensureOk(res, "Ошибка авторизации");
-            const payload = await readJsonOrText(res);
-            const detectedCustomer = extractCustomerFromPerevozki(payload);
-            const detectedInn = extractInnFromPerevozki(payload);
-            const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
-            if (detectedInn && existingInns.has(detectedInn)) {
-                setError("Компания уже в списке");
-                return;
-            }
-            const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
-            const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
-            const twoFaSettings = twoFaJson?.settings;
-            const twoFaEnabled = !!twoFaSettings?.enabled;
-            const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
-            const twoFaLinked = !!twoFaSettings?.telegramLinked;
-            const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
-
-            if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
-                const sendRes = await fetch("/api/2fa-telegram", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login: loginKey, action: "send" }),
-                });
-                if (!sendRes.ok) {
-                    const err = await readJsonOrText(sendRes);
-                    throw new Error(err?.error || "Не удалось отправить код");
-                }
-                setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined, twoFaMethod: "telegram" });
-                setTwoFactorPending(true);
-                setTwoFactorCode("");
-                return;
-            }
-            if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
-                setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined, twoFaMethod: "google" });
-                setTwoFactorPending(true);
-                setTwoFactorCode("");
-                return;
-            }
-
-            const existingAccount = accounts.find(acc => acc.login === login);
-            let accountId: string;
-            if (existingAccount) {
-                accountId = existingAccount.id;
-                if (detectedCustomer && existingAccount.customer !== detectedCustomer) {
-                    setAccounts(prev =>
-                        prev.map(acc =>
-                            acc.id === existingAccount.id
-                                ? { ...acc, customer: detectedCustomer }
-                                : acc
-                        )
-                    );
-                }
-                setActiveAccountId(accountId);
-            } else {
-                accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                const newAccount: Account = {
-                    login,
-                    password,
-                    id: accountId,
-                    customer: detectedCustomer || undefined,
-                    ...(detectedInn ? { activeCustomerInn: detectedInn } : {}),
-                };
-                setAccounts(prev => [...prev, newAccount]);
-                setActiveAccountId(accountId);
-            }
-            const companyInn = detectedInn ?? "";
-            const companyName = detectedCustomer || login.trim() || "Компания";
-            fetch("/api/companies-save", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }),
-            }).catch(() => {});
-
+            const accountId = upsertRegisteredAccount(regData.user, loginKey, password);
+            setActiveAccountId(accountId);
             setActiveTab((prev) => prev || "cargo");
         } catch (err: any) {
             const raw = err?.message || "Ошибка сети.";
@@ -9235,91 +9101,32 @@ export default function App() {
         }
     };
     
-    // Добавление нового аккаунта (для страницы профиля) — сначала способ 2 (Getcustomers), иначе способ 1 (GetPerevozki)
     const handleAddAccount = async (login: string, password: string) => {
-        if (accounts.find(acc => acc.login === login)) {
+        const loginKey = login.trim().toLowerCase();
+        if (!loginKey || !password) {
+            throw new Error("Введите логин и пароль");
+        }
+        if (accounts.find(acc => acc.login === loginKey)) {
             throw new Error("Аккаунт с таким логином уже добавлен");
         }
 
-        const loginKey = login.trim().toLowerCase();
-
-        // Сначала пробуем способ 2 (Getcustomers)
-        const customersRes = await fetch(PROXY_API_GETCUSTOMERS_URL, {
+        const res = await fetch("/api/auth-registered-login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login, password }),
-        });
-        if (customersRes.ok) {
-            const customersData = await customersRes.json().catch(() => ({}));
-            const rawList = Array.isArray(customersData?.customers) ? customersData.customers : Array.isArray(customersData?.Customers) ? customersData.Customers : [];
-            const customers: CustomerOption[] = dedupeCustomersByInn(
-                rawList.map((c: any) => ({
-                    name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
-                    inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
-                })).filter((c: CustomerOption) => c.inn.length > 0)
-            );
-            if (customers.length > 0) {
-                const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
-                const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
-                if (alreadyAdded) {
-                    throw new Error("Компания уже в списке");
-                }
-                const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: customers[0].inn, customer: customers[0].name };
-                setAccounts(prev => [...prev, newAccount]);
-                setActiveAccountId(accountId);
-                fetch("/api/companies-save", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login: loginKey, customers }),
-                })
-                    .then((r) => r.json())
-                    .then((data) => { if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning); })
-                    .catch((err) => console.warn("companies-save error:", err));
-                return;
-            }
-        }
-
-        // Способ 1 (GetPerevozki)
-        const { dateFrom, dateTo } = getDateRange("все");
-        const res = await fetch(PROXY_API_BASE_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login, password, dateFrom, dateTo }),
+            body: JSON.stringify({ email: loginKey, password }),
         });
         if (!res.ok) {
-            let message = `Ошибка авторизации`;
-            try {
-                const payload = await readJsonOrText(res);
-                const extracted = extractErrorMessage(payload);
-                if (extracted) message = extracted;
-            } catch { }
+            const payload = await readJsonOrText(res);
+            const message = extractErrorMessage(payload) || "Ошибка авторизации";
             throw new Error(message);
         }
-        const payload = await readJsonOrText(res);
-        const detectedCustomer = extractCustomerFromPerevozki(payload);
-        const detectedInn = extractInnFromPerevozki(payload);
-        const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
-        if (detectedInn && existingInns.has(detectedInn)) {
-            throw new Error("Компания уже в списке");
+        const data = await res.json().catch(() => ({}));
+        if (!data?.ok || !data?.user) {
+            throw new Error("Ошибка авторизации");
         }
-        const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const newAccount: Account = {
-            login,
-            password,
-            id: accountId,
-            customer: detectedCustomer || undefined,
-            ...(detectedInn ? { activeCustomerInn: detectedInn } : {}),
-        };
-        setAccounts(prev => [...prev, newAccount]);
+
+        const accountId = upsertRegisteredAccount(data.user, loginKey, password);
         setActiveAccountId(accountId);
-        const companyInn = detectedInn ?? "";
-        const companyName = detectedCustomer || login.trim() || "Компания";
-        fetch("/api/companies-save", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }),
-        }).catch(() => {});
     };
 
     // CMS как отдельная ссылка ?tab=cms — без входа в мини-приложение
