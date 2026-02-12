@@ -143,6 +143,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [editorAccessAllInns, setEditorAccessAllInns] = useState(false);
   const [editorLoading, setEditorLoading] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
+  const [resetPasswordInfo, setResetPasswordInfo] = useState<{ password?: string; emailSent?: boolean; emailError?: string } | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -314,6 +315,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   const closePermissionsEditor = () => {
     setSelectedUser(null);
+    setResetPasswordInfo(null);
   };
 
   const handlePermissionsToggle = (key: string) => {
@@ -345,6 +347,31 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setEditorError((e as Error)?.message || "Ошибка сохранения");
     } finally {
       setEditorLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!selectedUser) return;
+    setEditorError(null);
+    setResetPasswordInfo(null);
+    try {
+      const res = await fetch(`/api/admin-user-update?id=${selectedUser.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ reset_password: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Ошибка сброса пароля");
+      setResetPasswordInfo({
+        password: data.password,
+        emailSent: data.emailSent,
+        emailError: data.emailError,
+      });
+    } catch (e: unknown) {
+      setEditorError((e as Error)?.message || "Ошибка сброса пароля");
     }
   };
 
@@ -410,12 +437,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
       {tab === "users" && selectedUser && (
         <Panel className="cargo-card" style={{ padding: "1rem", marginTop: "1rem" }}>
-          <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
-            <Typography.Body style={{ fontWeight: 600 }}>Права — {selectedUser.login}</Typography.Body>
-            <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={closePermissionsEditor}>
-              Закрыть
-            </Button>
+          <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.5rem" }}>
+            <div>
+              <Typography.Body style={{ fontWeight: 600 }}>Права — {selectedUser.login}</Typography.Body>
+              <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Выданы по email {selectedUser.login}</Typography.Body>
+            </div>
+            <Flex gap="0.5rem" align="center">
+              <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={handleResetPassword}>
+                Сбросить пароль
+              </Button>
+              <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={closePermissionsEditor}>
+                Закрыть
+              </Button>
+            </Flex>
           </Flex>
+          {resetPasswordInfo && (
+            <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--color-text-secondary)" }}>
+              {resetPasswordInfo.emailSent
+                ? "Пароль отправлен на email."
+                : `Новый временный пароль: ${resetPasswordInfo.password || "—"}. Передайте его пользователю.`}
+              {resetPasswordInfo.emailError && ` Ошибка отправки: ${resetPasswordInfo.emailError}`}
+            </Typography.Body>
+          )}
           <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
             <Typography.Body style={{ fontSize: "0.9rem" }}>Финансовый доступ</Typography.Body>
             <TapSwitch checked={editorFinancial} onToggle={() => setEditorFinancial((prev) => !prev)} />
