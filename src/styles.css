@@ -694,15 +694,20 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     color: var(--color-pending-status);
     border: 1px solid rgba(250, 204, 21, 0.5);
 }
+.max-badge-ready {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: #059669;
+    border: 1px solid rgba(16, 185, 129, 0.45);
+}
 .max-badge-danger {
     background-color: rgba(239, 68, 68, 0.2);
     color: #ef4444;
     border: 1px solid rgba(239, 68, 68, 0.5);
 }
 .max-badge-purple {
-    background-color: rgba(168, 85, 247, 0.2);
-    color: #a855f7;
-    border: 1px solid rgba(168, 85, 247, 0.5);
+    background-color: rgba(139, 92, 246, 0.2);
+    color: #6d28d9;
+    border: 1px solid rgba(139, 92, 246, 0.45);
 }
 .max-badge-default {
     background-color: var(--color-bg-hover);
@@ -716,11 +721,14 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
 .dark-mode .max-badge-warning {
     border: 1px solid rgba(250, 204, 21, 0.6);
 }
+.dark-mode .max-badge-ready {
+    border: 1px solid rgba(16, 185, 129, 0.6);
+}
 .dark-mode .max-badge-danger {
     border: 1px solid rgba(239, 68, 68, 0.6);
 }
 .dark-mode .max-badge-purple {
-    border: 1px solid rgba(168, 85, 247, 0.6);
+    border: 1px solid rgba(139, 92, 246, 0.6);
 }
 .dark-mode .max-badge-default {
     border: 1px solid var(--color-border);

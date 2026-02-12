@@ -7,7 +7,8 @@ export const StatusBadge = ({ status }: { status: string | undefined }) => {
     let badgeClass = 'max-badge';
     if (lower.includes('доставлен') || lower.includes('заверш')) badgeClass += ' max-badge-success';
     else if (lower.includes('доставке')) badgeClass += ' max-badge-purple';
-    else if (lower.includes('пути') || lower.includes('отправлен') || lower.includes('готов')) badgeClass += ' max-badge-warning';
+    else if (lower.includes('готов')) badgeClass += ' max-badge-ready';
+    else if (lower.includes('пути') || lower.includes('отправлен')) badgeClass += ' max-badge-warning';
     else if (lower.includes('отменен') || lower.includes('аннулирован')) badgeClass += ' max-badge-danger';
     else badgeClass += ' max-badge-default';
     return <span className={badgeClass}>{normalizedStatus || '-'}</span>;

@@ -8,7 +8,8 @@ import { InvoiceDetailModal } from "../components/modals/InvoiceDetailModal";
 import { ActDetailModal } from "../components/modals/ActDetailModal";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode, parseCargoNumbersFromText } from "../lib/formatUtils";
-import { normalizeStatus, getFilterKeyByStatus, getStatusClass, STATUS_MAP } from "../lib/statusUtils";
+import { normalizeStatus, getFilterKeyByStatus, STATUS_MAP } from "../lib/statusUtils";
+import { StatusBadge } from "../components/shared/StatusBadges";
 import {
     loadDateFilterState,
     saveDateFilterState,
@@ -821,15 +822,13 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                                                 const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                                                                 const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
                                                                 const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
-                                                                const deliveryStateNorm = normalizeStatus(deliveryState);
-                                                                const deliveryStatusClass = getStatusClass(deliveryState);
                                                                 return (
                                                                     <tr key={inum || j} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); setSelectedInvoice(inv); }} title="Открыть счёт">
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(inum)}</td>
                                                                         <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
                                                                         <td className="doc-inner-table-status" style={{ padding: '0.35rem 0.3rem' }}>{ist ? <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: istBadgeStyle.bg, color: istBadgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap', display: 'inline-block' }}>{ist}</span> : '—'}</td>
                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>
-                                                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <span className={deliveryStatusClass} style={{ fontSize: '0.7rem', padding: '0.15rem 0.35rem', borderRadius: '999px', fontWeight: 600 }}>{deliveryStateNorm || '—'}</span>}
+                                                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                                                         </td>
                                                                         <td className="doc-inner-table-route" style={{ padding: '0.35rem 0.3rem' }}>
                                                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</span>}

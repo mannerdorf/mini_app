@@ -5,7 +5,7 @@ import { X, Download, Loader2 } from "lucide-react";
 import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, transliterateFilename, normalizeInvoiceStatus } from "../../lib/formatUtils";
 import { getPayTillDate, getPayTillDateColor } from "../../lib/dateUtils";
 import { DateText } from "../ui/DateText";
-import { normalizeStatus, getStatusClass } from "../../lib/statusUtils";
+import { StatusBadge } from "../shared/StatusBadges";
 import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import type { AuthData } from "../../types";
@@ -183,13 +183,11 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                                     const cargoNum = getCargoNumberFromRow(row);
                                     const deliveryState = cargoNum ? lookupNorm(cargoStateByNumber, cargoNum) : undefined;
                                     const route = cargoNum ? lookupNorm(cargoRouteByNumber, cargoNum) : undefined;
-                                    const statusClass = getStatusClass(deliveryState);
-                                    const statusLabel = deliveryState != null ? normalizeStatus(deliveryState) : null;
                                     return (
                                     <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 220 }} title={stripOoo(String(row.Operation ?? row.Name ?? ''))}>{renderServiceCell(String(row.Operation ?? row.Name ?? '—'))}</td>
                                         <td style={{ padding: '0.5rem 0.4rem' }}>
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : statusLabel != null ? <span className={statusClass} style={{ fontSize: '0.7rem', padding: '0.15rem 0.35rem', borderRadius: '999px', fontWeight: 600 }}>{statusLabel}</span> : '—'}
+                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                         </td>
                                         <td className="invoice-detail-table-route" style={{ padding: '0.5rem 0.4rem' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : route ? <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>{route}</span> : '—'}

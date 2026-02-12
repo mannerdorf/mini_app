@@ -26,7 +26,7 @@ import { FilterDropdownPortal } from "./components/ui/FilterDropdownPortal";
 import { DateText } from "./components/ui/DateText";
 import { FilterDialog } from "./components/shared/FilterDialog";
 import { StatusBadge, StatusBillBadge } from "./components/shared/StatusBadges";
-import { normalizeStatus, getFilterKeyByStatus, getPaymentFilterKey, getSumColorByPaymentStatus, isReceivedInfoStatus, getStatusClass, BILL_STATUS_MAP, STATUS_MAP } from "./lib/statusUtils";
+import { normalizeStatus, getFilterKeyByStatus, getPaymentFilterKey, getSumColorByPaymentStatus, isReceivedInfoStatus, BILL_STATUS_MAP, STATUS_MAP } from "./lib/statusUtils";
 import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then(m => ({ default: m.DocumentsPage })));
@@ -5900,6 +5900,9 @@ function CargoPage({
                                                         <thead>
                                                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('number'); }} title="Сортировка">Номер{innerTableSortColumn === 'number' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                {row.items.some((i: any) => (i as any).Order != null && String((i as any).Order).trim() !== '') && (
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номер заявки заказчика</th>
+                                                                )}
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('datePrih'); }} title="Сортировка">Дата прихода{innerTableSortColumn === 'datePrih' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка">Статус{innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('mest'); }} title="Сортировка">Мест{innerTableSortColumn === 'mest' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -5920,6 +5923,9 @@ function CargoPage({
                                                                             {item.Number || '—'}
                                                                         </span>
                                                                     </td>
+                                                                    {row.items.some((i: any) => (i as any).Order != null && String((i as any).Order).trim() !== '') && (
+                                                                    <td style={{ padding: '0.35rem 0.3rem' }}>{(item as any).Order != null && String((item as any).Order).trim() !== '' ? String((item as any).Order).trim() : '—'}</td>
+                                                                    )}
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}><DateText value={item.DatePrih} /></td>
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}><StatusBadge status={item.State} /></td>
                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)) : '—'}</td>
@@ -6695,7 +6701,7 @@ function CargoDetailsModal({
                 {/* Явно отображаемые поля (из API примера) */}
                 <div className="details-grid-modal">
                     <DetailItem label="Номер" value={item.Number || '—'} />
-                    <DetailItem label="Статус" value={normalizeStatus(item.State)} statusClass={getStatusClass(item.State)} />
+                    <DetailItem label="Статус" value={<StatusBadge status={item.State} />} />
                     <DetailItem label="Приход" value={<DateText value={item.DatePrih} />} />
                     <DetailItem label="Доставка" value={(() => {
                         // Показываем дату доставки только если груз доставлен
@@ -6725,7 +6731,10 @@ function CargoDetailsModal({
                 <div className="details-grid-modal">
                     {Object.entries(item)
                         .filter(([key]) => !EXCLUDED_KEYS.includes(key))
-                        .sort(([a], [b]) => (a === 'Order' ? 1 : b === 'Order' ? -1 : 0))
+                        .sort(([a], [b]) => {
+                            const pos = (k: string) => k === 'Order' ? 999 : k === 'CitySender' ? 1 : k === 'CityReceiver' ? 2 : 0;
+                            return pos(a) - pos(b);
+                        })
                         .map(([key, val]) => {
                             // Пропускаем, если значение пустое
                             if (val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "") || (typeof val === 'object' && val !== null && Object.keys(val).length === 0)) return null; 
