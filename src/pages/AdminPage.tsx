@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2 } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 
@@ -118,6 +118,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [formFinancial, setFormFinancial] = useState(true);
   const [formSendEmail, setFormSendEmail] = useState(true);
   const [formPassword, setFormPassword] = useState("");
+  const [formPasswordVisible, setFormPasswordVisible] = useState(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formResult, setFormResult] = useState<{ password?: string; emailSent?: boolean } | null>(null);
 
@@ -673,14 +674,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             {!formSendEmail && (
               <div style={{ marginBottom: "1rem" }}>
                 <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Пароль</Typography.Body>
-                <Input
-                  className="admin-form-input"
-                  type="password"
-                  value={formPassword}
-                  onChange={(e) => setFormPassword(e.target.value)}
-                  placeholder="Введите пароль вручную"
-                  style={{ width: "100%" }}
-                />
+                    <div className="password-input-container" style={{ position: "relative" }}>
+                      <Input
+                        className="admin-form-input password"
+                        type={formPasswordVisible ? "text" : "password"}
+                        value={formPassword}
+                        onChange={(e) => setFormPassword(e.target.value)}
+                        placeholder="Введите пароль вручную"
+                        style={{ width: "100%" }}
+                      />
+                      <button
+                        type="button"
+                        className="toggle-password-visibility"
+                        onClick={() => setFormPasswordVisible((prev) => !prev)}
+                        aria-label={formPasswordVisible ? "Скрыть пароль" : "Показать пароль"}
+                      >
+                        {formPasswordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
               </div>
             )}
             {formResult?.password && (
