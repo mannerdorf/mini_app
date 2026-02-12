@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Mail, Loader2, Plus, Settings } from "lucide-react";
+import { ArrowLeft, Users, Mail, Loader2, Plus, Settings, LogOut } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 
@@ -22,6 +22,7 @@ const PERMISSION_KEYS = [
 type AdminPageProps = {
   adminToken: string;
   onBack: () => void;
+  onLogout?: () => void;
 };
 
 type User = {
@@ -82,7 +83,7 @@ function UserRow({
   );
 }
 
-export function AdminPage({ adminToken, onBack }: AdminPageProps) {
+export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [tab, setTab] = useState<"users" | "add" | "email">("users");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -263,11 +264,19 @@ export function AdminPage({ adminToken, onBack }: AdminPageProps) {
 
   return (
     <div className="w-full">
-      <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
-        <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <Typography.Headline style={{ fontSize: "1.25rem" }}>CMS</Typography.Headline>
+      <Flex align="center" justify="space-between" style={{ marginBottom: "1rem", gap: "0.75rem", flexWrap: "wrap" }}>
+        <Flex align="center" gap="0.75rem">
+          <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <Typography.Headline style={{ fontSize: "1.25rem" }}>CMS</Typography.Headline>
+        </Flex>
+        {onLogout && (
+          <Button className="filter-button" onClick={onLogout} style={{ padding: "0.5rem 0.75rem" }}>
+            <LogOut className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Выход
+          </Button>
+        )}
       </Flex>
 
       <Flex gap="0.5rem" style={{ marginBottom: "1rem", flexWrap: "wrap" }}>

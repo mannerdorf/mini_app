@@ -3845,7 +3845,17 @@ function ProfilePage({
     if (currentView === 'admin') {
         const token = adminToken ?? (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('haulz.adminToken') : null);
         if (token) {
-            return <AdminPage adminToken={token} onBack={() => setCurrentView('main')} />;
+            return (
+                <AdminPage
+                    adminToken={token}
+                    onBack={() => setCurrentView('main')}
+                    onLogout={() => {
+                        try { if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('haulz.adminToken'); } catch {}
+                        setAdminToken(null);
+                        setCurrentView('main');
+                    }}
+                />
+            );
         }
         const tryAdminAccess = async () => {
             const login = adminLoginInput.trim();
