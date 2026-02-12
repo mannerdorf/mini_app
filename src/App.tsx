@@ -2267,16 +2267,12 @@ function DashboardPage({
 function CustomerSwitcher({
     accounts,
     activeAccountId,
-    selectedAccountIds,
     onSwitchAccount,
-    onToggleSelectedAccount,
     onUpdateAccount,
 }: {
     accounts: Account[];
     activeAccountId: string | null;
-    selectedAccountIds: string[];
     onSwitchAccount: (accountId: string) => void;
-    onToggleSelectedAccount: (accountId: string) => void;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
 }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -2287,7 +2283,6 @@ function CustomerSwitcher({
     const activeAccount = accounts.find((acc) => acc.id === activeAccountId) || null;
     const activeLogin = activeAccount?.login?.trim().toLowerCase() ?? "";
     const activeInn = activeAccount?.activeCustomerInn ?? activeAccount?.customers?.[0]?.inn ?? "";
-    const selectedSet = new Set(selectedAccountIds);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -2318,31 +2313,9 @@ function CustomerSwitcher({
     const activeCompany = companies.find(
         (c) => c.login === activeLogin && (c.inn === '' || c.inn === activeInn)
     );
-    const selectedAccounts = selectedAccountIds.map((id) => accounts.find((a) => a.id === id)).filter(Boolean) as Account[];
-    const displayNames = selectedAccounts.map((acc) => {
-        const c = companies.find((x) => x.login === acc?.login?.trim().toLowerCase() && (x.inn === '' || x.inn === (acc?.activeCustomerInn ?? acc?.customers?.[0]?.inn ?? '')));
-        return c ? stripOoo(c.name) : stripOoo(acc?.customer || acc?.customers?.[0]?.name || 'Компания');
-    });
-    const displayLabel =
-        displayNames.length === 0
-            ? stripOoo(activeCompany?.name || activeAccount?.customer || 'Компания')
-            : displayNames.length === 1
-              ? displayNames[0]
-              : displayNames.length === 2
-                ? `${displayNames[0]}, ${displayNames[1]}`
-                : `${displayNames[0]}, ${displayNames[1]} +${displayNames.length - 2}`;
+    const displayName = activeCompany ? stripOoo(activeCompany.name) : stripOoo(activeAccount?.customer || activeAccount?.customers?.[0]?.name || 'Компания');
 
-    const handleRowClick = (c: HeaderCompanyRow) => {
-        const acc = accounts.find((a) => a.login.trim().toLowerCase() === c.login);
-        if (!acc) return;
-        if (c.inn !== undefined && c.inn !== null) {
-            onUpdateAccount(acc.id, { activeCustomerInn: c.inn });
-        }
-        onToggleSelectedAccount(acc.id);
-    };
-
-    const handleSelectOnly = (c: HeaderCompanyRow, e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleSelect = (c: HeaderCompanyRow) => {
         const acc = accounts.find((a) => a.login.trim().toLowerCase() === c.login);
         if (!acc) return;
         onSwitchAccount(acc.id);
@@ -2366,10 +2339,10 @@ function CustomerSwitcher({
                 className="filter-button"
                 onClick={() => setIsOpen(!isOpen)}
                 style={{ padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}
-                title="Выбрать компании"
+                title="Выбрать компанию"
             >
                 <Typography.Body style={{ fontSize: '0.9rem' }}>
-                    {displayLabel}
+                    {displayName}
                 </Typography.Body>
                 <ChevronDown className="w-4 h-4" style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
             </Button>
@@ -2377,7 +2350,7 @@ function CustomerSwitcher({
                 <div
                     className="filter-dropdown"
                     style={{
-                        minWidth: '260px',
+                        minWidth: '220px',
                         maxHeight: 'min(60vh, 320px)',
                         overflowY: 'auto',
                     }}
@@ -2400,61 +2373,29 @@ function CustomerSwitcher({
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     style={{ fontSize: '0.9rem', padding: '0.4rem 0.5rem' }}
                                 />
-                                <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
-                                    Отметьте несколько компаний — перевозки покажутся по всем выбранным
-                                </Typography.Body>
                             </div>
                             {filteredCompanies.length === 0 ? (
                                 <div style={{ padding: '0.75rem 1rem' }}>
                                     <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>Ничего не найдено</Typography.Body>
                                 </div>
                             ) : filteredCompanies.map((c) => {
-                            const acc = accounts.find((a) => a.login.trim().toLowerCase() === c.login);
-                            const isSelected = acc ? selectedSet.has(acc.id) : false;
                             const isActive = activeLogin === c.login && (c.inn === '' || c.inn === activeInn);
                             return (
                                 <div
                                     key={`${c.login}-${c.inn}`}
-                                    className={`dropdown-item ${isSelected ? 'active' : ''}`}
-                                    onClick={() => handleRowClick(c)}
+                                    className={`dropdown-item ${isActive ? 'active' : ''}`}
+                                    onClick={() => handleSelect(c)}
                                     style={{
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'space-between',
-                                        gap: '0.5rem',
-                                        backgroundColor: isSelected ? 'var(--color-bg-hover)' : 'transparent',
+                                        backgroundColor: isActive ? 'var(--color-bg-hover)' : 'transparent',
                                     }}
                                 >
-                                    <Flex align="center" style={{ gap: '0.5rem', minWidth: 0, flex: 1 }}>
-                                        <span
-                                            role="checkbox"
-                                            aria-checked={isSelected}
-                                            style={{
-                                                width: 18,
-                                                height: 18,
-                                                borderRadius: 4,
-                                                border: '2px solid var(--color-border)',
-                                                backgroundColor: isSelected ? 'var(--color-primary)' : 'transparent',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                flexShrink: 0,
-                                            }}
-                                        >
-                                            {isSelected && <Check className="w-3 h-3" style={{ color: '#fff' }} />}
-                                        </span>
-                                        <Typography.Body style={{ fontSize: '0.9rem', fontWeight: isActive ? 'bold' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                            {stripOoo(c.name)}
-                                        </Typography.Body>
-                                    </Flex>
-                                    <Button
-                                        className="filter-button"
-                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', flexShrink: 0 }}
-                                        onClick={(e) => handleSelectOnly(c, e)}
-                                        title="Только эта компания"
-                                    >
-                                        Только
-                                    </Button>
+                                    <Typography.Body style={{ fontSize: '0.9rem', fontWeight: isActive ? 'bold' : 'normal' }}>
+                                        {stripOoo(c.name)}
+                                    </Typography.Body>
+                                    {isActive && <Check className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />}
                                 </div>
                             );
                         })}
@@ -9612,9 +9553,7 @@ export default function App() {
                             <CustomerSwitcher
                                 accounts={accounts}
                                 activeAccountId={activeAccountId}
-                                selectedAccountIds={selectedAccountIds}
                                 onSwitchAccount={handleSwitchAccount}
-                                onToggleSelectedAccount={handleToggleSelectedAccount}
                                 onUpdateAccount={handleUpdateAccount}
                             />
                         )}

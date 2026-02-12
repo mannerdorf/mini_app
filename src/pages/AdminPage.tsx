@@ -383,7 +383,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       fontSize: "0.9rem",
                     }}
                   >
-                    {formInn ? `${formInn} · ${formName}` : "Не выбран"}
+                    {formInn
+                      ? `${formInn}${formName ? ` · ${formName}` : ""}${formEmail ? ` · ${formEmail}` : ""}`
+                      : "Не выбран"}
                   </div>
                   <Button
                     className="filter-button"
