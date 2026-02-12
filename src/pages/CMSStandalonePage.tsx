@@ -1,9 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button, Container, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import { AdminPage } from "./AdminPage";
 
 /** CMS как отдельная страница по ?tab=cms — без входа в мини-приложение */
 export function CMSStandalonePage() {
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (link) {
+      link.href = "/favicon-admin.png";
+    }
+  }, []);
+
   const [adminToken, setAdminToken] = useState<string | null>(() =>
     typeof sessionStorage !== "undefined" ? sessionStorage.getItem("haulz.adminToken") : null
   );

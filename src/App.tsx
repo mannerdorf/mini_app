@@ -6264,7 +6264,7 @@ type PerevozkaDetailsResult = {
 };
 
 const STEPS_KEYS = ['items', 'Steps', 'stages', 'Statuses'];
-const NOMENCLATURE_KEYS = ['Nomenclature', 'Goods', 'CargoNomenclature', 'ПринятыйГруз', 'Номенклатура', 'TablePart', 'CargoItems', 'Items', 'GoodsList', 'Nomenklatura'];
+const NOMENCLATURE_KEYS = ['Packages', 'Nomenclature', 'Goods', 'CargoNomenclature', 'ПринятыйГруз', 'Номенклатура', 'TablePart', 'CargoItems', 'Items', 'GoodsList', 'Nomenklatura'];
 
 function extractNomenclatureFromPerevozka(data: any): Record<string, unknown>[] {
     const tryExtract = (obj: any): Record<string, unknown>[] => {
@@ -6911,9 +6911,28 @@ function CargoDetailsModal({
                                                     key={col}
                                                     style={{ padding: '0.5rem 0.75rem', verticalAlign: 'top' }}
                                                 >
-                                                    {row[col] !== undefined && row[col] !== null && String(row[col]).trim() !== ''
-                                                        ? String(row[col])
-                                                        : '—'}
+                                                    {(() => {
+                                                        const val = row[col];
+                                                        if (val === undefined || val === null) return '—';
+                                                        if (Array.isArray(val)) {
+                                                            if (val.length === 0) return '—';
+                                                            const first = val[0];
+                                                            if (typeof first === 'object' && first !== null && ('SKU' in first || 'sku' in first)) {
+                                                                const list = val.map((it: any) => it?.SKU ?? it?.sku ?? '').filter((s: string) => String(s).trim());
+                                                                return list.length === 0 ? '—' : (
+                                                                    <span style={{ display: 'block', maxHeight: '12em', overflowY: 'auto' }}>
+                                                                        {list.map((sku: string, i: number) => (
+                                                                            <span key={i} style={{ display: 'block', marginBottom: i < list.length - 1 ? '0.25rem' : 0 }}>{sku}</span>
+                                                                        ))}
+                                                                    </span>
+                                                                );
+                                                            }
+                                                            return val.map((v: any) => String(v)).join(', ');
+                                                        }
+                                                        if (typeof val === 'object') return JSON.stringify(val);
+                                                        const s = String(val).trim();
+                                                        return s !== '' ? s : '—';
+                                                    })()}
                                                 </td>
                                             ))}
                                         </tr>
