@@ -121,6 +121,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [formPasswordVisible, setFormPasswordVisible] = useState(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formResult, setFormResult] = useState<{ password?: string; emailSent?: boolean } | null>(null);
+  const [batchEntries, setBatchEntries] = useState<{ login: string; password: string; customer?: string }[]>([]);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchEntries, setBatchEntries] = useState<{ login: string; password: string; inn?: string; customer?: string }[]>([]);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
 
   const [emailHost, setEmailHost] = useState("");
   const [emailPort, setEmailPort] = useState("");
@@ -202,35 +208,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       return;
     }
 
-    const primaryCustomer = selectedCustomers[0];
-    const innForBody = primaryCustomer?.inn.trim() ?? "";
-    const companyNameForBody = primaryCustomer?.customer_name?.trim() ?? "";
-    const customerPayload = selectedCustomers
-      .map((c) => ({ inn: c.inn.trim(), name: c.customer_name.trim() }))
-      .filter((c) => c.inn);
-
+    const entry = {
+      login: formEmail.trim(),
+      password: formPassword,
+      customer: selectedCustomers[0]?.customer_name,
+    };
+    if (!entry.login) {
+      setError("Введите email");
+      setFormSubmitting(false);
+      return;
+    }
     try {
-      const res = await fetch("/api/admin-register-user", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({
-          inn: innForBody,
-          company_name: companyNameForBody,
-          email: formEmail.trim(),
-          send_email: formSendEmail,
-          permissions: formPermissions,
-          financial_access: formFinancial,
-          access_all_inns: formAccessAllInns,
-          customers: customerPayload.length ? customerPayload : undefined,
-          password: formSendEmail ? undefined : formPassword,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Ошибка");
-      setFormResult({ password: data.password, emailSent: data.emailSent });
+      await registerEntry(entry);
+      const baseResult = formSendEmail
+        ? { emailSent: true }
+        : { password: formPassword, emailSent: false };
+      setFormResult(baseResult);
       setSelectedCustomers([]);
       setFormEmail("");
       setFormPassword("");
@@ -305,6 +298,98 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   const removeSelectedCustomer = (inn: string) => {
     setSelectedCustomers((prev) => prev.filter((c) => c.inn !== inn));
+  };
+
+  const handleBatchFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBatchError(null);
+    try {
+      const text = await file.text();
+      const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      const entries: { login: string; password: string; customer?: string }[] = [];
+      const errors: string[] = [];
+      for (const line of lines) {
+        const parts = line.split("/");
+        if (parts.length < 2) {
+          errors.push(`Строка "${line}" пропущена — формат login/password[/customer]`);
+          continue;
+        }
+        entries.push({
+          login: parts[0].trim(),
+          password: parts[1].trim(),
+          customer: parts[2]?.trim(),
+        });
+      }
+      if (entries.length === 0) {
+        throw new Error("Файл не содержит допустимых записей");
+      }
+      setBatchEntries(entries);
+      if (errors.length) {
+        setBatchError(errors.join("; "));
+      }
+    } catch (e: unknown) {
+      setBatchEntries([]);
+      setBatchError((e as Error)?.message || "Не удалось прочитать файл");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const registerEntry = async (entry: { login: string; password: string; customer?: string }) => {
+    const payload: any = {
+      login: entry.login.trim(),
+      email: entry.login.trim(),
+      password: formSendEmail ? undefined : entry.password || formPassword,
+      send_email: formSendEmail,
+      permissions: formPermissions,
+      financial_access: formFinancial,
+      access_all_inns: formAccessAllInns,
+    };
+    if (selectedCustomers.length > 0) {
+      payload.customers = selectedCustomers.map((c) => ({
+        inn: c.inn,
+        name: c.customer_name,
+      }));
+    } else if (entry.customer) {
+      payload.customers = [{ name: entry.customer, inn: "" }];
+    }
+    const res = await fetch("/api/admin-register-user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || "Ошибка регистрации");
+    }
+    return data;
+  };
+
+  const handleBatchRegister = async () => {
+    if (batchEntries.length === 0) {
+      setBatchError("Выберите файл с логинами");
+      return;
+    }
+    setBatchLoading(true);
+    setBatchError(null);
+    try {
+      for (const entry of batchEntries) {
+        await registerEntry(entry);
+      }
+      setBatchEntries([]);
+      setFormResult({ password: batchEntries[0]?.password, emailSent: formSendEmail });
+    } catch (e: unknown) {
+      setBatchError((e as Error)?.message || "Ошибка пакетной регистрации");
+    } finally {
+      setBatchLoading(false);
+    }
   };
 
   const openPermissionsEditor = (user: User) => {
@@ -536,6 +621,21 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
       {tab === "add" && (
         <Panel className="cargo-card" style={{ padding: "1rem" }}>
+          <div className="admin-form-section" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1rem" }}>
+            <div className="admin-form-section-header">Массовая регистрация</div>
+            <Input type="file" accept=".txt,.csv" onChange={handleBatchFile} />
+            {batchEntries.length > 0 && (
+              <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                Загружено записей: {batchEntries.length}
+              </Typography.Body>
+            )}
+            {batchError && (
+              <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem" }}>{batchError}</Typography.Body>
+            )}
+            <Button className="filter-button" type="button" disabled={batchLoading || batchEntries.length === 0} onClick={handleBatchRegister}>
+              {batchLoading ? "Загружаем..." : "Зарегистрировать из файла"}
+            </Button>
+          </div>
           <form onSubmit={handleAddUser}>
             <div style={{ marginBottom: "1rem" }}>
               <Flex align="center" style={{ marginBottom: "0.5rem" }}>
