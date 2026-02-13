@@ -702,89 +702,91 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               {formAccessAllInns ? (
                 <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Доступ ко всем заказчикам — выбор не требуется</Typography.Body>
               ) : (
-                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                  <div
-                    style={{
-                      flex: 1,
-                      minHeight: 160,
-                      maxHeight: 260,
-                      padding: "0.75rem",
-                      background: "var(--color-bg-input)",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 8,
-                      overflowY: "auto",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    {selectedCustomers.length === 0 ? (
-                      <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Не выбран</Typography.Body>
-                    ) : (
-                      selectedCustomers.map((cust) => (
-                        <div
-                          key={cust.inn}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            padding: "0.35rem 0.5rem",
-                            borderRadius: 6,
-                            background: "var(--color-bg-hover)",
-                          }}
-                        >
-                          <div style={{ minWidth: 0 }}>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>
-                              {cust.inn} · {cust.customer_name}
-                            </Typography.Body>
-                            {cust.email && (
-                              <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
-                                {cust.email}
-                              </Typography.Body>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeSelectedCustomer(cust.inn)}
-                            style={{
-                              border: "none",
-                              background: "transparent",
-                              cursor: "pointer",
-                              color: "var(--color-text-secondary)",
-                            }}
-                            aria-label="Удалить заказчика"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    <Button
-                      className="filter-button"
-                      type="button"
-                      onClick={() => setCustomerPickModalOpen(true)}
+                <>
+                  <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        flex: 1,
+                        minHeight: 160,
+                        maxHeight: 260,
+                        padding: "0.75rem",
+                        background: "var(--color-bg-input)",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: 8,
+                        overflowY: "auto",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.5rem",
+                      }}
                     >
-                      Подбор
-                    </Button>
-                    {selectedCustomers.length > 0 && (
+                      {selectedCustomers.length === 0 ? (
+                        <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Не выбран</Typography.Body>
+                      ) : (
+                        selectedCustomers.map((cust) => (
+                          <div
+                            key={cust.inn}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "0.35rem 0.5rem",
+                              borderRadius: 6,
+                              background: "var(--color-bg-hover)",
+                            }}
+                          >
+                            <div style={{ minWidth: 0 }}>
+                              <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+                                {cust.inn} · {cust.customer_name}
+                              </Typography.Body>
+                              {cust.email && (
+                                <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
+                                  {cust.email}
+                                </Typography.Body>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeSelectedCustomer(cust.inn)}
+                              style={{
+                                border: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                                color: "var(--color-text-secondary)",
+                              }}
+                              aria-label="Удалить заказчика"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                       <Button
                         className="filter-button"
                         type="button"
-                        onClick={clearCustomerSelection}
-                        style={{ padding: "0.4rem 0.75rem", fontSize: "0.8rem" }}
+                        onClick={() => setCustomerPickModalOpen(true)}
                       >
-                        Очистить
+                        Подбор
                       </Button>
-                    )}
+                      {selectedCustomers.length > 0 && (
+                        <Button
+                          className="filter-button"
+                          type="button"
+                          onClick={clearCustomerSelection}
+                          style={{ padding: "0.4rem 0.75rem", fontSize: "0.8rem" }}
+                        >
+                          Очистить
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-                {batchEntries.length > 0 && (
-                  <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.35rem" }}>
-                    Пароль берётся из загруженного файла.
-                  </Typography.Body>
-                )}
+                  {batchEntries.length > 0 && (
+                    <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.35rem" }}>
+                      Пароль берётся из загруженного файла.
+                    </Typography.Body>
+                  )}
+                </>
               )}
             </div>
             <div style={{ marginBottom: "1rem" }}>
