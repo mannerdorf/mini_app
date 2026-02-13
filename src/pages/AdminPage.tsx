@@ -175,6 +175,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formResult, setFormResult] = useState<{ password?: string; emailSent?: boolean } | null>(null);
   const [batchEntries, setBatchEntries] = useState<{ login: string; password: string; inn?: string; customer?: string }[]>([]);
+  const isInnLike = (s: string) => /^\d{10,12}$/.test(String(s).trim());
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
   const [authMethodsConfig, setAuthMethodsConfig] = useState<AuthMethodsConfig>({
@@ -445,16 +446,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     const entries: typeof batchEntries = [];
     const errors: string[] = [];
     for (const line of lines) {
-      const parts = line.split("/");
+      const parts = line.split(/[/\t,;]/).map((p) => p.trim());
       if (parts.length < 2) {
-        errors.push(`Строка "${line}" пропущена — формат login/password[/customer]`);
+        errors.push(`Строка "${line}" пропущена — формат: login, password [, ИНН или заказчик [, название]]`);
         continue;
       }
-      entries.push({
-        login: parts[0].trim(),
-        password: parts[1].trim(),
-        customer: parts[2]?.trim(),
-      });
+      const third = parts[2] || "";
+      const fourth = parts[3] || "";
+      if (isInnLike(third)) {
+        entries.push({ login: parts[0], password: parts[1], inn: third, customer: fourth || undefined });
+      } else {
+        entries.push({ login: parts[0], password: parts[1], customer: third || undefined });
+      }
     }
     return { entries, errors };
   };
@@ -484,12 +487,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     const entries: typeof batchEntries = [];
     const errors: string[] = [];
     for (const row of matrix) {
-      const [login, password, customer] = row.map((cell) => (typeof cell === "string" ? cell.trim() : ""));
+      const cells = row.map((cell) => (typeof cell === "string" ? cell.trim() : String(cell ?? "").trim()));
+      const [login, password, col3, col4] = cells;
       if (!login || !password) {
-        if (login || password) errors.push(`Пропущена строка "${row.join("/")}" — укажите login и password`);
+        if (login || password) errors.push(`Пропущена строка — укажите login и password`);
         continue;
       }
-      entries.push({ login, password, customer });
+      if (isInnLike(col3 || "")) {
+        entries.push({ login, password, inn: col3, customer: col4 || undefined });
+      } else {
+        entries.push({ login, password, customer: col3 || undefined });
+      }
     }
     return { entries, errors };
   };
@@ -518,7 +526,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
   };
 
-  const registerEntry = async (entry: { login: string; password: string; customer?: string }) => {
+  const registerEntry = async (entry: { login: string; password: string; inn?: string; customer?: string }) => {
     const payload: any = {
       login: entry.login.trim(),
       email: entry.login.trim(),
@@ -533,6 +541,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         inn: c.inn,
         name: c.customer_name,
       }));
+    } else if (entry.inn) {
+      payload.customers = [{ inn: entry.inn, name: entry.customer || entry.inn }];
     } else if (entry.customer) {
       payload.customers = [{ name: entry.customer, inn: "" }];
     }
@@ -1049,6 +1059,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "1rem" }}>
           <div className="admin-form-section" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             <div className="admin-form-section-header">Массовая регистрация</div>
+            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+              Файл: столбцы <strong>логин (email)</strong>, <strong>пароль</strong>, <strong>ИНН</strong> (10–12 цифр) или название заказчика, при необходимости 4-й столбец — название компании.
+            </Typography.Body>
             <div className="admin-file-input-wrap">
               <Input className="admin-form-input admin-file-input" type="file" accept=".txt,.csv,.xls,.xlsx" onChange={handleBatchFile} />
             </div>
