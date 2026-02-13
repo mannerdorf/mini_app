@@ -121,9 +121,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [formPasswordVisible, setFormPasswordVisible] = useState(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formResult, setFormResult] = useState<{ password?: string; emailSent?: boolean } | null>(null);
-  const [batchEntries, setBatchEntries] = useState<{ login: string; password: string; customer?: string }[]>([]);
-  const [batchError, setBatchError] = useState<string | null>(null);
-  const [batchLoading, setBatchLoading] = useState(false);
   const [batchEntries, setBatchEntries] = useState<{ login: string; password: string; inn?: string; customer?: string }[]>([]);
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
