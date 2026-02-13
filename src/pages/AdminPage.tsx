@@ -297,30 +297,56 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setSelectedCustomers((prev) => prev.filter((c) => c.inn !== inn));
   };
 
+  const parseTextEntries = (text: string) => {
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const entries: typeof batchEntries = [];
+    const errors: string[] = [];
+    for (const line of lines) {
+      const parts = line.split("/");
+      if (parts.length < 2) {
+        errors.push(`Строка "${line}" пропущена — формат login/password[/customer]`);
+        continue;
+      }
+      entries.push({
+        login: parts[0].trim(),
+        password: parts[1].trim(),
+        customer: parts[2]?.trim(),
+      });
+    }
+    return { entries, errors };
+  };
+
+  const parseExcelEntries = async (file: File) => {
+    const bytes = await file.arrayBuffer();
+    const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.22.2/package/xlsx.mjs");
+    const workbook = XLSX.read(new Uint8Array(bytes), { type: "array" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const matrix = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "" });
+    const entries: typeof batchEntries = [];
+    const errors: string[] = [];
+    for (const row of matrix) {
+      const [login, password, customer] = row.map((cell) => (typeof cell === "string" ? cell.trim() : ""));
+      if (!login || !password) {
+        if (login || password) errors.push(`Пропущена строка "${row.join("/")}" — укажите login и password`);
+        continue;
+      }
+      entries.push({ login, password, customer });
+    }
+    return { entries, errors };
+  };
+
   const handleBatchFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     setBatchError(null);
     try {
-      const text = await file.text();
-      const lines = text
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean);
-      const entries: { login: string; password: string; customer?: string }[] = [];
-      const errors: string[] = [];
-      for (const line of lines) {
-        const parts = line.split("/");
-        if (parts.length < 2) {
-          errors.push(`Строка "${line}" пропущена — формат login/password[/customer]`);
-          continue;
-        }
-        entries.push({
-          login: parts[0].trim(),
-          password: parts[1].trim(),
-          customer: parts[2]?.trim(),
-        });
-      }
+      const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+      const { entries, errors } = isExcel
+        ? await parseExcelEntries(file)
+        : parseTextEntries(await file.text());
       if (entries.length === 0) {
         throw new Error("Файл не содержит допустимых записей");
       }
