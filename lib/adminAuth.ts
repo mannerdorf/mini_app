@@ -3,9 +3,9 @@ import crypto from "crypto";
 const ALG = "sha256";
 const TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 
+/** Один и тот же секрет для создания и проверки токена. Задайте ADMIN_TOKEN_SECRET в Vercel (одинаково везде). */
 function getSecret(): string {
-  const s = process.env.SERVICE_MODE_PASSWORD || process.env.JWT_SECRET || "haulz-admin";
-  return s;
+  return process.env.ADMIN_TOKEN_SECRET || "haulz-admin";
 }
 
 export function createAdminToken(): string {
@@ -25,7 +25,9 @@ export function verifyAdminToken(token: string | undefined): boolean {
   try {
     const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8"));
     if (!payload.admin || !payload.exp) return false;
-    if (payload.exp < Date.now()) return false;
+    // Допуск 2 мин на рассинхрон времени между инстансами (Vercel serverless)
+    const now = Date.now();
+    if (payload.exp < now - 2 * 60 * 1000) return false;
     return true;
   } catch {
     return false;

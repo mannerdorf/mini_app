@@ -4,8 +4,9 @@ import { createAdminToken } from "../lib/adminAuth.js";
 /**
  * POST /api/verify-admin-access
  * Body: { login: string, password: string }
- * Проверяет логин и пароль текущего пользователя приложения.
- * Если совпадают с ADMIN_LOGIN и ADMIN_PASSWORD — возвращает adminToken для доступа к админке.
+ *
+ * Вход в админку (CMS) — только по переменным окружения ADMIN_LOGIN и ADMIN_PASSWORD.
+ * БД не используется: пароль не берётся из registered_users и ниоткуда не перекрывается.
  */
 export default async function handler(
   req: VercelRequest,
@@ -16,8 +17,9 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const adminLogin = process.env.ADMIN_LOGIN?.trim();
-  const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+  // Только env — без запросов к БД, без подстановки из других источников
+  const adminLogin = process.env.ADMIN_LOGIN?.trim() ?? "";
+  const adminPassword = process.env.ADMIN_PASSWORD ?? "";
 
   if (!adminLogin || !adminPassword) {
     return res.status(500).json({ error: "Админка не настроена (ADMIN_LOGIN, ADMIN_PASSWORD)" });
