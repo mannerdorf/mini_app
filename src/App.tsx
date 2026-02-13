@@ -8952,14 +8952,16 @@ export default function App() {
             setLoading(true);
             const loginKey = login.trim().toLowerCase();
 
-            const attemptCmsAuth = async (): Promise<boolean> => {
+            const attemptCmsAuth = async (): Promise<true | string> => {
                 const regRes = await fetch("/api/auth-registered-login", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email: loginKey, password }),
                 });
-                if (!regRes.ok) return false;
                 const regData = await regRes.json().catch(() => ({}));
+                if (!regRes.ok) {
+                    return (typeof regData?.error === "string" ? regData.error : null) || "Неверный email или пароль";
+                }
                 if (regData?.ok && regData?.user) {
                     const u = regData.user;
                     const existingAccount = accounts.find((acc) => acc.login === loginKey);
@@ -8992,7 +8994,7 @@ export default function App() {
                     setActiveTab((prev) => prev || "cargo");
                     return true;
                 }
-                return false;
+                return "Неверный email или пароль";
             };
 
             const attemptApiV2Auth = async (): Promise<boolean> => {
@@ -9165,10 +9167,15 @@ export default function App() {
                 return true;
             };
 
-            if (authMethods.cms && (await attemptCmsAuth())) return;
+            let lastError = "Неверный логин или пароль";
+            if (authMethods.cms) {
+                const cmsResult = await attemptCmsAuth();
+                if (cmsResult === true) return;
+                lastError = cmsResult;
+            }
             if (authMethods.api_v2 && (await attemptApiV2Auth())) return;
             if (authMethods.api_v1 && (await attemptApiV1Auth())) return;
-            setError("Неверный логин или пароль");
+            setError(lastError);
         } catch (err: any) {
             const raw = err?.message || "Ошибка сети.";
             const message = extractErrorMessage(raw) || (typeof raw === "string" ? raw : "Ошибка сети.");

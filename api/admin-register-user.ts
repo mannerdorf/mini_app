@@ -28,11 +28,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Требуется авторизация админа" });
   }
 
+  const WEAK_PASSWORDS = new Set(["123", "1234", "12345", "123456", "1234567", "12345678", "password", "qwerty", "admin", "letmein"]);
+  function isPasswordStrongEnough(p: string): { ok: boolean; error?: string } {
+    if (p.length < 8) return { ok: false, error: "Минимум 8 символов" };
+    if (WEAK_PASSWORDS.has(p.toLowerCase())) return { ok: false, error: "Пароль слишком простой" };
+    if (!/[a-zA-Z]/.test(p) || !/\d/.test(p)) return { ok: false, error: "Нужны буквы и цифры" };
+    return { ok: true };
+  }
+
   let body: {
     inn?: string;
     company_name?: string;
     email?: string;
     send_email?: boolean;
+    password?: string;
     permissions?: Record<string, boolean>;
     financial_access?: boolean;
     access_all_inns?: boolean;
@@ -62,7 +71,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const inn = primaryCustomer?.inn || fallbackInn;
   const companyName = primaryCustomer?.name || fallbackCompanyName;
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-  const sendEmail = body?.send_email !== false;
   const permissions = body?.permissions && typeof body.permissions === "object"
     ? { ...DEFAULT_PERMISSIONS, ...body.permissions }
     : DEFAULT_PERMISSIONS;
@@ -76,7 +84,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const login = email;
-  const password = generatePassword(8);
+  const sendEmail = body?.send_email !== false;
+  const manualPassword = typeof body?.password === "string" ? body.password : "";
+  let password: string;
+  if (!sendEmail && manualPassword) {
+    const strong = isPasswordStrongEnough(manualPassword);
+    if (!strong.ok) {
+      return res.status(400).json({ error: strong.error || "Пароль слишком простой" });
+    }
+    password = manualPassword;
+  } else {
+    password = generatePassword(8);
+  }
   const passwordHash = hashPassword(password);
 
   const innForDb = accessAllInns ? "" : inn;

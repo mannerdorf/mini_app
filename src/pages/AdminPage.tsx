@@ -60,6 +60,16 @@ const AUTH_METHODS = [
 
 type AuthMethodKey = (typeof AUTH_METHODS)[number]["key"];
 
+const WEAK_PASSWORDS = new Set(["123", "1234", "12345", "123456", "1234567", "12345678", "password", "qwerty", "admin", "letmein"]);
+function isPasswordStrongEnough(p: string): { ok: boolean; message?: string } {
+  if (p.length < 8) return { ok: false, message: "Минимум 8 символов" };
+  if (WEAK_PASSWORDS.has(p.toLowerCase())) return { ok: false, message: "Пароль слишком простой" };
+  const hasLetter = /[a-zA-Z]/.test(p);
+  const hasDigit = /\d/.test(p);
+  if (!hasLetter || !hasDigit) return { ok: false, message: "Нужны буквы и цифры" };
+  return { ok: true };
+}
+
 type AdminPageProps = {
   adminToken: string;
   onBack: () => void;
@@ -323,6 +333,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setError("Введите пароль вручную или включите отправку на email");
       setFormSubmitting(false);
       return;
+    }
+    if (!formSendEmail) {
+      const strong = isPasswordStrongEnough(formPassword);
+      if (!strong.ok) {
+        setError(strong.message || "Пароль слишком простой. Минимум 8 символов, буквы и цифры.");
+        setFormSubmitting(false);
+        return;
+      }
     }
 
     const entry = {
@@ -1192,9 +1210,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     type={formPasswordVisible ? "text" : "password"}
                     value={formPassword}
                     onChange={(e) => setFormPassword(e.target.value)}
-                    placeholder="Введите пароль вручную"
+                    placeholder="Минимум 8 символов, буквы и цифры"
                     style={{ width: "100%" }}
                     disabled={batchEntries.length > 0}
+                    minLength={8}
+                    autoComplete="new-password"
                   />
                   <button
                     type="button"
@@ -1206,6 +1226,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     {formPasswordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>
+                  Минимум 8 символов, обязательно буквы и цифры. Простые пароли (123, password и т.п.) запрещены.
+                </Typography.Body>
                 {batchEntries.length > 0 && (
                   <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.35rem" }}>
                     Пароль берётся из загруженного файла.
