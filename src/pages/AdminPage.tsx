@@ -809,7 +809,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "1rem" }}>
           <div className="admin-form-section" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1rem" }}>
             <div className="admin-form-section-header">Массовая регистрация</div>
-            <Input type="file" accept=".txt,.csv,.xls,.xlsx" onChange={handleBatchFile} />
+            <div className="admin-file-input-wrap">
+              <Input className="admin-form-input admin-file-input" type="file" accept=".txt,.csv,.xls,.xlsx" onChange={handleBatchFile} />
+            </div>
             {batchEntries.length > 0 && (
               <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
                 Загружено записей: {batchEntries.length}

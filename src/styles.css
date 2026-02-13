@@ -618,6 +618,21 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     color: #9ca3af !important;
 }
 
+/* Поле выбора файла в админке: в светлом режиме не чёрная строка */
+.light-mode .admin-file-input-wrap,
+.light-mode .admin-file-input-wrap .admin-file-input,
+.light-mode .admin-file-input-wrap input,
+.light-mode .admin-file-input-wrap input[type="file"] {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border-color: #d1d5db !important;
+}
+.light-mode .admin-file-input-wrap input[type="file"]::file-selector-button {
+    background-color: #f3f4f6 !important;
+    color: #1f2937 !important;
+    border: 1px solid #d1d5db !important;
+}
+
 /* --- BITRIX PUBLIC CHAT (Support tab) --- */
 .bitrix-chat-fullbleed {
     width: 100vw;
