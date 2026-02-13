@@ -758,6 +758,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     )}
                   </div>
                 </div>
+                {batchEntries.length > 0 && (
+                  <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.35rem" }}>
+                    Пароль берётся из загруженного файла.
+                  </Typography.Body>
+                )}
               )}
             </div>
             <div style={{ marginBottom: "1rem" }}>
@@ -804,14 +809,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <div style={{ marginBottom: "1rem" }}>
                 <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Пароль</Typography.Body>
                     <div className="password-input-container" style={{ position: "relative" }}>
-                      <Input
-                        className="admin-form-input password"
-                        type={formPasswordVisible ? "text" : "password"}
-                        value={formPassword}
-                        onChange={(e) => setFormPassword(e.target.value)}
-                        placeholder="Введите пароль вручную"
-                        style={{ width: "100%" }}
-                      />
+                <Input
+                  className="admin-form-input password"
+                  type={formPasswordVisible ? "text" : "password"}
+                  value={formPassword}
+                  onChange={(e) => setFormPassword(e.target.value)}
+                  placeholder="Введите пароль вручную"
+                  style={{ width: "100%" }}
+                  disabled={batchEntries.length > 0}
+                />
                       <button
                         type="button"
                         className="toggle-password-visibility"
