@@ -649,7 +649,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       {tab === "users" && (
         <>
           <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
-            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Способы авторизации</Typography.Body>
+            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.25rem" }}>Варианты верификации</Typography.Body>
+            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
+              Включите или отключите способы входа для пользователей
+            </Typography.Body>
             {authConfigLoading ? (
               <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -686,7 +689,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               onClick={handleSaveAuthConfig}
               disabled={authConfigSaving || authConfigLoading}
             >
-              {authConfigSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить способы"}
+              {authConfigSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить варианты верификации"}
             </Button>
           </Panel>
           {selectedUser && (
