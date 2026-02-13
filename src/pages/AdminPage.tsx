@@ -25,6 +25,20 @@ const PERMISSION_KEYS = [
   { key: "service_mode", label: "Служебный режим" },
 ] as const;
 
+type AuthMethodsConfig = {
+  api_v1: boolean;
+  api_v2: boolean;
+  cms: boolean;
+};
+
+const AUTH_METHODS = [
+  { key: "api_v1", label: "API 1С v1", description: "GetPerevozki" },
+  { key: "api_v2", label: "API 1С v2", description: "GetCustomers" },
+  { key: "cms", label: "CMS", description: "email / пароль" },
+] as const;
+
+type AuthMethodKey = (typeof AUTH_METHODS)[number]["key"];
+
 type AdminPageProps = {
   adminToken: string;
   onBack: () => void;
@@ -130,6 +144,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [batchEntries, setBatchEntries] = useState<{ login: string; password: string; inn?: string; customer?: string }[]>([]);
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
+  const [authMethodsConfig, setAuthMethodsConfig] = useState<AuthMethodsConfig>({
+    api_v1: true,
+    api_v2: true,
+    cms: true,
+  });
+  const [authConfigLoading, setAuthConfigLoading] = useState(false);
+  const [authConfigSaving, setAuthConfigSaving] = useState(false);
+  const [authConfigError, setAuthConfigError] = useState<string | null>(null);
+  const [authConfigMessage, setAuthConfigMessage] = useState<string | null>(null);
 
   const [emailHost, setEmailHost] = useState("");
   const [emailPort, setEmailPort] = useState("");
@@ -169,6 +192,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
   }, [adminToken]);
 
+  const fetchAuthConfig = useCallback(async () => {
+    setAuthConfigLoading(true);
+    setAuthConfigError(null);
+    setAuthConfigMessage(null);
+    try {
+      const res = await fetch("/api/admin-auth-config", {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data?.error as string) || "Ошибка загрузки способов авторизации");
+      const config = data.config || {};
+      setAuthMethodsConfig({
+        api_v1: config.api_v1 ?? true,
+        api_v2: config.api_v2 ?? true,
+        cms: config.cms ?? true,
+      });
+    } catch (e: unknown) {
+      setAuthConfigError((e as Error)?.message || "Ошибка загрузки способов авторизации");
+    } finally {
+      setAuthConfigLoading(false);
+    }
+  }, [adminToken]);
+
   const fetchEmailSettings = useCallback(async () => {
     setError(null);
     try {
@@ -191,9 +237,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (tab === "users") fetchUsers();
+    if (tab === "users") {
+      fetchUsers();
+      fetchAuthConfig();
+    }
     if (tab === "email") fetchEmailSettings();
-  }, [tab, fetchUsers, fetchEmailSettings]);
+  }, [tab, fetchUsers, fetchEmailSettings, fetchAuthConfig]);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -478,6 +527,40 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
   };
 
+  const handleToggleAuthMethod = (key: AuthMethodKey) => {
+    setAuthMethodsConfig((prev) => ({ ...prev, [key]: !prev[key] }));
+    setAuthConfigMessage(null);
+  };
+
+  const handleSaveAuthConfig = async () => {
+    setAuthConfigSaving(true);
+    setAuthConfigError(null);
+    setAuthConfigMessage(null);
+    try {
+      const res = await fetch("/api/admin-auth-config", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify(authMethodsConfig),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data?.error as string) || "Ошибка сохранения способов авторизации");
+      const config = data.config || authMethodsConfig;
+      setAuthMethodsConfig({
+        api_v1: config.api_v1 ?? authMethodsConfig.api_v1,
+        api_v2: config.api_v2 ?? authMethodsConfig.api_v2,
+        cms: config.cms ?? authMethodsConfig.cms,
+      });
+      setAuthConfigMessage("Способы авторизации обновлены");
+    } catch (e: unknown) {
+      setAuthConfigError((e as Error)?.message || "Ошибка сохранения способов авторизации");
+    } finally {
+      setAuthConfigSaving(false);
+    }
+  };
+
   const handleResetPassword = async () => {
     if (!selectedUser) return;
     setEditorError(null);
@@ -563,105 +646,147 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Typography.Body style={{ color: "var(--color-error)", marginBottom: "1rem", fontSize: "0.9rem" }}>{error}</Typography.Body>
       )}
 
-      {tab === "users" && selectedUser && (
-        <Panel className="cargo-card" style={{ padding: "1rem", marginTop: "1rem" }}>
-          <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.5rem" }}>
-            <div>
-              <Typography.Body style={{ fontWeight: 600 }}>Права — {selectedUser.login}</Typography.Body>
-              <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Выданы по email {selectedUser.login}</Typography.Body>
-            </div>
-            <Flex gap="0.5rem" align="center">
-              <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={handleResetPassword}>
-                Сбросить пароль
-              </Button>
-              <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={closePermissionsEditor}>
-                Закрыть
-              </Button>
-            </Flex>
-          </Flex>
-          {resetPasswordInfo && (
-            <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--color-text-secondary)" }}>
-              {resetPasswordInfo.emailSent
-                ? "Пароль отправлен на email."
-                : `Новый временный пароль: ${resetPasswordInfo.password || "—"}. Передайте его пользователю.`}
-              {resetPasswordInfo.emailError && ` Ошибка отправки: ${resetPasswordInfo.emailError}`}
-            </Typography.Body>
-          )}
-          <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
-            <Typography.Body style={{ fontSize: "0.9rem" }}>Финансовый доступ</Typography.Body>
-            <TapSwitch checked={editorFinancial} onToggle={() => setEditorFinancial((prev) => !prev)} />
-          </Flex>
-          <Flex justify="space-between" align="center" style={{ marginBottom: "1rem" }}>
-            <Typography.Body style={{ fontSize: "0.9rem" }}>Доступ ко всем ИНН</Typography.Body>
-            <TapSwitch checked={editorAccessAllInns} onToggle={() => setEditorAccessAllInns((prev) => !prev)} />
-          </Flex>
-          <div className="admin-form-section" style={{ marginBottom: "0.5rem" }}>
-            <div className="admin-form-section-header">Разделы</div>
-            <div className="admin-permissions-toolbar">
-              {PERMISSION_KEYS.map((perm) => (
-                <button
-                  key={perm.key}
-                  type="button"
-                  className={`permission-button ${editorPermissions[perm.key] ? "active" : ""}`}
-                  onClick={() => handlePermissionsToggle(perm.key)}
-                >
-                  {perm.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {editorError && (
-            <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
-              {editorError}
-            </Typography.Body>
-          )}
-          <Flex gap="0.5rem">
-            <Button className="button-primary" disabled={editorLoading} onClick={handleSaveUserPermissions}>
-              {editorLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Сохранить права"}
-            </Button>
-            <Button className="filter-button" onClick={closePermissionsEditor} style={{ padding: "0.5rem 0.75rem" }}>
-              Отмена
-            </Button>
-          </Flex>
-        </Panel>
-      )}
-
       {tab === "users" && (
-        <Panel className="cargo-card" style={{ padding: "1rem" }}>
-          {loading ? (
-            <Flex align="center" gap="0.5rem">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <Typography.Body>Загрузка...</Typography.Body>
-            </Flex>
-          ) : users.length === 0 ? (
-            <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет зарегистрированных пользователей</Typography.Body>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {users.map((u) => (
-                <UserRow
-                  key={u.id}
-                  user={u}
-                  adminToken={adminToken}
-                  onToggleActive={async () => {
-                    const next = !u.active;
-                    try {
-                      const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                        body: JSON.stringify({ active: next }),
-                      });
-                      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
-                      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: next } : x)));
-                    } catch (e: unknown) {
-                      setError((e as Error)?.message || "Ошибка обновления");
-                    }
-                  }}
-                  onEditPermissions={openPermissionsEditor}
-                />
-              ))}
-            </div>
+        <>
+          <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
+            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Способы авторизации</Typography.Body>
+            {authConfigLoading ? (
+              <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <Typography.Body style={{ fontSize: "0.9rem" }}>Загрузка...</Typography.Body>
+              </Flex>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {AUTH_METHODS.map((method) => (
+                  <Flex key={method.key} justify="space-between" align="center">
+                    <div style={{ minWidth: 0 }}>
+                      <Typography.Body style={{ fontWeight: 600 }}>{method.label}</Typography.Body>
+                      <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                        {method.description}
+                      </Typography.Body>
+                    </div>
+                    <TapSwitch checked={authMethodsConfig[method.key]} onToggle={() => handleToggleAuthMethod(method.key)} />
+                  </Flex>
+                ))}
+              </div>
+            )}
+            {authConfigError && (
+              <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginTop: "0.5rem" }}>
+                {authConfigError}
+              </Typography.Body>
+            )}
+            {authConfigMessage && (
+              <Typography.Body style={{ color: "var(--color-success-status)", fontSize: "0.85rem", marginTop: "0.5rem" }}>
+                {authConfigMessage}
+              </Typography.Body>
+            )}
+            <Button
+              className="button-primary"
+              style={{ marginTop: "0.75rem" }}
+              onClick={handleSaveAuthConfig}
+              disabled={authConfigSaving || authConfigLoading}
+            >
+              {authConfigSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить способы"}
+            </Button>
+          </Panel>
+          {selectedUser && (
+            <Panel className="cargo-card" style={{ padding: "1rem", marginTop: "1rem" }}>
+              <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.5rem" }}>
+                <div>
+                  <Typography.Body style={{ fontWeight: 600 }}>Права — {selectedUser.login}</Typography.Body>
+                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Выданы по email {selectedUser.login}</Typography.Body>
+                </div>
+                <Flex gap="0.5rem" align="center">
+                  <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={handleResetPassword}>
+                    Сбросить пароль
+                  </Button>
+                  <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={closePermissionsEditor}>
+                    Закрыть
+                  </Button>
+                </Flex>
+              </Flex>
+              {resetPasswordInfo && (
+                <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--color-text-secondary)" }}>
+                  {resetPasswordInfo.emailSent
+                    ? "Пароль отправлен на email."
+                    : `Новый временный пароль: ${resetPasswordInfo.password || "—"}. Передайте его пользователю.`}
+                  {resetPasswordInfo.emailError && ` Ошибка отправки: ${resetPasswordInfo.emailError}`}
+                </Typography.Body>
+              )}
+              <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
+                <Typography.Body style={{ fontSize: "0.9rem" }}>Финансовый доступ</Typography.Body>
+                <TapSwitch checked={editorFinancial} onToggle={() => setEditorFinancial((prev) => !prev)} />
+              </Flex>
+              <Flex justify="space-between" align="center" style={{ marginBottom: "1rem" }}>
+                <Typography.Body style={{ fontSize: "0.9rem" }}>Доступ ко всем ИНН</Typography.Body>
+                <TapSwitch checked={editorAccessAllInns} onToggle={() => setEditorAccessAllInns((prev) => !prev)} />
+              </Flex>
+              <div className="admin-form-section" style={{ marginBottom: "0.5rem" }}>
+                <div className="admin-form-section-header">Разделы</div>
+                <div className="admin-permissions-toolbar">
+                  {PERMISSION_KEYS.map((perm) => (
+                    <button
+                      key={perm.key}
+                      type="button"
+                      className={`permission-button ${editorPermissions[perm.key] ? "active" : ""}`}
+                      onClick={() => handlePermissionsToggle(perm.key)}
+                    >
+                      {perm.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {editorError && (
+                <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
+                  {editorError}
+                </Typography.Body>
+              )}
+              <Flex gap="0.5rem">
+                <Button className="button-primary" disabled={editorLoading} onClick={handleSaveUserPermissions}>
+                  {editorLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Сохранить права"}
+                </Button>
+                <Button className="filter-button" onClick={closePermissionsEditor} style={{ padding: "0.5rem 0.75rem" }}>
+                  Отмена
+                </Button>
+              </Flex>
+            </Panel>
           )}
-        </Panel>
+          <Panel className="cargo-card" style={{ padding: "1rem" }}>
+            {loading ? (
+              <Flex align="center" gap="0.5rem">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <Typography.Body>Загрузка...</Typography.Body>
+              </Flex>
+            ) : users.length === 0 ? (
+              <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет зарегистрированных пользователей</Typography.Body>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                {users.map((u) => (
+                  <UserRow
+                    key={u.id}
+                    user={u}
+                    adminToken={adminToken}
+                    onToggleActive={async () => {
+                      const next = !u.active;
+                      try {
+                        const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                          body: JSON.stringify({ active: next }),
+                        });
+                        if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
+                        setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: next } : x)));
+                      } catch (e: unknown) {
+                        setError((e as Error)?.message || "Ошибка обновления");
+                      }
+                    }}
+                    onEditPermissions={openPermissionsEditor}
+                  />
+                ))}
+              </div>
+            )}
+          </Panel>
+        </>
       )}
 
       {tab === "add" && (

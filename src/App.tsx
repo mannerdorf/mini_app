@@ -44,6 +44,11 @@ import type {
 
 const { getTodayDate, isDateToday, isDateInRange, getSixMonthsAgoDate, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, loadDateFilterState, saveDateFilterState, getDateRange, MONTH_NAMES, getWeekRange, getPreviousPeriodRange, getWeeksList, getYearsList, formatDate, formatDateTime, formatTimelineDate, formatTimelineTime, getDateTextColor } = dateUtils;
 type DateFilterState = dateUtils.DateFilterState;
+type AuthMethodsConfig = {
+    api_v1: boolean;
+    api_v2: boolean;
+    cms: boolean;
+};
 
 /** Плановые сроки доставки (дней): MSK-KGD авто 7 / паром 20; KGD-MSK авто и паром 60 */
 const AUTO_PLAN_DAYS = 7;
@@ -8141,7 +8146,6 @@ export default function App() {
     const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
     const [useServiceRequest, setUseServiceRequest] = useState(false);
     const [serviceRefreshSpinning, setServiceRefreshSpinning] = useState(false);
-    
     // Вычисляем текущий активный аккаунт
     const auth = useMemo(() => {
         if (!activeAccountId) return null;
@@ -8184,6 +8188,36 @@ export default function App() {
     const serviceModeUnlocked = useMemo(() => {
         return !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
     }, [activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
+    const [authMethods, setAuthMethods] = useState<AuthMethodsConfig>({
+        api_v1: true,
+        api_v2: true,
+        cms: true,
+    });
+    useEffect(() => {
+        let cancelled = false;
+        const loadConfig = async () => {
+            try {
+                const res = await fetch("/api/auth-config");
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data?.error || "Ошибка загрузки способов авторизации");
+                if (cancelled) return;
+                const config = data?.config || {};
+                setAuthMethods({
+                    api_v1: config.api_v1 ?? true,
+                    api_v2: config.api_v2 ?? true,
+                    cms: config.cms ?? true,
+                });
+            } catch (err) {
+                if (!cancelled) {
+                    console.warn("Failed to load auth config", err);
+                }
+            }
+        };
+        loadConfig();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
     const persistTwoFactorSettings = useCallback(async (account: Account, patch: Partial<Account>) => {
         const login = account.login;
         if (!login) return;
@@ -8906,26 +8940,30 @@ export default function App() {
         setTwoFactorError(null);
         if (!login || !password) return setError("Введите логин и пароль");
         if (!agreeOffer || !agreePersonal) return setError("Подтвердите согласие с условиями");
+        if (!authMethods.cms && !authMethods.api_v2 && !authMethods.api_v1) {
+            setError("Недоступны способы авторизации");
+            return;
+        }
 
         try {
             setLoading(true);
             const loginKey = login.trim().toLowerCase();
 
-            // Зарегистрированные пользователи (админка): вход по email/паролю
-            const regRes = await fetch("/api/auth-registered-login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: loginKey, password }),
-            });
-            if (regRes.ok) {
+            const attemptCmsAuth = async (): Promise<boolean> => {
+                const regRes = await fetch("/api/auth-registered-login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: loginKey, password }),
+                });
+                if (!regRes.ok) return false;
                 const regData = await regRes.json().catch(() => ({}));
                 if (regData?.ok && regData?.user) {
                     const u = regData.user;
-                    const existingAccount = accounts.find(acc => acc.login === loginKey);
+                    const existingAccount = accounts.find((acc) => acc.login === loginKey);
                     const customers: CustomerOption[] = u.inn ? [{ name: u.companyName || u.inn, inn: u.inn }] : [];
                     if (existingAccount) {
-                        setAccounts(prev =>
-                            prev.map(acc =>
+                        setAccounts((prev) =>
+                            prev.map((acc) =>
                                 acc.id === existingAccount.id
                                     ? { ...acc, password, customers, activeCustomerInn: u.inn, customer: u.companyName, isRegisteredUser: true, permissions: u.permissions, financialAccess: u.financialAccess }
                                     : acc
@@ -8945,177 +8983,189 @@ export default function App() {
                             permissions: u.permissions,
                             financialAccess: u.financialAccess,
                         };
-                        setAccounts(prev => [...prev, newAccount]);
+                        setAccounts((prev) => [...prev, newAccount]);
                         setActiveAccountId(accountId);
                     }
                     setActiveTab((prev) => prev || "cargo");
-                    return;
+                    return true;
                 }
-            }
+                return false;
+            };
 
-            // Способ 2 авторизации: Getcustomers (GETAPI?metod=Getcustomers)
-            const customersRes = await fetch(PROXY_API_GETCUSTOMERS_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login, password }),
-            });
-            if (customersRes.ok) {
-                const customersData = await customersRes.json().catch(() => ({}));
-                const rawList = Array.isArray(customersData?.customers) ? customersData.customers : Array.isArray(customersData?.Customers) ? customersData.Customers : [];
-                const customers: CustomerOption[] = dedupeCustomersByInn(
-                    rawList.map((c: any) => ({
-                        name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
-                        inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
-                    })).filter((c: CustomerOption) => c.inn.length > 0)
-                );
-                if (customers.length > 0) {
-                    const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
-                    const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
-                    if (alreadyAdded) {
-                        setError("Компания уже в списке");
-                        return;
-                    }
-                    const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
-                    const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
-                    const twoFaSettings = twoFaJson?.settings;
-                    const twoFaEnabled = !!twoFaSettings?.enabled;
-                    const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
-                    const twoFaLinked = !!twoFaSettings?.telegramLinked;
-                    const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
-                    if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
-                        const sendRes = await fetch("/api/2fa-telegram", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ login: loginKey, action: "send" }),
-                        });
-                        if (!sendRes.ok) {
-                            const err = await readJsonOrText(sendRes);
-                            throw new Error(err?.error || "Не удалось отправить код");
-                        }
-                        setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "telegram" });
-                        setTwoFactorPending(true);
-                        setTwoFactorCode("");
-                        return;
-                    }
-                    if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
-                        setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "google" });
-                        setTwoFactorPending(true);
-                        setTwoFactorCode("");
-                        return;
-                    }
-                    const existingAccount = accounts.find(acc => acc.login === login);
-                    const firstCustomer = customers[0];
-                    const firstInn = firstCustomer.inn;
-                    const firstName = firstCustomer.name;
-                    if (existingAccount) {
-                        setAccounts(prev =>
-                            prev.map(acc =>
-                                acc.id === existingAccount.id
-                                    ? { ...acc, customers, activeCustomerInn: firstInn, customer: firstName }
-                                    : acc
-                            )
-                        );
-                        setActiveAccountId(existingAccount.id);
-                    } else {
-                        const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                        const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: firstInn, customer: firstName };
-                        setAccounts(prev => [...prev, newAccount]);
-                        setActiveAccountId(accountId);
-                    }
-                    setActiveTab((prev) => prev || "cargo");
-                    fetch("/api/companies-save", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ login: loginKey, customers }),
-                    })
-                        .then((r) => r.json())
-                        .then((data) => { if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning); })
-                        .catch((err) => console.warn("companies-save error:", err));
-                    return;
-                }
-            }
-
-            // Способ 1 авторизации: GetPerevozki (перевозки)
-            const { dateFrom, dateTo } = getDateRange("все");
-            const res = await fetch(PROXY_API_BASE_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login, password, dateFrom, dateTo }),
-            });
-            await ensureOk(res, "Ошибка авторизации");
-            const payload = await readJsonOrText(res);
-            const detectedCustomer = extractCustomerFromPerevozki(payload);
-            const detectedInn = extractInnFromPerevozki(payload);
-            const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
-            if (detectedInn && existingInns.has(detectedInn)) {
-                setError("Компания уже в списке");
-                return;
-            }
-            const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
-            const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
-            const twoFaSettings = twoFaJson?.settings;
-            const twoFaEnabled = !!twoFaSettings?.enabled;
-            const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
-            const twoFaLinked = !!twoFaSettings?.telegramLinked;
-            const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
-
-            if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
-                const sendRes = await fetch("/api/2fa-telegram", {
+            const attemptApiV2Auth = async (): Promise<boolean> => {
+                const customersRes = await fetch(PROXY_API_GETCUSTOMERS_URL, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login: loginKey, action: "send" }),
+                    body: JSON.stringify({ login, password }),
                 });
-                if (!sendRes.ok) {
-                    const err = await readJsonOrText(sendRes);
-                    throw new Error(err?.error || "Не удалось отправить код");
+                if (!customersRes.ok) return false;
+                const customersData = await customersRes.json().catch(() => ({}));
+                const rawList = Array.isArray(customersData?.customers)
+                    ? customersData.customers
+                    : Array.isArray(customersData?.Customers)
+                        ? customersData.Customers
+                        : [];
+                const customers: CustomerOption[] = dedupeCustomersByInn(
+                    rawList
+                        .map((c: any) => ({
+                            name: String(c?.name ?? c?.Name ?? "").trim() || String(c?.Inn ?? c?.inn ?? ""),
+                            inn: String(c?.inn ?? c?.INN ?? c?.Inn ?? "").trim(),
+                        }))
+                        .filter((c: CustomerOption) => c.inn.length > 0)
+                );
+                if (customers.length === 0) return false;
+                const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
+                const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
+                if (alreadyAdded) {
+                    setError("Компания уже в списке");
+                    return true;
                 }
-                setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined, twoFaMethod: "telegram" });
-                setTwoFactorPending(true);
-                setTwoFactorCode("");
-                return;
-            }
-            if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
-                setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined, twoFaMethod: "google" });
-                setTwoFactorPending(true);
-                setTwoFactorCode("");
-                return;
-            }
-
-            const existingAccount = accounts.find(acc => acc.login === login);
-            let accountId: string;
-            if (existingAccount) {
-                accountId = existingAccount.id;
-                if (detectedCustomer && existingAccount.customer !== detectedCustomer) {
-                    setAccounts(prev =>
-                        prev.map(acc =>
+                const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
+                const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
+                const twoFaSettings = twoFaJson?.settings;
+                const twoFaEnabled = !!twoFaSettings?.enabled;
+                const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
+                const twoFaLinked = !!twoFaSettings?.telegramLinked;
+                const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
+                if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
+                    const sendRes = await fetch("/api/2fa-telegram", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ login: loginKey, action: "send" }),
+                    });
+                    if (!sendRes.ok) {
+                        const err = await readJsonOrText(sendRes);
+                        throw new Error(err?.error || "Не удалось отправить код");
+                    }
+                    setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "telegram" });
+                    setTwoFactorPending(true);
+                    setTwoFactorCode("");
+                    return true;
+                }
+                if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
+                    setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "google" });
+                    setTwoFactorPending(true);
+                    setTwoFactorCode("");
+                    return true;
+                }
+                const existingAccount = accounts.find((acc) => acc.login === login);
+                const firstCustomer = customers[0];
+                const firstInn = firstCustomer.inn;
+                const firstName = firstCustomer.name;
+                if (existingAccount) {
+                    setAccounts((prev) =>
+                        prev.map((acc) =>
                             acc.id === existingAccount.id
-                                ? { ...acc, customer: detectedCustomer }
+                                ? { ...acc, customers, activeCustomerInn: firstInn, customer: firstName }
                                 : acc
                         )
                     );
+                    setActiveAccountId(existingAccount.id);
+                } else {
+                    const accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    const newAccount: Account = { login, password, id: accountId, customers, activeCustomerInn: firstInn, customer: firstName };
+                    setAccounts((prev) => [...prev, newAccount]);
+                    setActiveAccountId(accountId);
                 }
-                setActiveAccountId(accountId);
-            } else {
-                accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                const newAccount: Account = {
-                    login,
-                    password,
-                    id: accountId,
-                    customer: detectedCustomer || undefined,
-                    ...(detectedInn ? { activeCustomerInn: detectedInn } : {}),
-                };
-                setAccounts(prev => [...prev, newAccount]);
-                setActiveAccountId(accountId);
-            }
-            const companyInn = detectedInn ?? "";
-            const companyName = detectedCustomer || login.trim() || "Компания";
-            fetch("/api/companies-save", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }),
-            }).catch(() => {});
+                setActiveTab((prev) => prev || "cargo");
+                fetch("/api/companies-save", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ login: loginKey, customers }),
+                })
+                    .then((r) => r.json())
+                    .then((data) => {
+                        if (data?.saved !== undefined && data.saved === 0 && data.warning) console.warn("companies-save:", data.warning);
+                    })
+                    .catch((err) => console.warn("companies-save error:", err));
+                return true;
+            };
 
-            setActiveTab((prev) => prev || "cargo");
+            const attemptApiV1Auth = async (): Promise<boolean> => {
+                const { dateFrom, dateTo } = getDateRange("все");
+                const res = await fetch(PROXY_API_BASE_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ login, password, dateFrom, dateTo }),
+                });
+                await ensureOk(res, "Ошибка авторизации");
+                const payload = await readJsonOrText(res);
+                const detectedCustomer = extractCustomerFromPerevozki(payload);
+                const detectedInn = extractInnFromPerevozki(payload);
+                const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
+                if (detectedInn && existingInns.has(detectedInn)) {
+                    setError("Компания уже в списке");
+                    return true;
+                }
+                const twoFaRes = await fetch(`/api/2fa?login=${encodeURIComponent(loginKey)}`);
+                const twoFaJson = twoFaRes.ok ? await twoFaRes.json() : null;
+                const twoFaSettings = twoFaJson?.settings;
+                const twoFaEnabled = !!twoFaSettings?.enabled;
+                const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
+                const twoFaLinked = !!twoFaSettings?.telegramLinked;
+                const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
+                if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
+                    const sendRes = await fetch("/api/2fa-telegram", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ login: loginKey, action: "send" }),
+                    });
+                    if (!sendRes.ok) {
+                        const err = await readJsonOrText(sendRes);
+                        throw new Error(err?.error || "Не удалось отправить код");
+                    }
+                    setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined, twoFaMethod: "telegram" });
+                    setTwoFactorPending(true);
+                    setTwoFactorCode("");
+                    return true;
+                }
+                if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
+                    setPendingLogin({ login, password, customer: detectedCustomer, loginKey, perevozkiInn: detectedInn ?? undefined, twoFaMethod: "google" });
+                    setTwoFactorPending(true);
+                    setTwoFactorCode("");
+                    return true;
+                }
+                const existingAccount = accounts.find((acc) => acc.login === login);
+                let accountId: string;
+                if (existingAccount) {
+                    accountId = existingAccount.id;
+                    if (detectedCustomer && existingAccount.customer !== detectedCustomer) {
+                        setAccounts((prev) =>
+                            prev.map((acc) =>
+                                acc.id === existingAccount.id
+                                    ? { ...acc, customer: detectedCustomer }
+                                    : acc
+                            )
+                        );
+                    }
+                    setActiveAccountId(accountId);
+                } else {
+                    accountId = `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    const newAccount: Account = {
+                        login,
+                        password,
+                        id: accountId,
+                        customer: detectedCustomer || undefined,
+                        ...(detectedInn ? { activeCustomerInn: detectedInn } : {}),
+                    };
+                    setAccounts((prev) => [...prev, newAccount]);
+                    setActiveAccountId(accountId);
+                }
+                const companyInn = detectedInn ?? "";
+                const companyName = detectedCustomer || login.trim() || "Компания";
+                fetch("/api/companies-save", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }),
+                }).catch(() => {});
+                setActiveTab((prev) => prev || "cargo");
+                return true;
+            };
+
+            if (authMethods.cms && (await attemptCmsAuth())) return;
+            if (authMethods.api_v2 && (await attemptApiV2Auth())) return;
+            if (authMethods.api_v1 && (await attemptApiV1Auth())) return;
+            setError("Неверный логин или пароль");
         } catch (err: any) {
             const raw = err?.message || "Ошибка сети.";
             const message = extractErrorMessage(raw) || (typeof raw === "string" ? raw : "Ошибка сети.");
