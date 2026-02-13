@@ -899,163 +899,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             )}
           </Panel>
 
-          {selectedUser && (
-            <Panel className="cargo-card" style={{ padding: "1rem", marginTop: "1rem" }}>
-              <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.5rem" }}>
-                <Typography.Body style={{ fontWeight: 600 }}>{selectedUser.login}</Typography.Body>
-                <Flex gap="0.5rem" align="center">
-                  <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={closePermissionsEditor}>
-                    Закрыть
-                  </Button>
-                </Flex>
-              </Flex>
-              <Flex align="center" style={{ marginBottom: "0.75rem", gap: "0.5rem" }}>
-                <input
-                  type="checkbox"
-                  id="editorSendPasswordToEmail"
-                  checked={editorSendPasswordToEmail}
-                  onChange={(e) => setEditorSendPasswordToEmail(e.target.checked)}
-                />
-                <label htmlFor="editorSendPasswordToEmail" style={{ fontSize: "0.9rem" }}>Новый пароль отправить на почту</label>
-              </Flex>
-              <Flex gap="0.5rem" align="center" style={{ marginBottom: "0.75rem" }}>
-                <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={handleResetPassword}>
-                  Сбросить пароль
-                </Button>
-              </Flex>
-              {resetPasswordInfo && (
-                <div style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                  {resetPasswordInfo.emailSent ? (
-                    "Пароль отправлен на email."
-                  ) : resetPasswordInfo.password ? (
-                    <>
-                      Новый временный пароль: <strong style={{ color: "var(--color-text-primary)", fontWeight: 700 }}>{resetPasswordInfo.password}</strong> Передайте его пользователю.
-                      <button
-                        type="button"
-                        onClick={() => navigator.clipboard?.writeText(resetPasswordInfo.password || "")}
-                        className="filter-button"
-                        style={{ padding: "0.25rem 0.5rem", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}
-                        title="Копировать пароль"
-                        aria-label="Копировать пароль"
-                      >
-                        <Copy size={16} />
-                        Копировать
-                      </button>
-                    </>
-                  ) : (
-                    "Пароль не отправлен."
-                  )}
-                  {resetPasswordInfo.emailError && ` Ошибка отправки: ${resetPasswordInfo.emailError}`}
-                </div>
-              )}
-              <div className="admin-form-section" style={{ marginBottom: "0.5rem" }}>
-                <div className="admin-form-section-header">Разделы</div>
-                <div className="admin-permissions-toolbar">
-                  {PERMISSION_ROW1.map(({ key, label }) => {
-                    const isActive = key === "__financial__" ? editorFinancial : key === "__access_all_inns__" ? editorAccessAllInns : !!editorPermissions[key];
-                    const onClick = key === "__financial__" ? () => setEditorFinancial(!editorFinancial) : key === "__access_all_inns__" ? () => setEditorAccessAllInns(!editorAccessAllInns) : () => handlePermissionsToggle(key);
-                    return (
-                      <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>
-                    );
-                  })}
-                </div>
-                <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
-                  {PERMISSION_ROW2.map(({ key, label }) => {
-                    const isActive = !!editorPermissions[key];
-                    return (
-                      <button key={key} type="button" className={`permission-button ${isActive ? "active" : ""}`} onClick={() => handlePermissionsToggle(key)}>{label}</button>
-                    );
-                  })}
-                </div>
-              </div>
-              {!editorAccessAllInns && (
-                <div style={{ marginBottom: "1rem" }}>
-                  <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик</Typography.Body>
-                  <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
-                    <div
-                      style={{
-                        flex: 1,
-                        minHeight: 80,
-                        maxHeight: 160,
-                        padding: "0.5rem 0.75rem",
-                        background: "var(--color-bg-input)",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: 8,
-                        overflowY: "auto",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "0.5rem",
-                      }}
-                    >
-                      {editorCustomers.length === 0 ? (
-                        <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Не выбран</Typography.Body>
-                      ) : (
-                        editorCustomers.map((cust) => (
-                          <div
-                            key={cust.inn}
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              padding: "0.35rem 0.5rem",
-                              borderRadius: 6,
-                              background: "var(--color-bg-hover)",
-                            }}
-                          >
-                            <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>
-                              {(customerDirectoryMap[cust.inn] || cust.customer_name || cust.inn)}
-                              {customerDirectoryMap[cust.inn] || cust.customer_name ? ` · ${cust.inn}` : ""}
-                            </Typography.Body>
-                            <button
-                              type="button"
-                              onClick={() => setEditorCustomers((prev) => prev.filter((c) => c.inn !== cust.inn))}
-                              style={{
-                                border: "none",
-                                background: "transparent",
-                                cursor: "pointer",
-                                color: "var(--color-text-secondary)",
-                              }}
-                              aria-label="Удалить заказчика"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                      <Button type="button" className="filter-button" onClick={() => setEditorCustomerPickOpen(true)}>
-                        Подбор
-                      </Button>
-                      {editorCustomers.length > 0 && (
-                        <Button
-                          type="button"
-                          className="filter-button"
-                          style={{ padding: "0.4rem 0.75rem", fontSize: "0.8rem" }}
-                          onClick={() => setEditorCustomers([])}
-                        >
-                          Очистить
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-              {editorError && (
-                <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
-                  {editorError}
-                </Typography.Body>
-              )}
-              <Flex gap="0.5rem" align="center">
-                <Button className="button-primary" disabled={editorLoading} onClick={handleSaveUserPermissions}>
-                  {editorLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Сохранить"}
-                </Button>
-                <Button className="filter-button" onClick={closePermissionsEditor} style={{ padding: "0.5rem 0.75rem" }}>
-                  Отмена
-                </Button>
-              </Flex>
-            </Panel>
-          )}
           <Panel className="cargo-card" style={{ padding: "1rem" }}>
             <Flex gap="0.75rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
               <Flex align="center" gap="0.35rem">
@@ -1092,27 +935,188 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет зарегистрированных пользователей</Typography.Body>
             ) : (() => {
               const filtered = users.filter((u) => !usersSearchQuery.trim() || u.login.toLowerCase().includes(usersSearchQuery.trim().toLowerCase()));
-              const renderUserRow = (u: User) => (
-                <UserRow
-                  key={u.id}
-                  user={u}
-                  adminToken={adminToken}
-                  onToggleActive={async () => {
-                    const next = !u.active;
-                    try {
-                      const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                        body: JSON.stringify({ active: next }),
-                      });
-                      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
-                      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: next } : x)));
-                    } catch (e: unknown) {
-                      setError((e as Error)?.message || "Ошибка обновления");
-                    }
-                  }}
-                  onEditPermissions={openPermissionsEditor}
-                />
+              const togglePermissionsEditor = (u: User) => {
+                if (selectedUser?.id === u.id) closePermissionsEditor();
+                else openPermissionsEditor(u);
+              };
+              const permissionsEditorPanel = selectedUser ? (
+                <Panel className="cargo-card" style={{ padding: "1rem", marginTop: "0.5rem" }}>
+                  <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.5rem" }}>
+                    <Typography.Body style={{ fontWeight: 600 }}>{selectedUser.login}</Typography.Body>
+                    <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={closePermissionsEditor}>
+                      Закрыть
+                    </Button>
+                  </Flex>
+                  <Flex align="center" style={{ marginBottom: "0.75rem", gap: "0.5rem" }}>
+                    <input
+                      type="checkbox"
+                      id="editorSendPasswordToEmail"
+                      checked={editorSendPasswordToEmail}
+                      onChange={(e) => setEditorSendPasswordToEmail(e.target.checked)}
+                    />
+                    <label htmlFor="editorSendPasswordToEmail" style={{ fontSize: "0.9rem" }}>Новый пароль отправить на почту</label>
+                  </Flex>
+                  <Flex gap="0.5rem" align="center" style={{ marginBottom: "0.75rem" }}>
+                    <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={handleResetPassword}>
+                      Сбросить пароль
+                    </Button>
+                  </Flex>
+                  {resetPasswordInfo && (
+                    <div style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                      {resetPasswordInfo.emailSent ? (
+                        "Пароль отправлен на email."
+                      ) : resetPasswordInfo.password ? (
+                        <>
+                          Новый временный пароль: <strong style={{ color: "var(--color-text-primary)", fontWeight: 700 }}>{resetPasswordInfo.password}</strong> Передайте его пользователю.
+                          <button
+                            type="button"
+                            onClick={() => navigator.clipboard?.writeText(resetPasswordInfo.password || "")}
+                            className="filter-button"
+                            style={{ padding: "0.25rem 0.5rem", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}
+                            title="Копировать пароль"
+                            aria-label="Копировать пароль"
+                          >
+                            <Copy size={16} />
+                            Копировать
+                          </button>
+                        </>
+                      ) : (
+                        "Пароль не отправлен."
+                      )}
+                      {resetPasswordInfo.emailError && ` Ошибка отправки: ${resetPasswordInfo.emailError}`}
+                    </div>
+                  )}
+                  <div className="admin-form-section" style={{ marginBottom: "0.5rem" }}>
+                    <div className="admin-form-section-header">Разделы</div>
+                    <div className="admin-permissions-toolbar">
+                      {PERMISSION_ROW1.map(({ key, label }) => {
+                        const isActive = key === "__financial__" ? editorFinancial : key === "__access_all_inns__" ? editorAccessAllInns : !!editorPermissions[key];
+                        const onClick = key === "__financial__" ? () => setEditorFinancial(!editorFinancial) : key === "__access_all_inns__" ? () => setEditorAccessAllInns(!editorAccessAllInns) : () => handlePermissionsToggle(key);
+                        return (
+                          <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>
+                        );
+                      })}
+                    </div>
+                    <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
+                      {PERMISSION_ROW2.map(({ key, label }) => {
+                        const isActive = !!editorPermissions[key];
+                        return (
+                          <button key={key} type="button" className={`permission-button ${isActive ? "active" : ""}`} onClick={() => handlePermissionsToggle(key)}>{label}</button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {!editorAccessAllInns && (
+                    <div style={{ marginBottom: "1rem" }}>
+                      <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик</Typography.Body>
+                      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+                        <div
+                          style={{
+                            flex: 1,
+                            minHeight: 80,
+                            maxHeight: 160,
+                            padding: "0.5rem 0.75rem",
+                            background: "var(--color-bg-input)",
+                            border: "1px solid var(--color-border)",
+                            borderRadius: 8,
+                            overflowY: "auto",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "0.5rem",
+                          }}
+                        >
+                          {editorCustomers.length === 0 ? (
+                            <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Не выбран</Typography.Body>
+                          ) : (
+                            editorCustomers.map((cust) => (
+                              <div
+                                key={cust.inn}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "0.35rem 0.5rem",
+                                  borderRadius: 6,
+                                  background: "var(--color-bg-hover)",
+                                }}
+                              >
+                                <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+                                  {(customerDirectoryMap[cust.inn] || cust.customer_name || cust.inn)}
+                                  {customerDirectoryMap[cust.inn] || cust.customer_name ? ` · ${cust.inn}` : ""}
+                                </Typography.Body>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditorCustomers((prev) => prev.filter((c) => c.inn !== cust.inn))}
+                                  style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: "pointer",
+                                    color: "var(--color-text-secondary)",
+                                  }}
+                                  aria-label="Удалить заказчика"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                          <Button type="button" className="filter-button" onClick={() => setEditorCustomerPickOpen(true)}>
+                            Подбор
+                          </Button>
+                          {editorCustomers.length > 0 && (
+                            <Button
+                              type="button"
+                              className="filter-button"
+                              style={{ padding: "0.4rem 0.75rem", fontSize: "0.8rem" }}
+                              onClick={() => setEditorCustomers([])}
+                            >
+                              Очистить
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {editorError && (
+                    <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
+                      {editorError}
+                    </Typography.Body>
+                  )}
+                  <Flex gap="0.5rem" align="center">
+                    <Button className="button-primary" disabled={editorLoading} onClick={handleSaveUserPermissions}>
+                      {editorLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Сохранить"}
+                    </Button>
+                    <Button className="filter-button" onClick={closePermissionsEditor} style={{ padding: "0.5rem 0.75rem" }}>
+                      Отмена
+                    </Button>
+                  </Flex>
+                </Panel>
+              ) : null;
+              const renderUserBlock = (u: User) => (
+                <div key={u.id} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <UserRow
+                    user={u}
+                    adminToken={adminToken}
+                    onToggleActive={async () => {
+                      const next = !u.active;
+                      try {
+                        const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                          body: JSON.stringify({ active: next }),
+                        });
+                        if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
+                        setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: next } : x)));
+                      } catch (e: unknown) {
+                        setError((e as Error)?.message || "Ошибка обновления");
+                      }
+                    }}
+                    onEditPermissions={() => togglePermissionsEditor(u)}
+                  />
+                  {selectedUser?.id === u.id && permissionsEditorPanel}
+                </div>
               );
               if (usersViewMode === "login") {
                 return (
@@ -1120,7 +1124,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     {filtered.length === 0 ? (
                       <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет пользователей по запросу</Typography.Body>
                     ) : (
-                      filtered.map((u) => renderUserRow(u))
+                      filtered.map((u) => renderUserBlock(u))
                     )}
                   </div>
                 );
@@ -1168,7 +1172,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           {groupDisplayName(label)}
                         </Typography.Body>
                         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", paddingLeft: "0.5rem" }}>
-                          {(groups.get(label) ?? []).map((u) => renderUserRow(u))}
+                          {(groups.get(label) ?? []).map((u) => renderUserBlock(u))}
                         </div>
                       </div>
                     ))
