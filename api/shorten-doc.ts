@@ -62,6 +62,7 @@ const docTokenStore = new Map<
     password: string;
     metod: string;
     number: string;
+    isRegisteredUser?: boolean;
     createdAt: number;
   }
 >();
@@ -87,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    const { login, password, metod, number } = body || {};
+    const { login, password, metod, number, isRegisteredUser } = body || {};
 
     if (!login || !password || !metod || !number) {
       return res.status(400).json({
@@ -101,8 +102,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log(`[shorten-doc] Creating token: ${token.substring(0, 8)}... for ${metod} ${number}`);
 
-    // Сохраняем данные документа в Redis
-    const docData = JSON.stringify({ login, password, metod, number });
+    // Сохраняем данные документа в Redis (isRegisteredUser для CMS — запрос через сервисный аккаунт)
+    const docData = JSON.stringify({ login, password, metod, number, isRegisteredUser: !!isRegisteredUser });
     const saved = await setRedis(redisKey, docData, TOKEN_MAX_AGE);
     
     if (!saved) {
@@ -113,6 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         password,
         metod,
         number,
+        isRegisteredUser: !!isRegisteredUser,
         createdAt: Date.now(),
       });
     } else {

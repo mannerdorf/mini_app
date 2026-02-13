@@ -177,6 +177,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [batchEntries, setBatchEntries] = useState<{ login: string; password: string; inn?: string; customer?: string }[]>([]);
   const isInnLike = (s: string) => /^\d{10,12}$/.test(String(s).trim());
   const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchSuccess, setBatchSuccess] = useState<string | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
   const [authMethodsConfig, setAuthMethodsConfig] = useState<AuthMethodsConfig>({
     api_v1: true,
@@ -506,6 +507,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     const file = event.target.files?.[0];
     if (!file) return;
     setBatchError(null);
+    setBatchSuccess(null);
     try {
       const isExcel = /\.(xlsx|xls)$/i.test(file.name);
       const { entries, errors } = isExcel
@@ -568,12 +570,27 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     setBatchLoading(true);
     setBatchError(null);
+    let ok = 0;
+    const failed: { login: string; error: string }[] = [];
     try {
       for (const entry of batchEntries) {
-        await registerEntry(entry);
+        try {
+          await registerEntry(entry);
+          ok += 1;
+        } catch (e: unknown) {
+          failed.push({ login: entry.login, error: (e as Error)?.message || "Ошибка" });
+        }
       }
       setBatchEntries([]);
-      setFormResult({ password: batchEntries[0]?.password, emailSent: formSendEmail });
+      if (failed.length === 0) {
+        setBatchSuccess(`Зарегистрировано пользователей: ${ok}`);
+        setBatchError(null);
+      } else {
+        setBatchSuccess(null);
+        const first = failed.slice(0, 5).map((f) => `${f.login}: ${f.error}`).join("; ");
+        setBatchError(`Зарегистрировано: ${ok}. Не удалось: ${failed.length}. Примеры: ${first}`);
+      }
+      await fetchUsers();
     } catch (e: unknown) {
       setBatchError((e as Error)?.message || "Ошибка пакетной регистрации");
     } finally {
@@ -1062,6 +1079,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
               Файл: столбцы <strong>логин (email)</strong>, <strong>пароль</strong>, <strong>ИНН</strong> (10–12 цифр) или название заказчика, при необходимости 4-й столбец — название компании.
             </Typography.Body>
+            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+              Если в файле нет ИНН (только названия в 3-м столбце), включите «Доступ ко всем заказчикам» на вкладке «Добавить» — тогда он применится ко всем из файла.
+            </Typography.Body>
             <div className="admin-file-input-wrap">
               <Input className="admin-form-input admin-file-input" type="file" accept=".txt,.csv,.xls,.xlsx" onChange={handleBatchFile} />
             </div>
@@ -1070,11 +1090,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 Загружено записей: {batchEntries.length}
               </Typography.Body>
             )}
+            {batchSuccess && (
+              <Typography.Body style={{ color: "var(--color-success-status, #22c55e)", fontSize: "0.85rem" }}>{batchSuccess}</Typography.Body>
+            )}
             {batchError && (
               <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem" }}>{batchError}</Typography.Body>
             )}
             <Button className="filter-button" type="button" disabled={batchLoading || batchEntries.length === 0} onClick={handleBatchRegister}>
-              {batchLoading ? "Загружаем..." : "Зарегистрировать из файла"}
+              {batchLoading ? "Регистрируем…" : "Зарегистрировать из файла"}
             </Button>
           </div>
         </Panel>

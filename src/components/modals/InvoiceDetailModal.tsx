@@ -82,6 +82,7 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                     password: auth.password,
                     metod,
                     number: cargoNumber,
+                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
                 }),
             });
             if (!res.ok) {

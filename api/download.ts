@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import https from "https";
 import { URL } from "url";
+import { getPool } from "./_db.js";
+import { verifyRegisteredUser } from "./lib/verifyRegisteredUser.js";
 
 const EXTERNAL_API_BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
@@ -38,6 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let password: string | undefined;
     let metod: string | undefined;
     let number: string | undefined;
+    let isRegisteredUser = false;
 
     if (req.method === "GET") {
       login = typeof req.query.login === "string" ? req.query.login : undefined;
@@ -46,6 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       metod = typeof req.query.metod === "string" ? req.query.metod : undefined;
       number =
         typeof req.query.number === "string" ? req.query.number : undefined;
+      isRegisteredUser = req.query.isRegisteredUser === "true";
     } else {
       // Vercel иногда даёт body строкой
       let body: any = req.body;
@@ -57,7 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
 
-      ({ login, password, metod, number } = body ?? {});
+      ({ login, password, metod, number, isRegisteredUser } = { ...body, isRegisteredUser: !!body?.isRegisteredUser });
     }
 
     if (!login || !password || !metod || !number) {
@@ -72,6 +76,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (!/^[0-9A-Za-zА-Яа-я._-]{1,64}$/u.test(number)) {
       return res.status(400).json({ error: "Invalid number" });
+    }
+
+    // Зарегистрированные (CMS) пользователи: проверяем доступ к перевозке, затем запрашиваем файл сервисным аккаунтом
+    if (isRegisteredUser) {
+      try {
+        const pool = getPool();
+        const verified = await verifyRegisteredUser(pool, login, password);
+        if (!verified) {
+          return res.status(401).json({ error: "Неверный email или пароль" });
+        }
+        const cacheRow = await pool.query<{ data: unknown[] }>(
+          "SELECT data FROM cache_perevozki WHERE id = 1"
+        );
+        if (cacheRow.rows.length > 0) {
+          const data = cacheRow.rows[0].data as any[];
+          const list = Array.isArray(data) ? data : [];
+          const norm = String(number).trim();
+          const item = list.find((i: any) => {
+            const n = String(i?.Number ?? i?.number ?? "").trim();
+            if (n !== norm) return false;
+            if (verified.accessAllInns) return true;
+            const itemInn = String(i?.INN ?? i?.Inn ?? i?.inn ?? "").trim();
+            return itemInn === (verified.inn ?? "");
+          });
+          if (!item) {
+            return res.status(404).json({ error: "Перевозка не найдена или нет доступа" });
+          }
+        }
+        const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN || process.env.HAULZ_1C_SERVICE_LOGIN;
+        const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD || process.env.HAULZ_1C_SERVICE_PASSWORD;
+        if (serviceLogin && servicePassword) {
+          login = serviceLogin;
+          password = servicePassword;
+        }
+      } catch (e: any) {
+        console.error("download registered user error:", e?.message || e);
+        return res.status(500).json({ error: "Ошибка запроса", message: e?.message });
+      }
     }
 
     // Формируем URL ровно как в Postman/curl:

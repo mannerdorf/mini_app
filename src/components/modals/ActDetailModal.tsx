@@ -98,6 +98,7 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
                     password: auth.password,
                     metod,
                     number: cargoNumber,
+                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
                 }),
             });
             if (!res.ok) {

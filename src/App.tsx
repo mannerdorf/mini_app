@@ -5950,6 +5950,7 @@ function CargoPage({
                                                     password: primaryAuth.password,
                                                     metod,
                                                     number: item.Number!,
+                                                    ...(primaryAuth.isRegisteredUser ? { isRegisteredUser: "true" } : {}),
                                                 });
                                                 longUrls[label] = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
                                             }
@@ -5971,6 +5972,7 @@ function CargoPage({
                                                             password: primaryAuth.password,
                                                             metod,
                                                             number: item.Number,
+                                                            ...(primaryAuth.isRegisteredUser ? { isRegisteredUser: true } : {}),
                                                         }),
                                                     });
                                                     
@@ -6437,6 +6439,7 @@ function CargoDetailsModal({
                     password: auth.password,
                     metod: DOCUMENT_METHODS[docType],
                     number: item.Number,
+                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
                 }),
             });
             if (!res.ok) {
@@ -6505,7 +6508,7 @@ function CargoDetailsModal({
             const webApp = getWebApp();
             const metod = DOCUMENT_METHODS[docType];
             const origin = typeof window !== "undefined" ? window.location.origin : "";
-            const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}`;
+            const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}${auth.isRegisteredUser ? "&isRegisteredUser=true" : ""}`;
 
             // Сокращаем ссылку через наш прокси (TinyURL)
             const shortenRes = await fetch('/api/shorten', {
@@ -6581,6 +6584,7 @@ function CargoDetailsModal({
                                             password: auth.password,
                                             metod,
                                             number: item.Number!,
+                                            ...(auth.isRegisteredUser ? { isRegisteredUser: "true" } : {}),
                                         });
                                         const longUrl = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
                                         longUrls[label] = longUrl;
@@ -6593,6 +6597,7 @@ function CargoDetailsModal({
                                                     password: auth.password,
                                                     metod,
                                                     number: item.Number,
+                                                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
                                                 }),
                                             });
                                             if (res.ok) {
