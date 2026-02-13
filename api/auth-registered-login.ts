@@ -8,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  let body: { email?: string; password?: string } = req.body;
+  let body: { email?: string; login?: string; password?: string } = req.body;
   if (typeof body === "string") {
     try {
       body = JSON.parse(body);
@@ -17,7 +17,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+  const emailRaw = typeof body?.email === "string" ? body.email : typeof body?.login === "string" ? body.login : "";
+  const email = emailRaw.trim().toLowerCase();
   const password = typeof body?.password === "string" ? body.password : "";
 
   if (!email || !password) {
