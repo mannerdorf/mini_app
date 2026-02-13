@@ -61,20 +61,51 @@ export default async function handler(
       const cacheRow = await pool.query<{ data: unknown[] }>(
         "SELECT data FROM cache_perevozki WHERE id = 1"
       );
-      if (cacheRow.rows.length > 0) {
-        const data = cacheRow.rows[0].data as any[];
-        const list = Array.isArray(data) ? data : [];
-        const norm = String(number).trim();
-        const item = list.find((i: any) => {
-          const n = String(i?.Number ?? i?.number ?? "").trim();
-          if (n !== norm) return false;
-          if (verified.accessAllInns) return true;
-          const itemInn = String(i?.INN ?? i?.Inn ?? i?.inn ?? "").trim();
-          return itemInn === verified.inn;
-        });
-        if (item) return res.status(200).json(item);
+      if (cacheRow.rows.length === 0) {
+        return res.status(404).json({ error: "Перевозка не найдена" });
       }
-      return res.status(404).json({ error: "Перевозка не найдена" });
+      const data = cacheRow.rows[0].data as any[];
+      const list = Array.isArray(data) ? data : [];
+      const norm = String(number).trim();
+      const item = list.find((i: any) => {
+        const n = String(i?.Number ?? i?.number ?? "").trim();
+        if (n !== norm) return false;
+        if (verified.accessAllInns) return true;
+        const itemInn = String(i?.INN ?? i?.Inn ?? i?.inn ?? "").trim();
+        return itemInn === (verified.inn ?? "");
+      });
+      if (!item) {
+        return res.status(404).json({ error: "Перевозка не найдена" });
+      }
+      // Запрос деталей перевозки (статусы, номенклатура) в 1С сервисным аккаунтом
+      const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN || process.env.HAULZ_1C_SERVICE_LOGIN;
+      const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD || process.env.HAULZ_1C_SERVICE_PASSWORD;
+      if (serviceLogin && servicePassword) {
+        const itemInn = String(item?.INN ?? item?.Inn ?? item?.inn ?? "").trim();
+        const url = new URL(GETAPI_BASE);
+        url.searchParams.set("metod", "Getperevozka");
+        url.searchParams.set("Number", norm);
+        if (itemInn) url.searchParams.set("INN", itemInn);
+        const upstream = await fetch(url.toString(), {
+          method: "GET",
+          headers: {
+            Auth: `Basic ${serviceLogin}:${servicePassword}`,
+            Authorization: SERVICE_AUTH,
+            Accept: "application/json",
+          },
+        });
+        if (upstream.ok) {
+          const text = await upstream.text();
+          try {
+            const json = JSON.parse(text);
+            return res.status(200).json(json);
+          } catch {
+            return res.status(200).send(text);
+          }
+        }
+      }
+      // Нет сервисного аккаунта или 1С недоступен — отдаём только строку из кэша (без статусов/номенклатуры)
+      return res.status(200).json(item);
     } catch (e) {
       console.error("getperevozka registered user error:", e);
       return res.status(500).json({ error: "Ошибка запроса" });
