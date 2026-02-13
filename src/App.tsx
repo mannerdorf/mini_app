@@ -8176,9 +8176,12 @@ export default function App() {
         return accounts.find(acc => acc.id === activeAccountId) || null;
     }, [accounts, activeAccountId]);
 
-    /** Аккаунты для отображения перевозок (один или несколько) */
+    /** Аккаунты для отображения перевозок (один или несколько). Если выбранных ещё нет — используем активный аккаунт (избегаем белого экрана после входа). */
     const selectedAuths = useMemo((): AuthData[] => {
-        return selectedAccountIds
+        const ids = selectedAccountIds.length > 0
+            ? selectedAccountIds
+            : (activeAccountId && accounts.some((a) => a.id === activeAccountId) ? [activeAccountId] : []);
+        return ids
             .map((id) => accounts.find((acc) => acc.id === id))
             .filter((acc): acc is Account => !!acc)
             .map((acc) => ({
@@ -8187,7 +8190,7 @@ export default function App() {
                 ...(acc.activeCustomerInn ? { inn: acc.activeCustomerInn } : {}),
                 ...(acc.isRegisteredUser ? { isRegisteredUser: true } : {}),
             }));
-    }, [accounts, selectedAccountIds]);
+    }, [accounts, selectedAccountIds, activeAccountId]);
 
     // Если выбранных компаний нет, но есть активный аккаунт — подставляем его
     useEffect(() => {

@@ -112,34 +112,28 @@ function UserRow({
   };
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onEditPermissions(user)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEditPermissions(user); } }}
       style={{
         padding: "0.75rem",
         border: "1px solid var(--color-border)",
         borderRadius: "8px",
         background: user.active ? "var(--color-bg-hover)" : "var(--color-bg-input)",
         opacity: user.active ? 1 : 0.85,
+        cursor: "pointer",
       }}
     >
       <Flex justify="space-between" align="flex-start" wrap="wrap" gap="0.5rem">
         <div style={{ flex: 1, minWidth: 0 }}>
           <Typography.Body style={{ fontWeight: 600 }}>{user.login}</Typography.Body>
         </div>
-        <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+        <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>Профиль</Typography.Body>
-          <span onClick={(e) => e.stopPropagation()} style={{ cursor: loading ? "wait" : "pointer" }}>
+          <span style={{ cursor: loading ? "wait" : "pointer" }}>
             <TapSwitch checked={user.active} onToggle={handleToggle} />
           </span>
-          <Button
-            className="filter-button"
-            style={{ padding: "0.25rem 0.75rem" }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onEditPermissions(user);
-            }}
-            disabled={loading}
-          >
-            Права
-          </Button>
         </Flex>
       </Flex>
     </div>
@@ -149,6 +143,8 @@ function UserRow({
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [tab, setTab] = useState<"users" | "add" | "batch" | "email">("users");
   const [users, setUsers] = useState<User[]>([]);
+  const [usersSearchQuery, setUsersSearchQuery] = useState("");
+  const [usersViewMode, setUsersViewMode] = useState<"login" | "customer">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1035,6 +1031,32 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             </Panel>
           )}
           <Panel className="cargo-card" style={{ padding: "1rem" }}>
+            <Flex gap="0.75rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+              <Flex align="center" gap="0.35rem">
+                <Button
+                  className="filter-button"
+                  style={{ padding: "0.35rem 0.6rem", fontSize: "0.85rem", background: usersViewMode === "login" ? "var(--color-primary-blue)" : undefined, color: usersViewMode === "login" ? "white" : undefined }}
+                  onClick={() => setUsersViewMode("login")}
+                >
+                  По логинам
+                </Button>
+                <Button
+                  className="filter-button"
+                  style={{ padding: "0.35rem 0.6rem", fontSize: "0.85rem", background: usersViewMode === "customer" ? "var(--color-primary-blue)" : undefined, color: usersViewMode === "customer" ? "white" : undefined }}
+                  onClick={() => setUsersViewMode("customer")}
+                >
+                  По заказчикам
+                </Button>
+              </Flex>
+              <Input
+                type="text"
+                placeholder="Поиск по email..."
+                value={usersSearchQuery}
+                onChange={(e) => setUsersSearchQuery(e.target.value)}
+                className="admin-form-input"
+                style={{ maxWidth: "20rem" }}
+              />
+            </Flex>
             {loading ? (
               <Flex align="center" gap="0.5rem">
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -1042,32 +1064,85 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </Flex>
             ) : users.length === 0 ? (
               <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет зарегистрированных пользователей</Typography.Body>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                {users.map((u) => (
-                  <UserRow
-                    key={u.id}
-                    user={u}
-                    adminToken={adminToken}
-                    onToggleActive={async () => {
-                      const next = !u.active;
-                      try {
-                        const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                          body: JSON.stringify({ active: next }),
-                        });
-                        if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
-                        setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: next } : x)));
-                      } catch (e: unknown) {
-                        setError((e as Error)?.message || "Ошибка обновления");
-                      }
-                    }}
-                    onEditPermissions={openPermissionsEditor}
-                  />
-                ))}
-              </div>
-            )}
+            ) : (() => {
+              const filtered = users.filter((u) => !usersSearchQuery.trim() || u.login.toLowerCase().includes(usersSearchQuery.trim().toLowerCase()));
+              const renderUserRow = (u: User) => (
+                <UserRow
+                  key={u.id}
+                  user={u}
+                  adminToken={adminToken}
+                  onToggleActive={async () => {
+                    const next = !u.active;
+                    try {
+                      const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                        body: JSON.stringify({ active: next }),
+                      });
+                      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
+                      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: next } : x)));
+                    } catch (e: unknown) {
+                      setError((e as Error)?.message || "Ошибка обновления");
+                    }
+                  }}
+                  onEditPermissions={openPermissionsEditor}
+                />
+              );
+              if (usersViewMode === "login") {
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    {filtered.length === 0 ? (
+                      <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет пользователей по запросу</Typography.Body>
+                    ) : (
+                      filtered.map((u) => renderUserRow(u))
+                    )}
+                  </div>
+                );
+              }
+              const CUSTOMER_ALL = "Доступ ко всем заказчикам";
+              const groups = new Map<string, User[]>();
+              const addToGroup = (label: string, user: User) => {
+                const list = groups.get(label) ?? [];
+                if (!list.some((x) => x.id === user.id)) list.push(user);
+                groups.set(label, list);
+              };
+              for (const u of filtered) {
+                if (u.access_all_inns && (!u.companies || u.companies.length === 0)) {
+                  addToGroup(CUSTOMER_ALL, u);
+                  continue;
+                }
+                if (u.companies && u.companies.length > 0) {
+                  for (const c of u.companies) {
+                    const label = c.name?.trim() ? `${c.name} (${c.inn})` : c.inn;
+                    addToGroup(label, u);
+                  }
+                } else if (u.inn) {
+                  const label = u.company_name?.trim() ? `${u.company_name} (${u.inn})` : u.inn;
+                  addToGroup(label, u);
+                } else {
+                  addToGroup(CUSTOMER_ALL, u);
+                }
+              }
+              const sortedLabels = Array.from(groups.keys()).sort((a, b) => (a === CUSTOMER_ALL ? 1 : b === CUSTOMER_ALL ? -1 : a.localeCompare(b)));
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {sortedLabels.length === 0 ? (
+                    <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет пользователей по запросу</Typography.Body>
+                  ) : (
+                    sortedLabels.map((label) => (
+                      <div key={label} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                        <Typography.Body style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)", paddingBottom: "0.25rem" }}>
+                          {label}
+                        </Typography.Body>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", paddingLeft: "0.5rem" }}>
+                          {(groups.get(label) ?? []).map((u) => renderUserRow(u))}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              );
+            })()}
           </Panel>
         </>
       )}

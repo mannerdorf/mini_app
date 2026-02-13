@@ -73,13 +73,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       if (cacheRow.rows.length > 0) {
         const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-        // Не в служебном режиме: фильтруем по заказчику. accessAllInns + выбранный в хедере inn → только он; иначе по правилам доступа.
-        const filterInns = verified.accessAllInns ? null : new Set([verified.inn!]);
-        const finalInns = filterInns === null
+        // В служебном режиме — все заказчики (без фильтра по ИНН)
+        const isServiceMode = !!serviceMode;
+        const filterInns = isServiceMode ? null : (verified.accessAllInns ? null : new Set([verified.inn!]));
+        const finalInns = isServiceMode ? null : (filterInns === null
           ? (requestedInn ? new Set([requestedInn]) : null)
           : requestedInn && filterInns.has(requestedInn)
             ? new Set([requestedInn])
-            : filterInns;
+            : filterInns);
         const data = cacheRow.rows[0].data as any[];
         const list = Array.isArray(data) ? data : [];
         const filtered = list.filter((item) => {
