@@ -8529,11 +8529,13 @@ export default function App() {
         }
     }, [activeTab]);
 
-    // Синхронизируем URL (для ограничения Bitrix по ссылке)
+    // Синхронизируем URL (для ограничения Bitrix по ссылке). Не трогаем ?tab=cms — это админка.
     useEffect(() => {
         if (typeof window === "undefined") return;
         try {
             const url = new URL(window.location.href);
+            const tabInUrl = url.searchParams.get("tab");
+            if (tabInUrl === "cms") return; // админка — URL не меняем
             if (activeTab === "support") url.searchParams.set("tab", "support");
             else url.searchParams.delete("tab");
             window.history.replaceState(null, "", url.toString());
