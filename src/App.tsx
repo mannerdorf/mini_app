@@ -2303,7 +2303,10 @@ function CustomerSwitcher({
     useEffect(() => {
         if (!isOpen || accounts.length === 0) return;
         const logins = [...new Set(accounts.map((a) => a.login.trim().toLowerCase()))];
-        const query = logins.map((l) => `login=${encodeURIComponent(l)}`).join('&');
+        const accessAllLogins = [...new Set(accounts.filter((a) => a.accessAllInns).map((a) => a.login.trim().toLowerCase()))];
+        const query =
+            logins.map((l) => `login=${encodeURIComponent(l)}`).join('&') +
+            (accessAllLogins.length ? '&' + accessAllLogins.map((l) => `access_all=${encodeURIComponent(l)}`).join('&') : '');
         setLoading(true);
         fetch(`/api/companies?${query}`)
             .then((r) => r.json())
@@ -2313,7 +2316,7 @@ function CustomerSwitcher({
             })
             .catch(() => setCompanies([]))
             .finally(() => setLoading(false));
-    }, [isOpen, accounts.map((a) => a.login).join(',')]);
+    }, [isOpen, accounts.map((a) => `${a.login}:${!!a.accessAllInns}`).join(',')]);
 
     const activeCompany = companies.find(
         (c) => c.login === activeLogin && (c.inn === '' || c.inn === activeInn)
@@ -4870,7 +4873,10 @@ function CompaniesListPage({
             return;
         }
         const logins = [...new Set(accounts.map((a) => a.login.trim().toLowerCase()))];
-        const query = logins.map((l) => `login=${encodeURIComponent(l)}`).join("&");
+        const accessAllLogins = [...new Set(accounts.filter((a) => a.accessAllInns).map((a) => a.login.trim().toLowerCase()))];
+        const query =
+            logins.map((l) => `login=${encodeURIComponent(l)}`).join("&") +
+            (accessAllLogins.length ? "&" + accessAllLogins.map((l) => `access_all=${encodeURIComponent(l)}`).join("&") : "");
         setLoading(true);
         fetch(`/api/companies?${query}`)
             .then((r) => r.json())
@@ -4880,7 +4886,7 @@ function CompaniesListPage({
             })
             .catch(() => setCompanies([]))
             .finally(() => setLoading(false));
-    }, [accounts.map((a) => a.login).join(",")]);
+    }, [accounts.map((a) => `${a.login}:${!!a.accessAllInns}`).join(",")]);
 
     const activeAccount = accounts.find((acc) => acc.id === activeAccountId) || null;
     const activeLogin = activeAccount?.login?.trim().toLowerCase() ?? "";
@@ -8966,11 +8972,12 @@ export default function App() {
                     const u = regData.user;
                     const existingAccount = accounts.find((acc) => acc.login === loginKey);
                     const customers: CustomerOption[] = u.inn ? [{ name: u.companyName || u.inn, inn: u.inn }] : [];
+                    const accessAllInns = !!u.accessAllInns;
                     if (existingAccount) {
                         setAccounts((prev) =>
                             prev.map((acc) =>
                                 acc.id === existingAccount.id
-                                    ? { ...acc, password, customers, activeCustomerInn: u.inn, customer: u.companyName, isRegisteredUser: true, permissions: u.permissions, financialAccess: u.financialAccess }
+                                    ? { ...acc, password, customers, activeCustomerInn: u.inn, customer: u.companyName, isRegisteredUser: true, accessAllInns, permissions: u.permissions, financialAccess: u.financialAccess }
                                     : acc
                             )
                         );
@@ -8985,6 +8992,7 @@ export default function App() {
                             activeCustomerInn: u.inn,
                             customer: u.companyName,
                             isRegisteredUser: true,
+                            accessAllInns,
                             permissions: u.permissions,
                             financialAccess: u.financialAccess,
                         };

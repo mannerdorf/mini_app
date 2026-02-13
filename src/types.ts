@@ -33,6 +33,8 @@ export type Account = {
     activeCustomerInn?: string | null;
     /** Зарегистрированный пользователь (вход по email/паролю из админки) */
     isRegisteredUser?: boolean;
+    /** Доступ ко всем заказчикам (список компаний из справочника) */
+    accessAllInns?: boolean;
     permissions?: AccountPermissions;
     financialAccess?: boolean;
     /** Показывать перевозки, где вы заказчик (полные данные) */
