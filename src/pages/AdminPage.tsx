@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff, FileUp, Activity } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 
@@ -858,14 +858,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </Button>
               </Flex>
               {resetPasswordInfo && (
-                <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--color-text-secondary)" }}>
-                  {resetPasswordInfo.emailSent
-                    ? "Пароль отправлен на email."
-                    : resetPasswordInfo.password
-                      ? `Новый временный пароль: ${resetPasswordInfo.password}. Передайте его пользователю.`
-                      : "Пароль не отправлен."}
+                <div style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                  {resetPasswordInfo.emailSent ? (
+                    "Пароль отправлен на email."
+                  ) : resetPasswordInfo.password ? (
+                    <>
+                      Новый временный пароль: <strong style={{ color: "var(--color-text-primary)", fontWeight: 700 }}>{resetPasswordInfo.password}</strong> Передайте его пользователю.
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard?.writeText(resetPasswordInfo.password || "")}
+                        className="filter-button"
+                        style={{ padding: "0.25rem 0.5rem", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}
+                        title="Копировать пароль"
+                        aria-label="Копировать пароль"
+                      >
+                        <Copy size={16} />
+                        Копировать
+                      </button>
+                    </>
+                  ) : (
+                    "Пароль не отправлен."
+                  )}
                   {resetPasswordInfo.emailError && ` Ошибка отправки: ${resetPasswordInfo.emailError}`}
-                </Typography.Body>
+                </div>
               )}
               <div className="admin-form-section" style={{ marginBottom: "0.5rem" }}>
                 <div className="admin-form-section-header">Разделы</div>

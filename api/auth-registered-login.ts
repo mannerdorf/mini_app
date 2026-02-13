@@ -37,7 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       access_all_inns: boolean;
     }>(
       `SELECT id, login, password_hash, inn, company_name, permissions, financial_access, COALESCE(access_all_inns, false) as access_all_inns
-       FROM registered_users WHERE login = $1 AND active = true`,
+       FROM registered_users WHERE LOWER(TRIM(login)) = $1 AND active = true`,
       [email]
     );
 
