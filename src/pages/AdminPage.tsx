@@ -1080,8 +1080,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               Файл: столбцы <strong>логин (email)</strong>, <strong>пароль</strong>, <strong>ИНН</strong> (10–12 цифр) или название заказчика, при необходимости 4-й столбец — название компании.
             </Typography.Body>
             <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-              Если в файле нет ИНН (только названия в 3-м столбце), включите «Доступ ко всем заказчикам» на вкладке «Добавить» — тогда он применится ко всем из файла.
+              Если в файле нет ИНН (только названия в 3-м столбце), отметьте «Доступ ко всем заказчикам» ниже.
             </Typography.Body>
+            <Flex align="center" gap="0.5rem" style={{ marginTop: "0.25rem" }}>
+              <input
+                type="checkbox"
+                id="batch-access-all-inns"
+                checked={formAccessAllInns}
+                onChange={(e) => setFormAccessAllInns(e.target.checked)}
+              />
+              <label htmlFor="batch-access-all-inns" style={{ fontSize: "0.9rem", cursor: "pointer" }}>
+                Доступ ко всем заказчикам (для всех из файла)
+              </label>
+            </Flex>
             <div className="admin-file-input-wrap">
               <Input className="admin-form-input admin-file-input" type="file" accept=".txt,.csv,.xls,.xlsx" onChange={handleBatchFile} />
             </div>
@@ -1094,7 +1105,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <Typography.Body style={{ color: "var(--color-success-status, #22c55e)", fontSize: "0.85rem" }}>{batchSuccess}</Typography.Body>
             )}
             {batchError && (
-              <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem" }}>{batchError}</Typography.Body>
+              <>
+                <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem" }}>{batchError}</Typography.Body>
+                {batchError.includes("ИНН обязателен") && (
+                  <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                    Включите «Доступ ко всем заказчикам» выше или укажите ИНН (10–12 цифр) в 3-м столбце файла.
+                  </Typography.Body>
+                )}
+              </>
             )}
             <Button className="filter-button" type="button" disabled={batchLoading || batchEntries.length === 0} onClick={handleBatchRegister}>
               {batchLoading ? "Регистрируем…" : "Зарегистрировать из файла"}
