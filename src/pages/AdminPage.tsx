@@ -128,15 +128,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     cargo: true,
     doc_invoices: true,
     doc_acts: true,
-    doc_orders: false,
-    doc_claims: false,
-    doc_contracts: false,
-    doc_acts_settlement: false,
-    doc_tariffs: false,
+    doc_orders: true,
+    doc_claims: true,
+    doc_contracts: true,
+    doc_acts_settlement: true,
+    doc_tariffs: true,
     chat: true,
     service_mode: false,
   });
-  const [formFinancial, setFormFinancial] = useState(true);
+  const [formFinancial, setFormFinancial] = useState(false);
   const [formSendEmail, setFormSendEmail] = useState(true);
   const [formPassword, setFormPassword] = useState("");
   const [formPasswordVisible, setFormPasswordVisible] = useState(false);
@@ -161,6 +161,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [emailPassword, setEmailPassword] = useState("");
   const [emailFrom, setEmailFrom] = useState("");
   const [emailFromName, setEmailFromName] = useState("HAULZ");
+  const [emailTemplateRegistration, setEmailTemplateRegistration] = useState("");
+  const [emailTemplatePasswordReset, setEmailTemplatePasswordReset] = useState("");
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailTestLoading, setEmailTestLoading] = useState(false);
   const [emailTestResult, setEmailTestResult] = useState<{ ok: boolean; message?: string; error?: string } | null>(null);
@@ -175,6 +177,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [editorLoading, setEditorLoading] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [resetPasswordInfo, setResetPasswordInfo] = useState<{ password?: string; emailSent?: boolean; emailError?: string } | null>(null);
+  const [editorInn, setEditorInn] = useState("");
+  const [editorCompanyName, setEditorCompanyName] = useState("");
+  const [editorCustomerPickOpen, setEditorCustomerPickOpen] = useState(false);
   const [topActiveUsers, setTopActiveUsers] = useState<{ id: number; login: string; company_name: string; last_login_at: string | null }[]>([]);
   const [topActiveLoading, setTopActiveLoading] = useState(false);
 
@@ -266,6 +271,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setEmailUser(data.smtp_user || "");
       setEmailFrom(data.from_email || "");
       setEmailFromName(data.from_name || "HAULZ");
+      setEmailTemplateRegistration(data.email_template_registration ?? "");
+      setEmailTemplatePasswordReset(data.email_template_password_reset ?? "");
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка загрузки настроек почты");
     }
@@ -343,6 +350,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           smtp_password: emailPassword.trim() || undefined,
           from_email: emailFrom.trim() || undefined,
           from_name: emailFromName.trim() || undefined,
+          email_template_registration: emailTemplateRegistration.trim() || undefined,
+          email_template_password_reset: emailTemplatePasswordReset.trim() || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -550,6 +559,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           permissions: editorPermissions,
           financial_access: editorFinancial,
           access_all_inns: editorAccessAllInns,
+          ...(editorInn.trim() ? { inn: editorInn.trim(), company_name: editorCompanyName.trim() } : {}),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -631,6 +641,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setEditorPermissions(nextPermissions);
     setEditorFinancial(Boolean(selectedUser.financial_access));
     setEditorAccessAllInns(Boolean(selectedUser.access_all_inns));
+    setEditorInn(selectedUser.inn || "");
+    setEditorCompanyName(selectedUser.company_name || "");
     setEditorError(null);
   }, [selectedUser]);
 
@@ -708,7 +720,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <Flex key={method.key} justify="space-between" align="center">
                     <div style={{ minWidth: 0 }}>
                       <Typography.Body style={{ fontWeight: 600 }}>{method.label}</Typography.Body>
-                      <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>
+                      <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
                         {method.description}
                       </Typography.Body>
                     </div>
@@ -795,10 +807,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           {selectedUser && (
             <Panel className="cargo-card" style={{ padding: "1rem", marginTop: "1rem" }}>
               <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.5rem" }}>
-                <div>
-                  <Typography.Body style={{ fontWeight: 600 }}>Права — {selectedUser.login}</Typography.Body>
-                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Выданы по email {selectedUser.login}</Typography.Body>
-                </div>
+                <Typography.Body style={{ fontWeight: 600 }}>{selectedUser.login}</Typography.Body>
                 <Flex gap="0.5rem" align="center">
                   <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={handleResetPassword}>
                     Сбросить пароль
@@ -816,40 +825,62 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   {resetPasswordInfo.emailError && ` Ошибка отправки: ${resetPasswordInfo.emailError}`}
                 </Typography.Body>
               )}
-              <Flex justify="space-between" align="center" style={{ marginBottom: "1rem" }}>
-                <Typography.Body style={{ fontSize: "0.9rem" }}>Финансовый доступ</Typography.Body>
-                <TapSwitch checked={editorFinancial} onToggle={() => setEditorFinancial((prev) => !prev)} />
-              </Flex>
               <div className="admin-form-section" style={{ marginBottom: "0.5rem" }}>
                 <div className="admin-form-section-header">Разделы</div>
                 <div className="admin-permissions-toolbar">
-                  {PERMISSION_KEYS.map((perm) => (
-                    <button
-                      key={perm.key}
-                      type="button"
-                      className={`permission-button ${editorPermissions[perm.key] ? "active" : ""} ${perm.key === "service_mode" && editorPermissions[perm.key] ? "active-danger" : ""}`}
-                      onClick={() => handlePermissionsToggle(perm.key)}
-                    >
-                      {perm.label}
-                    </button>
+                  {PERMISSION_KEYS.filter((perm) => editorPermissions[perm.key]).map((perm) => (
+                    <button key={perm.key} type="button" className="permission-button active active-danger" onClick={() => handlePermissionsToggle(perm.key)}>{perm.label}</button>
                   ))}
-                  <button
-                    type="button"
-                    className={`permission-button ${editorAccessAllInns ? "active active-danger" : ""}`}
-                    onClick={() => setEditorAccessAllInns((prev) => !prev)}
-                  >
-                    Доступ ко всем заказчикам
-                  </button>
+                  {editorFinancial && <button type="button" className="permission-button active active-danger" onClick={() => setEditorFinancial(false)}>Фин. показатели</button>}
+                  {editorAccessAllInns && <button type="button" className="permission-button active active-danger" onClick={() => setEditorAccessAllInns(false)}>Доступ ко всем заказчикам</button>}
+                </div>
+                <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
+                  {PERMISSION_KEYS.filter((perm) => !editorPermissions[perm.key]).map((perm) => (
+                    <button key={perm.key} type="button" className="permission-button" onClick={() => handlePermissionsToggle(perm.key)}>{perm.label}</button>
+                  ))}
+                  {!editorFinancial && <button type="button" className="permission-button" onClick={() => setEditorFinancial(true)}>Фин. показатели</button>}
+                  {!editorAccessAllInns && <button type="button" className="permission-button" onClick={() => setEditorAccessAllInns(true)}>Доступ ко всем заказчикам</button>}
                 </div>
               </div>
+              {!editorAccessAllInns && (
+                <div style={{ marginBottom: "1rem" }}>
+                  <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик</Typography.Body>
+                  <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+                    <div
+                      style={{
+                        flex: 1,
+                        minHeight: 80,
+                        padding: "0.75rem",
+                        background: "var(--color-bg-input)",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: 8,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.25rem",
+                      }}
+                    >
+                      {editorInn ? (
+                        <>
+                          <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>{editorInn} · {editorCompanyName}</Typography.Body>
+                        </>
+                      ) : (
+                        <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Не выбран</Typography.Body>
+                      )}
+                    </div>
+                    <Button type="button" className="filter-button" onClick={() => setEditorCustomerPickOpen(true)}>
+                      Подбор
+                    </Button>
+                  </div>
+                </div>
+              )}
               {editorError && (
                 <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
                   {editorError}
                 </Typography.Body>
               )}
-              <Flex gap="0.5rem">
+              <Flex gap="0.5rem" align="center">
                 <Button className="button-primary" disabled={editorLoading} onClick={handleSaveUserPermissions}>
-                  {editorLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Сохранить права"}
+                  {editorLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Сохранить"}
                 </Button>
                 <Button className="filter-button" onClick={closePermissionsEditor} style={{ padding: "0.5rem 0.75rem" }}>
                   Отмена
@@ -921,7 +952,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "1rem" }}>
           <form onSubmit={handleAddUser}>
             <div style={{ marginBottom: "1rem" }}>
-              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик (из справочника)</Typography.Body>
+              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик</Typography.Body>
               {formAccessAllInns ? (
                 <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Доступ ко всем заказчикам — выбор не требуется</Typography.Body>
               ) : (
@@ -1013,39 +1044,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               )}
             </div>
             <div style={{ marginBottom: "1rem" }}>
-              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Email (логин)</Typography.Body>
+              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Email</Typography.Body>
               <Input className="admin-form-input" type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="user@example.com" required style={{ width: "100%" }} />
-            </div>
-            <div style={{ marginBottom: "1rem" }}>
-              <Flex align="center" style={{ marginBottom: "0.5rem" }}>
-                <input type="checkbox" checked={formFinancial} onChange={(e) => setFormFinancial(e.target.checked)} id="fin" />
-                <label htmlFor="fin" style={{ marginLeft: "0.5rem", fontSize: "0.9rem" }}>Финансовые показатели</label>
-              </Flex>
             </div>
             <div className="admin-form-section">
               <div className="admin-form-section-header">Разделы</div>
               <div className="admin-permissions-toolbar">
-                {PERMISSION_KEYS.map(({ key, label }) => (
-                  <button
-                    type="button"
-                    key={key}
-                    className={`permission-button ${formPermissions[key] ? "active" : ""} ${key === "service_mode" && formPermissions[key] ? "active-danger" : ""}`}
-                    onClick={() => togglePerm(key)}
-                  >
-                    {label}
-                  </button>
+                {PERMISSION_KEYS.filter(({ key }) => formPermissions[key]).map(({ key, label }) => (
+                  <button type="button" key={key} className="permission-button active active-danger" onClick={() => togglePerm(key)}>{label}</button>
                 ))}
-                <button
-                  type="button"
-                  className={`permission-button ${formAccessAllInns ? "active active-danger" : ""}`}
-                  onClick={() => {
-                    const v = !formAccessAllInns;
-                    setFormAccessAllInns(v);
-                    if (v) clearCustomerSelection();
-                  }}
-                >
-                  Доступ ко всем заказчикам
-                </button>
+                {formFinancial && <button type="button" className="permission-button active active-danger" onClick={() => setFormFinancial(false)}>Фин. показатели</button>}
+                {formAccessAllInns && (
+                  <button type="button" className="permission-button active active-danger" onClick={() => { setFormAccessAllInns(false); }}>Доступ ко всем заказчикам</button>
+                )}
+              </div>
+              <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
+                {PERMISSION_KEYS.filter(({ key }) => !formPermissions[key]).map(({ key, label }) => (
+                  <button type="button" key={key} className="permission-button" onClick={() => togglePerm(key)}>{label}</button>
+                ))}
+                {!formFinancial && <button type="button" className="permission-button" onClick={() => setFormFinancial(true)}>Фин. показатели</button>}
+                {!formAccessAllInns && (
+                  <button type="button" className="permission-button" onClick={() => { setFormAccessAllInns(true); clearCustomerSelection(); }}>Доступ ко всем заказчикам</button>
+                )}
               </div>
             </div>
             <div style={{ marginBottom: "1rem" }}>
@@ -1186,12 +1206,32 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <div className="admin-form-section" style={{ marginTop: "1.5rem" }}>
               <div className="admin-form-section-header">Поля в письмах</div>
               <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
-                Что отправляется при регистрации и при сбросе пароля (тема письма: «Регистрация в HAULZ»):
+                Тема письма: «Регистрация в HAULZ». Ниже можно задать свой текст (HTML). Подстановки в квадратных скобках:
               </Typography.Body>
-              <ul style={{ margin: 0, paddingLeft: "1.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>
-                <li><strong>При регистрации:</strong> логин (email), пароль, название компании</li>
-                <li><strong>При сбросе пароля:</strong> логин (email), новый временный пароль, название компании</li>
+              <ul style={{ margin: "0 0 0.75rem", paddingLeft: "1.25rem", fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                <li><code>[login]</code> — логин (email) пользователя</li>
+                <li><code>[email]</code> — то же, что <code>[login]</code></li>
+                <li><code>[password]</code> — пароль (при регистрации — выданный, при сбросе — новый временный)</li>
+                <li><code>[company_name]</code> — название компании</li>
               </ul>
+              <Typography.Body style={{ marginBottom: "0.35rem", fontSize: "0.85rem" }}>Текст письма при регистрации</Typography.Body>
+              <textarea
+                className="admin-form-input"
+                value={emailTemplateRegistration}
+                onChange={(e) => setEmailTemplateRegistration(e.target.value)}
+                placeholder="Оставьте пустым, чтобы использовать текст по умолчанию. Пример: <p>Здравствуйте!</p><p>Логин: [login], пароль: [password].</p>"
+                rows={6}
+                style={{ width: "100%", resize: "vertical", minHeight: "6rem" }}
+              />
+              <Typography.Body style={{ marginTop: "0.75rem", marginBottom: "0.35rem", fontSize: "0.85rem" }}>Текст письма при сбросе пароля</Typography.Body>
+              <textarea
+                className="admin-form-input"
+                value={emailTemplatePasswordReset}
+                onChange={(e) => setEmailTemplatePasswordReset(e.target.value)}
+                placeholder="Оставьте пустым для текста по умолчанию."
+                rows={6}
+                style={{ width: "100%", resize: "vertical", minHeight: "6rem" }}
+              />
             </div>
           </form>
         </Panel>
@@ -1201,6 +1241,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         isOpen={customerPickModalOpen}
         onClose={() => setCustomerPickModalOpen(false)}
         onSelect={(c) => addSelectedCustomer(c)}
+        fetchCustomers={fetchCustomersForModal}
+      />
+      <CustomerPickModal
+        isOpen={editorCustomerPickOpen}
+        onClose={() => setEditorCustomerPickOpen(false)}
+        onSelect={(c) => {
+          setEditorInn(c.inn);
+          setEditorCompanyName(c.customer_name);
+          setEditorCustomerPickOpen(false);
+        }}
         fetchCustomers={fetchCustomersForModal}
       />
     </div>

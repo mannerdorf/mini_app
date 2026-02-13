@@ -110,7 +110,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         login,
         login,
         newPassword,
-        companyName || ""
+        companyName || "",
+        { isPasswordReset: true }
       );
       if (!sendResult.ok) {
         return res.status(200).json({

@@ -2376,6 +2376,7 @@ function CustomerSwitcher({
                                     placeholder="Поиск по названию…"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="filter-dropdown-search-input"
                                     style={{ fontSize: '0.9rem', padding: '0.4rem 0.5rem' }}
                                 />
                             </div>
