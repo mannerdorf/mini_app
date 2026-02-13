@@ -72,10 +72,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [CACHE_FRESH_MINUTES]
       );
       if (cacheRow.rows.length > 0) {
-        const filterInns = verified.accessAllInns ? null : new Set([verified.inn!]);
         const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+        // Не в служебном режиме: фильтруем по заказчику. accessAllInns + выбранный в хедере inn → только он; иначе по правилам доступа.
+        const filterInns = verified.accessAllInns ? null : new Set([verified.inn!]);
         const finalInns = filterInns === null
-          ? null
+          ? (requestedInn ? new Set([requestedInn]) : null)
           : requestedInn && filterInns.has(requestedInn)
             ? new Set([requestedInn])
             : filterInns;

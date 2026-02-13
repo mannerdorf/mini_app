@@ -27,7 +27,14 @@
     border: 1px solid #d1d5db !important;
     box-shadow: none !important;
 }
-.light-mode .filter-dropdown .filter-dropdown-search-input,
+/* Только внутренний input с рамкой, обёртка без рамки (избегаем двойной рамки) */
+.filter-dropdown .filter-dropdown-search-input {
+    border: none !important;
+    box-shadow: none !important;
+}
+.light-mode .filter-dropdown .filter-dropdown-search-input {
+    background-color: transparent !important;
+}
 .light-mode .filter-dropdown .filter-dropdown-search-input input {
     background-color: #ffffff !important;
     color: #111827 !important;
