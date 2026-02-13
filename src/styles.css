@@ -613,6 +613,15 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     border-color: var(--color-primary-blue);
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
 }
+.permission-button.active.active-danger {
+    background: var(--color-error-border, #dc2626);
+    color: white;
+    border-color: var(--color-error-border, #dc2626);
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+}
+.permission-button.active.active-danger:hover {
+    border-color: var(--color-error-border, #dc2626);
+}
 .light-mode .admin-form-input::placeholder,
 .light-mode .admin-form-input input::placeholder {
     color: #9ca3af !important;

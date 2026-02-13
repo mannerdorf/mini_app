@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff, FileUp, Activity } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 
@@ -115,7 +115,7 @@ function UserRow({
 }
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
-  const [tab, setTab] = useState<"users" | "add" | "email">("users");
+  const [tab, setTab] = useState<"users" | "add" | "batch" | "email">("users");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -175,6 +175,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [editorLoading, setEditorLoading] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [resetPasswordInfo, setResetPasswordInfo] = useState<{ password?: string; emailSent?: boolean; emailError?: string } | null>(null);
+  const [topActiveUsers, setTopActiveUsers] = useState<{ id: number; login: string; company_name: string; last_login_at: string | null }[]>([]);
+  const [topActiveLoading, setTopActiveLoading] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -194,6 +196,26 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
+    }
+  }, [adminToken, onLogout]);
+
+  const fetchTopActive = useCallback(async () => {
+    setTopActiveLoading(true);
+    try {
+      const res = await fetch("/api/admin-top-active?limit=15", {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      if (res.status === 401) {
+        onLogout?.("expired");
+        return;
+      }
+      if (!res.ok) return;
+      const data = await res.json();
+      setTopActiveUsers(data.users || []);
+    } catch {
+      // ignore
+    } finally {
+      setTopActiveLoading(false);
     }
   }, [adminToken, onLogout]);
 
@@ -253,9 +275,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (tab === "users") {
       fetchUsers();
       fetchAuthConfig();
+      fetchTopActive();
     }
     if (tab === "email") fetchEmailSettings();
-  }, [tab, fetchUsers, fetchEmailSettings, fetchAuthConfig]);
+  }, [tab, fetchUsers, fetchEmailSettings, fetchAuthConfig, fetchTopActive]);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -647,6 +670,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         </Button>
         <Button
           className="filter-button"
+          style={{ background: tab === "batch" ? "var(--color-primary-blue)" : undefined, color: tab === "batch" ? "white" : undefined }}
+          onClick={() => setTab("batch")}
+        >
+          <FileUp className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+          Массовая регистрация
+        </Button>
+        <Button
+          className="filter-button"
           style={{ background: tab === "email" ? "var(--color-primary-blue)" : undefined, color: tab === "email" ? "white" : undefined }}
           onClick={() => setTab("email")}
         >
@@ -677,7 +708,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <Flex key={method.key} justify="space-between" align="center">
                     <div style={{ minWidth: 0 }}>
                       <Typography.Body style={{ fontWeight: 600 }}>{method.label}</Typography.Body>
-                      <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                      <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>
                         {method.description}
                       </Typography.Body>
                     </div>
@@ -705,6 +736,62 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               {authConfigSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить варианты верификации"}
             </Button>
           </Panel>
+
+          <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
+            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+              <Activity className="w-4 h-4" />
+              Топ активных пользователей
+            </Typography.Body>
+            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
+              По последнему входу в приложение
+            </Typography.Body>
+            {topActiveLoading ? (
+              <Flex align="center" gap="0.5rem">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <Typography.Body style={{ fontSize: "0.9rem" }}>Загрузка...</Typography.Body>
+              </Flex>
+            ) : topActiveUsers.length === 0 ? (
+              <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Нет данных о входах</Typography.Body>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                {topActiveUsers.map((u, i) => (
+                  <div
+                    key={u.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "0.4rem 0.5rem",
+                      background: "var(--color-bg-hover)",
+                      borderRadius: 6,
+                      flexWrap: "wrap",
+                      gap: "0.25rem",
+                    }}
+                  >
+                    <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{i + 1}. {u.login}</span>
+                    <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                      {u.last_login_at
+                        ? (() => {
+                            const d = new Date(u.last_login_at);
+                            const now = new Date();
+                            const diffMs = now.getTime() - d.getTime();
+                            const diffM = Math.floor(diffMs / 60000);
+                            const diffH = Math.floor(diffMs / 3600000);
+                            const diffD = Math.floor(diffMs / 86400000);
+                            if (diffM < 1) return "только что";
+                            if (diffM < 60) return `${diffM} мин назад`;
+                            if (diffH < 24) return `${diffH} ч назад`;
+                            if (diffD < 7) return `${diffD} дн назад`;
+                            return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+                          })()
+                        : "никогда"}
+                    </Typography.Body>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+
           {selectedUser && (
             <Panel className="cargo-card" style={{ padding: "1rem", marginTop: "1rem" }}>
               <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.5rem" }}>
@@ -729,13 +816,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   {resetPasswordInfo.emailError && ` Ошибка отправки: ${resetPasswordInfo.emailError}`}
                 </Typography.Body>
               )}
-              <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem" }}>
+              <Flex justify="space-between" align="center" style={{ marginBottom: "1rem" }}>
                 <Typography.Body style={{ fontSize: "0.9rem" }}>Финансовый доступ</Typography.Body>
                 <TapSwitch checked={editorFinancial} onToggle={() => setEditorFinancial((prev) => !prev)} />
-              </Flex>
-              <Flex justify="space-between" align="center" style={{ marginBottom: "1rem" }}>
-                <Typography.Body style={{ fontSize: "0.9rem" }}>Доступ ко всем ИНН</Typography.Body>
-                <TapSwitch checked={editorAccessAllInns} onToggle={() => setEditorAccessAllInns((prev) => !prev)} />
               </Flex>
               <div className="admin-form-section" style={{ marginBottom: "0.5rem" }}>
                 <div className="admin-form-section-header">Разделы</div>
@@ -744,12 +827,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <button
                       key={perm.key}
                       type="button"
-                      className={`permission-button ${editorPermissions[perm.key] ? "active" : ""}`}
+                      className={`permission-button ${editorPermissions[perm.key] ? "active" : ""} ${perm.key === "service_mode" && editorPermissions[perm.key] ? "active-danger" : ""}`}
                       onClick={() => handlePermissionsToggle(perm.key)}
                     >
                       {perm.label}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    className={`permission-button ${editorAccessAllInns ? "active active-danger" : ""}`}
+                    onClick={() => setEditorAccessAllInns((prev) => !prev)}
+                  >
+                    Доступ ко всем заказчикам
+                  </button>
                 </div>
               </div>
               {editorError && (
@@ -805,9 +895,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         </>
       )}
 
-      {tab === "add" && (
+      {tab === "batch" && (
         <Panel className="cargo-card" style={{ padding: "1rem" }}>
-          <div className="admin-form-section" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1rem" }}>
+          <div className="admin-form-section" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             <div className="admin-form-section-header">Массовая регистрация</div>
             <div className="admin-file-input-wrap">
               <Input className="admin-form-input admin-file-input" type="file" accept=".txt,.csv,.xls,.xlsx" onChange={handleBatchFile} />
@@ -824,22 +914,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               {batchLoading ? "Загружаем..." : "Зарегистрировать из файла"}
             </Button>
           </div>
+        </Panel>
+      )}
+
+      {tab === "add" && (
+        <Panel className="cargo-card" style={{ padding: "1rem" }}>
           <form onSubmit={handleAddUser}>
-            <div style={{ marginBottom: "1rem" }}>
-              <Flex align="center" style={{ marginBottom: "0.5rem" }}>
-                <input
-                  type="checkbox"
-                  checked={formAccessAllInns}
-                  onChange={(e) => {
-                    const v = e.target.checked;
-                    setFormAccessAllInns(v);
-                    if (v) clearCustomerSelection();
-                  }}
-                  id="accessAllInns"
-                />
-                <label htmlFor="accessAllInns" style={{ marginLeft: "0.5rem", fontSize: "0.9rem" }}>Доступ ко всем заказчикам (ко всем ИНН)</label>
-              </Flex>
-            </div>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик (из справочника)</Typography.Body>
               {formAccessAllInns ? (
@@ -949,12 +1029,23 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <button
                     type="button"
                     key={key}
-                    className={`permission-button ${formPermissions[key] ? "active" : ""}`}
+                    className={`permission-button ${formPermissions[key] ? "active" : ""} ${key === "service_mode" && formPermissions[key] ? "active-danger" : ""}`}
                     onClick={() => togglePerm(key)}
                   >
                     {label}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className={`permission-button ${formAccessAllInns ? "active active-danger" : ""}`}
+                  onClick={() => {
+                    const v = !formAccessAllInns;
+                    setFormAccessAllInns(v);
+                    if (v) clearCustomerSelection();
+                  }}
+                >
+                  Доступ ко всем заказчикам
+                </button>
               </div>
             </div>
             <div style={{ marginBottom: "1rem" }}>
@@ -1091,6 +1182,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 {emailTestResult.ok ? "✓ " + (emailTestResult.message || "Подключение успешно") : "✗ " + (emailTestResult.error || "Ошибка")}
               </Typography.Body>
             )}
+
+            <div className="admin-form-section" style={{ marginTop: "1.5rem" }}>
+              <div className="admin-form-section-header">Поля в письмах</div>
+              <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
+                Что отправляется при регистрации и при сбросе пароля (тема письма: «Регистрация в HAULZ»):
+              </Typography.Body>
+              <ul style={{ margin: 0, paddingLeft: "1.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>
+                <li><strong>При регистрации:</strong> логин (email), пароль, название компании</li>
+                <li><strong>При сбросе пароля:</strong> логин (email), новый временный пароль, название компании</li>
+              </ul>
+            </div>
           </form>
         </Panel>
       )}

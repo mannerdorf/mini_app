@@ -46,6 +46,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: "Неверный email или пароль" });
     }
 
+    await pool.query("UPDATE registered_users SET last_login_at = now() WHERE id = $1", [user.id]);
+
     const permissions =
       user.permissions && typeof user.permissions === "object"
         ? user.permissions
