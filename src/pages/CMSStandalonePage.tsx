@@ -20,6 +20,7 @@ export function CMSStandalonePage() {
   const [showPassword, setShowPassword] = useState(false);
   const [adminVerifyLoading, setAdminVerifyLoading] = useState(false);
   const [adminVerifyError, setAdminVerifyError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const goBackToApp = () => {
     try {
@@ -67,10 +68,11 @@ export function CMSStandalonePage() {
         <AdminPage
           adminToken={adminToken}
           onBack={goBackToApp}
-          onLogout={() => {
+          onLogout={(reason) => {
             try {
               if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("haulz.adminToken");
             } catch {}
+            setSessionExpired(reason === "expired");
             setAdminToken(null);
           }}
         />
@@ -87,6 +89,11 @@ export function CMSStandalonePage() {
             ← В приложение
           </Button>
         </Flex>
+        {sessionExpired && (
+          <Typography.Body style={{ color: "var(--color-error-text, var(--color-error))", marginBottom: "0.75rem", fontSize: "0.9rem" }}>
+            Сессия истекла или доступ недействителен. Войдите снова.
+          </Typography.Body>
+        )}
         <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
           Введите логин и пароль администратора.
         </Typography.Body>
@@ -98,6 +105,7 @@ export function CMSStandalonePage() {
             onChange={(e) => {
               setAdminLoginInput(e.target.value);
               setAdminVerifyError(null);
+              setSessionExpired(false);
             }}
             placeholder="Логин"
             style={{ marginBottom: "0.5rem", width: "100%" }}
@@ -113,6 +121,7 @@ export function CMSStandalonePage() {
               onChange={(e) => {
                 setAdminPasswordInput(e.target.value);
                 setAdminVerifyError(null);
+                setSessionExpired(false);
               }}
               placeholder="Пароль"
               style={{ marginBottom: "0.75rem", width: "100%" }}

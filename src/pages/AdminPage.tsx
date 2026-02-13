@@ -42,7 +42,8 @@ type AuthMethodKey = (typeof AUTH_METHODS)[number]["key"];
 type AdminPageProps = {
   adminToken: string;
   onBack: () => void;
-  onLogout?: () => void;
+  /** При 401 вызывается как onLogout("expired"), при нажатии «Выход» — onLogout() */
+  onLogout?: (reason?: "expired") => void;
 };
 
 type User = {
@@ -182,6 +183,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       const res = await fetch("/api/admin-users", {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
+      if (res.status === 401) {
+        onLogout?.("expired");
+        return;
+      }
       if (!res.ok) throw new Error("Ошибка загрузки");
       const data = await res.json();
       setUsers(data.users || []);
@@ -190,7 +195,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [adminToken]);
+  }, [adminToken, onLogout]);
 
   const fetchAuthConfig = useCallback(async () => {
     setAuthConfigLoading(true);
@@ -200,6 +205,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       const res = await fetch("/api/admin-auth-config", {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
+      if (res.status === 401) {
+        onLogout?.("expired");
+        return;
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((data?.error as string) || "Ошибка загрузки способов авторизации");
       const config = data.config || {};
@@ -213,7 +222,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     } finally {
       setAuthConfigLoading(false);
     }
-  }, [adminToken]);
+  }, [adminToken, onLogout]);
 
   const fetchEmailSettings = useCallback(async () => {
     setError(null);
@@ -221,6 +230,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       const res = await fetch("/api/admin-email-settings", {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
+      if (res.status === 401) {
+        onLogout?.("expired");
+        return;
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError((data?.error as string) || "Ошибка загрузки настроек почты");
@@ -234,7 +247,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка загрузки настроек почты");
     }
-  }, [adminToken]);
+  }, [adminToken, onLogout]);
 
   useEffect(() => {
     if (tab === "users") {

@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
 const ALG = "sha256";
-const TTL_MS = 60 * 60 * 1000; // 1 hour
+const TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 
 function getSecret(): string {
   const s = process.env.SERVICE_MODE_PASSWORD || process.env.JWT_SECRET || "haulz-admin";
