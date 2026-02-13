@@ -4,6 +4,12 @@ import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff 
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 
+declare global {
+  interface Window {
+    XLSX?: any;
+  }
+}
+
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -319,9 +325,25 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     return { entries, errors };
   };
 
+  const loadXlsxLibrary = (() => {
+    let promise: Promise<any> | null = null;
+    return () => {
+      if ((window as any).XLSX) return Promise.resolve((window as any).XLSX);
+      if (promise) return promise;
+      promise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://cdn.sheetjs.com/xlsx-0.22.2/package/xlsx.full.min.js";
+        script.onload = () => resolve((window as any).XLSX);
+        script.onerror = () => reject(new Error("Не удалось загрузить библиотеку для Excel"));
+        document.body.appendChild(script);
+      });
+      return promise;
+    };
+  })();
+
   const parseExcelEntries = async (file: File) => {
     const bytes = await file.arrayBuffer();
-    const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.22.2/package/xlsx.mjs");
+    const XLSX = await loadXlsxLibrary();
     const workbook = XLSX.read(new Uint8Array(bytes), { type: "array" });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const matrix = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "" });
