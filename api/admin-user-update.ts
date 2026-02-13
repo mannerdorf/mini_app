@@ -22,10 +22,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let body: {
     inn?: string;
     company_name?: string;
+    customers?: { inn: string; name?: string }[];
     permissions?: Record<string, boolean>;
     financial_access?: boolean;
+    access_all_inns?: boolean;
     active?: boolean;
     reset_password?: boolean;
+    send_password_to_email?: boolean;
   } = req.body;
   if (typeof body === "string") {
     try {
@@ -50,14 +53,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const values: unknown[] = [];
     let vi = 1;
 
-    if (typeof body?.inn === "string" && body.inn.trim()) {
-      updates.push(`inn = $${vi++}`);
-      values.push(body.inn.trim());
-    }
-    if (typeof body?.company_name === "string") {
-      updates.push(`company_name = $${vi++}`);
-      values.push(body.company_name.trim());
-    }
     if (body?.permissions && typeof body.permissions === "object") {
       updates.push(`permissions = $${vi++}`);
       values.push(JSON.stringify(body.permissions));
@@ -70,6 +65,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       updates.push(`active = $${vi++}`);
       values.push(body.active);
     }
+    if (typeof body?.access_all_inns === "boolean") {
+      updates.push(`access_all_inns = $${vi++}`);
+      values.push(body.access_all_inns);
+    }
+
+    const customers = Array.isArray(body?.customers) ? body.customers : undefined;
+    const firstCustomer = customers && customers.length > 0 ? customers[0] : null;
+    const newInn = firstCustomer?.inn?.trim() ?? "";
+    const newCompanyName = firstCustomer?.name?.trim() ?? (typeof body?.company_name === "string" ? body.company_name.trim() : "");
+    if (customers !== undefined) {
+      updates.push(`inn = $${vi++}`);
+      values.push(newInn);
+      updates.push(`company_name = $${vi++}`);
+      values.push(newCompanyName);
+    }
 
     if (updates.length > 0) {
       updates.push(`updated_at = now()`);
@@ -80,23 +90,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
 
-    if (body?.inn && typeof body.inn === "string") {
-      const newInn = body.inn.trim();
-      await pool.query("DELETE FROM account_companies WHERE login = $1 AND inn = $2", [login, oldInn]);
-      await pool.query(
-        `INSERT INTO account_companies (login, inn, name) VALUES ($1, $2, COALESCE($3, (SELECT company_name FROM registered_users WHERE id = $4)))
-         ON CONFLICT (login, inn) DO UPDATE SET name = EXCLUDED.name`,
-        [login, newInn, body.company_name?.trim(), id]
-      );
-    }
-    if (body?.company_name && typeof body.company_name === "string") {
-      await pool.query(
-        `UPDATE account_companies SET name = $1 WHERE login = $2`,
-        [body.company_name.trim(), login]
-      );
+    if (customers !== undefined) {
+      await pool.query("DELETE FROM account_companies WHERE login = $1", [login]);
+      if (!body?.access_all_inns && customers.length > 0) {
+        for (const c of customers) {
+          const inn = typeof c.inn === "string" ? c.inn.trim() : "";
+          const name = (typeof c.name === "string" ? c.name.trim() : "") || newCompanyName;
+          if (inn) {
+            await pool.query(
+              `INSERT INTO account_companies (login, inn, name) VALUES ($1, $2, $3)
+               ON CONFLICT (login, inn) DO UPDATE SET name = EXCLUDED.name`,
+              [login, inn, name]
+            );
+          }
+        }
+      }
     }
 
     let newPassword: string | undefined;
+    let emailSent = false;
+    let emailError: string | undefined;
     if (body?.reset_password) {
       newPassword = generatePassword(8);
       const passwordHash = hashPassword(newPassword);
@@ -104,28 +117,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "UPDATE registered_users SET password_hash = $1, updated_at = now() WHERE id = $2",
         [passwordHash, id]
       );
-      const companyName = typeof body?.company_name === "string" ? body.company_name : existing[0]!.company_name;
-      const sendResult = await sendRegistrationEmail(
-        pool,
-        login,
-        login,
-        newPassword,
-        companyName || "",
-        { isPasswordReset: true }
-      );
-      if (!sendResult.ok) {
-        return res.status(200).json({
-          ok: true,
-          password: newPassword,
-          emailSent: false,
-          emailError: sendResult.error,
-        });
+      const sendToEmail = body.send_password_to_email !== false;
+      if (sendToEmail) {
+        const companyName = typeof body?.company_name === "string" ? body.company_name : existing[0]!.company_name;
+        const sendResult = await sendRegistrationEmail(
+          pool,
+          login,
+          login,
+          newPassword,
+          companyName || "",
+          { isPasswordReset: true }
+        );
+        if (sendResult.ok) {
+          emailSent = true;
+        } else {
+          emailError = sendResult.error;
+        }
       }
     }
 
     return res.status(200).json({
       ok: true,
-      ...(newPassword ? { password: newPassword, emailSent: true } : {}),
+      ...(newPassword ? { password: newPassword, emailSent, emailError } : {}),
     });
   } catch (e: unknown) {
     const err = e as Error;

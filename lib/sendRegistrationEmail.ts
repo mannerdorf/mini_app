@@ -16,34 +16,50 @@ function substituteTemplate(template: string, vars: Record<string, string>): str
   return template.replace(/\[(\w+)\]/g, (_, key) => vars[key] ?? `[${key}]`);
 }
 
+const emptyEmailSettings: EmailSettings = {
+  smtp_host: null,
+  smtp_port: null,
+  smtp_user: null,
+  smtp_password: null,
+  from_email: null,
+  from_name: null,
+  email_template_registration: null,
+  email_template_password_reset: null,
+};
+
 export async function getEmailSettings(pool: Pool): Promise<EmailSettings> {
-  const { rows } = await pool.query<{
+  type RowWithTemplates = {
     smtp_host: string | null;
     smtp_port: number | null;
     smtp_user: string | null;
     smtp_password_encrypted: string | null;
     from_email: string | null;
     from_name: string | null;
-    email_template_registration: string | null;
-    email_template_password_reset: string | null;
-  }>(
-    `SELECT smtp_host, smtp_port, smtp_user, smtp_password_encrypted, from_email, from_name,
-            email_template_registration, email_template_password_reset
-     FROM admin_email_settings WHERE id = 1`
-  );
-  const r = rows[0];
-  if (!r) {
-    return {
-      smtp_host: null,
-      smtp_port: null,
-      smtp_user: null,
-      smtp_password: null,
-      from_email: null,
-      from_name: null,
-      email_template_registration: null,
-      email_template_password_reset: null,
-    };
+    email_template_registration?: string | null;
+    email_template_password_reset?: string | null;
+  };
+  let rows: RowWithTemplates[];
+  try {
+    const result = await pool.query<RowWithTemplates>(
+      `SELECT smtp_host, smtp_port, smtp_user, smtp_password_encrypted, from_email, from_name,
+              email_template_registration, email_template_password_reset
+       FROM admin_email_settings WHERE id = 1`
+    );
+    rows = result.rows;
+  } catch (e: unknown) {
+    const msg = (e as Error)?.message ?? "";
+    if (msg.includes("email_template_registration") || msg.includes("email_template_password_reset") || msg.includes("does not exist")) {
+      const result = await pool.query<RowWithTemplates>(
+        `SELECT smtp_host, smtp_port, smtp_user, smtp_password_encrypted, from_email, from_name
+         FROM admin_email_settings WHERE id = 1`
+      );
+      rows = result.rows;
+    } else {
+      throw e;
+    }
   }
+  const r = rows[0];
+  if (!r) return emptyEmailSettings;
   let smtp_password: string | null = null;
   if (r.smtp_password_encrypted) {
     try {

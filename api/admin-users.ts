@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
-    const { rows } = await pool.query<{
+    const { rows: users } = await pool.query<{
       id: number;
       login: string;
       inn: string;
@@ -28,7 +28,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `SELECT id, login, inn, company_name, permissions, financial_access, COALESCE(access_all_inns, false) as access_all_inns, active, created_at
        FROM registered_users ORDER BY created_at DESC`
     );
-    return res.status(200).json({ users: rows });
+    const { rows: companies } = await pool.query<{ login: string; inn: string; name: string }>(
+      `SELECT login, inn, name FROM account_companies ORDER BY login, name`
+    );
+    const byLogin = new Map<string, { inn: string; name: string }[]>();
+    for (const c of companies) {
+      if (!byLogin.has(c.login)) byLogin.set(c.login, []);
+      byLogin.get(c.login)!.push({ inn: c.inn, name: c.name || "" });
+    }
+    const usersWithCompanies = users.map((u) => ({
+      ...u,
+      companies: byLogin.get(u.login) || [],
+    }));
+    return res.status(200).json({ users: usersWithCompanies });
   } catch (e: unknown) {
     const err = e as Error;
     console.error("admin-users error:", err);

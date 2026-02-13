@@ -25,6 +25,27 @@ const PERMISSION_KEYS = [
   { key: "service_mode", label: "Служебный режим" },
 ] as const;
 
+/** Первая строка разделов: при активном — красная */
+const PERMISSION_ROW1 = [
+  { key: "cms_access", label: "Доступ в CMS" },
+  { key: "service_mode", label: "Служебный режим" },
+  { key: "__financial__", label: "Фин. показатели" as const },
+  { key: "__access_all_inns__", label: "Доступ ко всем заказчикам" as const },
+] as const;
+
+/** Вторая строка разделов: при активном — синяя */
+const PERMISSION_ROW2 = [
+  { key: "cargo", label: "Грузы" },
+  { key: "doc_invoices", label: "Счета" },
+  { key: "doc_acts", label: "УПД" },
+  { key: "doc_orders", label: "Заявки" },
+  { key: "doc_claims", label: "Претензии" },
+  { key: "doc_contracts", label: "Договоры" },
+  { key: "doc_acts_settlement", label: "Акты сверок" },
+  { key: "doc_tariffs", label: "Тарифы" },
+  { key: "chat", label: "Чат" },
+] as const;
+
 type AuthMethodsConfig = {
   api_v1: boolean;
   api_v2: boolean;
@@ -56,6 +77,7 @@ type User = {
   access_all_inns?: boolean;
   active: boolean;
   created_at: string;
+  companies?: { inn: string; name: string }[];
 };
 
 function UserRow({
@@ -177,8 +199,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [editorLoading, setEditorLoading] = useState(false);
   const [editorError, setEditorError] = useState<string | null>(null);
   const [resetPasswordInfo, setResetPasswordInfo] = useState<{ password?: string; emailSent?: boolean; emailError?: string } | null>(null);
-  const [editorInn, setEditorInn] = useState("");
-  const [editorCompanyName, setEditorCompanyName] = useState("");
+  const [editorSendPasswordToEmail, setEditorSendPasswordToEmail] = useState(true);
+  const [editorCustomers, setEditorCustomers] = useState<CustomerItem[]>([]);
   const [editorCustomerPickOpen, setEditorCustomerPickOpen] = useState(false);
   const [topActiveUsers, setTopActiveUsers] = useState<{ id: number; login: string; company_name: string; last_login_at: string | null }[]>([]);
   const [topActiveLoading, setTopActiveLoading] = useState(false);
@@ -559,7 +581,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           permissions: editorPermissions,
           financial_access: editorFinancial,
           access_all_inns: editorAccessAllInns,
-          ...(editorInn.trim() ? { inn: editorInn.trim(), company_name: editorCompanyName.trim() } : {}),
+          customers: editorCustomers.map((c) => ({ inn: c.inn, name: c.customer_name })),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -618,7 +640,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${adminToken}`,
         },
-        body: JSON.stringify({ reset_password: true }),
+        body: JSON.stringify({ reset_password: true, send_password_to_email: editorSendPasswordToEmail }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Ошибка сброса пароля");
@@ -641,9 +663,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setEditorPermissions(nextPermissions);
     setEditorFinancial(Boolean(selectedUser.financial_access));
     setEditorAccessAllInns(Boolean(selectedUser.access_all_inns));
-    setEditorInn(selectedUser.inn || "");
-    setEditorCompanyName(selectedUser.company_name || "");
+    const list = selectedUser.companies?.length
+      ? selectedUser.companies.map((c) => ({ inn: c.inn, customer_name: c.name || "", email: "" }))
+      : selectedUser.inn
+        ? [{ inn: selectedUser.inn, customer_name: selectedUser.company_name || "", email: "" }]
+        : [];
+    setEditorCustomers(list);
     setEditorError(null);
+  }, [selectedUser]);
+  useEffect(() => {
+    if (!selectedUser) setResetPasswordInfo(null);
   }, [selectedUser]);
 
   return (
@@ -809,37 +838,53 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.5rem" }}>
                 <Typography.Body style={{ fontWeight: 600 }}>{selectedUser.login}</Typography.Body>
                 <Flex gap="0.5rem" align="center">
-                  <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={handleResetPassword}>
-                    Сбросить пароль
-                  </Button>
                   <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={closePermissionsEditor}>
                     Закрыть
                   </Button>
                 </Flex>
               </Flex>
+              <Flex align="center" style={{ marginBottom: "0.75rem", gap: "0.5rem" }}>
+                <input
+                  type="checkbox"
+                  id="editorSendPasswordToEmail"
+                  checked={editorSendPasswordToEmail}
+                  onChange={(e) => setEditorSendPasswordToEmail(e.target.checked)}
+                />
+                <label htmlFor="editorSendPasswordToEmail" style={{ fontSize: "0.9rem" }}>Новый пароль отправить на почту</label>
+              </Flex>
+              <Flex gap="0.5rem" align="center" style={{ marginBottom: "0.75rem" }}>
+                <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={handleResetPassword}>
+                  Сбросить пароль
+                </Button>
+              </Flex>
               {resetPasswordInfo && (
                 <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--color-text-secondary)" }}>
                   {resetPasswordInfo.emailSent
                     ? "Пароль отправлен на email."
-                    : `Новый временный пароль: ${resetPasswordInfo.password || "—"}. Передайте его пользователю.`}
+                    : resetPasswordInfo.password
+                      ? `Новый временный пароль: ${resetPasswordInfo.password}. Передайте его пользователю.`
+                      : "Пароль не отправлен."}
                   {resetPasswordInfo.emailError && ` Ошибка отправки: ${resetPasswordInfo.emailError}`}
                 </Typography.Body>
               )}
               <div className="admin-form-section" style={{ marginBottom: "0.5rem" }}>
                 <div className="admin-form-section-header">Разделы</div>
                 <div className="admin-permissions-toolbar">
-                  {PERMISSION_KEYS.filter((perm) => editorPermissions[perm.key]).map((perm) => (
-                    <button key={perm.key} type="button" className="permission-button active active-danger" onClick={() => handlePermissionsToggle(perm.key)}>{perm.label}</button>
-                  ))}
-                  {editorFinancial && <button type="button" className="permission-button active active-danger" onClick={() => setEditorFinancial(false)}>Фин. показатели</button>}
-                  {editorAccessAllInns && <button type="button" className="permission-button active active-danger" onClick={() => setEditorAccessAllInns(false)}>Доступ ко всем заказчикам</button>}
+                  {PERMISSION_ROW1.map(({ key, label }) => {
+                    const isActive = key === "__financial__" ? editorFinancial : key === "__access_all_inns__" ? editorAccessAllInns : !!editorPermissions[key];
+                    const onClick = key === "__financial__" ? () => setEditorFinancial(!editorFinancial) : key === "__access_all_inns__" ? () => setEditorAccessAllInns(!editorAccessAllInns) : () => handlePermissionsToggle(key);
+                    return (
+                      <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>
+                    );
+                  })}
                 </div>
                 <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
-                  {PERMISSION_KEYS.filter((perm) => !editorPermissions[perm.key]).map((perm) => (
-                    <button key={perm.key} type="button" className="permission-button" onClick={() => handlePermissionsToggle(perm.key)}>{perm.label}</button>
-                  ))}
-                  {!editorFinancial && <button type="button" className="permission-button" onClick={() => setEditorFinancial(true)}>Фин. показатели</button>}
-                  {!editorAccessAllInns && <button type="button" className="permission-button" onClick={() => setEditorAccessAllInns(true)}>Доступ ко всем заказчикам</button>}
+                  {PERMISSION_ROW2.map(({ key, label }) => {
+                    const isActive = !!editorPermissions[key];
+                    return (
+                      <button key={key} type="button" className={`permission-button ${isActive ? "active" : ""}`} onClick={() => handlePermissionsToggle(key)}>{label}</button>
+                    );
+                  })}
                 </div>
               </div>
               {!editorAccessAllInns && (
@@ -850,26 +895,67 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       style={{
                         flex: 1,
                         minHeight: 80,
-                        padding: "0.75rem",
+                        maxHeight: 160,
+                        padding: "0.5rem 0.75rem",
                         background: "var(--color-bg-input)",
                         border: "1px solid var(--color-border)",
                         borderRadius: 8,
+                        overflowY: "auto",
                         display: "flex",
                         flexDirection: "column",
-                        gap: "0.25rem",
+                        gap: "0.5rem",
                       }}
                     >
-                      {editorInn ? (
-                        <>
-                          <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>{editorInn} · {editorCompanyName}</Typography.Body>
-                        </>
-                      ) : (
+                      {editorCustomers.length === 0 ? (
                         <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Не выбран</Typography.Body>
+                      ) : (
+                        editorCustomers.map((cust) => (
+                          <div
+                            key={cust.inn}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              padding: "0.35rem 0.5rem",
+                              borderRadius: 6,
+                              background: "var(--color-bg-hover)",
+                            }}
+                          >
+                            <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+                              {cust.inn} · {cust.customer_name}
+                            </Typography.Body>
+                            <button
+                              type="button"
+                              onClick={() => setEditorCustomers((prev) => prev.filter((c) => c.inn !== cust.inn))}
+                              style={{
+                                border: "none",
+                                background: "transparent",
+                                cursor: "pointer",
+                                color: "var(--color-text-secondary)",
+                              }}
+                              aria-label="Удалить заказчика"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        ))
                       )}
                     </div>
-                    <Button type="button" className="filter-button" onClick={() => setEditorCustomerPickOpen(true)}>
-                      Подбор
-                    </Button>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                      <Button type="button" className="filter-button" onClick={() => setEditorCustomerPickOpen(true)}>
+                        Подбор
+                      </Button>
+                      {editorCustomers.length > 0 && (
+                        <Button
+                          type="button"
+                          className="filter-button"
+                          style={{ padding: "0.4rem 0.75rem", fontSize: "0.8rem" }}
+                          onClick={() => setEditorCustomers([])}
+                        >
+                          Очистить
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1050,22 +1136,21 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <div className="admin-form-section">
               <div className="admin-form-section-header">Разделы</div>
               <div className="admin-permissions-toolbar">
-                {PERMISSION_KEYS.filter(({ key }) => formPermissions[key]).map(({ key, label }) => (
-                  <button type="button" key={key} className="permission-button active active-danger" onClick={() => togglePerm(key)}>{label}</button>
-                ))}
-                {formFinancial && <button type="button" className="permission-button active active-danger" onClick={() => setFormFinancial(false)}>Фин. показатели</button>}
-                {formAccessAllInns && (
-                  <button type="button" className="permission-button active active-danger" onClick={() => { setFormAccessAllInns(false); }}>Доступ ко всем заказчикам</button>
-                )}
+                {PERMISSION_ROW1.map(({ key, label }) => {
+                  const isActive = key === "__financial__" ? formFinancial : key === "__access_all_inns__" ? formAccessAllInns : !!formPermissions[key];
+                  const onClick = key === "__financial__" ? () => setFormFinancial(!formFinancial) : key === "__access_all_inns__" ? () => { const v = !formAccessAllInns; setFormAccessAllInns(v); if (v) clearCustomerSelection(); } : () => togglePerm(key);
+                  return (
+                    <button type="button" key={key} className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>
+                  );
+                })}
               </div>
               <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
-                {PERMISSION_KEYS.filter(({ key }) => !formPermissions[key]).map(({ key, label }) => (
-                  <button type="button" key={key} className="permission-button" onClick={() => togglePerm(key)}>{label}</button>
-                ))}
-                {!formFinancial && <button type="button" className="permission-button" onClick={() => setFormFinancial(true)}>Фин. показатели</button>}
-                {!formAccessAllInns && (
-                  <button type="button" className="permission-button" onClick={() => { setFormAccessAllInns(true); clearCustomerSelection(); }}>Доступ ко всем заказчикам</button>
-                )}
+                {PERMISSION_ROW2.map(({ key, label }) => {
+                  const isActive = !!formPermissions[key];
+                  return (
+                    <button type="button" key={key} className={`permission-button ${isActive ? "active" : ""}`} onClick={() => togglePerm(key)}>{label}</button>
+                  );
+                })}
               </div>
             </div>
             <div style={{ marginBottom: "1rem" }}>
@@ -1247,9 +1332,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         isOpen={editorCustomerPickOpen}
         onClose={() => setEditorCustomerPickOpen(false)}
         onSelect={(c) => {
-          setEditorInn(c.inn);
-          setEditorCompanyName(c.customer_name);
-          setEditorCustomerPickOpen(false);
+          setEditorCustomers((prev) => (prev.some((x) => x.inn === c.inn) ? prev : [...prev, c]));
         }}
         fetchCustomers={fetchCustomersForModal}
       />

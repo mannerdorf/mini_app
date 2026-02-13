@@ -634,13 +634,13 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     border-color: var(--color-primary-blue);
 }
 .permission-button.active {
-    background: var(--color-error-border, #dc2626);
+    background: var(--color-primary-blue);
     color: white;
-    border-color: var(--color-error-border, #dc2626);
-    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+    border-color: var(--color-primary-blue);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
 }
 .permission-button.active:hover {
-    border-color: var(--color-error-border, #dc2626);
+    border-color: var(--color-primary-blue);
 }
 .permission-button.active.active-danger {
     background: var(--color-error-border, #dc2626);
