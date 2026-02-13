@@ -21,10 +21,10 @@ export default async function handler(
   }
 
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
-  const limit = Math.min(
-    200,
-    Math.max(5, parseInt(String(req.query.limit || 50), 10) || 50)
-  );
+  const requestedLimit = Math.max(5, parseInt(String(req.query.limit || 50), 10) || 50);
+  const limit = !q || q.length < 2
+    ? Math.min(2000, requestedLimit)
+    : Math.min(200, requestedLimit);
 
   try {
     const pool = getPool();

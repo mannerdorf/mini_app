@@ -210,6 +210,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [editorSendPasswordToEmail, setEditorSendPasswordToEmail] = useState(true);
   const [editorCustomers, setEditorCustomers] = useState<CustomerItem[]>([]);
   const [editorCustomerPickOpen, setEditorCustomerPickOpen] = useState(false);
+  const [customerDirectoryMap, setCustomerDirectoryMap] = useState<Record<string, string>>({});
   const [topActiveUsers, setTopActiveUsers] = useState<{ id: number; login: string; company_name: string; last_login_at: string | null }[]>([]);
   const [topActiveLoading, setTopActiveLoading] = useState(false);
 
@@ -711,7 +712,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         : [];
     setEditorCustomers(list);
     setEditorError(null);
-  }, [selectedUser]);
+    fetch(`/api/admin-customers-search?q=&limit=2000`, { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((res) => res.json())
+      .then((data: { customers?: { inn: string; customer_name: string }[] }) => {
+        const map: Record<string, string> = {};
+        for (const c of data.customers || []) {
+          if (c.inn && c.customer_name) map[c.inn] = c.customer_name;
+        }
+        setCustomerDirectoryMap(map);
+      })
+      .catch(() => setCustomerDirectoryMap({}));
+  }, [selectedUser, adminToken]);
   useEffect(() => {
     if (!selectedUser) setResetPasswordInfo(null);
   }, [selectedUser]);
@@ -978,7 +989,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             }}
                           >
                             <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>
-                              {cust.inn} · {cust.customer_name}
+                              {(customerDirectoryMap[cust.inn] || cust.customer_name || cust.inn)}
+                              {customerDirectoryMap[cust.inn] || cust.customer_name ? ` · ${cust.inn}` : ""}
                             </Typography.Body>
                             <button
                               type="button"
@@ -1238,7 +1250,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           >
                             <div style={{ minWidth: 0 }}>
                               <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>
-                                {cust.inn} · {cust.customer_name}
+                                {(customerDirectoryMap[cust.inn] || cust.customer_name || cust.inn)}
+                                {(customerDirectoryMap[cust.inn] || cust.customer_name) ? ` · ${cust.inn}` : ""}
                               </Typography.Body>
                               {cust.email && (
                                 <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
