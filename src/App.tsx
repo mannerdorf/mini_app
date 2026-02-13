@@ -8062,6 +8062,55 @@ function ChatPage({
 
 // ----------------- MAIN APP -----------------
 
+const EMPTY_AUTH_STATE: { accounts: Account[]; activeAccountId: string | null; selectedAccountIds: string[] } = { accounts: [], activeAccountId: null, selectedAccountIds: [] };
+let initialAuthStateCache: typeof EMPTY_AUTH_STATE | undefined = undefined;
+function getInitialAuthState(): typeof EMPTY_AUTH_STATE {
+    if (initialAuthStateCache !== undefined) return initialAuthStateCache;
+    if (typeof window === "undefined") return EMPTY_AUTH_STATE;
+    try {
+        const saved = window.localStorage.getItem("haulz.auth");
+        if (saved) {
+            const parsed = JSON.parse(saved) as AuthData;
+            if (parsed?.login && parsed?.password) {
+                const accountId = parsed.id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const account: Account = { login: parsed.login, password: parsed.password, id: accountId };
+                initialAuthStateCache = { accounts: [account], activeAccountId: accountId, selectedAccountIds: [accountId] };
+                return initialAuthStateCache;
+            }
+        }
+        const savedAccounts = window.localStorage.getItem("haulz.accounts");
+        if (savedAccounts) {
+            let parsedAccounts = JSON.parse(savedAccounts) as Account[];
+            if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
+                parsedAccounts = parsedAccounts.map((acc) =>
+                    acc.customers?.length && !acc.customer ? { ...acc, customer: acc.customers[0].name } : acc
+                );
+                const savedActiveId = window.localStorage.getItem("haulz.activeAccountId");
+                const activeId = (savedActiveId && parsedAccounts.find((acc) => acc.id === savedActiveId)) ? savedActiveId : parsedAccounts[0].id;
+                let selectedIds: string[] = [];
+                const savedSelectedIds = window.localStorage.getItem("haulz.selectedAccountIds");
+                if (savedSelectedIds) {
+                    try {
+                        const ids = JSON.parse(savedSelectedIds) as string[];
+                        if (Array.isArray(ids) && ids.length > 0) {
+                            const valid = ids.filter((id) => parsedAccounts.some((acc) => acc.id === id));
+                            if (valid.length > 0) selectedIds = valid;
+                        }
+                    } catch {
+                        // ignore
+                    }
+                }
+                if (selectedIds.length === 0) selectedIds = activeId ? [activeId] : [];
+                initialAuthStateCache = { accounts: parsedAccounts, activeAccountId: activeId, selectedAccountIds: selectedIds };
+                return initialAuthStateCache;
+            }
+        }
+    } catch {
+        // ignore
+    }
+    return EMPTY_AUTH_STATE;
+}
+
 export default function App() {
     // --- Telegram Init ---
     useEffect(() => {
@@ -8151,11 +8200,11 @@ export default function App() {
         };
     }, []);
 
-    // Множественные аккаунты
-    const [accounts, setAccounts] = useState<Account[]>([]);
-    const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+    // Множественные аккаунты (синхронное восстановление из localStorage — избегаем пустой страницы при первом входе)
+    const [accounts, setAccounts] = useState<Account[]>(() => getInitialAuthState().accounts);
+    const [activeAccountId, setActiveAccountId] = useState<string | null>(() => getInitialAuthState().activeAccountId);
     /** Выбранные компании для отображения перевозок (можно несколько) */
-    const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
+    const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(() => getInitialAuthState().selectedAccountIds);
     const [useServiceRequest, setUseServiceRequest] = useState(false);
     const [serviceRefreshSpinning, setServiceRefreshSpinning] = useState(false);
     // Вычисляем текущий активный аккаунт

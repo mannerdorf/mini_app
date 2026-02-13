@@ -235,6 +235,20 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
   }, [adminToken, onLogout]);
 
+  useEffect(() => {
+    if (tab !== "users") return;
+    fetch(`/api/admin-customers-search?q=&limit=2000`, { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((res) => res.json())
+      .then((data: { customers?: { inn: string; customer_name: string }[] }) => {
+        const map: Record<string, string> = {};
+        for (const c of data.customers || []) {
+          if (c.inn && c.customer_name) map[c.inn] = c.customer_name;
+        }
+        setCustomerDirectoryMap(map);
+      })
+      .catch(() => {});
+  }, [tab, adminToken]);
+
   const fetchTopActive = useCallback(async () => {
     setTopActiveLoading(true);
     try {
@@ -1136,6 +1150,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 }
               }
               const sortedLabels = Array.from(groups.keys()).sort((a, b) => (a === CUSTOMER_ALL ? 1 : b === CUSTOMER_ALL ? -1 : a.localeCompare(b)));
+              const groupDisplayName = (l: string) => {
+                if (l === CUSTOMER_ALL) return l;
+                const inParens = /\((\d{10,12})\)$/.exec(l);
+                const inn = inParens ? inParens[1] : /^\d{10,12}$/.test(l) ? l : null;
+                if (inn && customerDirectoryMap[inn]) return `${customerDirectoryMap[inn]} (${inn})`;
+                return l;
+              };
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                   {sortedLabels.length === 0 ? (
@@ -1144,7 +1165,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     sortedLabels.map((label) => (
                       <div key={label} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                         <Typography.Body style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)", paddingBottom: "0.25rem" }}>
-                          {label}
+                          {groupDisplayName(label)}
                         </Typography.Body>
                         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", paddingLeft: "0.5rem" }}>
                           {(groups.get(label) ?? []).map((u) => renderUserRow(u))}
