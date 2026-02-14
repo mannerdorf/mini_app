@@ -24,13 +24,15 @@ const PERMISSION_KEYS = [
   { key: "doc_tariffs", label: "Тарифы" },
   { key: "chat", label: "Чат" },
   { key: "service_mode", label: "Служебный режим" },
+  { key: "analytics", label: "Аналитика" },
 ] as const;
 
-/** Первая строка разделов: при активном — красная. Служебный режим = доступ ко всем заказчикам + служебный режим в одном. */
+/** Первая строка разделов: при активном — красная. Аналитику может включить только суперадмин. */
 const PERMISSION_ROW1 = [
   { key: "cms_access", label: "Доступ в CMS" },
   { key: "service_mode", label: "Служебный режим" },
   { key: "__financial__", label: "Фин. показатели" as const },
+  { key: "analytics", label: "Аналитика" as const },
 ] as const;
 
 /** Вторая строка разделов: при активном — синяя */
@@ -47,14 +49,6 @@ const PERMISSION_ROW2 = [
 ] as const;
 
 export type PermissionPreset = { id: string; label: string; permissions: Record<string, boolean>; financial: boolean; serviceMode: boolean };
-
-/** Пресеты по умолчанию (если API недоступен или пусто) */
-const DEFAULT_PRESETS: PermissionPreset[] = [
-  { id: "manager", label: "Менеджер", permissions: { cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false }, financial: true, serviceMode: false },
-  { id: "accountant", label: "Бухгалтерия", permissions: { cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: false, service_mode: false }, financial: true, serviceMode: false },
-  { id: "service", label: "Служебный режим", permissions: { cms_access: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: true }, financial: true, serviceMode: true },
-  { id: "empty", label: "Пустой", permissions: { cms_access: false, cargo: false, doc_invoices: false, doc_acts: false, doc_orders: false, doc_claims: false, doc_contracts: false, doc_acts_settlement: false, doc_tariffs: false, chat: false, service_mode: false }, financial: false, serviceMode: false },
-];
 
 /** Подсветка совпадения с поисковым запросом в тексте (для журнала аудита). */
 function highlightMatch(text: string, query: string, keyPrefix: string): React.ReactNode {
@@ -194,7 +188,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [bulkDeactivateConfirmOpen, setBulkDeactivateConfirmOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false, analytics: false,
   });
   const [bulkFinancial, setBulkFinancial] = useState(false);
   const [bulkAccessAllInns, setBulkAccessAllInns] = useState(false);
@@ -215,12 +209,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [auditFromDate, setAuditFromDate] = useState("");
   const [auditToDate, setAuditToDate] = useState("");
   const [auditFetchTrigger, setAuditFetchTrigger] = useState(0);
-  const [permissionPresets, setPermissionPresets] = useState<PermissionPreset[]>(DEFAULT_PRESETS);
+  const [permissionPresets, setPermissionPresets] = useState<PermissionPreset[]>([]);
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
   const [presetFormLabel, setPresetFormLabel] = useState("");
   const [presetFormPermissions, setPresetFormPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false, analytics: false,
   });
   const [presetFormFinancial, setPresetFormFinancial] = useState(false);
   const [presetFormServiceMode, setPresetFormServiceMode] = useState(false);
@@ -259,6 +253,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     doc_tariffs: true,
     chat: true,
     service_mode: false,
+    analytics: false,
   });
   const [formSelectedPresetId, setFormSelectedPresetId] = useState<string>("");
   const [formFinancial, setFormFinancial] = useState(false);
@@ -485,11 +480,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     fetch("/api/admin-presets", { headers: { Authorization: `Bearer ${adminToken}` } })
       .then((res) => res.json())
       .then((data: { presets?: PermissionPreset[] }) => {
-        if (Array.isArray(data.presets) && data.presets.length > 0) {
-          setPermissionPresets(data.presets);
-        }
+        setPermissionPresets(Array.isArray(data.presets) ? data.presets : []);
       })
-      .catch(() => {})
+      .catch(() => setPermissionPresets([]))
       .finally(() => setPresetsLoading(false));
   }, [adminToken]);
 
@@ -504,6 +497,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       .then((data: { isSuperAdmin?: boolean }) => setIsSuperAdmin(data?.isSuperAdmin === true))
       .catch(() => {});
   }, [adminToken]);
+
+  useEffect(() => {
+    if (!isSuperAdmin && tab === "presets") setTab("users");
+  }, [isSuperAdmin, tab]);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1035,14 +1032,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <History className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Журнал
         </Button>
-        <Button
-          className="filter-button"
-          style={{ background: tab === "presets" ? "var(--color-primary-blue)" : undefined, color: tab === "presets" ? "white" : undefined }}
-          onClick={() => setTab("presets")}
-        >
-          <Layers className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          Пресеты ролей
-        </Button>
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={{ background: tab === "presets" ? "var(--color-primary-blue)" : undefined, color: tab === "presets" ? "white" : undefined }}
+            onClick={() => setTab("presets")}
+          >
+            <Layers className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Пресеты ролей
+          </Button>
+        )}
       </Flex>
 
       {error && (
@@ -1536,7 +1535,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <div className="admin-form-section-header">Разделы</div>
                     <div className="admin-permissions-toolbar">
                       {PERMISSION_ROW1.map(({ key, label }) => {
-                        const isActive = key === "__financial__" ? editorFinancial : key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : !!editorPermissions[key];
+                        if (key === "analytics" && !isSuperAdmin) return null;
+                        const isActive = key === "__financial__" ? editorFinancial : key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : key === "analytics" ? !!editorPermissions.analytics : !!editorPermissions[key];
                         const onClick = key === "__financial__" ? () => { setEditorSelectedPresetId(""); setEditorFinancial(!editorFinancial); } : key === "service_mode" ? () => { setEditorSelectedPresetId(""); const v = !(!!editorPermissions.service_mode || editorAccessAllInns); setEditorPermissions((p) => ({ ...p, service_mode: v })); setEditorAccessAllInns(v); } : () => handlePermissionsToggle(key);
                         return (
                           <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>
@@ -1712,6 +1712,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <div className="admin-form-section-header" style={{ marginBottom: "0.35rem" }}>Разделы</div>
                   <div className="admin-permissions-toolbar">
                     {PERMISSION_ROW1.map(({ key, label }) => {
+                      if (key === "analytics" && !isSuperAdmin) return null;
                       const isActive = key === "__financial__" ? bulkFinancial : key === "service_mode" ? (!!bulkPermissions.service_mode || bulkAccessAllInns) : !!bulkPermissions[key];
                       const onClick = key === "__financial__" ? () => { setBulkSelectedPresetId(""); setBulkFinancial(!bulkFinancial); } : key === "service_mode" ? () => { setBulkSelectedPresetId(""); const v = !(!!bulkPermissions.service_mode || bulkAccessAllInns); setBulkPermissions((p) => ({ ...p, service_mode: v })); setBulkAccessAllInns(v); } : () => { setBulkSelectedPresetId(""); setBulkPermissions((p) => ({ ...p, [key]: !p[key] })); };
                       return <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>;
@@ -2081,6 +2082,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <div className="admin-form-section-header">Разделы</div>
               <div className="admin-permissions-toolbar">
                 {PERMISSION_ROW1.map(({ key, label }) => {
+                  if (key === "analytics" && !isSuperAdmin) return null;
                   const isActive = key === "__financial__" ? formFinancial : key === "service_mode" ? (!!formPermissions.service_mode || formAccessAllInns) : !!formPermissions[key];
                   const onClick = key === "__financial__" ? () => { setFormSelectedPresetId(""); setFormFinancial(!formFinancial); } : key === "service_mode" ? () => { setFormSelectedPresetId(""); const v = !(!!formPermissions.service_mode || formAccessAllInns); setFormPermissions((p) => ({ ...p, service_mode: v })); setFormAccessAllInns(v); if (v) clearCustomerSelection(); } : () => togglePerm(key);
                   return (
@@ -2462,7 +2464,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         </Panel>
       )}
 
-      {tab === "presets" && (
+      {tab === "presets" && isSuperAdmin && (
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Пресеты ролей</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
@@ -2505,7 +2507,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     ))}
                   </div>
                   {presetFormError && <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginTop: "0.25rem" }}>{presetFormError}</Typography.Body>}
-                  <Flex gap="0.5rem" style={{ marginTop: "0.5rem" }}>
+                  <Flex gap="0.5rem" align="center" style={{ marginTop: "0.5rem" }}>
                     <Button
                       type="button"
                       className="button-primary"
@@ -2528,7 +2530,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           const data = await res.json().catch(() => ({}));
                           if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка сохранения");
                           setPresetFormLabel("");
-                          setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false });
+                          setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false, analytics: false });
                           setPresetFormFinancial(false);
                           setPresetFormServiceMode(false);
                           setPresetEditingId(null);

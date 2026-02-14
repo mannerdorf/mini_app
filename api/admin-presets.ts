@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
-import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
+import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { getClientIp, isRateLimited, ADMIN_API_LIMIT } from "../lib/rateLimit.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 
@@ -15,7 +15,7 @@ type PresetRow = {
 
 const PERMISSION_KEYS = [
   "cms_access", "cargo", "doc_invoices", "doc_acts", "doc_orders", "doc_claims",
-  "doc_contracts", "doc_acts_settlement", "doc_tariffs", "chat", "service_mode",
+  "doc_contracts", "doc_acts_settlement", "doc_tariffs", "chat", "service_mode", "analytics",
 ];
 
 function normalizePermissions(permissions: unknown): Record<string, boolean> {
@@ -58,6 +58,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "POST" || req.method === "DELETE") {
+    const payload = getAdminTokenPayload(token);
+    if (payload?.superAdmin !== true) {
+      return res.status(403).json({ error: "Создавать и удалять пресеты может только суперадминистратор" });
+    }
     const ip = getClientIp(req);
     if (isRateLimited("admin_api", ip, ADMIN_API_LIMIT)) {
       return res.status(429).json({ error: "Слишком много запросов. Подождите минуту." });
