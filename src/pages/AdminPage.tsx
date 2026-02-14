@@ -82,6 +82,7 @@ type User = {
   access_all_inns?: boolean;
   active: boolean;
   created_at: string;
+  last_login_at?: string | null;
   companies?: { inn: string; name: string }[];
 };
 
@@ -186,6 +187,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [presetFormError, setPresetFormError] = useState<string | null>(null);
   const [presetFormSaving, setPresetFormSaving] = useState(false);
   const [presetDeleteConfirmId, setPresetDeleteConfirmId] = useState<string | null>(null);
+  const [presetDeleteLoading, setPresetDeleteLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -244,8 +246,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [editorCustomerPickOpen, setEditorCustomerPickOpen] = useState(false);
   const [editorSelectedPresetId, setEditorSelectedPresetId] = useState<string>("");
   const [customerDirectoryMap, setCustomerDirectoryMap] = useState<Record<string, string>>({});
-  const [topActiveUsers, setTopActiveUsers] = useState<{ id: number; login: string; company_name: string; last_login_at: string | null }[]>([]);
-  const [topActiveLoading, setTopActiveLoading] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -282,25 +282,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       .catch(() => {});
   }, [tab, adminToken]);
 
-  const fetchTopActive = useCallback(async () => {
-    setTopActiveLoading(true);
-    try {
-      const res = await fetch("/api/admin-top-active?limit=15", {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      if (res.status === 401) {
-        onLogout?.("expired");
-        return;
-      }
-      if (!res.ok) return;
-      const data = await res.json();
-      setTopActiveUsers(data.users || []);
-    } catch {
-      // ignore
-    } finally {
-      setTopActiveLoading(false);
-    }
-  }, [adminToken, onLogout]);
 
   const fetchEmailSettings = useCallback(async () => {
     setError(null);
@@ -330,12 +311,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken, onLogout]);
 
   useEffect(() => {
-    if (tab === "users") {
-      fetchUsers();
-      fetchTopActive();
-    }
+    if (tab === "users") fetchUsers();
     if (tab === "email") fetchEmailSettings();
-  }, [tab, fetchUsers, fetchEmailSettings, fetchTopActive]);
+  }, [tab, fetchUsers, fetchEmailSettings]);
 
   const matchesUserSearch = useCallback((u: User, q: string) => {
     if (!q) return true;
@@ -355,6 +333,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       service_mode: base.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns).length,
     };
   }, [users, usersSearchQuery, matchesUserSearch]);
+
+  const topActiveUsers = useMemo(() => {
+    return [...users]
+      .filter((u) => u.active)
+      .sort((a, b) => {
+        const at = a.last_login_at ? new Date(a.last_login_at).getTime() : 0;
+        const bt = b.last_login_at ? new Date(b.last_login_at).getTime() : 0;
+        return bt - at;
+      })
+      .slice(0, 15)
+      .map((u) => ({ id: u.id, login: u.login, company_name: u.company_name ?? "", last_login_at: u.last_login_at ?? null }));
+  }, [users]);
 
   useEffect(() => {
     setUsersVisibleCount(USERS_PAGE_SIZE);
@@ -1020,13 +1010,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
               По последнему входу в приложение
             </Typography.Body>
-            {topActiveLoading ? (
+            {loading ? (
               <Flex align="center" gap="0.5rem">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <Typography.Body style={{ fontSize: "0.9rem" }}>Загрузка...</Typography.Body>
               </Flex>
             ) : topActiveUsers.length === 0 ? (
-              <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Нет данных о входах</Typography.Body>
+              <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Нет активных пользователей. Данные о входах появятся после входа через CMS.</Typography.Body>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
                 {topActiveUsers.map((u, i) => (
@@ -2190,7 +2180,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 )}
               </div>
               {presetDeleteConfirmId && (
-                <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => setPresetDeleteConfirmId(null)}>
+                <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => !presetDeleteLoading && setPresetDeleteConfirmId(null)}>
                   <div
                     className="modal-content"
                     style={{ maxWidth: "20rem", padding: "1.25rem" }}
@@ -2201,36 +2191,56 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       Пресет «{permissionPresets.find((x) => x.id === presetDeleteConfirmId)?.label ?? presetDeleteConfirmId}» будет удалён. Это не изменит права уже выданные пользователям.
                     </Typography.Body>
                     <Flex gap="0.5rem" wrap="wrap">
-                      <Button
+                      <button
                         type="button"
+                        disabled={presetDeleteLoading}
                         style={{
                           padding: "0.5rem 1rem",
                           borderRadius: "0.5rem",
                           border: "none",
-                          cursor: "pointer",
+                          cursor: presetDeleteLoading ? "not-allowed" : "pointer",
                           fontSize: "0.9rem",
                           fontWeight: 500,
                           background: "var(--color-error, #dc2626)",
                           color: "#fff",
+                          opacity: presetDeleteLoading ? 0.8 : 1,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.35rem",
                         }}
-                        onClick={async (e) => {
+                        onClick={(e) => {
                           e.stopPropagation();
-                          try {
-                            const res = await fetch(`/api/admin-presets?id=${encodeURIComponent(presetDeleteConfirmId)}`, {
-                              method: "DELETE",
-                              headers: { Authorization: `Bearer ${adminToken}` },
-                            });
-                            if (!res.ok) throw new Error("Ошибка удаления");
-                            setPresetDeleteConfirmId(null);
-                            fetchPresets();
-                          } catch {
-                            setPresetFormError("Не удалось удалить пресет");
-                          }
+                          e.preventDefault();
+                          if (presetDeleteLoading) return;
+                          setPresetFormError(null);
+                          setPresetDeleteLoading(true);
+                          const idToDelete = presetDeleteConfirmId;
+                          fetch(`/api/admin-presets?id=${encodeURIComponent(idToDelete)}`, {
+                            method: "DELETE",
+                            headers: { Authorization: `Bearer ${adminToken}` },
+                          })
+                            .then((res) => {
+                              if (!res.ok) throw new Error("Ошибка удаления");
+                              setPresetDeleteConfirmId(null);
+                              fetchPresets();
+                            })
+                            .catch(() => {
+                              setPresetFormError("Не удалось удалить пресет");
+                            })
+                            .finally(() => setPresetDeleteLoading(false));
                         }}
                       >
+                        {presetDeleteLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ flexShrink: 0 }} /> : null}
                         Удалить
+                      </button>
+                      <Button
+                        type="button"
+                        className="filter-button"
+                        disabled={presetDeleteLoading}
+                        onClick={(e) => { e.stopPropagation(); setPresetDeleteConfirmId(null); }}
+                      >
+                        Отмена
                       </Button>
-                      <Button type="button" className="filter-button" onClick={(e) => { e.stopPropagation(); setPresetDeleteConfirmId(null); }}>Отмена</Button>
                     </Flex>
                   </div>
                 </div>

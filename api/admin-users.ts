@@ -14,7 +14,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
-    const { rows: users } = await pool.query<{
+    const baseSelect = `SELECT id, login, inn, company_name, permissions, financial_access, COALESCE(access_all_inns, false) as access_all_inns, active, created_at`;
+    type UserRow = {
       id: number;
       login: string;
       inn: string;
@@ -24,10 +25,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       access_all_inns: boolean;
       active: boolean;
       created_at: string;
-    }>(
-      `SELECT id, login, inn, company_name, permissions, financial_access, COALESCE(access_all_inns, false) as access_all_inns, active, created_at
-       FROM registered_users ORDER BY created_at DESC`
-    );
+      last_login_at?: string | null;
+    };
+    let users: UserRow[];
+    try {
+      const result = await pool.query<UserRow & { last_login_at: string | null }>(
+        `${baseSelect}, last_login_at FROM registered_users ORDER BY created_at DESC`
+      );
+      users = result.rows;
+    } catch (colErr: unknown) {
+      const pgErr = colErr as { code?: string };
+      if (pgErr?.code === "42703") {
+        const result = await pool.query<UserRow>(`${baseSelect} FROM registered_users ORDER BY created_at DESC`);
+        users = result.rows.map((u) => ({ ...u, last_login_at: null }));
+      } else {
+        throw colErr;
+      }
+    }
     const { rows: companies } = await pool.query<{ login: string; inn: string; name: string }>(
       `SELECT login, inn, name FROM account_companies ORDER BY login, name`
     );
