@@ -47,7 +47,7 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
 import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
-import { usePerevozki, usePerevozkiMulti, usePerevozkiMultiAccounts, usePrevPeriodPerevozki } from "./hooks/useApi";
+import { usePerevozki, usePerevozkiMulti, usePerevozkiMultiAccounts, usePrevPeriodPerevozki, useInvoices } from "./hooks/useApi";
 import type {
     Account, ApiError, AuthData, CargoItem, CargoStat, CompanyRow, CustomerOption,
     DateFilter, HaulzOffice, HeaderCompanyRow, HomePeriodFilter, PerevozkaTimelineStep,
@@ -862,6 +862,13 @@ function DashboardPage({
         useServiceRequest: true,
         enabled: !!useServiceRequest && !!prevRange,
     });
+    const { items: invoiceItems } = useInvoices({
+        auth,
+        dateFrom: apiDateRange.dateFrom,
+        dateTo: apiDateRange.dateTo,
+        activeInn: !useServiceRequest ? auth?.inn : undefined,
+        useServiceRequest,
+    });
 
     useEffect(() => {
         if (!useServiceRequest) return;
@@ -947,32 +954,39 @@ function DashboardPage({
         return res;
     }, [prevPeriodItems, useServiceRequest, statusFilter, senderFilter, receiverFilter, customerFilter, billStatusFilter, typeFilter, routeFilter]);
 
-    /** Плановое поступление денег по датам (дата перевозки + дни на оплату): сумма и разбивка по заказчикам */
+    /** Плановое поступление денег по датам: из реальных счетов (дата счёта + дни на оплату из справочника), разбивка по заказчикам */
     const plannedByDate = useMemo(() => {
         const map = new Map<string, { total: number; items: { customer: string; sum: number; number?: string }[] }>();
-        const itemInn = (item: CargoItem) => String((item as any).INN ?? (item as any).Inn ?? (item as any).inn ?? '').trim();
-        filteredItems.forEach((item) => {
-            const dateStr = item.DatePrih?.split('T')[0];
+        const invDate = (inv: any) => String(inv?.DateDoc ?? inv?.Date ?? inv?.date ?? inv?.dateDoc ?? inv?.Дата ?? '').split('T')[0];
+        const invSum = (inv: any) => {
+            const v = inv?.SumDoc ?? inv?.Sum ?? inv?.sum ?? inv?.Сумма ?? inv?.Amount ?? 0;
+            return typeof v === 'string' ? parseFloat(v) || 0 : Number(v) || 0;
+        };
+        const invInn = (inv: any) => String(inv?.INN ?? inv?.Inn ?? inv?.inn ?? '').trim();
+        const invCustomer = (inv: any) => String(inv?.Customer ?? inv?.customer ?? inv?.Контрагент ?? inv?.Contractor ?? inv?.Organization ?? '').trim() || '—';
+        const invNumber = (inv: any) => (inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? '').toString();
+        (invoiceItems ?? []).forEach((inv: any) => {
+            const dateStr = invDate(inv);
             if (!dateStr) return;
-            const sum = typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+            const sum = invSum(inv);
             if (sum <= 0) return;
-            const inn = itemInn(item);
+            const inn = invInn(inv);
             const days = paymentCalendarDaysByInn[inn] ?? 0;
             const d = new Date(dateStr);
             if (isNaN(d.getTime())) return;
             d.setDate(d.getDate() + days);
             const key = d.toISOString().split('T')[0];
-            const customer = String((item.Customer ?? (item as any).customer ?? '').trim() || '—');
+            const customer = invCustomer(inv);
             const entry = map.get(key);
             if (!entry) {
-                map.set(key, { total: sum, items: [{ customer, sum, number: item.Number }] });
+                map.set(key, { total: sum, items: [{ customer, sum, number: invNumber(inv) }] });
             } else {
                 entry.total += sum;
-                entry.items.push({ customer, sum, number: item.Number });
+                entry.items.push({ customer, sum, number: invNumber(inv) });
             }
         });
         return map;
-    }, [filteredItems, paymentCalendarDaysByInn]);
+    }, [invoiceItems, paymentCalendarDaysByInn]);
     
     // Подготовка данных для графиков (группировка по датам)
     const chartData = useMemo(() => {
@@ -2256,7 +2270,7 @@ function DashboardPage({
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>Платёжный календарь</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
-                        Плановое поступление денег по срокам оплаты (дата перевозки + дни на оплату из справочника).
+                        Плановое поступление по реальным счетам: дата счёта + дни на оплату из справочника.
                     </Typography.Body>
                     {paymentCalendarLoading ? (
                         <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка условий оплаты...</Typography.Body></Flex>
@@ -8299,10 +8313,11 @@ export default function App() {
                 try {
                     let parsedAccounts = JSON.parse(savedAccounts) as Account[];
                     if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
-                        // При загрузке: если есть заказчики, но нет customer — подставляем имя первого (не показывать логин)
-                        parsedAccounts = parsedAccounts.map((acc) =>
-                            acc.customers?.length && !acc.customer ? { ...acc, customer: acc.customers[0].name } : acc
-                        );
+                        // При загрузке: подставить customer по первому заказчику; не доверять inCustomerDirectory из кэша — подтянем с бэкенда
+                        parsedAccounts = parsedAccounts.map((acc) => {
+                            const withCustomer = acc.customers?.length && !acc.customer ? { ...acc, customer: acc.customers[0].name } : acc;
+                            return { ...withCustomer, inCustomerDirectory: undefined as boolean | undefined };
+                        });
                         setAccounts(parsedAccounts);
                         if (savedActiveId && parsedAccounts.find(acc => acc.id === savedActiveId)) {
                             setActiveAccountId(savedActiveId);
@@ -8413,14 +8428,14 @@ export default function App() {
         }
     }, [accounts, activeAccountId, selectedAccountIds]);
 
-    // Для сотрудников без компании в состоянии — подтянуть inn/companyName с бэкенда (после входа или восстановления из localStorage)
+    // Подтянуть данные зарегистрированного пользователя с бэкенда (в т.ч. inCustomerDirectory из справочника заказчиков в БД)
     useEffect(() => {
         if (typeof window === "undefined" || accounts.length === 0) return;
         const needRefresh = accounts.filter(
             (acc) =>
                 acc.isRegisteredUser &&
                 acc.password &&
-                (!acc.customers?.length || !acc.activeCustomerInn)
+                (!acc.customers?.length || !acc.activeCustomerInn || acc.inCustomerDirectory === undefined)
         );
         if (needRefresh.length === 0) return;
         let cancelled = false;
@@ -8456,13 +8471,14 @@ export default function App() {
                 prev.map((a) => {
                     const up = updates.find((u) => u.id === a.id);
                     if (!up) return a;
+                    const hadCustomers = (a.customers?.length ?? 0) > 0;
                     return {
                         ...a,
-                        customers: up.customers,
-                        activeCustomerInn: up.activeCustomerInn ?? undefined,
-                        customer: up.customer ?? undefined,
+                        customers: hadCustomers ? (a.customers ?? up.customers) : up.customers,
+                        activeCustomerInn: hadCustomers ? (a.activeCustomerInn ?? up.activeCustomerInn ?? undefined) : (up.activeCustomerInn ?? undefined),
+                        customer: hadCustomers ? (a.customer ?? up.customer ?? undefined) : (up.customer ?? undefined),
                         accessAllInns: up.accessAllInns,
-                        ...(up.inCustomerDirectory !== undefined ? { inCustomerDirectory: up.inCustomerDirectory } : {}),
+                        inCustomerDirectory: up.inCustomerDirectory,
                         ...(up.permissions != null ? { permissions: up.permissions } : {}),
                         ...(up.financialAccess != null ? { financialAccess: up.financialAccess } : {}),
                     };
