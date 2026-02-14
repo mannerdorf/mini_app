@@ -1193,6 +1193,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
           <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
             <Flex className="admin-users-toolbar" gap="0.75rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+              <Button
+                type="button"
+                className="filter-button"
+                style={{ background: "var(--color-primary-blue)", color: "white", padding: "0.4rem 0.75rem", fontSize: "0.9rem" }}
+                onClick={() => setTab("add")}
+                aria-label="Добавить пользователя — открыть форму регистрации"
+              >
+                <Plus className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+                Добавить пользователя
+              </Button>
               <Flex align="center" gap="0.35rem">
                 <Button
                   className="filter-button"
