@@ -111,9 +111,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "DELETE") {
-    const idParam = typeof req.query.id === "string" ? req.query.id.trim() : "";
+    const rawId = req.query.id;
+    const idParam = typeof rawId === "string" ? rawId.trim() : Array.isArray(rawId) && rawId.length > 0 ? String(rawId[0]).trim() : "";
     const id = parseInt(idParam, 10);
-    if (isNaN(id) || id < 1) return res.status(400).json({ error: "Некорректный id" });
+    if (!idParam || isNaN(id) || id < 1) return res.status(400).json({ error: "Некорректный id" });
     try {
       const pool = getPool();
       const { rows: presetRows } = await pool.query<{ label: string }>("SELECT label FROM admin_role_presets WHERE id = $1", [id]);
@@ -121,8 +122,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { rowCount } = await pool.query("DELETE FROM admin_role_presets WHERE id = $1", [id]);
       if ((rowCount ?? 0) > 0) {
         await writeAuditLog(pool, { action: "preset_deleted", target_type: "preset", target_id: id, details: { label } });
+        return res.status(200).json({ ok: true, deleted: true });
       }
-      return res.status(200).json({ ok: true, deleted: (rowCount ?? 0) > 0 });
+      return res.status(404).json({ error: "Пресет не найден", deleted: false });
     } catch (e: unknown) {
       console.error("admin-presets DELETE error:", e);
       return res.status(500).json({ error: "Ошибка удаления пресета" });

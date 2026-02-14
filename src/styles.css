@@ -1024,6 +1024,12 @@ body {
     appearance: auto;
 }
 
+/* Заголовки таблицы «Справочник заказчиков» — сортировка по клику */
+.sortable-th:hover {
+    background: var(--color-bg-hover);
+    opacity: 0.95;
+}
+
 /* Поле выбора файла в админке: в светлом режиме не чёрная строка */
 .light-mode .admin-file-input-wrap,
 .light-mode .admin-file-input-wrap .admin-file-input,

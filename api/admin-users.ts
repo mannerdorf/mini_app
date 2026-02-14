@@ -28,6 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       last_login_at?: string | null;
     };
     let users: UserRow[];
+    let lastLoginAvailable = true;
     try {
       const result = await pool.query<UserRow & { last_login_at: string | null }>(
         `${baseSelect}, last_login_at FROM registered_users ORDER BY created_at DESC`
@@ -38,6 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (pgErr?.code === "42703") {
         const result = await pool.query<UserRow>(`${baseSelect} FROM registered_users ORDER BY created_at DESC`);
         users = result.rows.map((u) => ({ ...u, last_login_at: null }));
+        lastLoginAvailable = false;
       } else {
         throw colErr;
       }
@@ -54,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ...u,
       companies: byLogin.get(u.login) || [],
     }));
-    return res.status(200).json({ users: usersWithCompanies });
+    return res.status(200).json({ users: usersWithCompanies, last_login_available: lastLoginAvailable });
   } catch (e: unknown) {
     const err = e as Error;
     console.error("admin-users error:", err);

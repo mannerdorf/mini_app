@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -160,6 +160,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
   const [tab, setTab] = useState<"users" | "add" | "batch" | "email" | "customers" | "audit" | "presets">("users");
   const [users, setUsers] = useState<User[]>([]);
+  const [lastLoginAvailable, setLastLoginAvailable] = useState(true);
+  const [topActiveExpanded, setTopActiveExpanded] = useState(false);
   const [usersSearchQuery, setUsersSearchQuery] = useState("");
   const [usersViewMode, setUsersViewMode] = useState<"login" | "customer">("login");
   /** В режиме «По заказчикам» — какие группы развёрнуты (показаны логины) */
@@ -184,6 +186,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [customersList, setCustomersList] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [customersSearch, setCustomersSearch] = useState("");
   const [customersShowOnlyWithoutEmail, setCustomersShowOnlyWithoutEmail] = useState(false);
+  const [customersSortBy, setCustomersSortBy] = useState<"inn" | "customer_name" | "email">("customer_name");
+  const [customersSortOrder, setCustomersSortOrder] = useState<"asc" | "desc">("asc");
   const [customersLoading, setCustomersLoading] = useState(false);
   const [auditEntries, setAuditEntries] = useState<{ id: number; action: string; target_type: string; target_id: string | null; details: Record<string, unknown> | null; created_at: string }[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -286,6 +290,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       if (!res.ok) throw new Error("Ошибка загрузки");
       const data = await res.json();
       setUsers(data.users || []);
+      setLastLoginAvailable(data.last_login_available !== false);
     } catch (e: unknown) {
       setError((e as Error).message);
     } finally {
@@ -1059,57 +1064,90 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             ) : null;
           })()}
           <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "var(--element-gap, 1rem)" }}>
-            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+            <button
+              type="button"
+              onClick={() => setTopActiveExpanded((e) => !e)}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                marginBottom: topActiveExpanded ? "0.5rem" : 0,
+                padding: 0,
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                textAlign: "left",
+                color: "inherit",
+              }}
+              aria-expanded={topActiveExpanded}
+              aria-label={topActiveExpanded ? "Свернуть топ активных пользователей" : "Развернуть топ активных пользователей"}
+            >
+              {topActiveExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
               <Activity className="w-4 h-4" />
-              Топ активных пользователей
-            </Typography.Body>
-            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
-              По последнему входу в приложение
-            </Typography.Body>
-            {loading ? (
-              <Flex align="center" gap="0.5rem">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <Typography.Body style={{ fontSize: "0.9rem" }}>Загрузка...</Typography.Body>
-              </Flex>
-            ) : topActiveUsers.length === 0 ? (
-              <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Нет активных пользователей. Данные о входах появятся после входа через CMS.</Typography.Body>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                {topActiveUsers.map((u, i) => (
-                  <div
-                    key={u.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "0.4rem 0.5rem",
-                      background: "var(--color-bg-hover)",
-                      borderRadius: 6,
-                      flexWrap: "wrap",
-                      gap: "0.25rem",
-                    }}
-                  >
-                    <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{i + 1}. {u.login}</span>
-                    <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                      {u.last_login_at
-                        ? (() => {
-                            const d = new Date(u.last_login_at);
-                            const now = new Date();
-                            const diffMs = now.getTime() - d.getTime();
-                            const diffM = Math.floor(diffMs / 60000);
-                            const diffH = Math.floor(diffMs / 3600000);
-                            const diffD = Math.floor(diffMs / 86400000);
-                            if (diffM < 1) return "только что";
-                            if (diffM < 60) return `${diffM} мин назад`;
-                            if (diffH < 24) return `${diffH} ч назад`;
-                            if (diffD < 7) return `${diffD} дн назад`;
-                            return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
-                          })()
-                        : "никогда"}
-                    </Typography.Body>
+              <Typography.Body style={{ fontWeight: 600 }}>Топ активных пользователей</Typography.Body>
+            </button>
+            {topActiveExpanded && (
+              <>
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
+                  По последнему входу в приложение
+                </Typography.Body>
+                {!lastLoginAvailable && (
+                  <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-error)", marginBottom: "0.5rem" }}>
+                    Колонка last_login_at отсутствует в БД. Выполните миграцию 015 (migrations/015_registered_users_last_login.sql) — тогда время входа будет сохраняться при входе по email/пароль.
+                  </Typography.Body>
+                )}
+                {lastLoginAvailable && topActiveUsers.length > 0 && topActiveUsers.every((u) => !u.last_login_at) && (
+                  <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
+                    Даты появятся после того, как пользователи войдут в приложение по email и паролю.
+                  </Typography.Body>
+                )}
+                {loading ? (
+                  <Flex align="center" gap="0.5rem">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Typography.Body style={{ fontSize: "0.9rem" }}>Загрузка...</Typography.Body>
+                  </Flex>
+                ) : topActiveUsers.length === 0 ? (
+                  <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Нет активных пользователей. Данные о входах появятся после входа через CMS.</Typography.Body>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                    {topActiveUsers.map((u, i) => (
+                      <div
+                        key={u.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "0.4rem 0.5rem",
+                          background: "var(--color-bg-hover)",
+                          borderRadius: 6,
+                          flexWrap: "wrap",
+                          gap: "0.25rem",
+                        }}
+                      >
+                        <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{i + 1}. {u.login}</span>
+                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                          {u.last_login_at
+                            ? (() => {
+                                const d = new Date(u.last_login_at);
+                                const now = new Date();
+                                const diffMs = now.getTime() - d.getTime();
+                                const diffM = Math.floor(diffMs / 60000);
+                                const diffH = Math.floor(diffMs / 3600000);
+                                const diffD = Math.floor(diffMs / 86400000);
+                                if (diffM < 1) return "только что";
+                                if (diffM < 60) return `${diffM} мин назад`;
+                                if (diffH < 24) return `${diffH} ч назад`;
+                                if (diffD < 7) return `${diffD} дн назад`;
+                                return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+                              })()
+                            : "никогда"}
+                        </Typography.Body>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </Panel>
 
@@ -2022,19 +2060,38 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             const filtered = customersShowOnlyWithoutEmail
               ? customersList.filter((c) => !c.email || String(c.email).trim() === "")
               : customersList;
+            const sorted = [...filtered].sort((a, b) => {
+              const key = customersSortBy;
+              const va = (key === "inn" ? a.inn : key === "customer_name" ? (a.customer_name || "") : (a.email || "")).toLowerCase();
+              const vb = (key === "inn" ? b.inn : key === "customer_name" ? (b.customer_name || "") : (b.email || "")).toLowerCase();
+              const cmp = va.localeCompare(vb, "ru");
+              return customersSortOrder === "asc" ? cmp : -cmp;
+            });
+            const toggleSort = (col: "inn" | "customer_name" | "email") => {
+              if (customersSortBy === col) setCustomersSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+              else { setCustomersSortBy(col); setCustomersSortOrder("asc"); }
+            };
+            const thStyle: React.CSSProperties = { padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" };
+            const thClass = "sortable-th";
             return (
               <>
                 <div style={{ overflowX: "auto", maxHeight: "60vh", overflowY: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
                     <thead>
                       <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
-                        <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
-                        <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
-                        <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Email</th>
+                        <th className={thClass} style={thStyle} onClick={() => toggleSort("inn")} role="columnheader" aria-sort={customersSortBy === "inn" ? (customersSortOrder === "asc" ? "ascending" : "descending") : undefined}>
+                          ИНН {customersSortBy === "inn" && (customersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />)}
+                        </th>
+                        <th className={thClass} style={thStyle} onClick={() => toggleSort("customer_name")} role="columnheader" aria-sort={customersSortBy === "customer_name" ? (customersSortOrder === "asc" ? "ascending" : "descending") : undefined}>
+                          Наименование {customersSortBy === "customer_name" && (customersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />)}
+                        </th>
+                        <th className={thClass} style={thStyle} onClick={() => toggleSort("email")} role="columnheader" aria-sort={customersSortBy === "email" ? (customersSortOrder === "asc" ? "ascending" : "descending") : undefined}>
+                          Email {customersSortBy === "email" && (customersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />)}
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filtered.map((c) => (
+                      {sorted.map((c) => (
                         <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
                           <td style={{ padding: "0.5rem 0.75rem" }}>{c.inn}</td>
                           <td style={{ padding: "0.5rem 0.75rem" }}>{c.customer_name || "—"}</td>
@@ -2045,7 +2102,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   </table>
                 </div>
                 <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
-                  Записей: {filtered.length}{customersShowOnlyWithoutEmail && filtered.length !== customersList.length ? ` (из ${customersList.length})` : ""}
+                  Записей: {sorted.length}{customersShowOnlyWithoutEmail && sorted.length !== customersList.length ? ` (из ${customersList.length})` : ""}
                 </Typography.Body>
               </>
             );
@@ -2374,6 +2431,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <button
                         type="button"
                         disabled={presetDeleteLoading}
+                        aria-label="Удалить пресет"
                         style={{
                           padding: "0.5rem 1rem",
                           borderRadius: "0.5rem",
@@ -2395,14 +2453,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           setPresetFormError(null);
                           setPresetDeleteLoading(true);
                           const idToDelete = presetDeleteConfirmId;
+                          if (!idToDelete) {
+                            setPresetDeleteLoading(false);
+                            return;
+                          }
                           fetch(`/api/admin-presets?id=${encodeURIComponent(idToDelete)}`, {
                             method: "DELETE",
                             headers: { Authorization: `Bearer ${adminToken}` },
                           })
-                            .then((res) => {
-                              if (!res.ok) throw new Error("Ошибка удаления");
-                              setPresetDeleteConfirmId(null);
-                              fetchPresets();
+                            .then((res) => res.json().then((data: { deleted?: boolean; error?: string }) => ({ status: res.status, data })).catch(() => ({ status: res.status, data: {} as { deleted?: boolean; error?: string } })))
+                            .then(({ status, data }) => {
+                              if (status >= 200 && status < 300 && data.deleted !== false) {
+                                setPresetDeleteConfirmId(null);
+                                fetchPresets();
+                              } else {
+                                setPresetFormError(data?.error || "Не удалось удалить пресет");
+                              }
                             })
                             .catch(() => {
                               setPresetFormError("Не удалось удалить пресет");
