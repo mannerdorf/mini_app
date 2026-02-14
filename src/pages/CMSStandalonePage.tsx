@@ -34,12 +34,19 @@ class AdminErrorBoundary extends Component<{ children: React.ReactNode; onBack: 
   }
 }
 
+/** Красный фавикон для админки (data URL) */
+const ADMIN_FAVICON =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#b91c1c"/></svg>'
+  );
+
 /** CMS как отдельная страница по ?tab=cms — без входа в мини-приложение */
 export function CMSStandalonePage() {
   useEffect(() => {
     const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
     if (link) {
-      link.href = "/favicon-admin.png";
+      link.href = ADMIN_FAVICON;
     }
   }, []);
 
