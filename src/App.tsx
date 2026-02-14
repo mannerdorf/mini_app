@@ -9766,7 +9766,7 @@ export default function App() {
                             onOpenCargoFilters={openCargoWithFilters}
                             showSums={activeAccount?.roleCustomer ?? true}
                             useServiceRequest={useServiceRequest}
-                            hasAnalytics={true}
+                            hasAnalytics={activeAccount?.permissions?.analytics === true}
                         />
                     )}
                     {!showDashboard && activeTab === "support" && auth && (
