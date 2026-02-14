@@ -9770,13 +9770,23 @@ export default function App() {
                         />
                     )}
                     {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && !showDashboard && activeAccount?.permissions?.analytics !== true && (
-                        <Flex direction="column" align="center" justify="center" style={{ minHeight: "40vh", padding: "2rem", textAlign: "center" }}>
+                        <div className="w-full" style={{ padding: "1.5rem 1rem" }}>
                             <Typography.Headline style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>Главная</Typography.Headline>
-                            <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-                                Дашборд и платёжный календарь доступны пользователям с правом «Аналитика».
+                            <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "1.25rem" }}>
+                                Быстрый доступ к разделам приложения.
                             </Typography.Body>
-                            <Button className="filter-button" type="button" onClick={() => setActiveTab("cargo")}>Перейти к грузам</Button>
-                        </Flex>
+                            <Flex gap="0.75rem" wrap="wrap" style={{ marginBottom: "1.25rem" }}>
+                                <Button className="filter-button" type="button" onClick={() => setActiveTab("cargo")} style={{ padding: "0.75rem 1.25rem" }}>
+                                    Грузы
+                                </Button>
+                                <Button className="filter-button" type="button" onClick={() => setActiveTab("docs")} style={{ padding: "0.75rem 1.25rem" }}>
+                                    Документы
+                                </Button>
+                            </Flex>
+                            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                                Дашборды (графики, платёжный календарь) доступны пользователям с правом «Аналитика».
+                            </Typography.Body>
+                        </div>
                     )}
                     {!showDashboard && activeTab === "support" && auth && (
                         <AiChatProfilePage
