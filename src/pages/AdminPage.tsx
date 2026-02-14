@@ -182,6 +182,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [usersCustomerSearchQuery, setUsersCustomerSearchQuery] = useState("");
   const [usersVisibleCount, setUsersVisibleCount] = useState(50);
   const [deactivateConfirmUserId, setDeactivateConfirmUserId] = useState<number | null>(null);
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>({
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false,
+  });
+  const [bulkFinancial, setBulkFinancial] = useState(false);
+  const [bulkAccessAllInns, setBulkAccessAllInns] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
   const [customersList, setCustomersList] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [customersSearch, setCustomersSearch] = useState("");
   const [customersLoading, setCustomersLoading] = useState(false);
@@ -755,6 +763,44 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const handlePermissionsToggle = (key: string) => {
     setEditorPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  const selectedSet = useMemo(() => new Set(selectedUserIds), [selectedUserIds]);
+  const toggleSelectUser = useCallback((id: number) => {
+    setSelectedUserIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
+  const clearSelection = useCallback(() => setSelectedUserIds([]), []);
+
+  const handleBulkApplyPermissions = useCallback(async () => {
+    if (selectedUserIds.length === 0) return;
+    setBulkLoading(true);
+    setBulkError(null);
+    const body = {
+      permissions: bulkPermissions,
+      financial_access: bulkFinancial,
+      access_all_inns: bulkAccessAllInns,
+    };
+    const failed: { id: number; error: string }[] = [];
+    for (const id of selectedUserIds) {
+      try {
+        const res = await fetch(`/api/admin-user-update?id=${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) failed.push({ id, error: (data?.error as string) || "Ошибка" });
+      } catch {
+        failed.push({ id, error: "Ошибка запроса" });
+      }
+    }
+    await fetchUsers();
+    setBulkLoading(false);
+    if (failed.length > 0) {
+      setBulkError(`Не удалось применить к ${failed.length}: ${failed.slice(0, 3).map((f) => f.id).join(", ")}${failed.length > 3 ? "…" : ""}`);
+    } else {
+      setSelectedUserIds([]);
+    }
+  }, [selectedUserIds, bulkPermissions, bulkFinancial, bulkAccessAllInns, adminToken]);
 
   const handleSaveUserPermissions = async () => {
     if (!selectedUser) return;
@@ -1411,27 +1457,92 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   setError((e as Error)?.message || "Ошибка обновления");
                 }
               };
+              const selectAllOnPage = () => setSelectedUserIds((prev) => { const s = new Set(prev); visibleSorted.forEach((u) => s.add(u.id)); return [...s]; });
               const renderUserBlock = (u: User) => (
-                <div key={u.id} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                  <UserRow
-                    user={u}
-                    adminToken={adminToken}
-                    onToggleActive={async () => {
-                      const next = !u.active;
-                      if (next === false) {
-                        setDeactivateConfirmUserId(u.id);
-                        return;
-                      }
-                      await performSetActive(u, true);
-                    }}
-                    onEditPermissions={() => togglePermissionsEditor(u)}
+                <div key={u.id} style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedSet.has(u.id)}
+                    onChange={() => toggleSelectUser(u.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ marginTop: "0.9rem", flexShrink: 0, cursor: "pointer" }}
+                    aria-label={`Выбрать ${u.login ?? u.id}`}
                   />
-                  {selectedUser?.id === u.id && permissionsEditorPanel}
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.5rem", minWidth: 0 }}>
+                    <UserRow
+                      user={u}
+                      adminToken={adminToken}
+                      onToggleActive={async () => {
+                        const next = !u.active;
+                        if (next === false) {
+                          setDeactivateConfirmUserId(u.id);
+                          return;
+                        }
+                        await performSetActive(u, true);
+                      }}
+                      onEditPermissions={() => togglePermissionsEditor(u)}
+                    />
+                    {selectedUser?.id === u.id && permissionsEditorPanel}
+                  </div>
                 </div>
               );
+              const bulkPanel = selectedUserIds.length > 0 ? (
+                <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
+                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Групповое изменение прав ({selectedUserIds.length})</Typography.Body>
+                  <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem", flexWrap: "wrap" }}>
+                    <Typography.Body style={{ fontSize: "0.85rem" }}>Пресет:</Typography.Body>
+                    <select
+                      className="admin-form-input"
+                      style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem" }}
+                      value=""
+                      onChange={(e) => {
+                        const preset = PERMISSION_PRESETS.find((p) => p.id === e.target.value);
+                        if (preset) {
+                          setBulkPermissions(preset.permissions);
+                          setBulkFinancial(preset.financial);
+                          setBulkAccessAllInns(preset.serviceMode);
+                        }
+                      }}
+                    >
+                      <option value="">—</option>
+                      {PERMISSION_PRESETS.map((p) => (
+                        <option key={p.id} value={p.id}>{p.label}</option>
+                      ))}
+                    </select>
+                  </Flex>
+                  <div className="admin-form-section-header" style={{ marginBottom: "0.35rem" }}>Разделы</div>
+                  <div className="admin-permissions-toolbar">
+                    {PERMISSION_ROW1.map(({ key, label }) => {
+                      const isActive = key === "__financial__" ? bulkFinancial : key === "service_mode" ? (!!bulkPermissions.service_mode || bulkAccessAllInns) : !!bulkPermissions[key];
+                      const onClick = key === "__financial__" ? () => setBulkFinancial(!bulkFinancial) : key === "service_mode" ? () => { const v = !(!!bulkPermissions.service_mode || bulkAccessAllInns); setBulkPermissions((p) => ({ ...p, service_mode: v })); setBulkAccessAllInns(v); } : () => setBulkPermissions((p) => ({ ...p, [key]: !p[key] }));
+                      return <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>;
+                    })}
+                  </div>
+                  <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
+                    {PERMISSION_ROW2.map(({ key, label }) => (
+                      <button key={key} type="button" className={`permission-button ${!!bulkPermissions[key] ? "active" : ""}`} onClick={() => setBulkPermissions((p) => ({ ...p, [key]: !p[key] }))}>{label}</button>
+                    ))}
+                  </div>
+                  {bulkError && <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginTop: "0.5rem" }}>{bulkError}</Typography.Body>}
+                  <Flex gap="0.5rem" align="center" style={{ marginTop: "0.75rem" }}>
+                    <Button className="button-primary" disabled={bulkLoading} onClick={handleBulkApplyPermissions}>
+                      {bulkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                      {bulkLoading ? " Применяем…" : "Применить к выбранным"}
+                    </Button>
+                    <Button className="filter-button" onClick={clearSelection}>Снять выделение</Button>
+                  </Flex>
+                </Panel>
+              ) : null;
               if (usersViewMode === "login") {
                 return (
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    <Flex gap="0.5rem" align="center" style={{ flexWrap: "wrap", marginBottom: "0.25rem" }}>
+                      <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Выбрать:</Typography.Body>
+                      <Button type="button" className="filter-button" onClick={selectAllOnPage} style={{ padding: "0.35rem 0.6rem" }}>Все на странице</Button>
+                      <Button type="button" className="filter-button" onClick={clearSelection} style={{ padding: "0.35rem 0.6rem" }}>Снять выделение</Button>
+                      {selectedUserIds.length > 0 && <Typography.Body style={{ fontSize: "0.85rem" }}>Выбрано: {selectedUserIds.length}</Typography.Body>}
+                    </Flex>
+                    {bulkPanel}
                     {visibleSorted.length === 0 ? (
                       <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет пользователей по запросу</Typography.Body>
                     ) : (
@@ -1484,6 +1595,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               };
               return (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <Flex gap="0.5rem" align="center" style={{ flexWrap: "wrap", marginBottom: "0.25rem" }}>
+                    <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Выбрать:</Typography.Body>
+                    <Button type="button" className="filter-button" onClick={selectAllOnPage} style={{ padding: "0.35rem 0.6rem" }}>Все на странице</Button>
+                    <Button type="button" className="filter-button" onClick={clearSelection} style={{ padding: "0.35rem 0.6rem" }}>Снять выделение</Button>
+                    {selectedUserIds.length > 0 && <Typography.Body style={{ fontSize: "0.85rem" }}>Выбрано: {selectedUserIds.length}</Typography.Body>}
+                  </Flex>
+                  {bulkPanel}
                   {sortedLabels.length === 0 ? (
                     <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет пользователей по запросу</Typography.Body>
                   ) : (
