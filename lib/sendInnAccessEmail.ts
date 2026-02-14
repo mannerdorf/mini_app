@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import type { Pool } from "pg";
-import { getEmailSettings } from "./sendRegistrationEmail.js";
+import { getEmailSettings, getAppUrl } from "./sendRegistrationEmail.js";
 
 /** Отправить письмо руководителю организации: логин X хочет доступ, код для подтверждения */
 export async function sendInnAccessEmail(
@@ -10,7 +10,7 @@ export async function sendInnAccessEmail(
   code6: string,
   companyName: string
 ): Promise<{ ok: boolean; error?: string }> {
-  const settings = getEmailSettings();
+  const settings = await getEmailSettings(pool);
   if (!settings.smtp_host || !settings.from_email) {
     return { ok: false, error: "Настройки почты не заданы" };
   }
@@ -23,18 +23,21 @@ export async function sendInnAccessEmail(
         ? { user: settings.smtp_user, pass: settings.smtp_password }
         : undefined,
   });
+  const appUrl = getAppUrl();
   const subject = "Запрос доступа к данным организации в HAULZ";
   const text =
     `Здравствуйте!\n\n` +
     `Логин (${requesterLogin}) хочет получить доступ к данным вашей организации${companyName ? ` «${companyName}»` : ""} в мини-приложении HAULZ.\n\n` +
     `Если вы согласны предоставить доступ, перешлите этому лицу код подтверждения: ${code6}\n\n` +
-    `Если не согласны — ничего не делайте.\n\n— HAULZ`;
+    `Если не согласны — ничего не делайте.\n\n` +
+    `Войти: ${appUrl}\n\nКоманда HAULZ`;
   const html =
     `<p>Здравствуйте!</p>` +
     `<p>Логин <strong>${escapeHtml(requesterLogin)}</strong> хочет получить доступ к данным вашей организации${companyName ? ` «${escapeHtml(companyName)}»` : ""} в мини-приложении HAULZ.</p>` +
     `<p>Если вы согласны предоставить доступ, перешлите этому лицу код подтверждения: <strong>${code6}</strong></p>` +
     `<p>Если не согласны — ничего не делайте.</p>` +
-    `<p>— HAULZ</p>`;
+    `<p>Войти: <a href="${escapeHtml(appUrl)}">${escapeHtml(appUrl)}</a></p>` +
+    `<p>Команда HAULZ</p>`;
   try {
     await transporter.sendMail({
       from: settings.from_name ? `"${settings.from_name}" <${settings.from_email}>` : settings.from_email,

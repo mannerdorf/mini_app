@@ -1,24 +1,43 @@
-import React from "react";
-import { Button, Container, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { ArrowLeft, Lock } from "lucide-react";
-import { getWebApp } from "../webApp";
-
-const DEFAULT_FORGOT_URL = "https://lk.haulz.pro/forgot-password";
+import React, { useState } from "react";
+import { Button, Container, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
+import { ArrowLeft, Loader2, Mail } from "lucide-react";
 
 type ForgotPasswordPageProps = {
   /** Вернуться к форме входа */
   onBackToLogin: () => void;
-  /** Ссылка на восстановление пароля на сайте (открывается в браузере/внешней вкладке) */
-  forgotPasswordUrl?: string;
 };
 
-export function ForgotPasswordPage({ onBackToLogin, forgotPasswordUrl = DEFAULT_FORGOT_URL }: ForgotPasswordPageProps) {
-  const openForgotLink = () => {
-    const webApp = getWebApp();
-    if (webApp?.openLink) {
-      webApp.openLink(forgotPasswordUrl);
-    } else {
-      window.open(forgotPasswordUrl, "_blank", "noopener,noreferrer");
+export function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPageProps) {
+  const [login, setLogin] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ success?: boolean; error?: string } | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = login.trim();
+    if (!trimmed) {
+      setResult({ error: "Введите логин (email)" });
+      return;
+    }
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login: trimmed }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.ok && data.emailSent) {
+        setResult({ success: true });
+        setLogin("");
+      } else {
+        setResult({ error: data?.error || "Ошибка сброса пароля" });
+      }
+    } catch {
+      setResult({ error: "Ошибка сети" });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -37,23 +56,57 @@ export function ForgotPasswordPage({ onBackToLogin, forgotPasswordUrl = DEFAULT_
           </Button>
           <Typography.Headline style={{ fontSize: "1.25rem" }}>Забыли пароль?</Typography.Headline>
         </Flex>
-        <Flex align="flex-start" gap="0.5rem" style={{ marginBottom: "1rem" }}>
-          <Lock className="w-5 h-5" style={{ color: "var(--color-text-secondary)", flexShrink: 0, marginTop: 2 }} />
-          <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.95rem", lineHeight: 1.5 }}>
-            Восстановление пароля от личного кабинета HAULZ выполняется на сайте. Перейдите по ссылке ниже, введите ваш email — на почту придёт инструкция. После сброса пароля вернитесь сюда и войдите с новым паролем.
-          </Typography.Body>
-        </Flex>
-        <Button
-          type="button"
-          className="button-primary"
-          onClick={openForgotLink}
-          style={{ width: "100%", marginBottom: "1rem" }}
-        >
-          Перейти к восстановлению пароля
-        </Button>
-        <Button type="button" className="filter-button" onClick={onBackToLogin} style={{ width: "100%" }}>
-          Вернуться к входу
-        </Button>
+        <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.9rem", lineHeight: 1.5, marginBottom: "1.25rem" }}>
+          Введите email, указанный при регистрации — мы отправим на него новый пароль.
+        </Typography.Body>
+        <form onSubmit={handleSubmit}>
+          <label htmlFor="forgot-login" className="visually-hidden">Email</label>
+          <Flex align="center" gap="0.5rem" style={{ marginBottom: "1.25rem", border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.5rem 0.75rem", background: "var(--color-bg-input, #fff)" }}>
+            <Mail className="w-5 h-5" style={{ color: "var(--color-text-secondary)", flexShrink: 0 }} aria-hidden />
+            <Input
+              id="forgot-login"
+              type="email"
+              inputMode="email"
+              autoComplete="username email"
+              placeholder="Введите email..."
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
+              disabled={loading}
+              className="admin-form-input"
+              style={{ border: "none", background: "transparent", flex: 1, padding: "0.25rem 0" }}
+            />
+          </Flex>
+          {result?.success && (
+            <Typography.Body style={{ color: "var(--color-success-status)", fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              Пароль сброшен. Новый пароль отправлен на указанный email.
+            </Typography.Body>
+          )}
+          {result?.error && (
+            <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.9rem", marginBottom: "0.75rem" }}>
+              {result.error}
+            </Typography.Body>
+          )}
+          <Flex align="center" gap="0.35rem" style={{ marginBottom: "1rem" }}>
+            <Typography.Body style={{ color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>
+              Помните пароль?
+            </Typography.Body>
+            <button
+              type="button"
+              onClick={onBackToLogin}
+              style={{ background: "none", border: "none", padding: 0, color: "var(--color-primary-blue)", cursor: "pointer", fontSize: "0.9rem", fontWeight: 500 }}
+            >
+              Войти
+            </button>
+          </Flex>
+          <Button
+            type="submit"
+            className="button-primary"
+            disabled={loading}
+            style={{ width: "100%", borderRadius: 8 }}
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Запросить сброс пароля"}
+          </Button>
+        </form>
       </Panel>
     </Container>
   );

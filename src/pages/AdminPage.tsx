@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, Mail } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -158,7 +158,7 @@ function UserRow({
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "add" | "batch" | "customers" | "audit" | "presets">("users");
+  const [tab, setTab] = useState<"users" | "add" | "batch" | "templates" | "customers" | "audit" | "presets">("users");
   const [users, setUsers] = useState<User[]>([]);
   const [lastLoginAvailable, setLastLoginAvailable] = useState(true);
   const [topActiveExpanded, setTopActiveExpanded] = useState(false);
@@ -254,6 +254,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchSuccess, setBatchSuccess] = useState<string | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
+  const [emailTemplateRegistration, setEmailTemplateRegistration] = useState("");
+  const [emailTemplatePasswordReset, setEmailTemplatePasswordReset] = useState("");
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templatesSaving, setTemplatesSaving] = useState(false);
 
   const [customerPickModalOpen, setCustomerPickModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -308,9 +312,61 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [tab, adminToken]);
 
 
+  const fetchTemplates = useCallback(async () => {
+    setTemplatesLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin-email-templates", {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      if (res.status === 401) {
+        onLogout?.("expired");
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError((data?.error as string) || "Ошибка загрузки шаблонов");
+        return;
+      }
+      setEmailTemplateRegistration(data.email_template_registration ?? "");
+      setEmailTemplatePasswordReset(data.email_template_password_reset ?? "");
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Ошибка загрузки шаблонов");
+    } finally {
+      setTemplatesLoading(false);
+    }
+  }, [adminToken, onLogout]);
+
   useEffect(() => {
     if (tab === "users") fetchUsers();
-  }, [tab, fetchUsers]);
+    if (tab === "templates") fetchTemplates();
+  }, [tab, fetchUsers, fetchTemplates]);
+
+  const handleSaveTemplates = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTemplatesSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin-email-templates", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          email_template_registration: emailTemplateRegistration.trim(),
+          email_template_password_reset: emailTemplatePasswordReset.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data?.error as string) || "Ошибка сохранения");
+      await fetchTemplates();
+    } catch (e: unknown) {
+      setError((e as Error)?.message);
+    } finally {
+      setTemplatesSaving(false);
+    }
+  };
 
   const matchesUserSearch = useCallback((u: User, q: string) => {
     if (!q) return true;
@@ -924,6 +980,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         >
           <FileUp className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Массовая регистрация
+        </Button>
+        <Button
+          className="filter-button"
+          style={{ background: tab === "templates" ? "var(--color-primary-blue)" : undefined, color: tab === "templates" ? "white" : undefined }}
+          onClick={() => setTab("templates")}
+        >
+          <Mail className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+          Шаблоны писем
         </Button>
         <Button
           className="filter-button"
@@ -2064,6 +2128,47 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               {formSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Зарегистрировать"}
             </Button>
           </form>
+        </Panel>
+      )}
+
+      {tab === "templates" && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Шаблоны писем</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            HTML-текст писем при регистрации и при сбросе пароля. Подстановки: <code>[login]</code>, <code>[email]</code>, <code>[password]</code>, <code>[company_name]</code>. Пусто — текст по умолчанию.
+          </Typography.Body>
+          {templatesLoading ? (
+            <Flex align="center" gap="0.5rem" style={{ marginBottom: "1rem" }}>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка…</Typography.Body>
+            </Flex>
+          ) : (
+            <form onSubmit={handleSaveTemplates}>
+              <label htmlFor="email-template-registration" style={{ display: "block", marginBottom: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Письмо при регистрации</label>
+              <textarea
+                id="email-template-registration"
+                className="admin-form-input"
+                value={emailTemplateRegistration}
+                onChange={(e) => setEmailTemplateRegistration(e.target.value)}
+                placeholder="Оставьте пустым для текста по умолчанию"
+                rows={8}
+                style={{ width: "100%", resize: "vertical", minHeight: "8rem", marginBottom: "1rem" }}
+              />
+              <label htmlFor="email-template-password-reset" style={{ display: "block", marginBottom: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Письмо при сбросе пароля</label>
+              <textarea
+                id="email-template-password-reset"
+                className="admin-form-input"
+                value={emailTemplatePasswordReset}
+                onChange={(e) => setEmailTemplatePasswordReset(e.target.value)}
+                placeholder="Оставьте пустым для текста по умолчанию"
+                rows={8}
+                style={{ width: "100%", resize: "vertical", minHeight: "8rem", marginBottom: "1rem" }}
+              />
+              <Button type="submit" className="filter-button" disabled={templatesSaving}>
+                {templatesSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить"}
+              </Button>
+            </form>
+          )}
         </Panel>
       )}
 

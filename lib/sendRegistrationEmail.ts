@@ -16,8 +16,13 @@ function substituteTemplate(template: string, vars: Record<string, string>): str
   return template.replace(/\[(\w+)\]/g, (_, key) => vars[key] ?? `[${key}]`);
 }
 
-/** Настройки почты только из переменных окружения Vercel (SMTP_HOST, SMTP_PORT, …). */
-export function getEmailSettings(): EmailSettings {
+export function getAppUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL?.trim()
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
+}
+
+/** Базовые настройки из env. Шаблоны писем могут переопределяться из БД (getEmailSettings с pool). */
+function getEmailSettingsFromEnv(): EmailSettings {
   const envHost = process.env.SMTP_HOST?.trim();
   if (!envHost) {
     return {
@@ -51,11 +56,36 @@ export function getEmailSettings(): EmailSettings {
   };
 }
 
+/** Настройки почты: SMTP/from из env; шаблоны из БД (если передан pool и в таблице заданы), иначе из env. */
+export async function getEmailSettings(pool?: Pool): Promise<EmailSettings> {
+  const base = getEmailSettingsFromEnv();
+  if (!pool) return base;
+  try {
+    const r = await pool.query<{ email_template_registration: string | null; email_template_password_reset: string | null }>(
+      "SELECT email_template_registration, email_template_password_reset FROM admin_email_settings WHERE id = 1"
+    );
+    const row = r.rows[0];
+    if (row) {
+      if (row.email_template_registration != null && row.email_template_registration.trim() !== "") {
+        base.email_template_registration = row.email_template_registration;
+      }
+      if (row.email_template_password_reset != null && row.email_template_password_reset.trim() !== "") {
+        base.email_template_password_reset = row.email_template_password_reset;
+      }
+    }
+  } catch {
+    // таблица или колонки могут отсутствовать
+  }
+  return base;
+}
+
 const DEFAULT_REGISTRATION_HTML = (
   companyName: string,
   login: string,
   password: string
-) => `
+) => {
+  const appUrl = getAppUrl();
+  return `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
@@ -67,12 +97,16 @@ const DEFAULT_REGISTRATION_HTML = (
     <li>Логин (email): <strong>${login}</strong></li>
     <li>Пароль: <strong>${password}</strong></li>
   </ul>
+  <p>Войти: <a href="${appUrl}">${appUrl}</a></p>
   <p>Рекомендуем сменить пароль при первом входе.</p>
-  <p>— HAULZ</p>
+  <p>Команда HAULZ</p>
 </body>
 </html>`;
+};
 
-const DEFAULT_PASSWORD_RESET_HTML = (login: string, password: string, companyName: string) => `
+const DEFAULT_PASSWORD_RESET_HTML = (login: string, password: string, companyName: string) => {
+  const appUrl = getAppUrl();
+  return `
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
@@ -84,10 +118,12 @@ const DEFAULT_PASSWORD_RESET_HTML = (login: string, password: string, companyNam
     <li>Логин (email): <strong>${login}</strong></li>
     <li>Новый пароль: <strong>${password}</strong></li>
   </ul>
+  <p>Войти: <a href="${appUrl}">${appUrl}</a></p>
   <p>Рекомендуем сменить пароль после входа.</p>
-  <p>— HAULZ</p>
+  <p>Команда HAULZ</p>
 </body>
 </html>`;
+};
 
 export async function sendRegistrationEmail(
   pool: Pool,
@@ -97,7 +133,7 @@ export async function sendRegistrationEmail(
   companyName: string,
   options?: { isPasswordReset?: boolean }
 ): Promise<{ ok: boolean; error?: string }> {
-  const settings = getEmailSettings();
+  const settings = await getEmailSettings(pool);
   if (!settings.smtp_host || !settings.from_email) {
     return { ok: false, error: "Настройки почты не заданы" };
   }

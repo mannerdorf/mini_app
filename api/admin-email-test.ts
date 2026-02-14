@@ -36,7 +36,7 @@ export default async function handler(
   }
 
   try {
-    const settings = getEmailSettings();
+    const settings = await getEmailSettings();
 
     const host = typeof body?.smtp_host === "string" && body.smtp_host.trim()
       ? body.smtp_host.trim()
