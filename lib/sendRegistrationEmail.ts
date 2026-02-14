@@ -59,24 +59,41 @@ export async function getEmailSettings(pool: Pool): Promise<EmailSettings> {
     }
   }
   const r = rows[0];
-  if (!r) return emptyEmailSettings;
+  let smtp_host: string | null = r?.smtp_host ?? null;
+  let smtp_port: number | null = r?.smtp_port ?? null;
+  let smtp_user: string | null = r?.smtp_user ?? null;
   let smtp_password: string | null = null;
-  if (r.smtp_password_encrypted) {
+  if (r?.smtp_password_encrypted) {
     try {
       smtp_password = Buffer.from(r.smtp_password_encrypted, "base64").toString("utf8");
     } catch {
       smtp_password = null;
     }
   }
+  let from_email: string | null = r?.from_email ?? null;
+  let from_name: string | null = r?.from_name || "HAULZ";
+
+  // Fallback: настройки из env Vercel, если в БД пусто
+  const envHost = process.env.SMTP_HOST?.trim();
+  if (!smtp_host && envHost) {
+    smtp_host = envHost;
+    const port = process.env.SMTP_PORT?.trim();
+    smtp_port = port ? parseInt(port, 10) || 465 : 465;
+    smtp_user = process.env.SMTP_USER?.trim() || null;
+    smtp_password = process.env.SMTP_PASSWORD?.trim() || null;
+    from_email = process.env.FROM_EMAIL?.trim() || smtp_user || null;
+    from_name = process.env.FROM_NAME?.trim() || "HAULZ";
+  }
+
   return {
-    smtp_host: r.smtp_host,
-    smtp_port: r.smtp_port,
-    smtp_user: r.smtp_user,
+    smtp_host,
+    smtp_port,
+    smtp_user,
     smtp_password,
-    from_email: r.from_email,
-    from_name: r.from_name || "HAULZ",
-    email_template_registration: r.email_template_registration ?? null,
-    email_template_password_reset: r.email_template_password_reset ?? null,
+    from_email,
+    from_name,
+    email_template_registration: r?.email_template_registration ?? null,
+    email_template_password_reset: r?.email_template_password_reset ?? null,
   };
 }
 

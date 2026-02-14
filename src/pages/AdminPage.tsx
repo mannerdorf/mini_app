@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -158,7 +158,7 @@ function UserRow({
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "add" | "batch" | "email" | "customers" | "audit" | "presets">("users");
+  const [tab, setTab] = useState<"users" | "add" | "batch" | "customers" | "audit" | "presets">("users");
   const [users, setUsers] = useState<User[]>([]);
   const [lastLoginAvailable, setLastLoginAvailable] = useState(true);
   const [topActiveExpanded, setTopActiveExpanded] = useState(false);
@@ -254,17 +254,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchSuccess, setBatchSuccess] = useState<string | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
-  const [emailHost, setEmailHost] = useState("");
-  const [emailPort, setEmailPort] = useState("");
-  const [emailUser, setEmailUser] = useState("");
-  const [emailPassword, setEmailPassword] = useState("");
-  const [emailFrom, setEmailFrom] = useState("");
-  const [emailFromName, setEmailFromName] = useState("HAULZ");
-  const [emailTemplateRegistration, setEmailTemplateRegistration] = useState("");
-  const [emailTemplatePasswordReset, setEmailTemplatePasswordReset] = useState("");
-  const [emailSaving, setEmailSaving] = useState(false);
-  const [emailTestLoading, setEmailTestLoading] = useState(false);
-  const [emailTestResult, setEmailTestResult] = useState<{ ok: boolean; message?: string; error?: string } | null>(null);
 
   const [customerPickModalOpen, setCustomerPickModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -319,37 +308,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [tab, adminToken]);
 
 
-  const fetchEmailSettings = useCallback(async () => {
-    setError(null);
-    try {
-      const res = await fetch("/api/admin-email-settings", {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      if (res.status === 401) {
-        onLogout?.("expired");
-        return;
-      }
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError((data?.error as string) || "Ошибка загрузки настроек почты");
-        return;
-      }
-      setEmailHost(data.smtp_host || "");
-      setEmailPort(String(data.smtp_port ?? ""));
-      setEmailUser(data.smtp_user || "");
-      setEmailFrom(data.from_email || "");
-      setEmailFromName(data.from_name || "HAULZ");
-      setEmailTemplateRegistration(data.email_template_registration ?? "");
-      setEmailTemplatePasswordReset(data.email_template_password_reset ?? "");
-    } catch (e: unknown) {
-      setError((e as Error)?.message || "Ошибка загрузки настроек почты");
-    }
-  }, [adminToken, onLogout]);
-
   useEffect(() => {
     if (tab === "users") fetchUsers();
-    if (tab === "email") fetchEmailSettings();
-  }, [tab, fetchUsers, fetchEmailSettings]);
+  }, [tab, fetchUsers]);
 
   const matchesUserSearch = useCallback((u: User, q: string) => {
     if (!q) return true;
@@ -520,40 +481,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setError((e as Error).message);
     } finally {
       setFormSubmitting(false);
-    }
-  };
-
-  const handleSaveEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setEmailSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/admin-email-settings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify({
-          smtp_host: emailHost.trim() || undefined,
-          smtp_port: emailPort ? parseInt(emailPort, 10) : undefined,
-          smtp_user: emailUser.trim() || undefined,
-          smtp_password: emailPassword.trim() || undefined,
-          from_email: emailFrom.trim() || undefined,
-          from_name: emailFromName.trim() || undefined,
-          email_template_registration: emailTemplateRegistration.trim() || undefined,
-          email_template_password_reset: emailTemplatePasswordReset.trim() || undefined,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data?.error as string) || "Ошибка сохранения");
-      setEmailPassword("");
-      setError(null);
-      await fetchEmailSettings();
-    } catch (e: unknown) {
-      setError((e as Error).message);
-    } finally {
-      setEmailSaving(false);
     }
   };
 
@@ -997,14 +924,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         >
           <FileUp className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Массовая регистрация
-        </Button>
-        <Button
-          className="filter-button"
-          style={{ background: tab === "email" ? "var(--color-primary-blue)" : undefined, color: tab === "email" ? "white" : undefined }}
-          onClick={() => setTab("email")}
-        >
-          <Settings className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          Почта
         </Button>
         <Button
           className="filter-button"
@@ -2624,119 +2543,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               )}
             </>
           )}
-        </Panel>
-      )}
-
-      {tab === "email" && (
-        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
-          <form onSubmit={handleSaveEmail}>
-            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
-              <label htmlFor="email-host" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>SMTP хост</label>
-              <Input id="email-host" className="admin-form-input" value={emailHost} onChange={(e) => setEmailHost(e.target.value)} placeholder="smtp.example.com" style={{ width: "100%" }} />
-            </div>
-            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
-              <label htmlFor="email-port" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>SMTP порт</label>
-              <Input id="email-port" className="admin-form-input" type="number" value={emailPort} onChange={(e) => setEmailPort(e.target.value)} placeholder="587" style={{ width: "100%" }} />
-            </div>
-            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
-              <label htmlFor="email-user" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>SMTP пользователь</label>
-              <Input id="email-user" className="admin-form-input" value={emailUser} onChange={(e) => setEmailUser(e.target.value)} placeholder="user@example.com" style={{ width: "100%" }} />
-            </div>
-            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
-              <label htmlFor="email-password" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>SMTP пароль</label>
-              <Input id="email-password" className="admin-form-input" type="password" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" style={{ width: "100%" }} />
-              <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>Оставьте пустым, чтобы не менять</Typography.Body>
-            </div>
-            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
-              <label htmlFor="email-from" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>От кого (email)</label>
-              <Input id="email-from" className="admin-form-input" type="email" value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} placeholder="noreply@haulz.ru" style={{ width: "100%" }} />
-            </div>
-            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
-              <label htmlFor="email-from-name" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>От кого (имя)</label>
-              <Input id="email-from-name" className="admin-form-input" value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} placeholder="HAULZ" style={{ width: "100%" }} />
-            </div>
-            <Flex gap="0.5rem" style={{ flexWrap: "wrap" }}>
-              <Button type="submit" className="filter-button" disabled={emailSaving}>
-                {emailSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить"}
-              </Button>
-              <Button
-                type="button"
-                className="filter-button"
-                disabled={emailTestLoading || !emailHost.trim()}
-                onClick={async () => {
-                  setEmailTestResult(null);
-                  setEmailTestLoading(true);
-                  try {
-                    const res = await fetch("/api/admin-email-test", {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${adminToken}`,
-                      },
-                      body: JSON.stringify({
-                        smtp_host: emailHost.trim(),
-                        smtp_port: emailPort ? parseInt(emailPort, 10) : 587,
-                        smtp_user: emailUser.trim() || undefined,
-                        smtp_password: emailPassword.trim() || undefined,
-                      }),
-                    });
-                    const data = await res.json();
-                    setEmailTestResult({ ok: data.ok, message: data.message, error: data.error });
-                  } catch (e: unknown) {
-                    setEmailTestResult({ ok: false, error: (e as Error).message || "Ошибка запроса" });
-                  } finally {
-                    setEmailTestLoading(false);
-                  }
-                }}
-              >
-                {emailTestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Тест"}
-              </Button>
-            </Flex>
-            {emailTestResult && (
-              <Typography.Body
-                style={{
-                  marginTop: "0.75rem",
-                  fontSize: "0.9rem",
-                  color: emailTestResult.ok ? "var(--color-success-status)" : "var(--color-error)",
-                }}
-              >
-                {emailTestResult.ok ? "✓ " + (emailTestResult.message || "Подключение успешно") : "✗ " + (emailTestResult.error || "Ошибка")}
-              </Typography.Body>
-            )}
-
-            <div className="admin-form-section" style={{ marginTop: "1.5rem" }}>
-              <div className="admin-form-section-header">Поля в письмах</div>
-              <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
-                Тема письма: «Регистрация в HAULZ». Ниже можно задать свой текст (HTML). Подстановки в квадратных скобках:
-              </Typography.Body>
-              <ul style={{ margin: "0 0 0.75rem", paddingLeft: "1.25rem", fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                <li><code>[login]</code> — логин (email) пользователя</li>
-                <li><code>[email]</code> — то же, что <code>[login]</code></li>
-                <li><code>[password]</code> — пароль (при регистрации — выданный, при сбросе — новый временный)</li>
-                <li><code>[company_name]</code> — название компании</li>
-              </ul>
-              <label htmlFor="email-template-registration" style={{ display: "block", marginBottom: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Текст письма при регистрации</label>
-              <textarea
-                id="email-template-registration"
-                className="admin-form-input"
-                value={emailTemplateRegistration}
-                onChange={(e) => setEmailTemplateRegistration(e.target.value)}
-                placeholder="Оставьте пустым, чтобы использовать текст по умолчанию. Пример: <p>Здравствуйте!</p><p>Логин: [login], пароль: [password].</p>"
-                rows={6}
-                style={{ width: "100%", resize: "vertical", minHeight: "6rem" }}
-              />
-              <label htmlFor="email-template-password-reset" style={{ display: "block", marginTop: "var(--space-3, 0.75rem)", marginBottom: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Текст письма при сбросе пароля</label>
-              <textarea
-                id="email-template-password-reset"
-                className="admin-form-input"
-                value={emailTemplatePasswordReset}
-                onChange={(e) => setEmailTemplatePasswordReset(e.target.value)}
-                placeholder="Оставьте пустым для текста по умолчанию."
-                rows={6}
-                style={{ width: "100%", resize: "vertical", minHeight: "6rem" }}
-              />
-            </div>
-          </form>
         </Panel>
       )}
 
