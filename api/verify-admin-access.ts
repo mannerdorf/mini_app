@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createAdminToken } from "../lib/adminAuth.js";
+import { getClientIp, isRateLimited, ADMIN_LOGIN_LIMIT } from "../lib/rateLimit.js";
 
 /**
  * POST /api/verify-admin-access
@@ -16,6 +17,11 @@ export default async function handler(
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const ip = getClientIp(req);
+  if (isRateLimited("admin_login", ip, ADMIN_LOGIN_LIMIT)) {
+    return res.status(429).json({ error: "Слишком много попыток входа. Попробуйте через минуту." });
   }
 
   let body: { login?: string; password?: string } = req.body;
@@ -45,6 +51,14 @@ export default async function handler(
 
   const loginLower = login.toLowerCase();
   if (loginLower === adminLogin.toLowerCase() && password === adminPassword) {
+    try {
+      const { getPool } = await import("./_db.js");
+      const { writeAuditLog } = await import("../lib/adminAuditLog.js");
+      const pool = getPool();
+      await writeAuditLog(pool, { action: "admin_login", target_type: "session", details: {} });
+    } catch (e) {
+      console.error("verify-admin-access: audit log error", e);
+    }
     const adminToken = createAdminToken();
     return res.status(200).json({ ok: true, adminToken });
   }

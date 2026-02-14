@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
+import { getClientIp, isRateLimited, ADMIN_API_LIMIT } from "../lib/rateLimit.js";
+import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { getEmailSettings } from "../lib/sendRegistrationEmail.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -11,6 +13,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
     return res.status(401).json({ error: "Требуется авторизация админа" });
+  }
+  if (req.method === "POST") {
+    const ip = getClientIp(req);
+    if (isRateLimited("admin_api", ip, ADMIN_API_LIMIT)) {
+      return res.status(429).json({ error: "Слишком много запросов. Подождите минуту." });
+    }
   }
 
   try {
@@ -95,6 +103,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
 
+    await writeAuditLog(pool, { action: "email_settings_saved", target_type: "settings", details: {} });
     return res.status(200).json({ ok: true });
   } catch (e: unknown) {
     const err = e as Error;

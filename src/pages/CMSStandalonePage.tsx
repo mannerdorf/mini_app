@@ -1,7 +1,23 @@
-import React, { useState, useEffect, Component, type ErrorInfo } from "react";
+import React, { useState, useEffect, useCallback, useRef, Component, type ErrorInfo } from "react";
 import { Button, Container, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import { Eye, EyeOff } from "lucide-react";
 import { AdminPage } from "./AdminPage";
+
+/** Декодирует exp (мс) из JWT-подобного токена админки (payload.base64url). */
+function getAdminTokenExpiry(token: string): number | null {
+  try {
+    const part = token.split(".")[0];
+    if (!part) return null;
+    const json = atob(part.replace(/-/g, "+").replace(/_/g, "/"));
+    const payload = JSON.parse(json) as { exp?: number };
+    return typeof payload.exp === "number" ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+const SESSION_WARNING_BEFORE_MS = 2 * 60 * 1000; // предупреждение за 2 минуты
+const SESSION_CHECK_INTERVAL_MS = 30 * 1000;     // проверка каждые 30 сек
 
 class AdminErrorBoundary extends Component<{ children: React.ReactNode; onBack: () => void }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -59,6 +75,10 @@ export function CMSStandalonePage() {
   const [adminVerifyLoading, setAdminVerifyLoading] = useState(false);
   const [adminVerifyError, setAdminVerifyError] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [sessionWarningOpen, setSessionWarningOpen] = useState(false);
+  const [sessionWarningExpiresAt, setSessionWarningExpiresAt] = useState<number | null>(null);
+  const [sessionRefreshLoading, setSessionRefreshLoading] = useState(false);
+  const sessionExpiresAtRef = useRef<number | null>(null);
 
   const goBackToApp = () => {
     try {
@@ -92,6 +112,10 @@ export function CMSStandalonePage() {
         body: JSON.stringify({ login, password }),
       });
       const data = await res.json();
+      if (res.status === 429) {
+        setAdminVerifyError(data?.error || "Слишком много попыток. Подождите минуту.");
+        return;
+      }
       if (res.ok && data.adminToken) {
         if (typeof sessionStorage !== "undefined") sessionStorage.setItem("haulz.adminToken", data.adminToken);
         setAdminToken(data.adminToken);
@@ -105,10 +129,123 @@ export function CMSStandalonePage() {
     }
   };
 
+  const refreshSession = useCallback(async () => {
+    if (!adminToken) return;
+    setSessionRefreshLoading(true);
+    try {
+      const res = await fetch("/api/admin-refresh-token", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.adminToken) {
+        if (typeof sessionStorage !== "undefined") sessionStorage.setItem("haulz.adminToken", data.adminToken);
+        setAdminToken(data.adminToken);
+        setSessionWarningOpen(false);
+        setSessionWarningExpiresAt(null);
+      } else {
+        if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("haulz.adminToken");
+        setAdminToken(null);
+        setSessionExpired(true);
+        setSessionWarningOpen(false);
+      }
+    } catch {
+      setSessionWarningOpen(false);
+    } finally {
+      setSessionRefreshLoading(false);
+    }
+  }, [adminToken]);
+
+  useEffect(() => {
+    if (!adminToken) {
+      sessionExpiresAtRef.current = null;
+      return;
+    }
+    const exp = getAdminTokenExpiry(adminToken);
+    sessionExpiresAtRef.current = exp;
+  }, [adminToken]);
+
+  useEffect(() => {
+    if (!adminToken) return;
+    const check = () => {
+      const exp = sessionExpiresAtRef.current;
+      if (exp == null) return;
+      const now = Date.now();
+      if (now >= exp) {
+        try {
+          if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("haulz.adminToken");
+        } catch {}
+        setAdminToken(null);
+        setSessionExpired(true);
+        setSessionWarningOpen(false);
+        return;
+      }
+      if (exp - now <= SESSION_WARNING_BEFORE_MS) {
+        setSessionWarningExpiresAt(exp);
+        setSessionWarningOpen(true);
+      }
+    };
+    check();
+    const id = setInterval(check, SESSION_CHECK_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [adminToken]);
+
+  const [sessionWarningTick, setSessionWarningTick] = useState(0);
+  useEffect(() => {
+    if (!sessionWarningOpen || !sessionWarningExpiresAt) return;
+    const id = setInterval(() => setSessionWarningTick((t) => t + 1), 10000);
+    return () => clearInterval(id);
+  }, [sessionWarningOpen, sessionWarningExpiresAt]);
+
+  const sessionWarningMinutes = sessionWarningExpiresAt
+    ? Math.max(0, Math.ceil((sessionWarningExpiresAt - Date.now()) / 60000))
+    : 0;
+
   if (adminToken) {
     return (
       <AdminErrorBoundary onBack={goBackToApp}>
         <Container className="app-container" style={{ padding: "1rem" }}>
+          {sessionWarningOpen && (
+            <div
+              className="modal-overlay"
+              style={{ zIndex: 10001 }}
+              onClick={(e) => e.target === e.currentTarget && !sessionRefreshLoading && setSessionWarningOpen(false)}
+            >
+              <div className="modal-content" style={{ maxWidth: "22rem" }} onClick={(e) => e.stopPropagation()}>
+                <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
+                  Сессия истекает
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+                  {sessionWarningMinutes <= 0
+                    ? "Сессия истекла. Войдите снова."
+                    : `Сессия истекает через ${sessionWarningMinutes} мин. Нажмите «Продолжить», чтобы остаться в админке.`}
+                </Typography.Body>
+                <Flex gap="0.5rem" wrap="wrap">
+                  <Button
+                    className="button-primary"
+                    disabled={sessionRefreshLoading || sessionWarningMinutes <= 0}
+                    onClick={refreshSession}
+                  >
+                    {sessionRefreshLoading ? "…" : "Продолжить"}
+                  </Button>
+                  <Button
+                    type="button"
+                    className="filter-button"
+                    disabled={sessionRefreshLoading}
+                    onClick={() => {
+                      setSessionWarningOpen(false);
+                      try {
+                        if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("haulz.adminToken");
+                      } catch {}
+                      setAdminToken(null);
+                    }}
+                  >
+                    Выйти
+                  </Button>
+                </Flex>
+              </div>
+            </div>
+          )}
           <AdminPage
             adminToken={adminToken}
             onBack={goBackToApp}
@@ -117,6 +254,8 @@ export function CMSStandalonePage() {
                 if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("haulz.adminToken");
               } catch {}
               setSessionExpired(reason === "expired");
+              setSessionWarningOpen(false);
+              setSessionWarningExpiresAt(null);
               setAdminToken(null);
             }}
           />

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
 import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 declare global {
   interface Window {
@@ -54,6 +55,20 @@ const DEFAULT_PRESETS: PermissionPreset[] = [
   { id: "service", label: "Служебный режим", permissions: { cms_access: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: true }, financial: true, serviceMode: true },
   { id: "empty", label: "Пустой", permissions: { cms_access: false, cargo: false, doc_invoices: false, doc_acts: false, doc_orders: false, doc_claims: false, doc_contracts: false, doc_acts_settlement: false, doc_tariffs: false, chat: false, service_mode: false }, financial: false, serviceMode: false },
 ];
+
+/** Подсветка совпадения с поисковым запросом в тексте (для журнала аудита). */
+function highlightMatch(text: string, query: string, keyPrefix: string): React.ReactNode {
+  const q = query.trim();
+  if (!q || !text) return text;
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`(${escaped})`, "gi");
+  const parts = String(text).split(re);
+  return (
+    <>
+      {parts.map((p, i) => (i % 2 === 1 ? <mark key={`${keyPrefix}-${i}`} style={{ background: "rgba(0, 113, 227, 0.25)", borderRadius: 2, padding: "0 1px" }}>{p}</mark> : p))}
+    </>
+  );
+}
 
 const WEAK_PASSWORDS = new Set(["123", "1234", "12345", "123456", "1234567", "12345678", "password", "qwerty", "admin", "letmein"]);
 function isPasswordStrongEnough(p: string): { ok: boolean; message?: string } {
@@ -151,9 +166,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [expandedCustomerLabels, setExpandedCustomerLabels] = useState<Set<string>>(new Set());
   const [usersSortBy, setUsersSortBy] = useState<"email" | "date" | "active">("email");
   const [usersSortOrder, setUsersSortOrder] = useState<"asc" | "desc">("asc");
-  const [usersFilterBy, setUsersFilterBy] = useState<"all" | "cms" | "service_mode">("all");
+  const [usersFilterBy, setUsersFilterBy] = useState<"all" | "cms" | "no_cms" | "service_mode">("all");
+  const [usersFilterLastLogin, setUsersFilterLastLogin] = useState<"all" | "7d" | "30d" | "never" | "old">("all");
+  const [usersFilterPresetId, setUsersFilterPresetId] = useState<string>("");
   const [usersVisibleCount, setUsersVisibleCount] = useState(50);
   const [deactivateConfirmUserId, setDeactivateConfirmUserId] = useState<number | null>(null);
+  const [bulkDeactivateConfirmOpen, setBulkDeactivateConfirmOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>({
     cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false,
@@ -190,6 +208,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [presetDeleteLoading, setPresetDeleteLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const deactivateModalRef = useRef<HTMLDivElement>(null);
+  const bulkDeactivateModalRef = useRef<HTMLDivElement>(null);
+  const presetDeleteModalRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(deactivateModalRef, deactivateConfirmUserId != null, () => setDeactivateConfirmUserId(null));
+  useFocusTrap(bulkDeactivateModalRef, bulkDeactivateConfirmOpen, () => !bulkLoading && setBulkDeactivateConfirmOpen(false));
+  useFocusTrap(presetDeleteModalRef, presetDeleteConfirmId != null, () => !presetDeleteLoading && setPresetDeleteConfirmId(null));
 
   const [formAccessAllInns, setFormAccessAllInns] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState<CustomerItem[]>([]);
@@ -324,15 +349,42 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     return searchIn.some((s) => s.includes(ql));
   }, []);
 
+  const userMatchesPreset = useCallback((u: User, preset: PermissionPreset) => {
+    const perms = u.permissions ?? {};
+    for (const { key } of PERMISSION_KEYS) {
+      if (key === "__financial__" || key === "service_mode") continue;
+      if (!!perms[key] !== !!preset.permissions[key]) return false;
+    }
+    if (!!u.financial_access !== !!preset.financial) return false;
+    const userServiceMode = !!(u.permissions?.service_mode || u.access_all_inns);
+    if (userServiceMode !== !!preset.serviceMode) return false;
+    return true;
+  }, []);
+
+  const now = Date.now();
+  const ms7d = 7 * 24 * 60 * 60 * 1000;
+  const ms30d = 30 * 24 * 60 * 60 * 1000;
+
   const usersFilterCounts = useMemo(() => {
     const q = usersSearchQuery.trim();
     const base = users.filter((u) => matchesUserSearch(u, q));
+    const withLastLogin = (pred: (u: User) => boolean) => base.filter(pred).length;
     return {
       all: base.length,
       cms: base.filter((u) => !!u.permissions?.cms_access).length,
+      no_cms: base.filter((u) => !u.permissions?.cms_access).length,
       service_mode: base.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns).length,
+      last_login_7d: withLastLogin((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d),
+      last_login_30d: withLastLogin((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms30d),
+      last_login_never: withLastLogin((u) => u.last_login_at == null),
+      last_login_old: withLastLogin((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() > ms30d),
+      preset: (presetId: string) => {
+        const preset = permissionPresets.find((p) => p.id === presetId);
+        if (!preset) return 0;
+        return base.filter((u) => userMatchesPreset(u, preset)).length;
+      },
     };
-  }, [users, usersSearchQuery, matchesUserSearch]);
+  }, [users, usersSearchQuery, matchesUserSearch, permissionPresets, userMatchesPreset]);
 
   const topActiveUsers = useMemo(() => {
     return [...users]
@@ -348,7 +400,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   useEffect(() => {
     setUsersVisibleCount(USERS_PAGE_SIZE);
-  }, [usersSearchQuery, usersFilterBy]);
+  }, [usersSearchQuery, usersFilterBy, usersFilterLastLogin, usersFilterPresetId]);
 
   useEffect(() => {
     if (tab !== "audit") return;
@@ -770,7 +822,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   const handleBulkDeactivate = useCallback(async () => {
     if (selectedUserIds.length === 0) return;
-    if (!window.confirm(`Деактивировать выбранных пользователей (${selectedUserIds.length})? Они не смогут входить в приложение.`)) return;
+    setBulkDeactivateConfirmOpen(false);
     setBulkLoading(true);
     setBulkError(null);
     const failed: { id: number; error: string }[] = [];
@@ -886,13 +938,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     <div className="w-full">
       <Flex align="center" justify="space-between" style={{ marginBottom: "1rem", gap: "0.75rem", flexWrap: "wrap" }}>
         <Flex align="center" gap="0.75rem">
-          <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
+          <Button type="button" className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }} aria-label="Назад в приложение">
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <Typography.Headline style={{ fontSize: "1.25rem" }}>CMS</Typography.Headline>
         </Flex>
         {onLogout && (
-          <Button className="filter-button" onClick={onLogout} style={{ padding: "0.5rem 0.75rem" }}>
+          <Button type="button" className="filter-button" onClick={onLogout} style={{ padding: "0.5rem 0.75rem" }} aria-label="Выйти из админки">
             <LogOut className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Выход
           </Button>
@@ -967,16 +1019,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           {deactivateConfirmUserId != null && (() => {
             const u = users.find((x) => x.id === deactivateConfirmUserId);
             return u ? (
-              <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => setDeactivateConfirmUserId(null)}>
-                <Panel className="cargo-card" style={{ maxWidth: "24rem", margin: "2rem auto", padding: "1rem" }} onClick={(e) => e.stopPropagation()}>
-                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Деактивировать пользователя?</Typography.Body>
+              <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => setDeactivateConfirmUserId(null)} role="dialog" aria-modal="true" aria-labelledby="deactivate-user-title">
+                <div ref={deactivateModalRef} onClick={(e) => e.stopPropagation()}>
+                <Panel className="cargo-card" style={{ maxWidth: "24rem", margin: "2rem auto", padding: "var(--pad-card, 1rem)" }}>
+                  <Typography.Body id="deactivate-user-title" style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Деактивировать пользователя?</Typography.Body>
                   <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
                     {u.login} не сможет войти в приложение.
                   </Typography.Body>
                   <Flex gap="0.5rem">
                     <Button
+                      type="button"
                       className="filter-button"
                       style={{ background: "var(--color-error, #dc2626)", color: "white" }}
+                      aria-label="Деактивировать пользователя"
                       onClick={async () => {
                         try {
                           const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
@@ -994,15 +1049,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     >
                       Деактивировать
                     </Button>
-                    <Button className="filter-button" onClick={() => setDeactivateConfirmUserId(null)}>
+                    <Button type="button" className="filter-button" onClick={() => setDeactivateConfirmUserId(null)} aria-label="Отмена">
                       Отмена
                     </Button>
                   </Flex>
                 </Panel>
+                </div>
               </div>
             ) : null;
           })()}
-          <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
+          <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "var(--element-gap, 1rem)" }}>
             <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
               <Activity className="w-4 h-4" />
               Топ активных пользователей
@@ -1057,7 +1113,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             )}
           </Panel>
 
-          <Panel className="cargo-card" style={{ padding: "1rem" }}>
+          <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
             <Flex className="admin-users-toolbar" gap="0.75rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
               <Flex align="center" gap="0.35rem">
                 <Button
@@ -1075,30 +1131,70 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   По заказчикам
                 </Button>
               </Flex>
+              <label htmlFor="admin-users-search" className="visually-hidden">Поиск по email или заказчику</label>
               <Input
+                id="admin-users-search"
                 type="text"
                 placeholder="Поиск по email или заказчику (ИНН / название)"
                 value={usersSearchQuery}
                 onChange={(e) => setUsersSearchQuery(e.target.value)}
                 className="admin-form-input"
                 style={{ maxWidth: "24rem" }}
+                aria-label="Поиск по email или заказчику (ИНН / название)"
               />
-              <Flex align="center" gap="0.35rem">
-                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Права:</Typography.Body>
+              <Flex align="center" gap="var(--space-2, 0.35rem)">
+                <label htmlFor="users-filter-by" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Права:</label>
                 <select
+                  id="users-filter-by"
                   value={usersFilterBy}
                   onChange={(e) => setUsersFilterBy(e.target.value as typeof usersFilterBy)}
                   className="admin-form-input"
                   style={{ padding: "0 0.5rem", fontSize: "0.85rem", minWidth: "11rem" }}
+                  aria-label="Фильтр по правам доступа"
                 >
                   <option value="all">Все ({usersFilterCounts.all})</option>
                   <option value="cms">С доступом в CMS ({usersFilterCounts.cms})</option>
+                  <option value="no_cms">Без доступа в CMS ({usersFilterCounts.no_cms})</option>
                   <option value="service_mode">Со служебным режимом ({usersFilterCounts.service_mode})</option>
                 </select>
               </Flex>
-              <Flex align="center" gap="0.35rem">
-                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Сортировка:</Typography.Body>
+              <Flex align="center" gap="var(--space-2, 0.35rem)">
+                <label htmlFor="users-filter-last-login" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Вход:</label>
                 <select
+                  id="users-filter-last-login"
+                  value={usersFilterLastLogin}
+                  onChange={(e) => setUsersFilterLastLogin(e.target.value as typeof usersFilterLastLogin)}
+                  className="admin-form-input"
+                  style={{ padding: "0 0.5rem", fontSize: "0.85rem", minWidth: "10rem" }}
+                  aria-label="Фильтр по последнему входу"
+                >
+                  <option value="all">Все</option>
+                  <option value="7d">Входили за 7 дней ({usersFilterCounts.last_login_7d})</option>
+                  <option value="30d">Входили за 30 дней ({usersFilterCounts.last_login_30d})</option>
+                  <option value="old">Давно не входили ({usersFilterCounts.last_login_old})</option>
+                  <option value="never">Никогда не входили ({usersFilterCounts.last_login_never})</option>
+                </select>
+              </Flex>
+              <Flex align="center" gap="var(--space-2, 0.35rem)">
+                <label htmlFor="users-filter-preset" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Пресет:</label>
+                <select
+                  id="users-filter-preset"
+                  value={usersFilterPresetId}
+                  onChange={(e) => setUsersFilterPresetId(e.target.value)}
+                  className="admin-form-input"
+                  style={{ padding: "0 0.5rem", fontSize: "0.85rem", minWidth: "10rem" }}
+                  aria-label="Фильтр по пресету прав"
+                >
+                  <option value="">Все</option>
+                  {permissionPresets.map((p) => (
+                    <option key={p.id} value={p.id}>{p.label} ({usersFilterCounts.preset(p.id)})</option>
+                  ))}
+                </select>
+              </Flex>
+              <Flex align="center" gap="var(--space-2, 0.35rem)">
+                <label htmlFor="users-sort" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Сортировка:</label>
+                <select
+                  id="users-sort"
                   value={`${usersSortBy}-${usersSortOrder}`}
                   onChange={(e) => {
                     const [by, order] = (e.target.value as string).split("-") as [typeof usersSortBy, typeof usersSortOrder];
@@ -1107,6 +1203,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   }}
                   className="admin-form-input"
                   style={{ padding: "0 0.5rem", fontSize: "0.85rem", minWidth: "10rem" }}
+                  aria-label="Сортировка списка пользователей"
                 >
                   <option value="email-asc">По email (А–Я)</option>
                   <option value="email-desc">По email (Я–А)</option>
@@ -1123,7 +1220,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   const q = usersSearchQuery.trim();
                   let list = users.filter((u) => matchesUserSearch(u, q));
                   if (usersFilterBy === "cms") list = list.filter((u) => !!u.permissions?.cms_access);
+                  else if (usersFilterBy === "no_cms") list = list.filter((u) => !u.permissions?.cms_access);
                   else if (usersFilterBy === "service_mode") list = list.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
+                  if (usersFilterLastLogin === "7d") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
+                  else if (usersFilterLastLogin === "30d") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms30d);
+                  else if (usersFilterLastLogin === "never") list = list.filter((u) => u.last_login_at == null);
+                  else if (usersFilterLastLogin === "old") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() > ms30d);
+                  if (usersFilterPresetId) {
+                    const preset = permissionPresets.find((p) => p.id === usersFilterPresetId);
+                    if (preset) list = list.filter((u) => userMatchesPreset(u, preset));
+                  }
                   const rows = list.map((u) => {
                     const customers = u.companies?.length ? u.companies.map((c) => `${c.name || ""} (${c.inn})`).join("; ") : (u.inn ? `${u.company_name || ""} (${u.inn})` : "");
                     const perms = u.permissions && typeof u.permissions === "object" ? Object.entries(u.permissions).filter(([, v]) => v).map(([k]) => k).join("; ") : "";
@@ -1153,7 +1259,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               const q = usersSearchQuery.trim();
               let filtered = users.filter((u) => matchesUserSearch(u, q));
               if (usersFilterBy === "cms") filtered = filtered.filter((u) => !!u.permissions?.cms_access);
+              else if (usersFilterBy === "no_cms") filtered = filtered.filter((u) => !u.permissions?.cms_access);
               else if (usersFilterBy === "service_mode") filtered = filtered.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
+              if (usersFilterLastLogin === "7d") filtered = filtered.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
+              else if (usersFilterLastLogin === "30d") filtered = filtered.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms30d);
+              else if (usersFilterLastLogin === "never") filtered = filtered.filter((u) => u.last_login_at == null);
+              else if (usersFilterLastLogin === "old") filtered = filtered.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() > ms30d);
+              if (usersFilterPresetId) {
+                const preset = permissionPresets.find((p) => p.id === usersFilterPresetId);
+                if (preset) filtered = filtered.filter((u) => userMatchesPreset(u, preset));
+              }
               const sorted = [...filtered].sort((a, b) => {
                 let cmp = 0;
                 if (usersSortBy === "email") cmp = (a.login || "").localeCompare(b.login || "", "ru");
@@ -1168,7 +1283,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 else openPermissionsEditor(u);
               };
               const permissionsEditorPanel = selectedUser ? (
-                <Panel className="cargo-card" style={{ padding: "1rem", marginTop: "0.5rem" }}>
+                <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginTop: "var(--space-2, 0.5rem)" }}>
                   <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.5rem" }}>
                     <Typography.Body style={{ fontWeight: 600 }}>{selectedUser.login ?? "—"}</Typography.Body>
                     <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={closePermissionsEditor}>
@@ -1339,7 +1454,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <Button className="button-primary" disabled={editorLoading} onClick={handleSaveUserPermissions}>
                       {editorLoading ? <Loader2 className="animate-spin w-4 h-4" /> : "Сохранить"}
                     </Button>
-                    <Button className="filter-button" onClick={closePermissionsEditor} style={{ padding: "0.5rem 0.75rem" }}>
+                    <Button type="button" className="filter-button" onClick={closePermissionsEditor} style={{ padding: "0.5rem 0.75rem" }} aria-label="Отмена редактирования прав">
                       Отмена
                     </Button>
                   </Flex>
@@ -1389,7 +1504,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </div>
               );
               const bulkPanel = selectedUserIds.length > 0 ? (
-                <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
+                <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "var(--element-gap, 1rem)" }}>
                   <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Групповое изменение прав ({selectedUserIds.length})</Typography.Body>
                   <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem", flexWrap: "wrap" }}>
                     <Typography.Body style={{ fontSize: "0.85rem" }}>Пресет:</Typography.Body>
@@ -1437,13 +1552,37 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       type="button"
                       className="filter-button"
                       disabled={bulkLoading}
-                      onClick={handleBulkDeactivate}
+                      onClick={() => setBulkDeactivateConfirmOpen(true)}
                       style={{ color: "var(--color-error, #dc2626)" }}
                     >
-                      Выключить профили
+                      Деактивировать выбранных
                     </Button>
                     <Button className="filter-button" onClick={clearSelection}>Снять выделение</Button>
                   </Flex>
+                  {bulkDeactivateConfirmOpen && (
+                    <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => !bulkLoading && setBulkDeactivateConfirmOpen(false)} role="dialog" aria-modal="true" aria-labelledby="bulk-deactivate-title">
+                      <div ref={bulkDeactivateModalRef} className="modal-content" style={{ maxWidth: "22rem" }} onClick={(e) => e.stopPropagation()}>
+                        <Typography.Body id="bulk-deactivate-title" style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Деактивировать выбранных?</Typography.Body>
+                        <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+                          Пользователи ({selectedUserIds.length}) не смогут входить в приложение. Права и заказчики сохранятся; повторная активация возможна через редактирование.
+                        </Typography.Body>
+                        <Flex gap="0.5rem" wrap="wrap">
+                          <Button
+                            type="button"
+                            disabled={bulkLoading}
+                            onClick={handleBulkDeactivate}
+                            style={{ background: "var(--color-error, #dc2626)", color: "#fff", border: "none" }}
+                            aria-label="Деактивировать выбранных пользователей"
+                          >
+                            {bulkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Деактивировать"}
+                          </Button>
+                          <Button type="button" className="filter-button" disabled={bulkLoading} onClick={() => setBulkDeactivateConfirmOpen(false)} aria-label="Отмена">
+                            Отмена
+                          </Button>
+                        </Flex>
+                      </div>
+                    </div>
+                  )}
                 </Panel>
               ) : null;
               if (usersViewMode === "login") {
@@ -1581,7 +1720,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       )}
 
       {tab === "batch" && (
-        <Panel className="cargo-card" style={{ padding: "1rem" }}>
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <div className="admin-form-section" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             <div className="admin-form-section-header">Массовая регистрация</div>
             <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
@@ -1605,7 +1744,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </label>
             </Flex>
             <div className="admin-file-input-wrap">
-              <Input className="admin-form-input admin-file-input" type="file" accept=".txt,.csv,.xls,.xlsx" onChange={handleBatchFile} />
+              <label htmlFor="batch-file" className="visually-hidden">Файл с пользователями (TXT, CSV, XLS, XLSX)</label>
+              <Input id="batch-file" className="admin-form-input admin-file-input" type="file" accept=".txt,.csv,.xls,.xlsx" onChange={handleBatchFile} aria-label="Файл с пользователями" />
             </div>
             {batchEntries.length > 0 && (
               <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
@@ -1633,7 +1773,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       )}
 
       {tab === "add" && (
-        <Panel className="cargo-card" style={{ padding: "1rem" }}>
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <form onSubmit={handleAddUser}>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик</Typography.Body>
@@ -1728,14 +1868,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </>
               )}
             </div>
-            <div style={{ marginBottom: "1rem" }}>
-              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Email</Typography.Body>
-              <Input className="admin-form-input" type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="user@example.com" required style={{ width: "100%" }} />
+            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
+              <label htmlFor="form-email" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Email</label>
+              <Input id="form-email" className="admin-form-input" type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="user@example.com" required style={{ width: "100%" }} />
             </div>
             <div className="admin-form-section">
-              <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem", flexWrap: "wrap" }}>
-                <Typography.Body style={{ fontSize: "0.85rem" }}>Пресет:</Typography.Body>
+              <Flex align="center" gap="var(--element-gap, 0.5rem)" style={{ marginBottom: "var(--space-2, 0.5rem)", flexWrap: "wrap" }}>
+                <label htmlFor="form-preset" style={{ fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Пресет:</label>
                 <select
+                  id="form-preset"
                   className="admin-form-input"
                   style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem" }}
                   value={formSelectedPresetId}
@@ -1792,10 +1933,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </Flex>
             </div>
             {!formSendEmail && (
-              <div style={{ marginBottom: "1rem" }}>
-                <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Пароль</Typography.Body>
+              <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
+                <label htmlFor="form-password" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Пароль</label>
                 <div className="password-input-container" style={{ position: "relative" }}>
                   <Input
+                    id="form-password"
                     className="admin-form-input password"
                     type={formPasswordVisible ? "text" : "password"}
                     value={formPassword}
@@ -1840,22 +1982,26 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       )}
 
       {tab === "customers" && (
-        <Panel className="cargo-card" style={{ padding: "1rem" }}>
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник заказчиков</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
             Данные из кэша (cache_customers). Обновление по расписанию.
           </Typography.Body>
-          <Flex gap="0.75rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+          <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "var(--space-3, 0.75rem)" }}>
+            <label htmlFor="customers-search" className="visually-hidden">Поиск заказчиков по ИНН или наименованию</label>
             <Input
+              id="customers-search"
               type="text"
               placeholder="Поиск по ИНН или наименованию..."
               value={customersSearch}
               onChange={(e) => setCustomersSearch(e.target.value)}
               className="admin-form-input"
               style={{ maxWidth: "24rem" }}
+              aria-label="Поиск по ИНН или наименованию"
             />
-            <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer", fontSize: "0.9rem" }}>
+            <label htmlFor="customers-only-without-email" style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer", fontSize: "0.9rem" }}>
               <input
+                id="customers-only-without-email"
                 type="checkbox"
                 checked={customersShowOnlyWithoutEmail}
                 onChange={(e) => setCustomersShowOnlyWithoutEmail(e.target.checked)}
@@ -1908,53 +2054,77 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       )}
 
       {tab === "audit" && (
-        <Panel className="cargo-card" style={{ padding: "1rem" }}>
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Журнал действий</Typography.Body>
-          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-            Регистрации и изменения прав пользователей
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>
+            Регистрации и изменения прав пользователей, вход в админку, настройки почты, пресеты
           </Typography.Body>
-          <Flex className="admin-audit-toolbar" gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "1rem" }}>
+          <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            Поиск по действию, типу объекта, id, логину и деталям. Затем нажмите «Обновить».
+          </Typography.Body>
+          <Flex className="admin-audit-toolbar" wrap="wrap" align="center">
+            <label htmlFor="audit-search" className="visually-hidden">Поиск по журналу</label>
             <Input
+              id="audit-search"
               className="admin-form-input"
-              placeholder="Поиск (логин, действие...)"
+              placeholder="Поиск: действие, объект, логин, детали..."
               value={auditSearch}
               onChange={(e) => setAuditSearch(e.target.value)}
-              style={{ width: "12rem", minWidth: "10rem" }}
+              style={{ width: "16rem", minWidth: "12rem" }}
+              aria-label="Поиск по журналу: действие, объект, логин, детали"
             />
+            <label htmlFor="audit-filter-action" className="visually-hidden">Действие</label>
             <select
+              id="audit-filter-action"
               className="admin-form-input"
               value={auditFilterAction}
               onChange={(e) => setAuditFilterAction(e.target.value)}
               style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+              aria-label="Фильтр по действию"
             >
               <option value="">Все действия</option>
+              <option value="admin_login">Вход в админку</option>
               <option value="user_register">Регистрация</option>
               <option value="user_update">Изменение</option>
+              <option value="email_settings_saved">Настройки почты</option>
+              <option value="preset_created">Пресет создан</option>
+              <option value="preset_updated">Пресет обновлён</option>
+              <option value="preset_deleted">Пресет удалён</option>
             </select>
+            <label htmlFor="audit-filter-type" className="visually-hidden">Тип объекта</label>
             <select
+              id="audit-filter-type"
               className="admin-form-input"
               value={auditFilterTargetType}
               onChange={(e) => setAuditFilterTargetType(e.target.value)}
               style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+              aria-label="Фильтр по типу объекта"
             >
               <option value="">Все типы</option>
               <option value="user">Пользователь</option>
+              <option value="session">Сессия</option>
+              <option value="settings">Настройки</option>
+              <option value="preset">Пресет</option>
             </select>
-            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>С:</Typography.Body>
+            <label htmlFor="audit-from-date" style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>С:</label>
             <input
+              id="audit-from-date"
               type="date"
               className="admin-form-input"
               value={auditFromDate}
               onChange={(e) => setAuditFromDate(e.target.value)}
               style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+              aria-label="Дата начала периода"
             />
-            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>По:</Typography.Body>
+            <label htmlFor="audit-to-date" style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>По:</label>
             <input
+              id="audit-to-date"
               type="date"
               className="admin-form-input"
               value={auditToDate}
               onChange={(e) => setAuditToDate(e.target.value)}
               style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+              aria-label="Дата окончания периода"
             />
             <Button
               className="filter-button"
@@ -1969,7 +2139,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               onClick={() => {
                 const header = "Время;Действие;Объект;Детали\n";
                 const escape = (s: string) => (s.includes(";") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s);
-                const actionLabel = (a: string) => (a === "user_register" ? "Регистрация" : a === "user_update" ? "Изменение" : a);
+                const actionLabel = (a: string) =>
+                  a === "admin_login" ? "Вход в админку" : a === "user_register" ? "Регистрация" : a === "user_update" ? "Изменение"
+                    : a === "email_settings_saved" ? "Настройки почты" : a === "preset_created" ? "Пресет создан" : a === "preset_updated" ? "Пресет обновлён" : a === "preset_deleted" ? "Пресет удалён" : a;
                 const objCell = (e: (typeof auditEntries)[0]) =>
                   e.target_type === "user" && e.details && typeof e.details.login === "string" ? e.details.login : e.target_id ?? "—";
                 const detailsCell = (e: (typeof auditEntries)[0]) =>
@@ -2015,27 +2187,33 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {auditEntries.map((e) => (
-                    <tr key={e.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>
-                        {new Date(e.created_at).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}
-                      </td>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>
-                        {e.action === "user_register" ? "Регистрация" : e.action === "user_update" ? "Изменение" : e.action}
-                      </td>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>
-                        {e.target_type === "user" && e.details && typeof e.details.login === "string" ? e.details.login : e.target_id ?? "—"}
-                      </td>
-                      <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                        {e.details && typeof e.details === "object" && Object.keys(e.details).filter((k) => k !== "login").length > 0
-                          ? Object.entries(e.details)
-                              .filter(([k]) => k !== "login")
-                              .map(([k, v]) => (v === true ? k : `${k}: ${String(v)}`))
-                              .join(", ")
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))}
+                  {auditEntries.map((e) => {
+                    const actionLabel = e.action === "admin_login" ? "Вход в админку" : e.action === "user_register" ? "Регистрация" : e.action === "user_update" ? "Изменение" : e.action === "email_settings_saved" ? "Настройки почты" : e.action === "preset_created" ? "Пресет создан" : e.action === "preset_updated" ? "Пресет обновлён" : e.action === "preset_deleted" ? "Пресет удалён" : e.action;
+                    const objCell = e.target_type === "user" && e.details && typeof e.details.login === "string" ? e.details.login : e.target_id ?? "—";
+                    const detailsStr = e.details && typeof e.details === "object" && Object.keys(e.details).filter((k) => k !== "login").length > 0
+                      ? Object.entries(e.details)
+                          .filter(([k]) => k !== "login")
+                          .map(([k, v]) => (v === true ? k : `${k}: ${String(v)}`))
+                          .join(", ")
+                      : "—";
+                    const q = auditSearch.trim();
+                    return (
+                      <tr key={e.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>
+                          {q ? highlightMatch(new Date(e.created_at).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" }), q, `t-${e.id}`) : new Date(e.created_at).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}
+                        </td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>
+                          {q ? highlightMatch(actionLabel, q, `a-${e.id}`) : actionLabel}
+                        </td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>
+                          {q ? highlightMatch(String(objCell), q, `o-${e.id}`) : objCell}
+                        </td>
+                        <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                          {q ? highlightMatch(detailsStr, q, `d-${e.id}`) : detailsStr}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -2044,7 +2222,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       )}
 
       {tab === "presets" && (
-        <Panel className="cargo-card" style={{ padding: "1rem" }}>
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Пресеты ролей</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
             Настройте наборы прав для быстрой подстановки при выдаче прав пользователям и при групповом изменении.
@@ -2060,10 +2238,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem", fontSize: "0.9rem" }}>
                   {presetEditingId ? "Редактировать пресет" : "Добавить пресет"}
                 </Typography.Body>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxWidth: "28rem" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--element-gap, 0.75rem)", maxWidth: "28rem" }}>
                   <div>
-                    <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.25rem" }}>Название</Typography.Body>
+                    <label htmlFor="preset-label" style={{ display: "block", fontSize: "0.85rem", marginBottom: "0.25rem", color: "var(--color-text-primary)" }}>Название</label>
                     <Input
+                      id="preset-label"
                       className="admin-form-input"
                       value={presetFormLabel}
                       onChange={(e) => setPresetFormLabel(e.target.value)}
@@ -2180,13 +2359,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 )}
               </div>
               {presetDeleteConfirmId && (
-                <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => !presetDeleteLoading && setPresetDeleteConfirmId(null)}>
+                <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => !presetDeleteLoading && setPresetDeleteConfirmId(null)} role="dialog" aria-modal="true" aria-labelledby="preset-delete-title">
                   <div
+                    ref={presetDeleteModalRef}
                     className="modal-content"
                     style={{ maxWidth: "20rem", padding: "1.25rem" }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Удалить пресет?</Typography.Body>
+                    <Typography.Body id="preset-delete-title" style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Удалить пресет?</Typography.Body>
                     <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
                       Пресет «{permissionPresets.find((x) => x.id === presetDeleteConfirmId)?.label ?? presetDeleteConfirmId}» будет удалён. Это не изменит права уже выданные пользователям.
                     </Typography.Body>
@@ -2238,6 +2418,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         className="filter-button"
                         disabled={presetDeleteLoading}
                         onClick={(e) => { e.stopPropagation(); setPresetDeleteConfirmId(null); }}
+                        aria-label="Отмена, не удалять пресет"
                       >
                         Отмена
                       </Button>
@@ -2251,32 +2432,32 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       )}
 
       {tab === "email" && (
-        <Panel className="cargo-card" style={{ padding: "1rem" }}>
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <form onSubmit={handleSaveEmail}>
-            <div style={{ marginBottom: "1rem" }}>
-              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>SMTP хост</Typography.Body>
-              <Input className="admin-form-input" value={emailHost} onChange={(e) => setEmailHost(e.target.value)} placeholder="smtp.example.com" style={{ width: "100%" }} />
+            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
+              <label htmlFor="email-host" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>SMTP хост</label>
+              <Input id="email-host" className="admin-form-input" value={emailHost} onChange={(e) => setEmailHost(e.target.value)} placeholder="smtp.example.com" style={{ width: "100%" }} />
             </div>
-            <div style={{ marginBottom: "1rem" }}>
-              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>SMTP порт</Typography.Body>
-              <Input className="admin-form-input" type="number" value={emailPort} onChange={(e) => setEmailPort(e.target.value)} placeholder="587" style={{ width: "100%" }} />
+            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
+              <label htmlFor="email-port" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>SMTP порт</label>
+              <Input id="email-port" className="admin-form-input" type="number" value={emailPort} onChange={(e) => setEmailPort(e.target.value)} placeholder="587" style={{ width: "100%" }} />
             </div>
-            <div style={{ marginBottom: "1rem" }}>
-              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>SMTP пользователь</Typography.Body>
-              <Input className="admin-form-input" value={emailUser} onChange={(e) => setEmailUser(e.target.value)} placeholder="user@example.com" style={{ width: "100%" }} />
+            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
+              <label htmlFor="email-user" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>SMTP пользователь</label>
+              <Input id="email-user" className="admin-form-input" value={emailUser} onChange={(e) => setEmailUser(e.target.value)} placeholder="user@example.com" style={{ width: "100%" }} />
             </div>
-            <div style={{ marginBottom: "1rem" }}>
-              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>SMTP пароль</Typography.Body>
-              <Input className="admin-form-input" type="password" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" style={{ width: "100%" }} />
+            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
+              <label htmlFor="email-password" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>SMTP пароль</label>
+              <Input id="email-password" className="admin-form-input" type="password" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" style={{ width: "100%" }} />
               <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>Оставьте пустым, чтобы не менять</Typography.Body>
             </div>
-            <div style={{ marginBottom: "1rem" }}>
-              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>От кого (email)</Typography.Body>
-              <Input className="admin-form-input" type="email" value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} placeholder="noreply@haulz.ru" style={{ width: "100%" }} />
+            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
+              <label htmlFor="email-from" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>От кого (email)</label>
+              <Input id="email-from" className="admin-form-input" type="email" value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} placeholder="noreply@haulz.ru" style={{ width: "100%" }} />
             </div>
-            <div style={{ marginBottom: "1rem" }}>
-              <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>От кого (имя)</Typography.Body>
-              <Input className="admin-form-input" value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} placeholder="HAULZ" style={{ width: "100%" }} />
+            <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
+              <label htmlFor="email-from-name" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>От кого (имя)</label>
+              <Input id="email-from-name" className="admin-form-input" value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} placeholder="HAULZ" style={{ width: "100%" }} />
             </div>
             <Flex gap="0.5rem" style={{ flexWrap: "wrap" }}>
               <Button type="submit" className="filter-button" disabled={emailSaving}>
@@ -2338,8 +2519,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <li><code>[password]</code> — пароль (при регистрации — выданный, при сбросе — новый временный)</li>
                 <li><code>[company_name]</code> — название компании</li>
               </ul>
-              <Typography.Body style={{ marginBottom: "0.35rem", fontSize: "0.85rem" }}>Текст письма при регистрации</Typography.Body>
+              <label htmlFor="email-template-registration" style={{ display: "block", marginBottom: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Текст письма при регистрации</label>
               <textarea
+                id="email-template-registration"
                 className="admin-form-input"
                 value={emailTemplateRegistration}
                 onChange={(e) => setEmailTemplateRegistration(e.target.value)}
@@ -2347,8 +2529,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 rows={6}
                 style={{ width: "100%", resize: "vertical", minHeight: "6rem" }}
               />
-              <Typography.Body style={{ marginTop: "0.75rem", marginBottom: "0.35rem", fontSize: "0.85rem" }}>Текст письма при сбросе пароля</Typography.Body>
+              <label htmlFor="email-template-password-reset" style={{ display: "block", marginTop: "var(--space-3, 0.75rem)", marginBottom: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Текст письма при сбросе пароля</label>
               <textarea
+                id="email-template-password-reset"
                 className="admin-form-input"
                 value={emailTemplatePasswordReset}
                 onChange={(e) => setEmailTemplatePasswordReset(e.target.value)}

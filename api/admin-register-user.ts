@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
+import { getClientIp, isRateLimited, ADMIN_API_LIMIT } from "../lib/rateLimit.js";
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
@@ -27,6 +28,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
     return res.status(401).json({ error: "Требуется авторизация админа" });
+  }
+  const ip = getClientIp(req);
+  if (isRateLimited("admin_api", ip, ADMIN_API_LIMIT)) {
+    return res.status(429).json({ error: "Слишком много запросов. Подождите минуту." });
   }
 
   const WEAK_PASSWORDS = new Set(["123", "1234", "12345", "123456", "1234567", "12345678", "password", "qwerty", "admin", "letmein"]);

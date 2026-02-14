@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
+import { getClientIp, isRateLimited, ADMIN_API_LIMIT } from "../lib/rateLimit.js";
+import { writeAuditLog } from "../lib/adminAuditLog.js";
 
 type PresetRow = {
   id: number;
@@ -55,6 +57,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  if (req.method === "POST" || req.method === "DELETE") {
+    const ip = getClientIp(req);
+    if (isRateLimited("admin_api", ip, ADMIN_API_LIMIT)) {
+      return res.status(429).json({ error: "Слишком много запросов. Подождите минуту." });
+    }
+  }
+
   if (req.method === "POST") {
     let body: { id?: string; label?: string; permissions?: Record<string, boolean>; financial?: boolean; serviceMode?: boolean } = req.body;
     if (typeof body === "string") {
@@ -80,6 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           `UPDATE admin_role_presets SET label = $1, permissions = $2, financial_access = $3, service_mode = $4, sort_order = COALESCE(sort_order, 0) WHERE id = $5`,
           [label, JSON.stringify(permissions), financial, serviceMode, id]
         );
+        await writeAuditLog(pool, { action: "preset_updated", target_type: "preset", target_id: id, details: { label } });
         return res.status(200).json({ ok: true, id: String(id), label, permissions, financial, serviceMode });
       }
       const { rows } = await pool.query<{ id: number }>(
@@ -90,6 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       const newId = rows[0]?.id;
       if (newId == null) return res.status(500).json({ error: "Ошибка создания пресета" });
+      await writeAuditLog(pool, { action: "preset_created", target_type: "preset", target_id: newId, details: { label } });
       return res.status(200).json({ ok: true, id: String(newId), label, permissions, financial, serviceMode });
     } catch (e: unknown) {
       console.error("admin-presets POST error:", e);
@@ -105,7 +116,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (isNaN(id) || id < 1) return res.status(400).json({ error: "Некорректный id" });
     try {
       const pool = getPool();
+      const { rows: presetRows } = await pool.query<{ label: string }>("SELECT label FROM admin_role_presets WHERE id = $1", [id]);
+      const label = presetRows[0]?.label ?? String(id);
       const { rowCount } = await pool.query("DELETE FROM admin_role_presets WHERE id = $1", [id]);
+      if ((rowCount ?? 0) > 0) {
+        await writeAuditLog(pool, { action: "preset_deleted", target_type: "preset", target_id: id, details: { label } });
+      }
       return res.status(200).json({ ok: true, deleted: (rowCount ?? 0) > 0 });
     } catch (e: unknown) {
       console.error("admin-presets DELETE error:", e);
