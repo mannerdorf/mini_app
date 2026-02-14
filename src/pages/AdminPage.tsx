@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, Mail, Sun, Moon } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, Mail, Sun, Moon, Calendar } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -154,7 +154,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "add" | "batch" | "templates" | "customers" | "audit" | "presets">("users");
+  const [tab, setTab] = useState<"users" | "add" | "batch" | "templates" | "customers" | "audit" | "presets" | "payment_calendar">("users");
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
       const saved = localStorage.getItem(ADMIN_THEME_KEY);
@@ -212,6 +212,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [customersSortBy, setCustomersSortBy] = useState<"inn" | "customer_name" | "email">("customer_name");
   const [customersSortOrder, setCustomersSortOrder] = useState<"asc" | "desc">("asc");
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [paymentCalendarItems, setPaymentCalendarItems] = useState<{ inn: string; customer_name: string | null; days_to_pay: number }[]>([]);
+  const [paymentCalendarLoading, setPaymentCalendarLoading] = useState(false);
+  const [paymentCalendarSearch, setPaymentCalendarSearch] = useState("");
+  const [paymentCalendarCustomerList, setPaymentCalendarCustomerList] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
+  const [paymentCalendarCustomerLoading, setPaymentCalendarCustomerLoading] = useState(false);
+  const [paymentCalendarSelectedInns, setPaymentCalendarSelectedInns] = useState<Set<string>>(new Set());
+  const [paymentCalendarDaysInput, setPaymentCalendarDaysInput] = useState<string>("14");
+  const [paymentCalendarSaving, setPaymentCalendarSaving] = useState(false);
   const [auditEntries, setAuditEntries] = useState<{ id: number; action: string; target_type: string; target_id: string | null; details: Record<string, unknown> | null; created_at: string }[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditSearch, setAuditSearch] = useState("");
@@ -501,6 +509,46 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     fetchPresets();
   }, [fetchPresets]);
 
+  const fetchPaymentCalendar = useCallback(() => {
+    if (!adminToken) return;
+    setPaymentCalendarLoading(true);
+    fetch("/api/admin-payment-calendar", { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((res) => res.json())
+      .then((data: { items?: { inn: string; customer_name: string | null; days_to_pay: number }[] }) => {
+        setPaymentCalendarItems(data.items || []);
+      })
+      .catch(() => setPaymentCalendarItems([]))
+      .finally(() => setPaymentCalendarLoading(false));
+  }, [adminToken]);
+
+  const fetchPaymentCalendarCustomers = useCallback(() => {
+    if (!adminToken) return;
+    setPaymentCalendarCustomerLoading(true);
+    const q = paymentCalendarSearch.trim();
+    const url = q.length >= 2
+      ? `/api/admin-customers-search?q=${encodeURIComponent(q)}&limit=500`
+      : `/api/admin-customers-search?q=&limit=500`;
+    fetch(url, { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((res) => res.json())
+      .then((data: { customers?: { inn: string; customer_name: string; email: string }[] }) => {
+        setPaymentCalendarCustomerList(data.customers || []);
+      })
+      .catch(() => setPaymentCalendarCustomerList([]))
+      .finally(() => setPaymentCalendarCustomerLoading(false));
+  }, [adminToken, paymentCalendarSearch]);
+
+  useEffect(() => {
+    if (tab === "payment_calendar" && isSuperAdmin) {
+      fetchPaymentCalendar();
+    }
+  }, [tab, isSuperAdmin, fetchPaymentCalendar]);
+
+  useEffect(() => {
+    if (tab === "payment_calendar" && adminToken) {
+      fetchPaymentCalendarCustomers();
+    }
+  }, [tab, adminToken, fetchPaymentCalendarCustomers]);
+
   useEffect(() => {
     if (!adminToken) return;
     fetch("/api/admin-me", { headers: { Authorization: `Bearer ${adminToken}` } })
@@ -510,7 +558,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!isSuperAdmin && tab === "presets") setTab("users");
+    if (!isSuperAdmin && (tab === "presets" || tab === "payment_calendar")) setTab("users");
   }, [isSuperAdmin, tab]);
 
   const handleAddUser = async (e: React.FormEvent) => {
@@ -1051,6 +1099,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <Layers className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Пресеты ролей
+          </Button>
+        )}
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={{ background: tab === "payment_calendar" ? "var(--color-primary-blue)" : undefined, color: tab === "payment_calendar" ? "white" : undefined }}
+            onClick={() => setTab("payment_calendar")}
+          >
+            <Calendar className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Платёжный календарь
           </Button>
         )}
       </Flex>
@@ -2313,6 +2371,172 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </>
             );
           })()}
+        </Panel>
+      )}
+
+      {tab === "payment_calendar" && isSuperAdmin && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Платёжный календарь</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+            Подбор заказчиков и установление срока оплаты счёта (в днях с момента выставления). Выберите заказчиков и укажите «Дней на оплату» — условие применится ко всем выбранным.
+          </Typography.Body>
+          <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+            <Input
+              type="text"
+              placeholder="Поиск по ИНН или наименованию..."
+              value={paymentCalendarSearch}
+              onChange={(e) => setPaymentCalendarSearch(e.target.value)}
+              className="admin-form-input"
+              style={{ maxWidth: "22rem" }}
+              aria-label="Поиск заказчиков"
+            />
+            <Button type="button" className="filter-button" onClick={() => fetchPaymentCalendarCustomers()} disabled={paymentCalendarCustomerLoading}>
+              {paymentCalendarCustomerLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Найти"}
+            </Button>
+          </Flex>
+          {paymentCalendarLoading ? (
+            <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.75rem" }}>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка условий...</Typography.Body>
+            </Flex>
+          ) : null}
+          <Flex gap="0.75rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+            <label htmlFor="payment-calendar-days" style={{ fontSize: "0.9rem", whiteSpace: "nowrap" }}>Дней на оплату с момента выставления счёта:</label>
+            <input
+              id="payment-calendar-days"
+              type="number"
+              min={0}
+              max={365}
+              value={paymentCalendarDaysInput}
+              onChange={(e) => setPaymentCalendarDaysInput(e.target.value)}
+              className="admin-form-input"
+              style={{ width: "5rem", padding: "0.35rem 0.5rem" }}
+              aria-label="Количество дней на оплату"
+            />
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={paymentCalendarSaving || paymentCalendarSelectedInns.size === 0}
+              onClick={async () => {
+                const days = Math.max(0, Math.min(365, parseInt(paymentCalendarDaysInput, 10) || 0));
+                if (paymentCalendarSelectedInns.size === 0) return;
+                setPaymentCalendarSaving(true);
+                setError(null);
+                try {
+                  const res = await fetch("/api/admin-payment-calendar", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                    body: JSON.stringify({ inns: Array.from(paymentCalendarSelectedInns), days_to_pay: days }),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                  fetchPaymentCalendar();
+                  setPaymentCalendarSelectedInns(new Set());
+                } catch (e: unknown) {
+                  setError((e as Error)?.message || "Ошибка");
+                } finally {
+                  setPaymentCalendarSaving(false);
+                }
+              }}
+            >
+              {paymentCalendarSaving ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} /> : null}
+              Применить к выбранным ({paymentCalendarSelectedInns.size})
+            </Button>
+          </Flex>
+          <div style={{ overflowX: "auto", maxHeight: "50vh", overflowY: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+              <thead>
+                <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                  <th style={{ padding: "0.4rem 0.5rem", width: 40, textAlign: "left" }} />
+                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
+                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
+                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "right", fontWeight: 600 }}>Дней на оплату</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentCalendarCustomerList.map((c) => {
+                  const current = paymentCalendarItems.find((x) => x.inn === c.inn);
+                  const days = current?.days_to_pay ?? "—";
+                  const selected = paymentCalendarSelectedInns.has(c.inn);
+                  return (
+                    <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "0.4rem 0.5rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => {
+                            setPaymentCalendarSelectedInns((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(c.inn)) next.delete(c.inn);
+                              else next.add(c.inn);
+                              return next;
+                            });
+                          }}
+                          aria-label={`Выбрать ${c.customer_name || c.inn}`}
+                        />
+                      </td>
+                      <td style={{ padding: "0.4rem 0.5rem" }}>{c.inn}</td>
+                      <td style={{ padding: "0.4rem 0.5rem" }}>{c.customer_name || "—"}</td>
+                      <td style={{ padding: "0.4rem 0.5rem", textAlign: "right", color: "var(--color-text-secondary)" }}>{days}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {paymentCalendarCustomerList.length === 0 && !paymentCalendarCustomerLoading && (
+            <Typography.Body style={{ color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
+              Введите поиск и нажмите «Найти» или загрузится список заказчиков из справочника.
+            </Typography.Body>
+          )}
+
+          {paymentCalendarItems.length > 0 && (
+            <>
+              <Typography.Body style={{ fontWeight: 600, marginTop: "1.5rem", marginBottom: "0.5rem" }}>Заданные условия оплаты</Typography.Body>
+              <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
+                Выберите строки и нажмите «Применить к выбранным», чтобы изменить срок для нескольких заказчиков.
+              </Typography.Body>
+              <div style={{ overflowX: "auto", maxHeight: "40vh", overflowY: "auto", marginTop: "0.5rem" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                  <thead>
+                    <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                      <th style={{ padding: "0.4rem 0.5rem", width: 40, textAlign: "left" }} />
+                      <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
+                      <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
+                      <th style={{ padding: "0.4rem 0.5rem", textAlign: "right", fontWeight: 600 }}>Дней на оплату</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paymentCalendarItems.map((c) => {
+                      const selected = paymentCalendarSelectedInns.has(c.inn);
+                      return (
+                        <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                          <td style={{ padding: "0.4rem 0.5rem" }}>
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onChange={() => {
+                                setPaymentCalendarSelectedInns((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(c.inn)) next.delete(c.inn);
+                                  else next.add(c.inn);
+                                  return next;
+                                });
+                              }}
+                              aria-label={`Выбрать ${c.customer_name || c.inn}`}
+                            />
+                          </td>
+                          <td style={{ padding: "0.4rem 0.5rem" }}>{c.inn}</td>
+                          <td style={{ padding: "0.4rem 0.5rem" }}>{c.customer_name || "—"}</td>
+                          <td style={{ padding: "0.4rem 0.5rem", textAlign: "right", color: "var(--color-text-secondary)" }}>{c.days_to_pay}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </Panel>
       )}
 

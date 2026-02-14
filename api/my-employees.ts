@@ -96,6 +96,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const inviter = inviterRow.rows[0];
       if (!inviter) return res.status(500).json({ error: "Ошибка" });
       const companies = await pool.query<{ inn: string; name: string }>("SELECT inn, name FROM account_companies WHERE login = $1", [inviter.login]);
+      const inviterInns = [inviter.inn?.trim(), ...companies.rows.map((c) => c.inn?.trim())].filter((x): x is string => !!x);
+      if (inviterInns.length > 0) {
+        const placeholders = inviterInns.map((_, i) => `$${i + 1}`).join(", ");
+        const dirCheck = await pool.query<{ inn: string }>(
+          `SELECT inn FROM cache_customers WHERE inn IN (${placeholders}) LIMIT 1`,
+          inviterInns
+        );
+        if (dirCheck.rows.length === 0) {
+          return res.status(403).json({ error: "Приглашать сотрудников могут только пользователи, чья компания есть в справочнике заказчиков." });
+        }
+      } else {
+        return res.status(403).json({ error: "Приглашать сотрудников могут только пользователи из справочника заказчиков. Укажите компанию (ИНН) в профиле." });
+      }
       const newLogin = email;
       const newPassword = generatePassword(8);
       const passwordHash = hashPassword(newPassword);

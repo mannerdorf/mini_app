@@ -88,6 +88,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           };
 
     const accessAllInns = !!user.access_all_inns;
+    let inCustomerDirectory = false;
+    const userInn = user.inn?.trim();
+    if (userInn) {
+      const dirRow = await pool.query("SELECT 1 FROM cache_customers WHERE inn = $1 LIMIT 1", [userInn]);
+      inCustomerDirectory = dirRow.rows.length > 0;
+    }
+    if (!inCustomerDirectory) {
+      const { rows: acRows } = await pool.query<{ inn: string }>("SELECT inn FROM account_companies WHERE login = $1", [user.login]);
+      for (const r of acRows) {
+        if (r.inn?.trim()) {
+          const d = await pool.query("SELECT 1 FROM cache_customers WHERE inn = $1 LIMIT 1", [r.inn.trim()]);
+          if (d.rows.length > 0) {
+            inCustomerDirectory = true;
+            break;
+          }
+        }
+      }
+    }
     return res.status(200).json({
       ok: true,
       user: {
@@ -97,6 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         permissions,
         financialAccess: !!user.financial_access,
         accessAllInns,
+        inCustomerDirectory,
       },
     });
   } catch (e) {

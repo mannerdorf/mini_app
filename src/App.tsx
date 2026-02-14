@@ -3481,6 +3481,7 @@ function ProfilePage({
             icon: <Users className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('employees')
         }] : []),
+        ...(!!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true ? [
         { 
             id: 'voiceAssistants', 
             label: 'Голосовые помощники', 
@@ -3493,6 +3494,7 @@ function ProfilePage({
             icon: <Bell className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('notifications')
         },
+        ] : []),
     ];
 
     const faqItems = [
@@ -3775,6 +3777,101 @@ function ProfilePage({
                     <Panel className="cargo-card" style={{ padding: '1rem' }}>
                         <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Нужны логин и пароль текущего аккаунта для управления сотрудниками.</Typography.Body>
                     </Panel>
+                ) : activeAccount.inCustomerDirectory === false ? (
+                    <>
+                        <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+                            <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Приглашать сотрудников могут только пользователи, чья компания есть в справочнике заказчиков.</Typography.Body>
+                        </Panel>
+                        <div style={{ marginTop: '1rem' }}>
+                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Приглашённые</Typography.Body>
+                            {employeesLoading ? (
+                                <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>
+                            ) : employeesError ? (
+                                <Typography.Body style={{ color: 'var(--color-error)' }}>{employeesError}</Typography.Body>
+                            ) : employeesList.length === 0 ? (
+                                <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Пока никого не приглашали.</Typography.Body>
+                            ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                {employeesList.map((emp) => (
+                                    <Panel key={emp.id} className="cargo-card" style={{ padding: '0.75rem' }}>
+                                        <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem">
+                                            <div>
+                                                <Typography.Body style={{ fontWeight: 600 }}>{emp.login}</Typography.Body>
+                                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}</Typography.Body>
+                                            </div>
+                                            <Flex align="center" gap="0.5rem">
+                                                <Typography.Body style={{ fontSize: '0.85rem' }}>{emp.active ? 'Вкл' : 'Выкл'}</Typography.Body>
+                                                <TapSwitch
+                                                    checked={emp.active}
+                                                    onToggle={async () => {
+                                                        try {
+                                                            const res = await fetch(`/api/my-employees?id=${emp.id}`, {
+                                                                method: 'PATCH',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, active: !emp.active }),
+                                                            });
+                                                            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error);
+                                                            setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, active: !e.active } : e));
+                                                        } catch {}
+                                                    }}
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    className="filter-button"
+                                                    style={{ padding: '0.35rem' }}
+                                                    aria-label="Удалить сотрудника"
+                                                    onClick={() => setEmployeeDeleteId(emp.id)}
+                                                >
+                                                    <Trash2 className="w-4 h-4" style={{ color: 'var(--color-error)' }} />
+                                                </Button>
+                                            </Flex>
+                                        </Flex>
+                                    </Panel>
+                                ))}
+                                {employeeDeleteId != null && (() => {
+                                    const emp = employeesList.find((e) => e.id === employeeDeleteId);
+                                    const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+                                    return (
+                                        <div className="modal-overlay" style={{ zIndex: 10000 }} role="dialog" aria-modal="true" aria-labelledby="employee-delete-title" onClick={() => !employeeDeleteLoading && setEmployeeDeleteId(null)}>
+                                            <div className="modal-content" style={{ maxWidth: '22rem', padding: '1.25rem' }} onClick={(e) => e.stopPropagation()}>
+                                                <Typography.Body id="employee-delete-title" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Удалить сотрудника?</Typography.Body>
+                                                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
+                                                    {emp?.login ?? ''} будет удалён из списка и не сможет войти в приложение.
+                                                </Typography.Body>
+                                                <Flex gap="0.5rem" wrap="wrap">
+                                                    <Button
+                                                        type="button"
+                                                        disabled={employeeDeleteLoading}
+                                                        style={{ background: 'var(--color-error)', color: '#fff', border: 'none' }}
+                                                        onClick={async () => {
+                                                            if (!activeAccount?.login || !activeAccount?.password || employeeDeleteLoading) return;
+                                                            setEmployeeDeleteLoading(true);
+                                                            try {
+                                                                const res = await fetch(`${origin}/api/my-employees?id=${encodeURIComponent(employeeDeleteId)}`, {
+                                                                    method: 'DELETE',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }),
+                                                                });
+                                                                if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error);
+                                                                setEmployeesList((prev) => prev.filter((e) => e.id !== employeeDeleteId));
+                                                                setEmployeeDeleteId(null);
+                                                            } finally {
+                                                                setEmployeeDeleteLoading(false);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {employeeDeleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Удалить'}
+                                                    </Button>
+                                                    <Button type="button" className="filter-button" onClick={() => !employeeDeleteLoading && setEmployeeDeleteId(null)}>Отмена</Button>
+                                                </Flex>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                            )}
+                        </div>
+                    </>
                 ) : (
                     <>
                         <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
@@ -3974,6 +4071,22 @@ function ProfilePage({
     }
 
     if (currentView === 'voiceAssistants') {
+        const serviceModeAllowed = !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
+        if (!serviceModeAllowed) {
+            return (
+                <div className="w-full">
+                    <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                        <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                            <ArrowLeft className="w-4 h-4" />
+                        </Button>
+                        <Typography.Headline style={{ fontSize: '1.25rem' }}>Голосовые помощники</Typography.Headline>
+                    </Flex>
+                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Доступно только при включённом служебном режиме.</Typography.Body>
+                    </Panel>
+                </div>
+            );
+        }
         return (
             <div className="w-full">
                 <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
@@ -4110,6 +4223,22 @@ function ProfilePage({
     }
 
     if (currentView === 'notifications') {
+        const serviceModeAllowed = !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
+        if (!serviceModeAllowed) {
+            return (
+                <div className="w-full">
+                    <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                        <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                            <ArrowLeft className="w-4 h-4" />
+                        </Button>
+                        <Typography.Headline style={{ fontSize: '1.25rem' }}>Уведомления</Typography.Headline>
+                    </Flex>
+                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Доступно только при включённом служебном режиме.</Typography.Body>
+                    </Panel>
+                </div>
+            );
+        }
         return (
             <NotificationsPage
                 activeAccount={activeAccount}
@@ -5485,23 +5614,22 @@ function CargoPage({
                     return (
                         <Panel 
                             key={item.Number || idx} 
-                            className="cargo-card"
+                            className="cargo-card cargo-list-item"
                             onClick={() => setSelectedCargo(item)}
                             style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
                         >
-                            <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
-                                <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: numberColor }}>
+                            <Flex className="cargo-item-row-1" justify="space-between" align="center" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <Flex align="center" gap="0.5rem" style={{ flex: '0 1 auto', minWidth: 0, overflow: 'hidden' }} className="cargo-item-number-wrap">
+                                    <Typography.Body className="cargo-item-number" style={{ fontWeight: 600, fontSize: '1rem', color: numberColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                         {item.Number || '—'}
                                     </Typography.Body>
                                     {item._role && (
-                                        <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)' }}>
+                                        <span className="role-badge" style={{ fontSize: '0.65rem', fontWeight: 600, padding: '0.15rem 0.4rem', borderRadius: '999px', background: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', flexShrink: 0 }}>
                                             {item._role === 'Customer' ? 'Заказчик' : item._role === 'Sender' ? 'Отправитель' : 'Получатель'}
                                         </span>
                                     )}
                                 </Flex>
-                                <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
-                                    <Flex align="center" gap="0.25rem" style={{ marginRight: '0.5cm' }}>
+                                <Flex align="center" gap="0.25rem" style={{ flexShrink: 0 }}>
                                     <Button
                                         style={{ 
                                             padding: '0.25rem', 
@@ -5695,13 +5823,12 @@ function CargoPage({
                                             }} 
                                         />
                                     </Button>
-                                    </Flex>
-                                    <Calendar className="w-4 h-4 text-theme-secondary" />
-                                    <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
+                                </Flex>
+                                    <Calendar className="w-4 h-4 text-theme-secondary" style={{ flexShrink: 0 }} />
+                                    <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
                                         <DateText value={item.DatePrih} />
                                     </Typography.Label>
                             </Flex>
-                        </Flex>
                             <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
                                 <StatusBadge status={item.State} />
                                 {showSums && item._role === 'Customer' && (
@@ -5717,25 +5844,25 @@ function CargoPage({
                                 </Flex>
                                 {showSums && item._role === 'Customer' && <StatusBillBadge status={item.StateBill} />}
                             </Flex>
-                            <Flex align="center" gap="0.5rem" style={{ marginTop: '0.5rem' }}>
-                                {(() => {
-                                    const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
-                                    const from = cityToCode(item.CitySender);
-                                    const to = cityToCode(item.CityReceiver);
-                                    const route = [from, to].filter(Boolean).join(' – ') || '-';
-                                    return (
-                                        <>
-                                            {isFerry ? <Ship className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Паром" /> : <Truck className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Авто" />}
-                                            <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>{route}</Typography.Label>
-                                        </>
-                                    );
-                                })()}
-                            </Flex>
-                            {useServiceRequest && (item.Customer ?? (item as any).customer) && (
-                                <Flex justify="flex-end" style={{ marginTop: '0.35rem' }}>
-                                    <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{stripOoo(item.Customer ?? (item as any).customer)}</Typography.Label>
+                            <Flex className="cargo-item-route-customer" align="center" justify="space-between" gap="0.5rem" style={{ marginTop: '0.5rem', minWidth: 0, overflow: 'hidden', flexWrap: 'wrap' }}>
+                                <Flex align="center" gap="0.5rem" style={{ minWidth: 0, overflow: 'hidden' }} className="cargo-item-route">
+                                    {(() => {
+                                        const isFerry = item?.AK === true || item?.AK === 'true' || item?.AK === '1' || item?.AK === 1;
+                                        const from = cityToCode(item.CitySender);
+                                        const to = cityToCode(item.CityReceiver);
+                                        const route = [from, to].filter(Boolean).join(' – ') || '-';
+                                        return (
+                                            <>
+                                                {isFerry ? <Ship className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Паром" /> : <Truck className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Авто" />}
+                                                <Typography.Label className="text-theme-secondary cargo-item-route-text" style={{ fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{route}</Typography.Label>
+                                            </>
+                                        );
+                                    })()}
                                 </Flex>
-                            )}
+                                {useServiceRequest && (item.Customer ?? (item as any).customer) && (
+                                    <Typography.Label className="cargo-item-customer-text" style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0, maxWidth: '50%' }}>{stripOoo(item.Customer ?? (item as any).customer)}</Typography.Label>
+                                )}
+                            </Flex>
                     </Panel>
                     );
                 })}
@@ -8136,7 +8263,7 @@ export default function App() {
         if (needRefresh.length === 0) return;
         let cancelled = false;
         (async () => {
-            const updates: { id: string; customers: CustomerOption[]; activeCustomerInn: string | null; customer: string | null; accessAllInns: boolean; permissions?: Record<string, boolean>; financialAccess?: boolean }[] = [];
+            const updates: { id: string; customers: CustomerOption[]; activeCustomerInn: string | null; customer: string | null; accessAllInns: boolean; inCustomerDirectory?: boolean; permissions?: Record<string, boolean>; financialAccess?: boolean }[] = [];
             for (const acc of needRefresh) {
                 try {
                     const res = await fetch("/api/auth-registered-login", {
@@ -8154,6 +8281,7 @@ export default function App() {
                         activeCustomerInn: u.inn ?? null,
                         customer: u.companyName ?? null,
                         accessAllInns: !!u.accessAllInns,
+                        inCustomerDirectory: !!u.inCustomerDirectory,
                         permissions: u.permissions,
                         financialAccess: u.financialAccess,
                     });
@@ -8172,6 +8300,7 @@ export default function App() {
                         activeCustomerInn: up.activeCustomerInn ?? undefined,
                         customer: up.customer ?? undefined,
                         accessAllInns: up.accessAllInns,
+                        ...(up.inCustomerDirectory !== undefined ? { inCustomerDirectory: up.inCustomerDirectory } : {}),
                         ...(up.permissions != null ? { permissions: up.permissions } : {}),
                         ...(up.financialAccess != null ? { financialAccess: up.financialAccess } : {}),
                     };
@@ -8591,7 +8720,7 @@ export default function App() {
                         setAccounts((prev) =>
                             prev.map((acc) =>
                                 acc.id === existingAccount.id
-                                    ? { ...acc, password, customers, activeCustomerInn: u.inn, customer: u.companyName, isRegisteredUser: true, accessAllInns, permissions: u.permissions, financialAccess: u.financialAccess }
+                                    ? { ...acc, password, customers, activeCustomerInn: u.inn, customer: u.companyName, isRegisteredUser: true, accessAllInns, inCustomerDirectory: !!u.inCustomerDirectory, permissions: u.permissions, financialAccess: u.financialAccess }
                                     : acc
                             )
                         );
@@ -8607,6 +8736,7 @@ export default function App() {
                             customer: u.companyName,
                             isRegisteredUser: true,
                             accessAllInns,
+                            inCustomerDirectory: !!u.inCustomerDirectory,
                             permissions: u.permissions,
                             financialAccess: u.financialAccess,
                         };

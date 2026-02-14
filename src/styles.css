@@ -157,6 +157,16 @@ body {
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
+/* 404: минималистичная страница (референс Apple) */
+.not-found-page .not-found-search-input:focus {
+    outline: none;
+    border-color: var(--color-primary-blue);
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.2);
+}
+.not-found-page .not-found-home-link:hover {
+    text-decoration: underline;
+}
+
 .light-mode input,
 .light-mode textarea,
 .light-mode select,
@@ -487,6 +497,38 @@ body {
     border-color: var(--color-primary-blue);
 }
 .light-mode .cargo-card:hover { box-shadow: 0 4px 16px rgba(0, 113, 227, 0.12); }
+
+/* Мобильная версия: карточка груза — номер, шеринг, сообщение, избранное и дата в одну строку; маршрут и заказчик в одну строку */
+@media (max-width: 768px) {
+    .cargo-list-item .cargo-item-row-1 {
+        flex-wrap: nowrap !important;
+        align-items: center;
+    }
+    .cargo-list-item .cargo-item-row-1 .cargo-item-number-wrap {
+        min-width: 0;
+        overflow: hidden;
+    }
+    .cargo-list-item .cargo-item-row-1 .cargo-item-number {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .cargo-list-item .cargo-item-route-customer {
+        flex-wrap: nowrap !important;
+        align-items: center;
+    }
+    .cargo-list-item .cargo-item-route-customer .cargo-item-route {
+        min-width: 0;
+        overflow: hidden;
+    }
+    .cargo-list-item .cargo-item-route-customer .cargo-item-route-text,
+    .cargo-list-item .cargo-item-route-customer .cargo-item-customer-text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
 .cargo-header-row {
     display: flex;
     justify-content: space-between;

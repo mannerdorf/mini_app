@@ -1,11 +1,11 @@
 import React, { useState, FormEvent } from "react";
-import { Button, Input, Flex, Typography } from "@maxhub/max-ui";
-import { Search, Home } from "lucide-react";
+import { Input, Typography } from "@maxhub/max-ui";
+import { Search } from "lucide-react";
 
 type NotFoundPageProps = {
   /** При нажатии «На главную» */
   onGoHome?: () => void;
-  /** При отправке поиска (текст запроса) — опционально, можно перейти на поиск в приложении */
+  /** При отправке поиска (текст запроса) — опционально */
   onSearch?: (query: string) => void;
 };
 
@@ -26,137 +26,89 @@ export function NotFoundPage({ onGoHome, onSearch }: NotFoundPageProps) {
 
   return (
     <div
+      className="not-found-page"
       style={{
         minHeight: "100vh",
-        padding: "2rem 1.5rem",
+        padding: "3rem 1.5rem 4rem",
         boxSizing: "border-box",
-        background: "var(--color-bg-page, #fff)",
+        background: "var(--color-bg-primary)",
         display: "flex",
         flexDirection: "column",
+        alignItems: "center",
         justifyContent: "center",
+        textAlign: "center",
       }}
     >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr auto",
-          gap: "2rem",
-          alignItems: "center",
-          maxWidth: 900,
-          margin: "0 auto",
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <Typography.Headline
+      <div style={{ maxWidth: 420, width: "100%" }}>
+        <Typography.Headline
+          style={{
+            fontSize: "clamp(1.5rem, 4.5vw, 2rem)",
+            fontWeight: 600,
+            lineHeight: 1.25,
+            letterSpacing: "-0.02em",
+            color: "var(--color-text-primary)",
+            marginBottom: "2rem",
+          }}
+        >
+          Страницу, которую вы ищете, не удалось найти.
+        </Typography.Headline>
+
+        <form
+          onSubmit={handleSearchSubmit}
+          style={{
+            position: "relative",
+            width: "100%",
+            maxWidth: 360,
+            margin: "0 auto 1.25rem",
+          }}
+        >
+          <Search
+            size={20}
             style={{
-              fontSize: "3.5rem",
-              fontWeight: 700,
-              color: "var(--color-text-primary, #1f2937)",
-              marginBottom: "0.25rem",
-              lineHeight: 1.1,
+              position: "absolute",
+              left: "1rem",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--color-text-secondary)",
+              pointerEvents: "none",
             }}
-          >
-            404
-          </Typography.Headline>
-          <Typography.Body
+          />
+          <Input
+            type="text"
+            placeholder="Поиск по HAULZ"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="not-found-search-input"
             style={{
-              fontSize: "1.25rem",
-              fontWeight: 600,
-              color: "var(--color-text-primary, #1f2937)",
-              marginBottom: "0.75rem",
+              width: "100%",
+              padding: "0.75rem 1rem 0.75rem 2.75rem",
+              borderRadius: 10,
+              border: "1px solid var(--color-border)",
+              background: "var(--color-bg-input)",
+              fontSize: "1rem",
             }}
-          >
-            Ошибка!
-          </Typography.Body>
-          <Typography.Body
+            aria-label="Поиск"
+          />
+        </form>
+
+        {onGoHome && (
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              onGoHome();
+            }}
+            className="not-found-home-link"
             style={{
               fontSize: "1rem",
-              color: "var(--color-text-secondary, #6b7280)",
-              marginBottom: "1.5rem",
-              lineHeight: 1.5,
+              color: "var(--color-primary-blue)",
+              textDecoration: "none",
+              fontWeight: 400,
             }}
           >
-            К сожалению, запрашиваемая Вами страница не найдена.
-          </Typography.Body>
-          <Typography.Body
-            style={{
-              fontSize: "0.95rem",
-              color: "var(--color-text-secondary, #6b7280)",
-              marginBottom: "0.5rem",
-            }}
-          >
-            Попробуйте воспользоваться поиском:
-          </Typography.Body>
-          <form onSubmit={handleSearchSubmit} style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", maxWidth: 320 }}>
-            <Input
-              type="text"
-              placeholder="Поиск..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="admin-form-input"
-              style={{
-                flex: 1,
-                padding: "0.5rem 0.75rem",
-                borderRadius: 8,
-                border: "1px solid var(--color-border, #e5e7eb)",
-                background: "var(--color-bg-input, #f9fafb)",
-              }}
-            />
-            <Button
-              type="submit"
-              className="filter-button"
-              style={{
-                padding: "0.5rem 0.75rem",
-                borderRadius: 8,
-                border: "1px solid var(--color-border, #e5e7eb)",
-                background: "var(--color-bg-input, #f9fafb)",
-              }}
-              aria-label="Искать"
-            >
-              <Search size={20} />
-            </Button>
-          </form>
-          {onGoHome && (
-            <Button
-              type="button"
-              className="button-primary"
-              onClick={onGoHome}
-              style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}
-            >
-              <Home size={18} />
-              На главную
-            </Button>
-          )}
-        </div>
-        <div
-          style={{
-            width: 160,
-            height: 160,
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          aria-hidden
-        >
-          <svg
-            width="140"
-            height="140"
-            viewBox="0 0 120 120"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            style={{ opacity: 0.9 }}
-          >
-            <circle cx="60" cy="65" r="38" stroke="var(--color-border, #e5e7eb)" strokeWidth="2" fill="var(--color-bg-hover, #f3f4f6)" />
-            <ellipse cx="60" cy="58" rx="18" ry="14" fill="var(--color-text-secondary, #9ca3af)" opacity="0.6" />
-            <circle cx="55" cy="55" r="2.5" fill="var(--color-text-primary, #374151)" />
-            <circle cx="65" cy="55" r="2.5" fill="var(--color-text-primary, #374151)" />
-            <path d="M 45 68 Q 60 78 75 68" stroke="var(--color-text-secondary, #6b7280)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-            <path d="M 30 95 Q 60 75 90 95" stroke="var(--color-border, #d1d5db)" strokeWidth="2" fill="none" />
-            <line x1="52" y1="42" x2="45" y2="28" stroke="var(--color-text-secondary, #9ca3af)" strokeWidth="2" strokeLinecap="round" />
-            <line x1="68" y1="42" x2="75" y2="28" stroke="var(--color-text-secondary, #9ca3af)" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </div>
+            Или перейдите на главную ›
+          </a>
+        )}
       </div>
     </div>
   );

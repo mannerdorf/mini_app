@@ -35,6 +35,8 @@ export type Account = {
     isRegisteredUser?: boolean;
     /** Доступ ко всем заказчикам (список компаний из справочника) */
     accessAllInns?: boolean;
+    /** Компания пользователя есть в справочнике заказчиков (можно приглашать сотрудников) */
+    inCustomerDirectory?: boolean;
     permissions?: AccountPermissions;
     financialAccess?: boolean;
     /** Показывать перевозки, где вы заказчик (полные данные) */
