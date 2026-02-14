@@ -7860,9 +7860,10 @@ function getInitialAuthState(): typeof EMPTY_AUTH_STATE {
         if (savedAccounts) {
             let parsedAccounts = JSON.parse(savedAccounts) as Account[];
             if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
-                parsedAccounts = parsedAccounts.map((acc) =>
-                    acc.customers?.length && !acc.customer ? { ...acc, customer: acc.customers[0].name } : acc
-                );
+                parsedAccounts = parsedAccounts.map((acc) => {
+                    const withCustomer = acc.customers?.length && !acc.customer ? { ...acc, customer: acc.customers[0].name } : acc;
+                    return { ...withCustomer, inCustomerDirectory: undefined as boolean | undefined };
+                });
                 const savedActiveId = window.localStorage.getItem("haulz.activeAccountId");
                 const activeId = (savedActiveId && parsedAccounts.find((acc) => acc.id === savedActiveId)) ? savedActiveId : parsedAccounts[0].id;
                 let selectedIds: string[] = [];
