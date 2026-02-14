@@ -3379,19 +3379,30 @@ function ProfilePage({
     const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
 
     const fetchEmployeesAndPresets = useCallback(async () => {
-        if (!activeAccount?.login || !activeAccount?.password) return;
+        if (!activeAccount?.login) return;
         setEmployeesLoading(true);
         setEmployeesError(null);
+        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
         try {
-            const [listRes, presetsRes] = await Promise.all([
-                fetch('/api/my-employees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }) }),
-                fetch('/api/role-presets'),
-            ]);
-            const listData = await listRes.json().catch(() => ({}));
+            // Пресеты ролей — без авторизации, загружаем всегда (чтобы выпадающий список ролей появлялся)
+            const presetsRes = await fetch(`${origin}/api/role-presets`);
             const presetsData = await presetsRes.json().catch(() => ({}));
+            if (presetsRes.ok && Array.isArray(presetsData.presets)) {
+                setRolePresets(presetsData.presets.map((p: { id: string; label: string }) => ({ id: String(p.id), label: p.label || '' })));
+            }
+
+            if (!activeAccount?.password) {
+                setEmployeesList([]);
+                return;
+            }
+            const listRes = await fetch(`${origin}/api/my-employees`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }),
+            });
+            const listData = await listRes.json().catch(() => ({}));
             if (listRes.ok && listData.employees) setEmployeesList(listData.employees);
             else setEmployeesError(listData.error || 'Ошибка загрузки');
-            if (presetsRes.ok && Array.isArray(presetsData.presets)) setRolePresets(presetsData.presets.map((p: { id: string; label: string }) => ({ id: p.id, label: p.label })));
         } catch {
             setEmployeesError('Ошибка сети');
         } finally {
@@ -9182,6 +9193,35 @@ export default function App() {
                             showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
                         />
                     )}
+                    {showDashboard && activeTab === "cargo" && selectedAuths.length === 0 && (
+                        <Flex direction="column" align="center" justify="center" style={{ minHeight: "40vh", padding: "2rem", textAlign: "center" }}>
+                            {accounts.length === 0 ? (
+                                <>
+                                    <Package className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }} />
+                                    <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>Добавьте аккаунт, чтобы видеть перевозки</Typography.Body>
+                                    <Button className="filter-button" type="button" onClick={() => setActiveTab("profile")}>Перейти в Профиль</Button>
+                                </>
+                            ) : (
+                                <>
+                                    <Package className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }} />
+                                    <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>Выберите компанию для просмотра перевозок</Typography.Body>
+                                    <Button
+                                        className="filter-button"
+                                        type="button"
+                                        onClick={() => {
+                                            const id = (activeAccountId && accounts.some((a) => a.id === activeAccountId)) ? activeAccountId : accounts[0]?.id;
+                                            if (id) {
+                                                setSelectedAccountIds([id]);
+                                                setActiveAccountId(id);
+                                            }
+                                        }}
+                                    >
+                                        Показать перевозки
+                                    </Button>
+                                </>
+                            )}
+                        </Flex>
+                    )}
                     {activeTab === "docs" && auth && (
                         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
                             <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} searchText={searchText} onOpenCargo={openCargoFromChat} onOpenChat={openAiChatDeepLink} permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined} showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true} />
@@ -9231,6 +9271,35 @@ export default function App() {
                             useServiceRequest={useServiceRequest}
                             showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
                         />
+                    )}
+                    {!showDashboard && activeTab === "cargo" && selectedAuths.length === 0 && (
+                        <Flex direction="column" align="center" justify="center" style={{ minHeight: "40vh", padding: "2rem", textAlign: "center" }}>
+                            {accounts.length === 0 ? (
+                                <>
+                                    <Package className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }} />
+                                    <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>Добавьте аккаунт, чтобы видеть перевозки</Typography.Body>
+                                    <Button className="filter-button" type="button" onClick={() => setActiveTab("profile")}>Перейти в Профиль</Button>
+                                </>
+                            ) : (
+                                <>
+                                    <Package className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }} />
+                                    <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>Выберите компанию для просмотра перевозок</Typography.Body>
+                                    <Button
+                                        className="filter-button"
+                                        type="button"
+                                        onClick={() => {
+                                            const id = (activeAccountId && accounts.some((a) => a.id === activeAccountId)) ? activeAccountId : accounts[0]?.id;
+                                            if (id) {
+                                                setSelectedAccountIds([id]);
+                                                setActiveAccountId(id);
+                                            }
+                                        }}
+                                    >
+                                        Показать перевозки
+                                    </Button>
+                                </>
+                            )}
+                        </Flex>
                     )}
                     {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (
                         <DashboardPage
