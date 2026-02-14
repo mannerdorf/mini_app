@@ -1010,14 +1010,23 @@ body {
     min-height: 0;
 }
 
-/* Строка приглашения сотрудника: одна высота полей и кнопки, селект роли кликабельный */
+/* Строка приглашения сотрудника: одна высота полей и кнопок, селект роли кликабельный */
 .invite-form-row .admin-form-input,
 .invite-form-row .admin-form-input input,
 .invite-form-row select.invite-role-select,
-.invite-form-row .button-primary {
-    height: 36px !important;
-    min-height: 36px !important;
+.invite-form-row .button-primary,
+.invite-form-row .filter-button {
+    height: 2.5rem !important;
+    min-height: 2.5rem !important;
     box-sizing: border-box;
+}
+.invite-form-row .button-primary,
+.invite-form-row .filter-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 1rem;
+    min-width: 7rem;
 }
 .invite-form-row select.invite-role-select {
     min-width: 10rem;
