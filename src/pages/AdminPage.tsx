@@ -220,6 +220,50 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [paymentCalendarSelectedInns, setPaymentCalendarSelectedInns] = useState<Set<string>>(new Set());
   const [paymentCalendarDaysInput, setPaymentCalendarDaysInput] = useState<string>("14");
   const [paymentCalendarSaving, setPaymentCalendarSaving] = useState(false);
+  const [paymentCalendarSortColumn, setPaymentCalendarSortColumn] = useState<"inn" | "customer_name" | "days_to_pay" | null>(null);
+  const [paymentCalendarSortDir, setPaymentCalendarSortDir] = useState<"asc" | "desc">("asc");
+  const paymentCalendarCustomerListSorted = useMemo(() => {
+    const withDays = paymentCalendarCustomerList.map((c) => ({
+      ...c,
+      days: paymentCalendarItems.find((x) => x.inn === c.inn)?.days_to_pay ?? null,
+    }));
+    if (!paymentCalendarSortColumn) return withDays;
+    return [...withDays].sort((a, b) => {
+      let va: string | number | null;
+      let vb: string | number | null;
+      if (paymentCalendarSortColumn === "inn") {
+        va = a.inn;
+        vb = b.inn;
+      } else if (paymentCalendarSortColumn === "customer_name") {
+        va = a.customer_name || "";
+        vb = b.customer_name || "";
+      } else {
+        va = a.days ?? -1;
+        vb = b.days ?? -1;
+      }
+      const cmp = String(va).localeCompare(String(vb), undefined, { numeric: true });
+      return paymentCalendarSortDir === "asc" ? cmp : -cmp;
+    });
+  }, [paymentCalendarCustomerList, paymentCalendarItems, paymentCalendarSortColumn, paymentCalendarSortDir]);
+  const paymentCalendarItemsSorted = useMemo(() => {
+    if (!paymentCalendarSortColumn) return paymentCalendarItems;
+    return [...paymentCalendarItems].sort((a, b) => {
+      let va: string | number;
+      let vb: string | number;
+      if (paymentCalendarSortColumn === "inn") {
+        va = a.inn;
+        vb = b.inn;
+      } else if (paymentCalendarSortColumn === "customer_name") {
+        va = a.customer_name || "";
+        vb = b.customer_name || "";
+      } else {
+        va = a.days_to_pay;
+        vb = b.days_to_pay;
+      }
+      const cmp = String(va).localeCompare(String(vb), undefined, { numeric: true });
+      return paymentCalendarSortDir === "asc" ? cmp : -cmp;
+    });
+  }, [paymentCalendarItems, paymentCalendarSortColumn, paymentCalendarSortDir]);
   const [auditEntries, setAuditEntries] = useState<{ id: number; action: string; target_type: string; target_id: string | null; details: Record<string, unknown> | null; created_at: string }[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditSearch, setAuditSearch] = useState("");
@@ -2443,20 +2487,70 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               Применить к выбранным ({paymentCalendarSelectedInns.size})
             </Button>
           </Flex>
+          <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
+            <Button
+              type="button"
+              className="filter-button"
+              onClick={() => {
+                const inns = paymentCalendarCustomerList.map((c) => c.inn);
+                const allSelected = inns.length > 0 && inns.every((inn) => paymentCalendarSelectedInns.has(inn));
+                if (allSelected) {
+                  setPaymentCalendarSelectedInns((prev) => {
+                    const next = new Set(prev);
+                    inns.forEach((inn) => next.delete(inn));
+                    return next;
+                  });
+                } else {
+                  setPaymentCalendarSelectedInns((prev) => new Set([...prev, ...inns]));
+                }
+              }}
+              disabled={paymentCalendarCustomerList.length === 0}
+            >
+              {paymentCalendarCustomerList.length > 0 && paymentCalendarCustomerList.every((c) => paymentCalendarSelectedInns.has(c.inn))
+                ? "Снять выделение"
+                : "Выделить все"}
+            </Button>
+          </Flex>
           <div style={{ overflowX: "auto", maxHeight: "50vh", overflowY: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
               <thead>
                 <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
                   <th style={{ padding: "0.4rem 0.5rem", width: 40, textAlign: "left" }} />
-                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
-                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
-                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "right", fontWeight: 600 }}>Дней на оплату</th>
+                  <th
+                    style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600, cursor: "pointer", userSelect: "none" }}
+                    onClick={() => {
+                      setPaymentCalendarSortColumn((prev) => (prev === "inn" ? prev : "inn"));
+                      setPaymentCalendarSortDir((prev) => (paymentCalendarSortColumn === "inn" ? (prev === "asc" ? "desc" : "asc") : "asc"));
+                    }}
+                    title="Сортировка по ИНН"
+                  >
+                    ИНН {paymentCalendarSortColumn === "inn" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
+                  </th>
+                  <th
+                    style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600, cursor: "pointer", userSelect: "none" }}
+                    onClick={() => {
+                      setPaymentCalendarSortColumn((prev) => (prev === "customer_name" ? prev : "customer_name"));
+                      setPaymentCalendarSortDir((prev) => (paymentCalendarSortColumn === "customer_name" ? (prev === "asc" ? "desc" : "asc") : "asc"));
+                    }}
+                    title="Сортировка по наименованию"
+                  >
+                    Наименование {paymentCalendarSortColumn === "customer_name" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
+                  </th>
+                  <th
+                    style={{ padding: "0.4rem 0.5rem", textAlign: "right", fontWeight: 600, cursor: "pointer", userSelect: "none" }}
+                    onClick={() => {
+                      setPaymentCalendarSortColumn((prev) => (prev === "days_to_pay" ? prev : "days_to_pay"));
+                      setPaymentCalendarSortDir((prev) => (paymentCalendarSortColumn === "days_to_pay" ? (prev === "asc" ? "desc" : "asc") : "asc"));
+                    }}
+                    title="Сортировка по дням на оплату"
+                  >
+                    Дней на оплату {paymentCalendarSortColumn === "days_to_pay" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {paymentCalendarCustomerList.map((c) => {
-                  const current = paymentCalendarItems.find((x) => x.inn === c.inn);
-                  const days = current?.days_to_pay ?? "—";
+                {paymentCalendarCustomerListSorted.map((c) => {
+                  const days = c.days ?? "—";
                   const selected = paymentCalendarSelectedInns.has(c.inn);
                   return (
                     <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
@@ -2496,18 +2590,66 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
                 Выберите строки и нажмите «Применить к выбранным», чтобы изменить срок для нескольких заказчиков.
               </Typography.Body>
+              <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem", marginTop: "0.5rem" }}>
+                <Button
+                  type="button"
+                  className="filter-button"
+                  onClick={() => {
+                    const inns = paymentCalendarItems.map((c) => c.inn);
+                    const allSelected = inns.length > 0 && inns.every((inn) => paymentCalendarSelectedInns.has(inn));
+                    if (allSelected) {
+                      setPaymentCalendarSelectedInns((prev) => {
+                        const next = new Set(prev);
+                        inns.forEach((inn) => next.delete(inn));
+                        return next;
+                      });
+                    } else {
+                      setPaymentCalendarSelectedInns((prev) => new Set([...prev, ...inns]));
+                    }
+                  }}
+                >
+                  {paymentCalendarItems.every((c) => paymentCalendarSelectedInns.has(c.inn)) ? "Снять выделение" : "Выделить все"}
+                </Button>
+              </Flex>
               <div style={{ overflowX: "auto", maxHeight: "40vh", overflowY: "auto", marginTop: "0.5rem" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
                   <thead>
                     <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
                       <th style={{ padding: "0.4rem 0.5rem", width: 40, textAlign: "left" }} />
-                      <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
-                      <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
-                      <th style={{ padding: "0.4rem 0.5rem", textAlign: "right", fontWeight: 600 }}>Дней на оплату</th>
+                      <th
+                        style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600, cursor: "pointer", userSelect: "none" }}
+                        onClick={() => {
+                          setPaymentCalendarSortColumn((prev) => (prev === "inn" ? prev : "inn"));
+                          setPaymentCalendarSortDir((prev) => (paymentCalendarSortColumn === "inn" ? (prev === "asc" ? "desc" : "asc") : "asc"));
+                        }}
+                        title="Сортировка по ИНН"
+                      >
+                        ИНН {paymentCalendarSortColumn === "inn" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
+                      </th>
+                      <th
+                        style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600, cursor: "pointer", userSelect: "none" }}
+                        onClick={() => {
+                          setPaymentCalendarSortColumn((prev) => (prev === "customer_name" ? prev : "customer_name"));
+                          setPaymentCalendarSortDir((prev) => (paymentCalendarSortColumn === "customer_name" ? (prev === "asc" ? "desc" : "asc") : "asc"));
+                        }}
+                        title="Сортировка по наименованию"
+                      >
+                        Наименование {paymentCalendarSortColumn === "customer_name" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
+                      </th>
+                      <th
+                        style={{ padding: "0.4rem 0.5rem", textAlign: "right", fontWeight: 600, cursor: "pointer", userSelect: "none" }}
+                        onClick={() => {
+                          setPaymentCalendarSortColumn((prev) => (prev === "days_to_pay" ? prev : "days_to_pay"));
+                          setPaymentCalendarSortDir((prev) => (paymentCalendarSortColumn === "days_to_pay" ? (prev === "asc" ? "desc" : "asc") : "asc"));
+                        }}
+                        title="Сортировка по дням на оплату"
+                      >
+                        Дней на оплату {paymentCalendarSortColumn === "days_to_pay" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {paymentCalendarItems.map((c) => {
+                    {paymentCalendarItemsSorted.map((c) => {
                       const selected = paymentCalendarSelectedInns.has(c.inn);
                       return (
                         <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>

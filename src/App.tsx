@@ -629,6 +629,7 @@ function DashboardPage({
     onOpenCargoFilters,
     showSums = true,
     useServiceRequest = false,
+    hasAnalytics = false,
 }: {
     auth: AuthData;
     onClose: () => void;
@@ -637,6 +638,8 @@ function DashboardPage({
     showSums?: boolean;
     /** служебный режим: запрос перевозок только по датам (без INN и Mode) */
     useServiceRequest?: boolean;
+    /** право «Аналитика»: показывать дашборд платёжного календаря (плановое поступление денег) */
+    hasAnalytics?: boolean;
 }) {
     const [debugInfo, setDebugInfo] = useState<string>("");
     
@@ -700,6 +703,13 @@ function DashboardPage({
     /** Сортировка таблицы «Перевозки вне SLA»: колонка и направление */
     const [slaTableSortColumn, setSlaTableSortColumn] = useState<string | null>(null);
     const [slaTableSortOrder, setSlaTableSortOrder] = useState<'asc' | 'desc'>('asc');
+    /** Платёжный календарь: дни на оплату по ИНН (для hasAnalytics) */
+    const [paymentCalendarDaysByInn, setPaymentCalendarDaysByInn] = useState<Record<string, number>>({});
+    const [paymentCalendarLoading, setPaymentCalendarLoading] = useState(false);
+    const [paymentCalendarMonth, setPaymentCalendarMonth] = useState<{ year: number; month: number }>(() => {
+        const n = new Date();
+        return { year: n.getFullYear(), month: n.getMonth() + 1 };
+    });
 
     const handleSlaTableSort = (column: string) => {
         if (slaTableSortColumn === column) {
@@ -859,6 +869,29 @@ function DashboardPage({
         return () => window.removeEventListener('haulz-service-refresh', handler);
     }, [useServiceRequest, mutatePerevozki]);
 
+    useEffect(() => {
+        if (!hasAnalytics || !auth?.login || !auth?.password) return;
+        let cancelled = false;
+        setPaymentCalendarLoading(true);
+        fetch('/api/my-payment-calendar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: auth.login, password: auth.password }),
+        })
+            .then((r) => r.json())
+            .then((data: { items?: { inn: string; days_to_pay: number }[] }) => {
+                if (cancelled) return;
+                const map: Record<string, number> = {};
+                (data?.items ?? []).forEach((row) => {
+                    if (row?.inn != null) map[String(row.inn).trim()] = Math.max(0, Number(row.days_to_pay) || 0);
+                });
+                setPaymentCalendarDaysByInn(map);
+            })
+            .catch(() => { if (!cancelled) setPaymentCalendarDaysByInn({}); })
+            .finally(() => { if (!cancelled) setPaymentCalendarLoading(false); });
+        return () => { cancelled = true; };
+    }, [hasAnalytics, auth?.login, auth?.password]);
+
     const unpaidCount = useMemo(() => {
         return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
     }, [items]);
@@ -912,6 +945,26 @@ function DashboardPage({
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
         return res;
     }, [prevPeriodItems, useServiceRequest, statusFilter, senderFilter, receiverFilter, customerFilter, billStatusFilter, typeFilter, routeFilter]);
+
+    /** Плановое поступление денег по датам (дата выставления счёта + дни на оплату по справочнику) */
+    const plannedByDate = useMemo(() => {
+        const map = new Map<string, number>();
+        const itemInn = (item: CargoItem) => String((item as any).INN ?? (item as any).Inn ?? (item as any).inn ?? '').trim();
+        filteredItems.forEach((item) => {
+            const dateStr = item.DatePrih?.split('T')[0];
+            if (!dateStr) return;
+            const sum = typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+            if (sum <= 0) return;
+            const inn = itemInn(item);
+            const days = paymentCalendarDaysByInn[inn] ?? 0;
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return;
+            d.setDate(d.getDate() + days);
+            const key = d.toISOString().split('T')[0];
+            map.set(key, (map.get(key) ?? 0) + sum);
+        });
+        return map;
+    }, [filteredItems, paymentCalendarDaysByInn]);
     
     // Подготовка данных для графиков (группировка по датам)
     const chartData = useMemo(() => {
@@ -2186,6 +2239,75 @@ function DashboardPage({
                                 )}
                             </div>
                         </div>
+                    )}
+                </Panel>
+            )}
+
+            {/* Платёжный календарь: плановое поступление денег (только при праве «Аналитика») */}
+            {hasAnalytics && !loading && !error && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>Платёжный календарь</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+                        Плановое поступление денег по срокам оплаты (дата перевозки + дни на оплату из справочника).
+                    </Typography.Body>
+                    {paymentCalendarLoading ? (
+                        <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка условий оплаты...</Typography.Body></Flex>
+                    ) : (
+                        <>
+                            <Flex align="center" gap="0.5rem" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
+                                <Typography.Body style={{ fontWeight: 600, minWidth: '10rem', textAlign: 'center' }}>
+                                    {['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'][paymentCalendarMonth.month - 1]} {paymentCalendarMonth.year}
+                                </Typography.Body>
+                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
+                            </Flex>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', fontSize: '0.75rem' }}>
+                                {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((wd) => (
+                                    <div key={wd} style={{ textAlign: 'center', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.25rem' }}>{wd}</div>
+                                ))}
+                                {(() => {
+                                    const { year, month } = paymentCalendarMonth;
+                                    const first = new Date(year, month - 1, 1);
+                                    const lastDay = new Date(year, month, 0).getDate();
+                                    const startOffset = (first.getDay() + 6) % 7;
+                                    const cells: { day: number | null; key: string | null }[] = [];
+                                    for (let i = 0; i < startOffset; i++) cells.push({ day: null, key: null });
+                                    for (let d = 1; d <= lastDay; d++) {
+                                        const key = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                                        cells.push({ day: d, key });
+                                    }
+                                    return cells.map((c, i) => {
+                                        const sum = c.key ? plannedByDate.get(c.key) : undefined;
+                                        return (
+                                            <div
+                                                key={i}
+                                                style={{
+                                                    padding: '0.35rem',
+                                                    textAlign: 'center',
+                                                    borderRadius: 4,
+                                                    background: sum != null && sum > 0 ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
+                                                    color: sum != null && sum > 0 ? 'white' : 'var(--color-text-secondary)',
+                                                    minHeight: '2.25rem',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                }}
+                                                title={c.key && sum != null && sum > 0 ? `${c.key}: ${Math.round(sum).toLocaleString('ru-RU')} ₽` : undefined}
+                                            >
+                                                {c.day != null ? c.day : ''}
+                                                {sum != null && sum > 0 && <span style={{ fontSize: '0.65rem', lineHeight: 1 }}>{formatCurrency(sum, true)}</span>}
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                            {plannedByDate.size === 0 && !paymentCalendarLoading && (
+                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
+                                    Нет данных за выбранный период или условия оплаты не заданы в справочнике.
+                                </Typography.Body>
+                            )}
+                        </>
                     )}
                 </Panel>
             )}
@@ -3475,7 +3597,7 @@ function ProfilePage({
             icon: <UserIcon className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('roles')
         },
-        ...(activeAccount?.isRegisteredUser ? [{
+        ...(activeAccount?.isRegisteredUser && activeAccount?.inCustomerDirectory === true ? [{
             id: 'employees',
             label: 'Сотрудники',
             icon: <Users className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
@@ -9442,18 +9564,14 @@ export default function App() {
             <header className="app-header">
                     <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {!useServiceRequest && (activeAccount?.isRegisteredUser && !activeAccount?.accessAllInns && (activeAccount?.customer || activeAccount?.customers?.[0]?.name) ? (
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-text-primary)' }} title="Компания (доступ только к данным этой компании)">
-                                {activeAccount.customer || activeAccount.customers?.[0]?.name || 'Компания'}
-                            </Typography.Body>
-                        ) : (
+                        {!useServiceRequest && activeAccountId && activeAccount && (
                             <CustomerSwitcher
                                 accounts={accounts}
                                 activeAccountId={activeAccountId}
                                 onSwitchAccount={handleSwitchAccount}
                                 onUpdateAccount={handleUpdateAccount}
                             />
-                        ))}
+                        )}
                         {serviceModeUnlocked && (
                             <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
                                 <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Служ.</Typography.Label>
@@ -9513,6 +9631,7 @@ export default function App() {
                             onOpenCargoFilters={openCargoWithFilters}
                             showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : (activeAccount?.roleCustomer ?? true)}
                             useServiceRequest={useServiceRequest}
+                            hasAnalytics={true}
                         />
                     )}
                     {showDashboard && activeTab === "cargo" && selectedAuths.length > 0 && (
@@ -9640,14 +9759,24 @@ export default function App() {
                             )}
                         </Flex>
                     )}
-                    {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (
+                    {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (showDashboard || activeAccount?.permissions?.analytics === true) && (
                         <DashboardPage
                             auth={auth}
                             onClose={() => {}}
                             onOpenCargoFilters={openCargoWithFilters}
                             showSums={activeAccount?.roleCustomer ?? true}
                             useServiceRequest={useServiceRequest}
+                            hasAnalytics={activeAccount?.permissions?.analytics === true}
                         />
+                    )}
+                    {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && !showDashboard && activeAccount?.permissions?.analytics !== true && (
+                        <Flex direction="column" align="center" justify="center" style={{ minHeight: "40vh", padding: "2rem", textAlign: "center" }}>
+                            <Typography.Headline style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>Главная</Typography.Headline>
+                            <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+                                Дашборд и платёжный календарь доступны пользователям с правом «Аналитика».
+                            </Typography.Body>
+                            <Button className="filter-button" type="button" onClick={() => setActiveTab("cargo")}>Перейти к грузам</Button>
+                        </Flex>
                     )}
                     {!showDashboard && activeTab === "support" && auth && (
                         <AiChatProfilePage
