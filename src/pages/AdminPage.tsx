@@ -171,6 +171,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       /* ignore */
     }
   }, [theme]);
+
+  useEffect(() => {
+    const el = typeof document !== "undefined" ? document.body : null;
+    if (!el) return;
+    if (theme === "light") {
+      el.classList.add("light-mode");
+    } else {
+      el.classList.remove("light-mode");
+    }
+    return () => el.classList.remove("light-mode");
+  }, [theme]);
   const [users, setUsers] = useState<User[]>([]);
   const [lastLoginAvailable, setLastLoginAvailable] = useState(true);
   const [topActiveExpanded, setTopActiveExpanded] = useState(false);

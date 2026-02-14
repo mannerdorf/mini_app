@@ -7470,16 +7470,7 @@ function getInitialAuthState(): typeof EMPTY_AUTH_STATE {
     if (initialAuthStateCache !== undefined) return initialAuthStateCache;
     if (typeof window === "undefined") return EMPTY_AUTH_STATE;
     try {
-        const saved = window.localStorage.getItem("haulz.auth");
-        if (saved) {
-            const parsed = JSON.parse(saved) as AuthData;
-            if (parsed?.login && parsed?.password) {
-                const accountId = parsed.id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                const account: Account = { login: parsed.login, password: parsed.password, id: accountId };
-                initialAuthStateCache = { accounts: [account], activeAccountId: accountId, selectedAccountIds: [accountId] };
-                return initialAuthStateCache;
-            }
-        }
+        // Сначала восстанавливаем из haulz.accounts (полные данные, включая компанию сотрудника)
         const savedAccounts = window.localStorage.getItem("haulz.accounts");
         if (savedAccounts) {
             let parsedAccounts = JSON.parse(savedAccounts) as Account[];
@@ -7504,6 +7495,17 @@ function getInitialAuthState(): typeof EMPTY_AUTH_STATE {
                 }
                 if (selectedIds.length === 0) selectedIds = activeId ? [activeId] : [];
                 initialAuthStateCache = { accounts: parsedAccounts, activeAccountId: activeId, selectedAccountIds: selectedIds };
+                return initialAuthStateCache;
+            }
+        }
+        // Иначе — миграция со старого формата haulz.auth (только логин/пароль)
+        const saved = window.localStorage.getItem("haulz.auth");
+        if (saved) {
+            const parsed = JSON.parse(saved) as AuthData;
+            if (parsed?.login && parsed?.password) {
+                const accountId = parsed.id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                const account: Account = { login: parsed.login, password: parsed.password, id: accountId };
+                initialAuthStateCache = { accounts: [account], activeAccountId: accountId, selectedAccountIds: [accountId] };
                 return initialAuthStateCache;
             }
         }
@@ -7918,23 +7920,7 @@ export default function App() {
                 // ignore
             }
 
-            const saved = window.localStorage.getItem("haulz.auth");
-            if (saved) {
-                const parsed = JSON.parse(saved) as AuthData;
-                if (parsed?.login && parsed?.password) {
-                    // Миграция старого формата в новый
-                    const accountId = parsed.id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                    const account: Account = {
-                        login: parsed.login,
-                        password: parsed.password,
-                        id: accountId
-                    };
-                    setAccounts([account]);
-                    setActiveAccountId(accountId);
-                }
-            }
-            
-            // Загружаем массив аккаунтов (новый формат)
+            // Загружаем массив аккаунтов (новый формат) — приоритет над haulz.auth
             const savedAccounts = window.localStorage.getItem("haulz.accounts");
             const savedActiveId = window.localStorage.getItem("haulz.activeAccountId");
             const savedTab = window.localStorage.getItem("haulz.lastTab");
@@ -7992,6 +7978,24 @@ export default function App() {
                     // Игнорируем ошибки парсинга
                 }
             }
+            // Если нет сохранённых аккаунтов — миграция со старого формата haulz.auth
+            if (!savedAccounts) {
+                const saved = window.localStorage.getItem("haulz.auth");
+                if (saved) {
+                    try {
+                        const parsed = JSON.parse(saved) as AuthData;
+                        if (parsed?.login && parsed?.password) {
+                            const accountId = parsed.id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                            const account: Account = { login: parsed.login, password: parsed.password, id: accountId };
+                            setAccounts([account]);
+                            setActiveAccountId(accountId);
+                            setSelectedAccountIds([accountId]);
+                        }
+                    } catch {
+                        // ignore
+                    }
+                }
+            }
         } catch {
             // игнорируем ошибки чтения
         }
@@ -8037,6 +8041,63 @@ export default function App() {
             // игнорируем ошибки записи
         }
     }, [accounts, activeAccountId, selectedAccountIds]);
+
+    // Для сотрудников без компании в состоянии — подтянуть inn/companyName с бэкенда (после входа или восстановления из localStorage)
+    useEffect(() => {
+        if (typeof window === "undefined" || accounts.length === 0) return;
+        const needRefresh = accounts.filter(
+            (acc) =>
+                acc.isRegisteredUser &&
+                acc.password &&
+                (!acc.customers?.length || !acc.activeCustomerInn)
+        );
+        if (needRefresh.length === 0) return;
+        let cancelled = false;
+        (async () => {
+            const updates: { id: string; customers: CustomerOption[]; activeCustomerInn: string | null; customer: string | null; accessAllInns: boolean; permissions?: Record<string, boolean>; financialAccess?: boolean }[] = [];
+            for (const acc of needRefresh) {
+                try {
+                    const res = await fetch("/api/auth-registered-login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ email: acc.login.trim().toLowerCase(), password: acc.password }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (cancelled || !res.ok || !data?.ok || !data?.user) continue;
+                    const u = data.user;
+                    const customers: CustomerOption[] = u.inn ? [{ name: u.companyName || u.inn, inn: u.inn }] : [];
+                    updates.push({
+                        id: acc.id,
+                        customers,
+                        activeCustomerInn: u.inn ?? null,
+                        customer: u.companyName ?? null,
+                        accessAllInns: !!u.accessAllInns,
+                        permissions: u.permissions,
+                        financialAccess: u.financialAccess,
+                    });
+                } catch {
+                    // ignore
+                }
+            }
+            if (cancelled || updates.length === 0) return;
+            setAccounts((prev) =>
+                prev.map((a) => {
+                    const up = updates.find((u) => u.id === a.id);
+                    if (!up) return a;
+                    return {
+                        ...a,
+                        customers: up.customers,
+                        activeCustomerInn: up.activeCustomerInn ?? undefined,
+                        customer: up.customer ?? undefined,
+                        accessAllInns: up.accessAllInns,
+                        ...(up.permissions != null ? { permissions: up.permissions } : {}),
+                        ...(up.financialAccess != null ? { financialAccess: up.financialAccess } : {}),
+                    };
+                })
+            );
+        })();
+        return () => { cancelled = true; };
+    }, [accounts]);
     const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
 
