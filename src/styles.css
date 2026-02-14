@@ -663,6 +663,43 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     color: #9ca3af !important;
 }
 
+/* Единая высота кнопок и полей ввода в панели фильтров пользователей */
+.admin-users-toolbar .filter-button,
+.admin-users-toolbar .admin-form-input,
+.admin-users-toolbar .admin-form-input input,
+.admin-users-toolbar select.admin-form-input {
+    height: 36px;
+    min-height: 36px;
+    box-sizing: border-box;
+}
+.admin-users-toolbar .admin-form-input {
+    display: flex;
+    align-items: center;
+}
+.admin-users-toolbar .admin-form-input input {
+    flex: 1;
+    min-height: 0;
+}
+
+/* Единая высота полей и кнопок в панели журнала аудита */
+.admin-audit-toolbar .admin-form-input,
+.admin-audit-toolbar .admin-form-input input,
+.admin-audit-toolbar select,
+.admin-audit-toolbar input[type="date"],
+.admin-audit-toolbar .filter-button {
+    height: 36px;
+    min-height: 36px;
+    box-sizing: border-box;
+}
+.admin-audit-toolbar .admin-form-input {
+    display: flex;
+    align-items: center;
+}
+.admin-audit-toolbar .admin-form-input input {
+    flex: 1;
+    min-height: 0;
+}
+
 /* Поле выбора файла в админке: в светлом режиме не чёрная строка */
 .light-mode .admin-file-input-wrap,
 .light-mode .admin-file-input-wrap .admin-file-input,

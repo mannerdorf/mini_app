@@ -93,6 +93,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ok: true, id: String(newId), label, permissions, financial, serviceMode });
     } catch (e: unknown) {
       console.error("admin-presets POST error:", e);
+      const err = e as { code?: string };
+      if (err?.code === "23505") return res.status(400).json({ error: "Пресет с таким названием уже существует" });
       return res.status(500).json({ error: "Ошибка сохранения пресета" });
     }
   }

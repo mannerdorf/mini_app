@@ -55,20 +55,6 @@ const DEFAULT_PRESETS: PermissionPreset[] = [
   { id: "empty", label: "Пустой", permissions: { cms_access: false, cargo: false, doc_invoices: false, doc_acts: false, doc_orders: false, doc_claims: false, doc_contracts: false, doc_acts_settlement: false, doc_tariffs: false, chat: false, service_mode: false }, financial: false, serviceMode: false },
 ];
 
-type AuthMethodsConfig = {
-  api_v1: boolean;
-  api_v2: boolean;
-  cms: boolean;
-};
-
-const AUTH_METHODS = [
-  { key: "api_v1", label: "API 1С v1", description: "GetPerevozki" },
-  { key: "api_v2", label: "API 1С v2", description: "GetCustomers" },
-  { key: "cms", label: "CMS", description: "email / пароль" },
-] as const;
-
-type AuthMethodKey = (typeof AUTH_METHODS)[number]["key"];
-
 const WEAK_PASSWORDS = new Set(["123", "1234", "12345", "123456", "1234567", "12345678", "password", "qwerty", "admin", "letmein"]);
 function isPasswordStrongEnough(p: string): { ok: boolean; message?: string } {
   if (p.length < 8) return { ok: false, message: "Минимум 8 символов" };
@@ -139,7 +125,7 @@ function UserRow({
           <Typography.Body style={{ fontWeight: 600 }}>{user.login ?? "—"}</Typography.Body>
           {user.created_at && (
             <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.2rem" }}>
-              Зарегистрирован: {new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
+              {new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
             </Typography.Body>
           )}
         </div>
@@ -174,6 +160,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [bulkAccessAllInns, setBulkAccessAllInns] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkSelectedPresetId, setBulkSelectedPresetId] = useState<string>("");
   const [customersList, setCustomersList] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [customersSearch, setCustomersSearch] = useState("");
   const [customersShowOnlyWithoutEmail, setCustomersShowOnlyWithoutEmail] = useState(false);
@@ -217,6 +204,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     chat: true,
     service_mode: false,
   });
+  const [formSelectedPresetId, setFormSelectedPresetId] = useState<string>("");
   const [formFinancial, setFormFinancial] = useState(false);
   const [formSendEmail, setFormSendEmail] = useState(true);
   const [formPassword, setFormPassword] = useState("");
@@ -228,16 +216,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchSuccess, setBatchSuccess] = useState<string | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
-  const [authMethodsConfig, setAuthMethodsConfig] = useState<AuthMethodsConfig>({
-    api_v1: true,
-    api_v2: true,
-    cms: true,
-  });
-  const [authConfigLoading, setAuthConfigLoading] = useState(false);
-  const [authConfigSaving, setAuthConfigSaving] = useState(false);
-  const [authConfigError, setAuthConfigError] = useState<string | null>(null);
-  const [authConfigMessage, setAuthConfigMessage] = useState<string | null>(null);
-
   const [emailHost, setEmailHost] = useState("");
   const [emailPort, setEmailPort] = useState("");
   const [emailUser, setEmailUser] = useState("");
@@ -263,6 +241,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [editorSendPasswordToEmail, setEditorSendPasswordToEmail] = useState(true);
   const [editorCustomers, setEditorCustomers] = useState<CustomerItem[]>([]);
   const [editorCustomerPickOpen, setEditorCustomerPickOpen] = useState(false);
+  const [editorSelectedPresetId, setEditorSelectedPresetId] = useState<string>("");
   const [customerDirectoryMap, setCustomerDirectoryMap] = useState<Record<string, string>>({});
   const [topActiveUsers, setTopActiveUsers] = useState<{ id: number; login: string; company_name: string; last_login_at: string | null }[]>([]);
   const [topActiveLoading, setTopActiveLoading] = useState(false);
@@ -322,33 +301,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
   }, [adminToken, onLogout]);
 
-  const fetchAuthConfig = useCallback(async () => {
-    setAuthConfigLoading(true);
-    setAuthConfigError(null);
-    setAuthConfigMessage(null);
-    try {
-      const res = await fetch("/api/admin-auth-config", {
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      if (res.status === 401) {
-        onLogout?.("expired");
-        return;
-      }
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data?.error as string) || "Ошибка загрузки способов авторизации");
-      const config = data.config || {};
-      setAuthMethodsConfig({
-        api_v1: config.api_v1 ?? true,
-        api_v2: config.api_v2 ?? true,
-        cms: config.cms ?? true,
-      });
-    } catch (e: unknown) {
-      setAuthConfigError((e as Error)?.message || "Ошибка загрузки способов авторизации");
-    } finally {
-      setAuthConfigLoading(false);
-    }
-  }, [adminToken, onLogout]);
-
   const fetchEmailSettings = useCallback(async () => {
     setError(null);
     try {
@@ -379,11 +331,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (tab === "users") {
       fetchUsers();
-      fetchAuthConfig();
       fetchTopActive();
     }
     if (tab === "email") fetchEmailSettings();
-  }, [tab, fetchUsers, fetchEmailSettings, fetchAuthConfig, fetchTopActive]);
+  }, [tab, fetchUsers, fetchEmailSettings, fetchTopActive]);
 
   const usersFilterCounts = useMemo(() => {
     const q = usersSearchQuery.trim().toLowerCase();
@@ -541,6 +492,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   };
 
   const togglePerm = (key: string) => {
+    setFormSelectedPresetId("");
     setFormPermissions((p) => ({ ...p, [key]: !p[key] }));
   };
 
@@ -767,14 +719,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   const openPermissionsEditor = (user: User) => {
     setSelectedUser(user);
+    setEditorSelectedPresetId("");
   };
 
   const closePermissionsEditor = () => {
     setSelectedUser(null);
     setResetPasswordInfo(null);
+    setEditorSelectedPresetId("");
   };
 
   const handlePermissionsToggle = (key: string) => {
+    setEditorSelectedPresetId("");
     setEditorPermissions((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
@@ -782,7 +737,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const toggleSelectUser = useCallback((id: number) => {
     setSelectedUserIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }, []);
-  const clearSelection = useCallback(() => setSelectedUserIds([]), []);
+  const clearSelection = useCallback(() => {
+    setSelectedUserIds([]);
+    setBulkSelectedPresetId("");
+  }, []);
 
   const handleBulkApplyPermissions = useCallback(async () => {
     if (selectedUserIds.length === 0) return;
@@ -842,40 +800,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setEditorError((e as Error)?.message || "Ошибка сохранения");
     } finally {
       setEditorLoading(false);
-    }
-  };
-
-  const handleToggleAuthMethod = (key: AuthMethodKey) => {
-    setAuthMethodsConfig((prev) => ({ ...prev, [key]: !prev[key] }));
-    setAuthConfigMessage(null);
-  };
-
-  const handleSaveAuthConfig = async () => {
-    setAuthConfigSaving(true);
-    setAuthConfigError(null);
-    setAuthConfigMessage(null);
-    try {
-      const res = await fetch("/api/admin-auth-config", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
-        },
-        body: JSON.stringify(authMethodsConfig),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data?.error as string) || "Ошибка сохранения способов авторизации");
-      const config = data.config || authMethodsConfig;
-      setAuthMethodsConfig({
-        api_v1: config.api_v1 ?? authMethodsConfig.api_v1,
-        api_v2: config.api_v2 ?? authMethodsConfig.api_v2,
-        cms: config.cms ?? authMethodsConfig.cms,
-      });
-      setAuthConfigMessage("Способы авторизации обновлены");
-    } catch (e: unknown) {
-      setAuthConfigError((e as Error)?.message || "Ошибка сохранения способов авторизации");
-    } finally {
-      setAuthConfigSaving(false);
     }
   };
 
@@ -1056,51 +980,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             ) : null;
           })()}
           <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
-            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.25rem" }}>Варианты верификации</Typography.Body>
-            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
-              Включите или отключите способы входа для пользователей
-            </Typography.Body>
-            {authConfigLoading ? (
-              <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <Typography.Body style={{ fontSize: "0.9rem" }}>Загрузка...</Typography.Body>
-              </Flex>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {AUTH_METHODS.map((method) => (
-                  <Flex key={method.key} justify="space-between" align="center">
-                    <div style={{ minWidth: 0 }}>
-                      <Typography.Body style={{ fontWeight: 600 }}>{method.label}</Typography.Body>
-                      <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
-                        {method.description}
-                      </Typography.Body>
-                    </div>
-                    <TapSwitch checked={authMethodsConfig[method.key]} onToggle={() => handleToggleAuthMethod(method.key)} />
-                  </Flex>
-                ))}
-              </div>
-            )}
-            {authConfigError && (
-              <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginTop: "0.5rem" }}>
-                {authConfigError}
-              </Typography.Body>
-            )}
-            {authConfigMessage && (
-              <Typography.Body style={{ color: "var(--color-success-status)", fontSize: "0.85rem", marginTop: "0.5rem" }}>
-                {authConfigMessage}
-              </Typography.Body>
-            )}
-            <Button
-              className="button-primary"
-              style={{ marginTop: "0.75rem" }}
-              onClick={handleSaveAuthConfig}
-              disabled={authConfigSaving || authConfigLoading}
-            >
-              {authConfigSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить варианты верификации"}
-            </Button>
-          </Panel>
-
-          <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
             <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
               <Activity className="w-4 h-4" />
               Топ активных пользователей
@@ -1156,18 +1035,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           </Panel>
 
           <Panel className="cargo-card" style={{ padding: "1rem" }}>
-            <Flex gap="0.75rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+            <Flex className="admin-users-toolbar" gap="0.75rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
               <Flex align="center" gap="0.35rem">
                 <Button
                   className="filter-button"
-                  style={{ padding: "0.35rem 0.6rem", fontSize: "0.85rem", background: usersViewMode === "login" ? "var(--color-primary-blue)" : undefined, color: usersViewMode === "login" ? "white" : undefined }}
+                  style={{ padding: "0 0.6rem", fontSize: "0.85rem", background: usersViewMode === "login" ? "var(--color-primary-blue)" : undefined, color: usersViewMode === "login" ? "white" : undefined }}
                   onClick={() => setUsersViewMode("login")}
                 >
                   По логинам
                 </Button>
                 <Button
                   className="filter-button"
-                  style={{ padding: "0.35rem 0.6rem", fontSize: "0.85rem", background: usersViewMode === "customer" ? "var(--color-primary-blue)" : undefined, color: usersViewMode === "customer" ? "white" : undefined }}
+                  style={{ padding: "0 0.6rem", fontSize: "0.85rem", background: usersViewMode === "customer" ? "var(--color-primary-blue)" : undefined, color: usersViewMode === "customer" ? "white" : undefined }}
                   onClick={() => setUsersViewMode("customer")}
                 >
                   По заказчикам
@@ -1195,7 +1074,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   value={usersFilterBy}
                   onChange={(e) => setUsersFilterBy(e.target.value as typeof usersFilterBy)}
                   className="admin-form-input"
-                  style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem", minWidth: "11rem" }}
+                  style={{ padding: "0 0.5rem", fontSize: "0.85rem", minWidth: "11rem" }}
                 >
                   <option value="all">Все ({usersFilterCounts.all})</option>
                   <option value="cms">С доступом в CMS ({usersFilterCounts.cms})</option>
@@ -1212,7 +1091,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     setUsersSortOrder(order);
                   }}
                   className="admin-form-input"
-                  style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem", minWidth: "10rem" }}
+                  style={{ padding: "0 0.5rem", fontSize: "0.85rem", minWidth: "10rem" }}
                 >
                   <option value="email-asc">По email (А–Я)</option>
                   <option value="email-desc">По email (Я–А)</option>
@@ -1342,9 +1221,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <select
                         className="admin-form-input"
                         style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem" }}
-                        value=""
+                        value={editorSelectedPresetId}
                         onChange={(e) => {
-                          const preset = permissionPresets.find((p) => p.id === e.target.value);
+                          const id = e.target.value;
+                          setEditorSelectedPresetId(id);
+                          const preset = permissionPresets.find((p) => p.id === id);
                           if (preset) {
                             setEditorPermissions(preset.permissions);
                             setEditorFinancial(preset.financial);
@@ -1362,7 +1243,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <div className="admin-permissions-toolbar">
                       {PERMISSION_ROW1.map(({ key, label }) => {
                         const isActive = key === "__financial__" ? editorFinancial : key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : !!editorPermissions[key];
-                        const onClick = key === "__financial__" ? () => setEditorFinancial(!editorFinancial) : key === "service_mode" ? () => { const v = !(!!editorPermissions.service_mode || editorAccessAllInns); setEditorPermissions((p) => ({ ...p, service_mode: v })); setEditorAccessAllInns(v); } : () => handlePermissionsToggle(key);
+                        const onClick = key === "__financial__" ? () => { setEditorSelectedPresetId(""); setEditorFinancial(!editorFinancial); } : key === "service_mode" ? () => { setEditorSelectedPresetId(""); const v = !(!!editorPermissions.service_mode || editorAccessAllInns); setEditorPermissions((p) => ({ ...p, service_mode: v })); setEditorAccessAllInns(v); } : () => handlePermissionsToggle(key);
                         return (
                           <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>
                         );
@@ -1516,9 +1397,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <select
                       className="admin-form-input"
                       style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem" }}
-                      value=""
+                      value={bulkSelectedPresetId}
                       onChange={(e) => {
-                        const preset = permissionPresets.find((p) => p.id === e.target.value);
+                        const id = e.target.value;
+                        setBulkSelectedPresetId(id);
+                        const preset = permissionPresets.find((p) => p.id === id);
                         if (preset) {
                           setBulkPermissions(preset.permissions);
                           setBulkFinancial(preset.financial);
@@ -1536,13 +1419,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <div className="admin-permissions-toolbar">
                     {PERMISSION_ROW1.map(({ key, label }) => {
                       const isActive = key === "__financial__" ? bulkFinancial : key === "service_mode" ? (!!bulkPermissions.service_mode || bulkAccessAllInns) : !!bulkPermissions[key];
-                      const onClick = key === "__financial__" ? () => setBulkFinancial(!bulkFinancial) : key === "service_mode" ? () => { const v = !(!!bulkPermissions.service_mode || bulkAccessAllInns); setBulkPermissions((p) => ({ ...p, service_mode: v })); setBulkAccessAllInns(v); } : () => setBulkPermissions((p) => ({ ...p, [key]: !p[key] }));
+                      const onClick = key === "__financial__" ? () => { setBulkSelectedPresetId(""); setBulkFinancial(!bulkFinancial); } : key === "service_mode" ? () => { setBulkSelectedPresetId(""); const v = !(!!bulkPermissions.service_mode || bulkAccessAllInns); setBulkPermissions((p) => ({ ...p, service_mode: v })); setBulkAccessAllInns(v); } : () => { setBulkSelectedPresetId(""); setBulkPermissions((p) => ({ ...p, [key]: !p[key] })); };
                       return <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>;
                     })}
                   </div>
                   <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
                     {PERMISSION_ROW2.map(({ key, label }) => (
-                      <button key={key} type="button" className={`permission-button ${!!bulkPermissions[key] ? "active" : ""}`} onClick={() => setBulkPermissions((p) => ({ ...p, [key]: !p[key] }))}>{label}</button>
+                      <button key={key} type="button" className={`permission-button ${!!bulkPermissions[key] ? "active" : ""}`} onClick={() => { setBulkSelectedPresetId(""); setBulkPermissions((p) => ({ ...p, [key]: !p[key] })); }}>{label}</button>
                     ))}
                   </div>
                   {bulkError && <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginTop: "0.5rem" }}>{bulkError}</Typography.Body>}
@@ -1813,9 +1696,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <select
                   className="admin-form-input"
                   style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem" }}
-                  value=""
+                  value={formSelectedPresetId}
                   onChange={(e) => {
-                    const preset = permissionPresets.find((p) => p.id === e.target.value);
+                    const id = e.target.value;
+                    setFormSelectedPresetId(id);
+                    const preset = permissionPresets.find((p) => p.id === id);
                     if (preset) {
                       setFormPermissions(preset.permissions);
                       setFormFinancial(preset.financial);
@@ -1834,7 +1719,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <div className="admin-permissions-toolbar">
                 {PERMISSION_ROW1.map(({ key, label }) => {
                   const isActive = key === "__financial__" ? formFinancial : key === "service_mode" ? (!!formPermissions.service_mode || formAccessAllInns) : !!formPermissions[key];
-                  const onClick = key === "__financial__" ? () => setFormFinancial(!formFinancial) : key === "service_mode" ? () => { const v = !(!!formPermissions.service_mode || formAccessAllInns); setFormPermissions((p) => ({ ...p, service_mode: v })); setFormAccessAllInns(v); if (v) clearCustomerSelection(); } : () => togglePerm(key);
+                  const onClick = key === "__financial__" ? () => { setFormSelectedPresetId(""); setFormFinancial(!formFinancial); } : key === "service_mode" ? () => { setFormSelectedPresetId(""); const v = !(!!formPermissions.service_mode || formAccessAllInns); setFormPermissions((p) => ({ ...p, service_mode: v })); setFormAccessAllInns(v); if (v) clearCustomerSelection(); } : () => togglePerm(key);
                   return (
                     <button type="button" key={key} className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>
                   );
@@ -1986,7 +1871,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
             Регистрации и изменения прав пользователей
           </Typography.Body>
-          <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "1rem" }}>
+          <Flex className="admin-audit-toolbar" gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "1rem" }}>
             <Input
               className="admin-form-input"
               placeholder="Поиск (логин, действие...)"
@@ -1995,18 +1880,20 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               style={{ width: "12rem", minWidth: "10rem" }}
             />
             <select
+              className="admin-form-input"
               value={auditFilterAction}
               onChange={(e) => setAuditFilterAction(e.target.value)}
-              style={{ padding: "0.35rem 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+              style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
             >
               <option value="">Все действия</option>
               <option value="user_register">Регистрация</option>
               <option value="user_update">Изменение</option>
             </select>
             <select
+              className="admin-form-input"
               value={auditFilterTargetType}
               onChange={(e) => setAuditFilterTargetType(e.target.value)}
-              style={{ padding: "0.35rem 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+              style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
             >
               <option value="">Все типы</option>
               <option value="user">Пользователь</option>
@@ -2014,16 +1901,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>С:</Typography.Body>
             <input
               type="date"
+              className="admin-form-input"
               value={auditFromDate}
               onChange={(e) => setAuditFromDate(e.target.value)}
-              style={{ padding: "0.35rem 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+              style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
             />
             <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>По:</Typography.Body>
             <input
               type="date"
+              className="admin-form-input"
               value={auditToDate}
               onChange={(e) => setAuditToDate(e.target.value)}
-              style={{ padding: "0.35rem 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+              style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
             />
             <Button
               className="filter-button"
@@ -2153,9 +2042,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <button key={key} type="button" className={`permission-button ${!!presetFormPermissions[key] ? "active" : ""}`} onClick={() => setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }))}>{label}</button>
                     ))}
                   </div>
-                  {presetFormError && <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem" }}>{presetFormError}</Typography.Body>}
-                  <Flex gap="0.5rem">
+                  {presetFormError && <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginTop: "0.25rem" }}>{presetFormError}</Typography.Body>}
+                  <Flex gap="0.5rem" style={{ marginTop: "0.5rem" }}>
                     <Button
+                      type="button"
                       className="button-primary"
                       disabled={presetFormSaving || !presetFormLabel.trim()}
                       onClick={async () => {
@@ -2166,7 +2056,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             method: "POST",
                             headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
                             body: JSON.stringify({
-                              id: presetEditingId || undefined,
+                              ...(presetEditingId ? { id: presetEditingId } : {}),
                               label: presetFormLabel.trim(),
                               permissions: presetFormPermissions,
                               financial: presetFormFinancial,
@@ -2174,7 +2064,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             }),
                           });
                           const data = await res.json().catch(() => ({}));
-                          if (!res.ok) throw new Error(data?.error || "Ошибка сохранения");
+                          if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка сохранения");
                           setPresetFormLabel("");
                           setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false });
                           setPresetFormFinancial(false);
@@ -2217,12 +2107,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         background: "var(--color-bg-hover)",
                       }}
                     >
-                      <div>
-                        <Typography.Body style={{ fontWeight: 600 }}>{p.label}</Typography.Body>
-                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                          Фин.: {p.financial ? "да" : "нет"} · Служ. режим: {p.serviceMode ? "да" : "нет"} · {Object.keys(p.permissions).filter((k) => p.permissions[k]).length} разделов
-                        </Typography.Body>
-                      </div>
+                      <Typography.Body style={{ fontWeight: 600 }}>{p.label}</Typography.Body>
                       <Flex gap="0.5rem">
                         <Button
                           type="button"
@@ -2254,16 +2139,30 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </div>
               {presetDeleteConfirmId && (
                 <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => setPresetDeleteConfirmId(null)}>
-                  <Panel className="cargo-card" style={{ maxWidth: "24rem", margin: "2rem auto", padding: "1rem" }} onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className="modal-content"
+                    style={{ maxWidth: "20rem", padding: "1.25rem" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Удалить пресет?</Typography.Body>
                     <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
                       Пресет «{permissionPresets.find((x) => x.id === presetDeleteConfirmId)?.label ?? presetDeleteConfirmId}» будет удалён. Это не изменит права уже выданные пользователям.
                     </Typography.Body>
-                    <Flex gap="0.5rem">
+                    <Flex gap="0.5rem" wrap="wrap">
                       <Button
-                        className="filter-button"
-                        style={{ background: "var(--color-error)", color: "white" }}
-                        onClick={async () => {
+                        type="button"
+                        style={{
+                          padding: "0.5rem 1rem",
+                          borderRadius: "0.5rem",
+                          border: "none",
+                          cursor: "pointer",
+                          fontSize: "0.9rem",
+                          fontWeight: 500,
+                          background: "var(--color-error, #dc2626)",
+                          color: "#fff",
+                        }}
+                        onClick={async (e) => {
+                          e.stopPropagation();
                           try {
                             const res = await fetch(`/api/admin-presets?id=${encodeURIComponent(presetDeleteConfirmId)}`, {
                               method: "DELETE",
@@ -2279,9 +2178,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       >
                         Удалить
                       </Button>
-                      <Button className="filter-button" onClick={() => setPresetDeleteConfirmId(null)}>Отмена</Button>
+                      <Button type="button" className="filter-button" onClick={(e) => { e.stopPropagation(); setPresetDeleteConfirmId(null); }}>Отмена</Button>
                     </Flex>
-                  </Panel>
+                  </div>
                 </div>
               )}
             </>
