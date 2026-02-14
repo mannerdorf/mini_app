@@ -3377,6 +3377,8 @@ function ProfilePage({
     const [inviteLoading, setInviteLoading] = useState(false);
     const [inviteError, setInviteError] = useState<string | null>(null);
     const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+    const [employeeDeleteId, setEmployeeDeleteId] = useState<number | null>(null);
+    const [employeeDeleteLoading, setEmployeeDeleteLoading] = useState(false);
 
     const fetchEmployeesAndPresets = useCallback(async () => {
         if (!activeAccount?.login) return;
@@ -3704,26 +3706,27 @@ function ProfilePage({
                                     placeholder="Email"
                                     value={inviteEmail}
                                     onChange={(e) => { setInviteEmail(e.target.value); setInviteError(null); setInviteSuccess(null); }}
-                                    style={{ width: '12rem', minWidth: '10rem' }}
+                                    style={{ width: '12rem', minWidth: '10rem', height: '2.5rem', boxSizing: 'border-box' }}
                                     className="admin-form-input"
                                 />
                                 <select
                                     className="admin-form-input invite-role-select"
                                     value={invitePresetId}
                                     onChange={(e) => { setInvitePresetId(e.target.value); setInviteError(null); }}
-                                    style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem' }}
+                                    style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.5rem', boxSizing: 'border-box', minWidth: '10rem' }}
                                     aria-label="Выберите роль"
                                     title={rolePresets.length === 0 ? 'Роли загружаются или не настроены' : undefined}
                                 >
                                     <option value="">{rolePresets.length === 0 ? 'Нет ролей' : 'Выберите роль'}</option>
                                     {rolePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
                                 </select>
-                                <Button type="button" className="filter-button" onClick={() => void fetchEmployeesAndPresets()} disabled={employeesLoading} title="Обновить список ролей и сотрудников">
+                                <Button type="button" className="filter-button" onClick={() => void fetchEmployeesAndPresets()} disabled={employeesLoading} title="Обновить список ролей и сотрудников" style={{ height: '2.5rem', padding: '0 1rem', boxSizing: 'border-box' }}>
                                     Обновить
                                 </Button>
                                 <Button
                                     type="button"
                                     className="button-primary"
+                                    style={{ height: '2.5rem', padding: '0 1rem', boxSizing: 'border-box' }}
                                     disabled={inviteLoading || !inviteEmail.trim() || !invitePresetId}
                                     onClick={async () => {
                                         setInviteError(null); setInviteSuccess(null); setInviteLoading(true);
@@ -3789,10 +3792,65 @@ function ProfilePage({
                                                         } catch {}
                                                     }}
                                                 />
+                                                <Button
+                                                    type="button"
+                                                    className="filter-button"
+                                                    style={{ padding: '0.35rem' }}
+                                                    aria-label="Удалить сотрудника"
+                                                    onClick={() => setEmployeeDeleteId(emp.id)}
+                                                >
+                                                    <Trash2 className="w-4 h-4" style={{ color: 'var(--color-error)' }} />
+                                                </Button>
                                             </Flex>
                                             </Flex>
                                         </Panel>
                                     ))}
+                                {employeeDeleteId != null && (() => {
+                                    const emp = employeesList.find((e) => e.id === employeeDeleteId);
+                                    const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+                                    return (
+                                        <div className="modal-overlay" style={{ zIndex: 10000 }} role="dialog" aria-modal="true" aria-labelledby="employee-delete-title" onClick={() => !employeeDeleteLoading && setEmployeeDeleteId(null)}>
+                                            <div className="modal-content" style={{ maxWidth: '22rem', padding: '1.25rem' }} onClick={(e) => e.stopPropagation()}>
+                                                <Typography.Body id="employee-delete-title" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Удалить сотрудника?</Typography.Body>
+                                                <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
+                                                    {emp?.login ?? ''} будет удалён из списка и не сможет войти в приложение.
+                                                </Typography.Body>
+                                                <Flex gap="0.5rem" wrap="wrap">
+                                                    <Button
+                                                        type="button"
+                                                        disabled={employeeDeleteLoading}
+                                                        style={{ background: 'var(--color-error)', color: '#fff', border: 'none' }}
+                                                        onClick={async () => {
+                                                            if (!activeAccount?.login || !activeAccount?.password || employeeDeleteLoading) return;
+                                                            setEmployeeDeleteLoading(true);
+                                                            try {
+                                                                const res = await fetch(`${origin}/api/my-employees?id=${encodeURIComponent(employeeDeleteId)}`, {
+                                                                    method: 'DELETE',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }),
+                                                                });
+                                                                const data = await res.json().catch(() => ({}));
+                                                                if (!res.ok) throw new Error(data?.error || 'Ошибка удаления');
+                                                                setEmployeesList((prev) => prev.filter((e) => e.id !== employeeDeleteId));
+                                                                setEmployeeDeleteId(null);
+                                                            } catch (e) {
+                                                                setEmployeesError((e as Error)?.message ?? 'Ошибка удаления');
+                                                            } finally {
+                                                                setEmployeeDeleteLoading(false);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {employeeDeleteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                                        {employeeDeleteLoading ? ' Удаление…' : 'Удалить'}
+                                                    </Button>
+                                                    <Button type="button" className="filter-button" disabled={employeeDeleteLoading} onClick={() => setEmployeeDeleteId(null)}>
+                                                        Отмена
+                                                    </Button>
+                                                </Flex>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                                 </div>
                             )}
                         </div>
@@ -7555,21 +7613,22 @@ export default function App() {
     const auth = useMemo(() => {
         if (!activeAccountId) return null;
         const account = accounts.find(acc => acc.id === activeAccountId);
-        return account
-            ? {
-                login: account.login,
-                password: account.password,
-                ...(account.activeCustomerInn ? { inn: account.activeCustomerInn } : {}),
-                ...(account.isRegisteredUser ? { isRegisteredUser: true } : {}),
-            }
-            : null;
+        if (!account) return null;
+        const inn = account.activeCustomerInn ?? account.customers?.[0]?.inn ?? "";
+        const forceInn = !!account.isRegisteredUser && !account.accessAllInns && !!inn;
+        return {
+            login: account.login,
+            password: account.password,
+            ...((forceInn || account.activeCustomerInn || inn) ? { inn: inn || account.activeCustomerInn || undefined } : {}),
+            ...(account.isRegisteredUser ? { isRegisteredUser: true } : {}),
+        };
     }, [accounts, activeAccountId]);
     const activeAccount = useMemo(() => {
         if (!activeAccountId) return null;
         return accounts.find(acc => acc.id === activeAccountId) || null;
     }, [accounts, activeAccountId]);
 
-    /** Аккаунты для отображения перевозок (один или несколько). Если выбранных ещё нет — используем активный аккаунт (избегаем белого экрана после входа). */
+    /** Аккаунты для отображения перевозок (один или несколько). У сотрудников без доступа ко всем заказчикам всегда передаём ИНН — фильтрация по компании. */
     const selectedAuths = useMemo((): AuthData[] => {
         const ids = selectedAccountIds.length > 0
             ? selectedAccountIds
@@ -7577,12 +7636,15 @@ export default function App() {
         return ids
             .map((id) => accounts.find((acc) => acc.id === id))
             .filter((acc): acc is Account => !!acc)
-            .map((acc) => ({
-                login: acc.login,
-                password: acc.password,
-                ...(acc.activeCustomerInn ? { inn: acc.activeCustomerInn } : {}),
-                ...(acc.isRegisteredUser ? { isRegisteredUser: true } : {}),
-            }));
+            .map((acc) => {
+                const inn = acc.activeCustomerInn ?? acc.customers?.[0]?.inn ?? "";
+                return {
+                    login: acc.login,
+                    password: acc.password,
+                    ...(inn || acc.activeCustomerInn ? { inn: inn || acc.activeCustomerInn || undefined } : {}),
+                    ...(acc.isRegisteredUser ? { isRegisteredUser: true } : {}),
+                };
+            });
     }, [accounts, selectedAccountIds, activeAccountId]);
 
     // Если выбранных компаний нет, но есть активный аккаунт — подставляем его
@@ -9107,14 +9169,18 @@ export default function App() {
             <header className="app-header">
                     <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {!useServiceRequest && (
+                        {!useServiceRequest && (activeAccount?.isRegisteredUser && !activeAccount?.accessAllInns && (activeAccount?.customer || activeAccount?.customers?.[0]?.name) ? (
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--color-text-primary)' }} title="Компания (доступ только к данным этой компании)">
+                                {activeAccount.customer || activeAccount.customers?.[0]?.name || 'Компания'}
+                            </Typography.Body>
+                        ) : (
                             <CustomerSwitcher
                                 accounts={accounts}
                                 activeAccountId={activeAccountId}
                                 onSwitchAccount={handleSwitchAccount}
                                 onUpdateAccount={handleUpdateAccount}
                             />
-                        )}
+                        ))}
                         {serviceModeUnlocked && (
                             <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
                                 <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Служ.</Typography.Label>

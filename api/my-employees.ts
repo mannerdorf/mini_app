@@ -180,6 +180,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  res.setHeader("Allow", "GET, POST, PATCH");
+  if (req.method === "DELETE") {
+    const body = parseBody(req);
+    const login = typeof body.login === "string" ? body.login.trim() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    const idParam = typeof req.query.id === "string" ? req.query.id.trim() : "";
+    const id = parseInt(idParam, 10);
+    if (!login || !password) {
+      return res.status(400).json({ error: "Укажите логин и пароль" });
+    }
+    if (isNaN(id) || id < 1) {
+      return res.status(400).json({ error: "Укажите id сотрудника" });
+    }
+    const inviterId = await getInviterId(login, password);
+    if (inviterId == null) {
+      return res.status(401).json({ error: "Неверный логин или пароль" });
+    }
+    try {
+      const pool = getPool();
+      const { rowCount } = await pool.query(
+        "DELETE FROM registered_users WHERE id = $1 AND invited_by_user_id = $2",
+        [id, inviterId]
+      );
+      if (rowCount === 0) {
+        return res.status(404).json({ error: "Сотрудник не найден или доступ запрещён" });
+      }
+      return res.status(200).json({ ok: true, deleted: true });
+    } catch (e: unknown) {
+      console.error("my-employees DELETE:", e);
+      return res.status(500).json({ error: "Ошибка удаления" });
+    }
+  }
+
+  res.setHeader("Allow", "GET, POST, PATCH, DELETE");
   return res.status(405).json({ error: "Method not allowed" });
 }
