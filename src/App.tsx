@@ -1,6 +1,6 @@
 import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect, Suspense, lazy } from "react";
 import {
-    LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Scale, RussianRuble, List, Download, Maximize,
+    LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Users, Scale, RussianRuble, List, Download, Maximize,
     Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw, Lock
 } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -3659,6 +3659,37 @@ function ProfilePage({
     const [passwordError, setPasswordError] = useState<string | null>(null);
     const [passwordSuccess, setPasswordSuccess] = useState(false);
 
+    const [employeesList, setEmployeesList] = useState<{ id: number; login: string; active: boolean; createdAt: string; presetLabel: string }[]>([]);
+    const [employeesLoading, setEmployeesLoading] = useState(false);
+    const [employeesError, setEmployeesError] = useState<string | null>(null);
+    const [rolePresets, setRolePresets] = useState<{ id: string; label: string }[]>([]);
+    const [inviteEmail, setInviteEmail] = useState('');
+    const [invitePresetId, setInvitePresetId] = useState('');
+    const [inviteLoading, setInviteLoading] = useState(false);
+    const [inviteError, setInviteError] = useState<string | null>(null);
+    const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
+
+    const fetchEmployeesAndPresets = useCallback(async () => {
+        if (!activeAccount?.login || !activeAccount?.password) return;
+        setEmployeesLoading(true);
+        setEmployeesError(null);
+        try {
+            const [listRes, presetsRes] = await Promise.all([
+                fetch('/api/my-employees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }) }),
+                fetch('/api/role-presets'),
+            ]);
+            const listData = await listRes.json().catch(() => ({}));
+            const presetsData = await presetsRes.json().catch(() => ({}));
+            if (listRes.ok && listData.employees) setEmployeesList(listData.employees);
+            else setEmployeesError(listData.error || 'Ошибка загрузки');
+            if (presetsRes.ok && Array.isArray(presetsData.presets)) setRolePresets(presetsData.presets.map((p: { id: string; label: string }) => ({ id: p.id, label: p.label })));
+        } catch {
+            setEmployeesError('Ошибка сети');
+        } finally {
+            setEmployeesLoading(false);
+        }
+    }, [activeAccount?.login, activeAccount?.password]);
+
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
         try {
@@ -3704,6 +3735,10 @@ function ProfilePage({
         void checkTelegramLinkStatus();
     }, [twoFactorEnabled, twoFactorMethod, twoFactorTelegramLinked, checkTelegramLinkStatus]);
 
+    useEffect(() => {
+        if (currentView === 'employees' && activeAccount?.login) void fetchEmployeesAndPresets();
+    }, [currentView, activeAccount?.login, fetchEmployeesAndPresets]);
+
     // Настройки
     const settingsItems = [
         { 
@@ -3718,6 +3753,12 @@ function ProfilePage({
             icon: <UserIcon className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('roles')
         },
+        ...(activeAccount?.isRegisteredUser ? [{
+            id: 'employees',
+            label: 'Сотрудники',
+            icon: <Users className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => setCurrentView('employees')
+        }] : []),
         { 
             id: 'voiceAssistants', 
             label: 'Голосовые помощники', 
@@ -3908,6 +3949,120 @@ function ProfilePage({
                             </Typography.Body>
                         </Panel>
                     </div>
+                )}
+            </div>
+        );
+    }
+
+    if (currentView === 'employees') {
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Сотрудники</Typography.Headline>
+                </Flex>
+                <Typography.Body style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                    Приглашайте сотрудников по email: им придёт пароль для входа. Выдайте роль (пресет) и в любой момент можете отключить доступ.
+                </Typography.Body>
+                {!activeAccount?.isRegisteredUser ? (
+                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Доступно только зарегистрированным пользователям (вход по email и паролю).</Typography.Body>
+                    </Panel>
+                ) : !activeAccount?.login || !activeAccount?.password ? (
+                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Нужны логин и пароль текущего аккаунта для управления сотрудниками.</Typography.Body>
+                    </Panel>
+                ) : (
+                    <>
+                        <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Пригласить сотрудника</Typography.Body>
+                            <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: '0.5rem' }}>
+                                <Input
+                                    type="email"
+                                    placeholder="Email"
+                                    value={inviteEmail}
+                                    onChange={(e) => { setInviteEmail(e.target.value); setInviteError(null); setInviteSuccess(null); }}
+                                    style={{ width: '12rem', minWidth: '10rem' }}
+                                    className="admin-form-input"
+                                />
+                                <select
+                                    value={invitePresetId}
+                                    onChange={(e) => { setInvitePresetId(e.target.value); setInviteError(null); }}
+                                    style={{ padding: '0.4rem 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem' }}
+                                >
+                                    <option value="">Выберите роль</option>
+                                    {rolePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                                </select>
+                                <Button
+                                    className="button-primary"
+                                    disabled={inviteLoading || !inviteEmail.trim() || !invitePresetId}
+                                    onClick={async () => {
+                                        setInviteError(null); setInviteSuccess(null); setInviteLoading(true);
+                                        try {
+                                            const res = await fetch('/api/my-employees', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, email: inviteEmail.trim(), presetId: invitePresetId }),
+                                            });
+                                            const data = await res.json().catch(() => ({}));
+                                            if (!res.ok) throw new Error(data.error || 'Ошибка');
+                                            setInviteSuccess(data.message || 'Готово');
+                                            setInviteEmail(''); setInvitePresetId('');
+                                            fetchEmployeesAndPresets();
+                                        } catch (e) {
+                                            setInviteError((e as Error)?.message || 'Ошибка приглашения');
+                                        } finally {
+                                            setInviteLoading(false);
+                                        }
+                                    }}
+                                >
+                                    {inviteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Пригласить'}
+                                </Button>
+                            </Flex>
+                            {inviteError && <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem' }}>{inviteError}</Typography.Body>}
+                            {inviteSuccess && <Typography.Body style={{ color: 'var(--color-success-status)', fontSize: '0.85rem' }}>{inviteSuccess}</Typography.Body>}
+                        </Panel>
+                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Приглашённые</Typography.Body>
+                        {employeesLoading ? (
+                            <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>
+                        ) : employeesError ? (
+                            <Typography.Body style={{ color: 'var(--color-error)' }}>{employeesError}</Typography.Body>
+                        ) : employeesList.length === 0 ? (
+                            <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Пока никого не приглашали.</Typography.Body>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                {employeesList.map((emp) => (
+                                    <Panel key={emp.id} className="cargo-card" style={{ padding: '0.75rem' }}>
+                                        <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem">
+                                            <div>
+                                                <Typography.Body style={{ fontWeight: 600 }}>{emp.login}</Typography.Body>
+                                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}</Typography.Body>
+                                            </div>
+                                            <Flex align="center" gap="0.5rem">
+                                                <Typography.Body style={{ fontSize: '0.85rem' }}>{emp.active ? 'Вкл' : 'Выкл'}</Typography.Body>
+                                                <TapSwitch
+                                                    checked={emp.active}
+                                                    onToggle={async () => {
+                                                        try {
+                                                            const res = await fetch(`/api/my-employees?id=${emp.id}`, {
+                                                                method: 'PATCH',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, active: !emp.active }),
+                                                            });
+                                                            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error);
+                                                            setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, active: !e.active } : e));
+                                                        } catch {}
+                                                    }}
+                                                />
+                                            </Flex>
+                                        </Flex>
+                                    </Panel>
+                                ))}
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         );
