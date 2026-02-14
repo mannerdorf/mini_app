@@ -64,24 +64,34 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
     const invoiceStatus = normalizeInvoiceStatus(item?.Status ?? item?.State ?? item?.state ?? item?.Статус ?? '');
     const isPaid = invoiceStatus === 'Оплачен';
     const cargoNumber = getFirstCargoNumberFromInvoice(item);
+    const invoiceNumber = (item?.Number ?? item?.number ?? "").toString().trim() || null;
 
     const handleDownload = async (label: string) => {
-        if (!cargoNumber || !auth?.login || !auth?.password) {
-            setDownloadError(cargoNumber ? "Требуется авторизация" : "Номер перевозки не найден в счёте");
+        if (!auth?.login || !auth?.password) {
+            setDownloadError("Требуется авторизация");
             return;
         }
         const metod = DOCUMENT_METHODS[label] ?? label;
+        const isInvoiceDoc = label === "СЧЕТ";
+        const numberToUse = cargoNumber ?? (isInvoiceDoc && invoiceNumber ? invoiceNumber : null);
+        if (!numberToUse) {
+            setDownloadError("Номер перевозки не найден в счёте" + (isInvoiceDoc && invoiceNumber ? ". Для СЧЕТ можно использовать номер счёта." : ""));
+            return;
+        }
         setDownloading(label);
         setDownloadError(null);
+        const downloadUrl = typeof window !== "undefined" && window.location?.origin
+            ? `${window.location.origin}${PROXY_API_DOWNLOAD_URL}`
+            : PROXY_API_DOWNLOAD_URL;
         try {
-            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
+            const res = await fetch(downloadUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     login: auth.login,
                     password: auth.password,
                     metod,
-                    number: cargoNumber,
+                    number: numberToUse,
                     ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
                 }),
             });
@@ -95,7 +105,7 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
             const byteArray = new Uint8Array(byteCharacters.length);
             for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i);
             const blob = new Blob([byteArray], { type: "application/pdf" });
-            const fileName = transliterateFilename(data.name || `${label}_${cargoNumber}.pdf`);
+            const fileName = transliterateFilename(data.name || `${label}_${numberToUse}.pdf`);
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;

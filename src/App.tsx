@@ -3707,6 +3707,9 @@ function ProfilePage({
                                     <option value="">{rolePresets.length === 0 ? 'Нет ролей' : 'Выберите роль'}</option>
                                     {rolePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
                                 </select>
+                                <Button type="button" className="filter-button" onClick={() => void fetchEmployeesAndPresets()} disabled={employeesLoading} title="Обновить список ролей и сотрудников">
+                                    Обновить
+                                </Button>
                                 <Button
                                     type="button"
                                     className="button-primary"
@@ -3734,6 +3737,11 @@ function ProfilePage({
                                     {inviteLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Пригласить'}
                                 </Button>
                             </Flex>
+                            {rolePresets.length === 0 && (
+                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+                                    Роли не загружены. Создайте пресеты в админ-панели (раздел «Пресеты ролей») или нажмите «Обновить».
+                                </Typography.Body>
+                            )}
                             {inviteError && <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem' }}>{inviteError}</Typography.Body>}
                             {inviteSuccess && <Typography.Body style={{ color: 'var(--color-success-status)', fontSize: '0.85rem' }}>{inviteSuccess}</Typography.Body>}
                         </Panel>
@@ -5183,6 +5191,18 @@ function CargoPage({
                     <Loader2 className="animate-spin w-6 h-6 mx-auto text-theme-primary" />
                 </Flex>
             )}
+            {!loading && error && (
+                <Panel className="empty-state-card" style={{ marginBottom: '1rem' }}>
+                    <Flex direction="column" align="center">
+                        <Typography.Body style={{ color: 'var(--color-error)', textAlign: 'center', marginBottom: '0.75rem' }}>
+                            {error}
+                        </Typography.Body>
+                        <Button className="filter-button" type="button" onClick={() => mutatePerevozki(undefined, { revalidate: true })}>
+                            Повторить
+                        </Button>
+                    </Flex>
+                </Panel>
+            )}
             {!loading && !error && filteredItems.length === 0 && (
                 <Panel className="empty-state-card">
                     <Flex direction="column" align="center">
@@ -5836,6 +5856,7 @@ function CargoDetailsModal({
     
     const handleDownload = async (docType: string) => {
         if (!item.Number) return alert("Нет номера перевозки");
+        const metod = DOCUMENT_METHODS[docType] ?? docType;
         setDownloading(docType); setDownloadError(null);
         try {
             const res = await fetch(PROXY_API_DOWNLOAD_URL, {
@@ -5844,7 +5865,7 @@ function CargoDetailsModal({
                 body: JSON.stringify({
                     login: auth.login,
                     password: auth.password,
-                    metod: DOCUMENT_METHODS[docType],
+                    metod,
                     number: item.Number,
                     ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
                 }),
@@ -5882,7 +5903,7 @@ function CargoDetailsModal({
             const fileName = data.name || `${docType}_${item.Number}.pdf`;
             const fileNameTranslit = transliterateFilename(fileName);
 
-            // Метод 4: object/embed - показываем встроенным просмотрщиком
+            // Показываем встроенным просмотрщиком и сразу предлагаем скачать файл
             const url = URL.createObjectURL(blob);
             setPdfViewer({
                 url,
@@ -5891,6 +5912,8 @@ function CargoDetailsModal({
                 blob, // Сохраняем blob для скачивания
                 downloadFileName: fileNameTranslit
             });
+            // Немедленное скачивание файла (как раньше)
+            downloadFile(blob, fileNameTranslit);
             
             // Если скачали УПД в MAX - закрываем мини-апп после скачивания
             if (docType === 'УПД' && isMaxWebApp()) {
@@ -6263,7 +6286,7 @@ function CargoDetailsModal({
                                                     borderBottom: '1px solid var(--color-border)',
                                                 }}
                                             >
-                                                {col}
+                                                {col === 'Package' ? 'Штрихкод' : col === 'SKUs' ? 'Номенклатура' : col}
                                             </th>
                                         ))}
                                     </tr>

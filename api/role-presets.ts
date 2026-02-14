@@ -40,6 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ presets });
   } catch (e: unknown) {
     console.error("role-presets error:", e);
-    return res.status(500).json({ error: "Ошибка загрузки ролей" });
+    // Возвращаем пустой список, чтобы форма приглашения не ломалась (таблица может отсутствовать до миграции 018)
+    return res.status(200).json({ presets: [] });
   }
 }

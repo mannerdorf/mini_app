@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, Mail } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, Mail, Sun, Moon } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -156,9 +156,27 @@ function UserRow({
   );
 }
 
+const ADMIN_THEME_KEY = "admin-theme";
+
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
   const [tab, setTab] = useState<"users" | "add" | "batch" | "templates" | "customers" | "audit" | "presets">("users");
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    try {
+      const saved = localStorage.getItem(ADMIN_THEME_KEY);
+      return saved === "light" || saved === "dark" ? saved : "dark";
+    } catch {
+      return "dark";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ADMIN_THEME_KEY, theme);
+    } catch {
+      /* ignore */
+    }
+  }, [theme]);
   const [users, setUsers] = useState<User[]>([]);
   const [lastLoginAvailable, setLastLoginAvailable] = useState(true);
   const [topActiveExpanded, setTopActiveExpanded] = useState(false);
@@ -940,7 +958,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [selectedUser]);
 
   return (
-    <div className="w-full">
+    <div className={theme === "light" ? "light-mode w-full" : "w-full"}>
       <Flex align="center" justify="space-between" style={{ marginBottom: "1rem", gap: "0.75rem", flexWrap: "wrap" }}>
         <Flex align="center" gap="0.75rem">
           <Button type="button" className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }} aria-label="Назад в приложение">
@@ -948,12 +966,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           </Button>
           <Typography.Headline style={{ fontSize: "1.25rem" }}>CMS</Typography.Headline>
         </Flex>
-        {onLogout && (
-          <Button type="button" className="filter-button" onClick={onLogout} style={{ padding: "0.5rem 0.75rem" }} aria-label="Выйти из админки">
-            <LogOut className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-            Выход
+        <Flex align="center" gap="0.5rem">
+          <Button
+            type="button"
+            className="filter-button"
+            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            style={{ padding: "0.5rem" }}
+            aria-label={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+            title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+          >
+            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </Button>
-        )}
+          {onLogout && (
+            <Button type="button" className="filter-button" onClick={onLogout} style={{ padding: "0.5rem 0.75rem" }} aria-label="Выйти из админки">
+              <LogOut className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+              Выход
+            </Button>
+          )}
+        </Flex>
       </Flex>
 
       <Flex gap="0.5rem" style={{ marginBottom: "1rem", flexWrap: "wrap" }}>

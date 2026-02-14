@@ -1083,7 +1083,11 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                     item={selectedAct}
                     isOpen={!!selectedAct}
                     onClose={() => setSelectedAct(null)}
-                    onOpenInvoice={(inv) => { setSelectedAct(null); setSelectedInvoice(inv); }}
+                    onOpenInvoice={(inv) => {
+                        setSelectedAct(null);
+                        setDocSection('Счета');
+                        setSelectedInvoice(inv);
+                    }}
                     invoices={items}
                     onOpenCargo={(cargoNumber) => {
                         setSelectedAct(null);

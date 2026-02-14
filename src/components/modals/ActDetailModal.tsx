@@ -82,15 +82,22 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
         : null;
 
     const handleDownload = async (label: string) => {
-        if (!cargoNumber || !auth?.login || !auth?.password) {
-            setDownloadError(cargoNumber ? "Требуется авторизация" : "Номер перевозки не найден в УПД");
+        if (!auth?.login || !auth?.password) {
+            setDownloadError("Требуется авторизация");
+            return;
+        }
+        if (!cargoNumber) {
+            setDownloadError("Номер перевозки не найден в УПД");
             return;
         }
         const metod = DOCUMENT_METHODS[label] ?? label;
         setDownloading(label);
         setDownloadError(null);
+        const downloadUrl = typeof window !== "undefined" && window.location?.origin
+            ? `${window.location.origin}${PROXY_API_DOWNLOAD_URL}`
+            : PROXY_API_DOWNLOAD_URL;
         try {
-            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
+            const res = await fetch(downloadUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
