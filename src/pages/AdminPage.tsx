@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 
@@ -45,29 +45,13 @@ const PERMISSION_ROW2 = [
   { key: "chat", label: "Чат" },
 ] as const;
 
-/** Пресеты прав для быстрой подстановки */
-const PERMISSION_PRESETS: { id: string; label: string; permissions: Record<string, boolean>; financial: boolean; serviceMode: boolean }[] = [
-  {
-    id: "manager",
-    label: "Менеджер",
-    permissions: { cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false },
-    financial: true,
-    serviceMode: false,
-  },
-  {
-    id: "accountant",
-    label: "Бухгалтерия",
-    permissions: { cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: false, service_mode: false },
-    financial: true,
-    serviceMode: false,
-  },
-  {
-    id: "service",
-    label: "Служебный режим",
-    permissions: { cms_access: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: true },
-    financial: true,
-    serviceMode: true,
-  },
+export type PermissionPreset = { id: string; label: string; permissions: Record<string, boolean>; financial: boolean; serviceMode: boolean };
+
+/** Пресеты по умолчанию (если API недоступен или пусто) */
+const DEFAULT_PRESETS: PermissionPreset[] = [
+  { id: "manager", label: "Менеджер", permissions: { cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false }, financial: true, serviceMode: false },
+  { id: "accountant", label: "Бухгалтерия", permissions: { cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: false, service_mode: false }, financial: true, serviceMode: false },
+  { id: "service", label: "Служебный режим", permissions: { cms_access: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: true }, financial: true, serviceMode: true },
   { id: "empty", label: "Пустой", permissions: { cms_access: false, cargo: false, doc_invoices: false, doc_acts: false, doc_orders: false, doc_claims: false, doc_contracts: false, doc_acts_settlement: false, doc_tariffs: false, chat: false, service_mode: false }, financial: false, serviceMode: false },
 ];
 
@@ -172,7 +156,7 @@ function UserRow({
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "add" | "batch" | "email" | "customers" | "audit">("users");
+  const [tab, setTab] = useState<"users" | "add" | "batch" | "email" | "customers" | "audit" | "presets">("users");
   const [users, setUsers] = useState<User[]>([]);
   const [usersSearchQuery, setUsersSearchQuery] = useState("");
   const [usersViewMode, setUsersViewMode] = useState<"login" | "customer">("login");
@@ -192,6 +176,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [customersList, setCustomersList] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [customersSearch, setCustomersSearch] = useState("");
+  const [customersShowOnlyWithoutEmail, setCustomersShowOnlyWithoutEmail] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [auditEntries, setAuditEntries] = useState<{ id: number; action: string; target_type: string; target_id: string | null; details: Record<string, unknown> | null; created_at: string }[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
@@ -201,6 +186,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [auditFromDate, setAuditFromDate] = useState("");
   const [auditToDate, setAuditToDate] = useState("");
   const [auditFetchTrigger, setAuditFetchTrigger] = useState(0);
+  const [permissionPresets, setPermissionPresets] = useState<PermissionPreset[]>(DEFAULT_PRESETS);
+  const [presetsLoading, setPresetsLoading] = useState(false);
+  const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
+  const [presetFormLabel, setPresetFormLabel] = useState("");
+  const [presetFormPermissions, setPresetFormPermissions] = useState<Record<string, boolean>>({
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false,
+  });
+  const [presetFormFinancial, setPresetFormFinancial] = useState(false);
+  const [presetFormServiceMode, setPresetFormServiceMode] = useState(false);
+  const [presetFormError, setPresetFormError] = useState<string | null>(null);
+  const [presetFormSaving, setPresetFormSaving] = useState(false);
+  const [presetDeleteConfirmId, setPresetDeleteConfirmId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -439,6 +436,23 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       .catch(() => setCustomersList([]))
       .finally(() => setCustomersLoading(false));
   }, [tab, customersSearch, adminToken]);
+
+  const fetchPresets = useCallback(() => {
+    setPresetsLoading(true);
+    fetch("/api/admin-presets", { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((res) => res.json())
+      .then((data: { presets?: PermissionPreset[] }) => {
+        if (Array.isArray(data.presets) && data.presets.length > 0) {
+          setPermissionPresets(data.presets);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setPresetsLoading(false));
+  }, [adminToken]);
+
+  useEffect(() => {
+    fetchPresets();
+  }, [fetchPresets]);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -987,6 +1001,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <History className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Журнал
         </Button>
+        <Button
+          className="filter-button"
+          style={{ background: tab === "presets" ? "var(--color-primary-blue)" : undefined, color: tab === "presets" ? "white" : undefined }}
+          onClick={() => setTab("presets")}
+        >
+          <Layers className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+          Пресеты ролей
+        </Button>
       </Flex>
 
       {error && (
@@ -1322,7 +1344,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem" }}
                         value=""
                         onChange={(e) => {
-                          const preset = PERMISSION_PRESETS.find((p) => p.id === e.target.value);
+                          const preset = permissionPresets.find((p) => p.id === e.target.value);
                           if (preset) {
                             setEditorPermissions(preset.permissions);
                             setEditorFinancial(preset.financial);
@@ -1331,7 +1353,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         }}
                       >
                         <option value="">—</option>
-                        {PERMISSION_PRESETS.map((p) => (
+                        {permissionPresets.map((p) => (
                           <option key={p.id} value={p.id}>{p.label}</option>
                         ))}
                       </select>
@@ -1496,7 +1518,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem" }}
                       value=""
                       onChange={(e) => {
-                        const preset = PERMISSION_PRESETS.find((p) => p.id === e.target.value);
+                        const preset = permissionPresets.find((p) => p.id === e.target.value);
                         if (preset) {
                           setBulkPermissions(preset.permissions);
                           setBulkFinancial(preset.financial);
@@ -1505,7 +1527,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       }}
                     >
                       <option value="">—</option>
-                      {PERMISSION_PRESETS.map((p) => (
+                      {permissionPresets.map((p) => (
                         <option key={p.id} value={p.id}>{p.label}</option>
                       ))}
                     </select>
@@ -1793,7 +1815,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem" }}
                   value=""
                   onChange={(e) => {
-                    const preset = PERMISSION_PRESETS.find((p) => p.id === e.target.value);
+                    const preset = permissionPresets.find((p) => p.id === e.target.value);
                     if (preset) {
                       setFormPermissions(preset.permissions);
                       setFormFinancial(preset.financial);
@@ -1803,7 +1825,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   }}
                 >
                   <option value="">—</option>
-                  {PERMISSION_PRESETS.map((p) => (
+                  {permissionPresets.map((p) => (
                     <option key={p.id} value={p.id}>{p.label}</option>
                   ))}
                 </select>
@@ -1896,14 +1918,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
             Данные из кэша (cache_customers). Обновление по расписанию.
           </Typography.Body>
-          <Input
-            type="text"
-            placeholder="Поиск по ИНН или наименованию..."
-            value={customersSearch}
-            onChange={(e) => setCustomersSearch(e.target.value)}
-            className="admin-form-input"
-            style={{ maxWidth: "24rem", marginBottom: "0.75rem" }}
-          />
+          <Flex gap="0.75rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+            <Input
+              type="text"
+              placeholder="Поиск по ИНН или наименованию..."
+              value={customersSearch}
+              onChange={(e) => setCustomersSearch(e.target.value)}
+              className="admin-form-input"
+              style={{ maxWidth: "24rem" }}
+            />
+            <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer", fontSize: "0.9rem" }}>
+              <input
+                type="checkbox"
+                checked={customersShowOnlyWithoutEmail}
+                onChange={(e) => setCustomersShowOnlyWithoutEmail(e.target.checked)}
+              />
+              <Typography.Body>Только без email</Typography.Body>
+            </label>
+          </Flex>
           {customersLoading ? (
             <Flex align="center" gap="0.5rem">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -1913,31 +1945,38 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
               {customersSearch.trim().length >= 2 ? "Нет совпадений" : "Справочник пуст"}
             </Typography.Body>
-          ) : (
-            <div style={{ overflowX: "auto", maxHeight: "60vh", overflowY: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-                <thead>
-                  <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
-                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
-                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
-                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Email</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customersList.map((c) => (
-                    <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>{c.inn}</td>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>{c.customer_name || "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{c.email || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
-            Записей: {customersList.length}
-          </Typography.Body>
+          ) : (() => {
+            const filtered = customersShowOnlyWithoutEmail
+              ? customersList.filter((c) => !c.email || String(c.email).trim() === "")
+              : customersList;
+            return (
+              <>
+                <div style={{ overflowX: "auto", maxHeight: "60vh", overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                    <thead>
+                      <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                        <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
+                        <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
+                        <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Email</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((c) => (
+                        <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                          <td style={{ padding: "0.5rem 0.75rem" }}>{c.inn}</td>
+                          <td style={{ padding: "0.5rem 0.75rem" }}>{c.customer_name || "—"}</td>
+                          <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{c.email || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
+                  Записей: {filtered.length}{customersShowOnlyWithoutEmail && filtered.length !== customersList.length ? ` (из ${customersList.length})` : ""}
+                </Typography.Body>
+              </>
+            );
+          })()}
         </Panel>
       )}
 
@@ -2069,6 +2108,183 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </tbody>
               </table>
             </div>
+          )}
+        </Panel>
+      )}
+
+      {tab === "presets" && (
+        <Panel className="cargo-card" style={{ padding: "1rem" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Пресеты ролей</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+            Настройте наборы прав для быстрой подстановки при выдаче прав пользователям и при групповом изменении.
+          </Typography.Body>
+          {presetsLoading ? (
+            <Flex align="center" gap="0.5rem">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка...</Typography.Body>
+            </Flex>
+          ) : (
+            <>
+              <div style={{ marginBottom: "1.5rem" }}>
+                <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem", fontSize: "0.9rem" }}>
+                  {presetEditingId ? "Редактировать пресет" : "Добавить пресет"}
+                </Typography.Body>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxWidth: "28rem" }}>
+                  <div>
+                    <Typography.Body style={{ fontSize: "0.85rem", marginBottom: "0.25rem" }}>Название</Typography.Body>
+                    <Input
+                      className="admin-form-input"
+                      value={presetFormLabel}
+                      onChange={(e) => setPresetFormLabel(e.target.value)}
+                      placeholder="Например: Менеджер"
+                      style={{ width: "100%" }}
+                    />
+                  </div>
+                  <div className="admin-form-section-header">Разделы</div>
+                  <div className="admin-permissions-toolbar">
+                    {PERMISSION_ROW1.map(({ key, label }) => {
+                      const isActive = key === "__financial__" ? presetFormFinancial : key === "service_mode" ? (!!presetFormPermissions.service_mode || presetFormServiceMode) : !!presetFormPermissions[key];
+                      const onClick = key === "__financial__" ? () => setPresetFormFinancial(!presetFormFinancial) : key === "service_mode" ? () => { const v = !(!!presetFormPermissions.service_mode || presetFormServiceMode); setPresetFormPermissions((p) => ({ ...p, service_mode: v })); setPresetFormServiceMode(v); } : () => setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }));
+                      return <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>;
+                    })}
+                  </div>
+                  <div className="admin-permissions-toolbar" style={{ marginTop: "0.25rem" }}>
+                    {PERMISSION_ROW2.map(({ key, label }) => (
+                      <button key={key} type="button" className={`permission-button ${!!presetFormPermissions[key] ? "active" : ""}`} onClick={() => setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }))}>{label}</button>
+                    ))}
+                  </div>
+                  {presetFormError && <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem" }}>{presetFormError}</Typography.Body>}
+                  <Flex gap="0.5rem">
+                    <Button
+                      className="button-primary"
+                      disabled={presetFormSaving || !presetFormLabel.trim()}
+                      onClick={async () => {
+                        setPresetFormError(null);
+                        setPresetFormSaving(true);
+                        try {
+                          const res = await fetch("/api/admin-presets", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                            body: JSON.stringify({
+                              id: presetEditingId || undefined,
+                              label: presetFormLabel.trim(),
+                              permissions: presetFormPermissions,
+                              financial: presetFormFinancial,
+                              serviceMode: presetFormServiceMode,
+                            }),
+                          });
+                          const data = await res.json().catch(() => ({}));
+                          if (!res.ok) throw new Error(data?.error || "Ошибка сохранения");
+                          setPresetFormLabel("");
+                          setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false });
+                          setPresetFormFinancial(false);
+                          setPresetFormServiceMode(false);
+                          setPresetEditingId(null);
+                          fetchPresets();
+                        } catch (e: unknown) {
+                          setPresetFormError((e as Error)?.message || "Ошибка");
+                        } finally {
+                          setPresetFormSaving(false);
+                        }
+                      }}
+                    >
+                      {presetFormSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                      {presetFormSaving ? " Сохранение…" : presetEditingId ? "Сохранить" : "Добавить"}
+                    </Button>
+                    {presetEditingId && (
+                      <Button className="filter-button" onClick={() => { setPresetEditingId(null); setPresetFormLabel(""); setPresetFormError(null); }}>
+                        Отмена
+                      </Button>
+                    )}
+                  </Flex>
+                </div>
+              </div>
+              <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem", fontSize: "0.9rem" }}>Список пресетов</Typography.Body>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                {permissionPresets.length === 0 ? (
+                  <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет пресетов. Добавьте первый выше.</Typography.Body>
+                ) : (
+                  permissionPresets.map((p) => (
+                    <div
+                      key={p.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "0.75rem",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: 8,
+                        background: "var(--color-bg-hover)",
+                      }}
+                    >
+                      <div>
+                        <Typography.Body style={{ fontWeight: 600 }}>{p.label}</Typography.Body>
+                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                          Фин.: {p.financial ? "да" : "нет"} · Служ. режим: {p.serviceMode ? "да" : "нет"} · {Object.keys(p.permissions).filter((k) => p.permissions[k]).length} разделов
+                        </Typography.Body>
+                      </div>
+                      <Flex gap="0.5rem">
+                        <Button
+                          type="button"
+                          className="filter-button"
+                          style={{ padding: "0.35rem 0.6rem" }}
+                          onClick={() => {
+                            setPresetEditingId(p.id);
+                            setPresetFormLabel(p.label);
+                            setPresetFormPermissions({ ...p.permissions });
+                            setPresetFormFinancial(p.financial);
+                            setPresetFormServiceMode(p.serviceMode);
+                            setPresetFormError(null);
+                          }}
+                        >
+                          Изменить
+                        </Button>
+                        <Button
+                          type="button"
+                          className="filter-button"
+                          style={{ padding: "0.35rem 0.6rem", color: "var(--color-error)" }}
+                          onClick={() => setPresetDeleteConfirmId(p.id)}
+                        >
+                          Удалить
+                        </Button>
+                      </Flex>
+                    </div>
+                  ))
+                )}
+              </div>
+              {presetDeleteConfirmId && (
+                <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => setPresetDeleteConfirmId(null)}>
+                  <Panel className="cargo-card" style={{ maxWidth: "24rem", margin: "2rem auto", padding: "1rem" }} onClick={(e) => e.stopPropagation()}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Удалить пресет?</Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+                      Пресет «{permissionPresets.find((x) => x.id === presetDeleteConfirmId)?.label ?? presetDeleteConfirmId}» будет удалён. Это не изменит права уже выданные пользователям.
+                    </Typography.Body>
+                    <Flex gap="0.5rem">
+                      <Button
+                        className="filter-button"
+                        style={{ background: "var(--color-error)", color: "white" }}
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/admin-presets?id=${encodeURIComponent(presetDeleteConfirmId)}`, {
+                              method: "DELETE",
+                              headers: { Authorization: `Bearer ${adminToken}` },
+                            });
+                            if (!res.ok) throw new Error("Ошибка удаления");
+                            setPresetDeleteConfirmId(null);
+                            fetchPresets();
+                          } catch {
+                            setPresetFormError("Не удалось удалить пресет");
+                          }
+                        }}
+                      >
+                        Удалить
+                      </Button>
+                      <Button className="filter-button" onClick={() => setPresetDeleteConfirmId(null)}>Отмена</Button>
+                    </Flex>
+                  </Panel>
+                </div>
+              )}
+            </>
           )}
         </Panel>
       )}
