@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
+import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 
 const DEFAULT_PERMISSIONS = {
@@ -121,6 +122,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
       }
     }
+
+    const { rows: idRows } = await pool.query<{ id: number }>("SELECT id FROM registered_users WHERE login = $1", [login]);
+    const newId = idRows[0]?.id;
+    await writeAuditLog(pool, { action: "user_register", target_type: "user", target_id: newId, details: { login } });
 
     if (sendEmail) {
       const sendResult = await sendRegistrationEmail(pool, email, login, password, companyName);

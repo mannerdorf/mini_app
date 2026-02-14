@@ -3,6 +3,7 @@ import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
+import { writeAuditLog } from "../lib/adminAuditLog.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "PATCH" && req.method !== "POST") {
@@ -135,6 +136,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
     }
+
+    await writeAuditLog(pool, {
+      action: "user_update",
+      target_type: "user",
+      target_id: id,
+      details: {
+        login,
+        permissions: body?.permissions !== undefined,
+        financial_access: body?.financial_access !== undefined,
+        active: body?.active !== undefined,
+        access_all_inns: body?.access_all_inns !== undefined,
+        customers: customers !== undefined,
+        reset_password: body?.reset_password === true,
+      },
+    });
 
     return res.status(200).json({
       ok: true,
