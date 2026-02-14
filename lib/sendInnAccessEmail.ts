@@ -10,7 +10,7 @@ export async function sendInnAccessEmail(
   code6: string,
   companyName: string
 ): Promise<{ ok: boolean; error?: string }> {
-  const settings = await getEmailSettings(pool);
+  const settings = getEmailSettings();
   if (!settings.smtp_host || !settings.from_email) {
     return { ok: false, error: "Настройки почты не заданы" };
   }

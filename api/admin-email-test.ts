@@ -1,12 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
-import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
 import { getEmailSettings } from "../lib/sendRegistrationEmail.js";
 
 /**
  * POST /api/admin-email-test
- * Тестирует SMTP-подключение. Может использовать сохранённые настройки или переданные в body.
+ * Тестирует SMTP-подключение по настройкам из env Vercel (или переданным в body).
  */
 export default async function handler(
   req: VercelRequest,
@@ -37,7 +36,7 @@ export default async function handler(
   }
 
   try {
-    let settings = await getEmailSettings(getPool());
+    const settings = getEmailSettings();
 
     const host = typeof body?.smtp_host === "string" && body.smtp_host.trim()
       ? body.smtp_host.trim()

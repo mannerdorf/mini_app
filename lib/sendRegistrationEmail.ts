@@ -16,84 +16,38 @@ function substituteTemplate(template: string, vars: Record<string, string>): str
   return template.replace(/\[(\w+)\]/g, (_, key) => vars[key] ?? `[${key}]`);
 }
 
-const emptyEmailSettings: EmailSettings = {
-  smtp_host: null,
-  smtp_port: null,
-  smtp_user: null,
-  smtp_password: null,
-  from_email: null,
-  from_name: null,
-  email_template_registration: null,
-  email_template_password_reset: null,
-};
-
-export async function getEmailSettings(pool: Pool): Promise<EmailSettings> {
-  type RowWithTemplates = {
-    smtp_host: string | null;
-    smtp_port: number | null;
-    smtp_user: string | null;
-    smtp_password_encrypted: string | null;
-    from_email: string | null;
-    from_name: string | null;
-    email_template_registration?: string | null;
-    email_template_password_reset?: string | null;
-  };
-  let rows: RowWithTemplates[];
-  try {
-    const result = await pool.query<RowWithTemplates>(
-      `SELECT smtp_host, smtp_port, smtp_user, smtp_password_encrypted, from_email, from_name,
-              email_template_registration, email_template_password_reset
-       FROM admin_email_settings WHERE id = 1`
-    );
-    rows = result.rows;
-  } catch (e: unknown) {
-    const msg = (e as Error)?.message ?? "";
-    if (msg.includes("email_template_registration") || msg.includes("email_template_password_reset") || msg.includes("does not exist")) {
-      const result = await pool.query<RowWithTemplates>(
-        `SELECT smtp_host, smtp_port, smtp_user, smtp_password_encrypted, from_email, from_name
-         FROM admin_email_settings WHERE id = 1`
-      );
-      rows = result.rows;
-    } else {
-      throw e;
-    }
-  }
-  const r = rows[0];
-  let smtp_host: string | null = r?.smtp_host ?? null;
-  let smtp_port: number | null = r?.smtp_port ?? null;
-  let smtp_user: string | null = r?.smtp_user ?? null;
-  let smtp_password: string | null = null;
-  if (r?.smtp_password_encrypted) {
-    try {
-      smtp_password = Buffer.from(r.smtp_password_encrypted, "base64").toString("utf8");
-    } catch {
-      smtp_password = null;
-    }
-  }
-  let from_email: string | null = r?.from_email ?? null;
-  let from_name: string | null = r?.from_name || "HAULZ";
-
-  // Fallback: настройки из env Vercel, если в БД пусто
+/** Настройки почты только из переменных окружения Vercel (SMTP_HOST, SMTP_PORT, …). */
+export function getEmailSettings(): EmailSettings {
   const envHost = process.env.SMTP_HOST?.trim();
-  if (!smtp_host && envHost) {
-    smtp_host = envHost;
-    const port = process.env.SMTP_PORT?.trim();
-    smtp_port = port ? parseInt(port, 10) || 465 : 465;
-    smtp_user = process.env.SMTP_USER?.trim() || null;
-    smtp_password = process.env.SMTP_PASSWORD?.trim() || null;
-    from_email = process.env.FROM_EMAIL?.trim() || smtp_user || null;
-    from_name = process.env.FROM_NAME?.trim() || "HAULZ";
+  if (!envHost) {
+    return {
+      smtp_host: null,
+      smtp_port: null,
+      smtp_user: null,
+      smtp_password: null,
+      from_email: null,
+      from_name: null,
+      email_template_registration: null,
+      email_template_password_reset: null,
+    };
   }
-
+  const portStr = process.env.SMTP_PORT?.trim();
+  const smtp_port = portStr ? parseInt(portStr, 10) || 465 : 465;
+  const smtp_user = process.env.SMTP_USER?.trim() || null;
+  const smtp_password = process.env.SMTP_PASSWORD?.trim() || null;
+  const from_email = process.env.FROM_EMAIL?.trim() || smtp_user || null;
+  const from_name = process.env.FROM_NAME?.trim() || "HAULZ";
+  const email_template_registration = process.env.EMAIL_TEMPLATE_REGISTRATION?.trim() || null;
+  const email_template_password_reset = process.env.EMAIL_TEMPLATE_PASSWORD_RESET?.trim() || null;
   return {
-    smtp_host,
+    smtp_host: envHost,
     smtp_port,
     smtp_user,
     smtp_password,
     from_email,
     from_name,
-    email_template_registration: r?.email_template_registration ?? null,
-    email_template_password_reset: r?.email_template_password_reset ?? null,
+    email_template_registration,
+    email_template_password_reset,
   };
 }
 
@@ -143,7 +97,7 @@ export async function sendRegistrationEmail(
   companyName: string,
   options?: { isPasswordReset?: boolean }
 ): Promise<{ ok: boolean; error?: string }> {
-  const settings = await getEmailSettings(pool);
+  const settings = getEmailSettings();
   if (!settings.smtp_host || !settings.from_email) {
     return { ok: false, error: "Настройки почты не заданы" };
   }

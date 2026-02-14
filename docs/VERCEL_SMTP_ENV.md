@@ -1,18 +1,20 @@
 # SMTP: переменные окружения в Vercel
 
-Если в БД нет настроек почты, приложение подхватит их из переменных окружения Vercel.
+Настройки почты берутся **только** из переменных окружения Vercel (БД не используется).
 
 В **Vercel → Project → Settings → Environment Variables** добавьте:
 
-| Переменная      | Значение           | Описание              |
-|-----------------|--------------------|------------------------|
-| `SMTP_HOST`     | `smtp.yandex.ru`   | SMTP хост              |
-| `SMTP_PORT`     | `465`              | SMTP порт              |
-| `SMTP_USER`     | `info@haulz.pro`   | SMTP пользователь      |
-| `SMTP_PASSWORD` | *(пароль приложения)* | Пароль — **обязательно Secret** |
-| `FROM_EMAIL`    | `info@haulz.pro`   | От кого (email)        |
-| `FROM_NAME`     | `HAULZ`            | От кого (имя)          |
+| Переменная      | Описание              |
+|-----------------|------------------------|
+| `SMTP_HOST`     | SMTP хост (обязательно) |
+| `SMTP_PORT`     | SMTP порт (по умолчанию 465) |
+| `SMTP_USER`     | SMTP пользователь      |
+| `SMTP_PASSWORD` | Пароль — **обязательно Secret** |
+| `FROM_EMAIL`    | От кого (email)        |
+| `FROM_NAME`     | От кого (имя), по умолчанию HAULZ |
+| `EMAIL_TEMPLATE_REGISTRATION` | *(необяз.)* HTML-шаблон письма при регистрации |
+| `EMAIL_TEMPLATE_PASSWORD_RESET` | *(необяз.)* HTML-шаблон при сбросе пароля |
 
-- `SMTP_PASSWORD` задайте вручную и отметьте как **Sensitive** (Secret).
-- Остальные можно задать как обычные переменные.
+- `SMTP_PASSWORD` отметьте как **Sensitive** (Secret).
+- Подстановки в шаблонах: `[login]`, `[email]`, `[password]`, `[company_name]`.
 - После добавления переменных сделайте **Redeploy** проекта.
