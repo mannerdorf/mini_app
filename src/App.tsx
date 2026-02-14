@@ -54,7 +54,7 @@ import type {
     PerevozkiRole, ProfileView, StatusFilter, Tab,
 } from "./types";
 
-const { getTodayDate, isDateToday, isDateInRange, getSixMonthsAgoDate, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, loadDateFilterState, saveDateFilterState, getDateRange, MONTH_NAMES, getWeekRange, getPreviousPeriodRange, getWeeksList, getYearsList, formatDate, formatDateTime, formatTimelineDate, formatTimelineTime, getDateTextColor } = dateUtils;
+const { getTodayDate, isDateToday, isDateInRange, getSixMonthsAgoDate, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, loadDateFilterState, saveDateFilterState, getDateRange, MONTH_NAMES, getWeekRange, getPreviousPeriodRange, getWeeksList, getYearsList, formatDate, formatDateTime, formatTimelineDate, formatTimelineTime, getDateTextColor, getFirstWorkingDayOnOrAfter } = dateUtils;
 type DateFilterState = dateUtils.DateFilterState;
 type AuthMethodsConfig = {
     api_v1: boolean;
@@ -667,13 +667,11 @@ function DashboardPage({
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
-    const [customerFilter, setCustomerFilter] = useState<string>('');
     const [billStatusFilter, setBillStatusFilter] = useState<BillStatusFilterKey>('all');
     const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
     const [routeFilter, setRouteFilter] = useState<'all' | 'MSK-KGD' | 'KGD-MSK'>('all');
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
-    const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
     const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
@@ -681,7 +679,6 @@ function DashboardPage({
     const statusButtonRef = useRef<HTMLDivElement>(null);
     const senderButtonRef = useRef<HTMLDivElement>(null);
     const receiverButtonRef = useRef<HTMLDivElement>(null);
-    const customerButtonRef = useRef<HTMLDivElement>(null);
     const billStatusButtonRef = useRef<HTMLDivElement>(null);
     const typeButtonRef = useRef<HTMLDivElement>(null);
     const routeButtonRef = useRef<HTMLDivElement>(null);
@@ -910,7 +907,6 @@ function DashboardPage({
 
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
-    const uniqueCustomers = useMemo(() => [...new Set(items.map(i => (i.Customer ?? (i as any).customer ?? '').trim()).filter(Boolean))].sort(), [items]);
     
     // Фильтрация
     const filteredItems = useMemo(() => {
@@ -924,14 +920,13 @@ function DashboardPage({
         }
         if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
         if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
-        if (customerFilter) res = res.filter(i => (i.Customer ?? (i as any).customer ?? '').trim() === customerFilter);
         if (billStatusFilter !== 'all') res = res.filter(i => getPaymentFilterKey(i.StateBill) === billStatusFilter);
         if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
         if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
         if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
         return res;
-    }, [items, statusFilter, senderFilter, receiverFilter, customerFilter, billStatusFilter, typeFilter, routeFilter]);
+    }, [items, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter]);
 
     /** Фильтрация данных предыдущего периода (те же фильтры, что и для текущего) */
     const filteredPrevPeriodItems = useMemo(() => {
@@ -945,16 +940,15 @@ function DashboardPage({
         }
         if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
         if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
-        if (customerFilter) res = res.filter(i => (i.Customer ?? (i as any).customer ?? '').trim() === customerFilter);
         if (billStatusFilter !== 'all') res = res.filter(i => getPaymentFilterKey(i.StateBill) === billStatusFilter);
         if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
         if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
         if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
         return res;
-    }, [prevPeriodItems, useServiceRequest, statusFilter, senderFilter, receiverFilter, customerFilter, billStatusFilter, typeFilter, routeFilter]);
+    }, [prevPeriodItems, useServiceRequest, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter]);
 
-    /** Плановое поступление денег по датам: из реальных счетов (дата счёта + дни на оплату из справочника), разбивка по заказчикам */
+    /** Плановое поступление денег по датам: из реальных счетов. Дата оплаты не раньше (дата счёта + дни на оплату), не позднее первого рабочего дня по истечении срока. */
     const plannedByDate = useMemo(() => {
         const map = new Map<string, { total: number; items: { customer: string; sum: number; number?: string }[] }>();
         const invDate = (inv: any) => String(inv?.DateDoc ?? inv?.Date ?? inv?.date ?? inv?.dateDoc ?? inv?.Дата ?? '').split('T')[0];
@@ -975,7 +969,8 @@ function DashboardPage({
             const d = new Date(dateStr);
             if (isNaN(d.getTime())) return;
             d.setDate(d.getDate() + days);
-            const key = d.toISOString().split('T')[0];
+            const deadline = d.toISOString().split('T')[0];
+            const key = getFirstWorkingDayOnOrAfter(deadline);
             const customer = invCustomer(inv);
             const entry = map.get(key);
             if (!entry) {
@@ -1468,7 +1463,7 @@ function DashboardPage({
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8,10)}.${r.dateFrom.slice(5,7)} – ${r.dateTo.slice(8,10)}.${r.dateTo.slice(5,7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -1576,7 +1571,7 @@ function DashboardPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -1590,7 +1585,7 @@ function DashboardPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -1603,7 +1598,7 @@ function DashboardPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -1614,25 +1609,10 @@ function DashboardPage({
                         ))}
                     </FilterDropdownPortal>
                 </div>
-                {!useServiceRequest && (
-                    <div className="filter-group" style={{ flexShrink: 0 }}>
-                        <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                                Заказчик: {customerFilter ? stripOoo(customerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
-                            </Button>
-                        </div>
-                        <FilterDropdownPortal triggerRef={customerButtonRef} isOpen={isCustomerDropdownOpen} onClose={() => setIsCustomerDropdownOpen(false)}>
-                            <div className="dropdown-item" onClick={() => { setCustomerFilter(''); setIsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            {uniqueCustomers.map(c => (
-                                <div key={c} className="dropdown-item" onClick={() => { setCustomerFilter(c); setIsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
-                            ))}
-                        </FilterDropdownPortal>
-                    </div>
-                )}
                 {useServiceRequest && (
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                                 Статус счёта: {BILL_STATUS_MAP[billStatusFilter]} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -1647,7 +1627,7 @@ function DashboardPage({
                 )}
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -1659,7 +1639,7 @@ function DashboardPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                             Маршрут: {routeFilter === 'all' ? 'Все' : routeFilter} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -1717,6 +1697,9 @@ function DashboardPage({
                 {(
                     <div style={{ padding: '1.25rem 1rem 1rem', borderTop: '1px solid var(--color-border)' }}>
                         <Flex align="center" gap="0.5rem" style={{ marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                            {dateFilter === 'неделя' && (
+                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.6rem', color: 'var(--color-text-secondary)', marginRight: '0.5rem' }}>За неделю:</Typography.Body>
+                            )}
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.6rem' }}>{formatStripValue()}</Typography.Body>
                             {useServiceRequest && prevPeriodLoading && (
                                 <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }} title="Расчёт динамики">
@@ -2270,7 +2253,7 @@ function DashboardPage({
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>Платёжный календарь</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
-                        Плановое поступление по реальным счетам: дата счёта + дни на оплату из справочника.
+                        Плановое поступление по реальным счетам: дата оплаты не раньше (дата счёта + дни на оплату), не позднее первого рабочего дня по истечении срока.
                     </Typography.Body>
                     {paymentCalendarLoading ? (
                         <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка условий оплаты...</Typography.Body></Flex>

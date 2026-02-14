@@ -66,6 +66,9 @@ function highlightMatch(text: string, query: string, keyPrefix: string): React.R
   );
 }
 
+/** Варианты «дней на оплату» в платёжном календаре (для выбора по каждой компании) */
+const PAYMENT_DAYS_OPTIONS = [0, 3, 5, 7, 14, 21, 30, 45, 60, 90];
+
 const WEAK_PASSWORDS = new Set(["123", "1234", "12345", "123456", "1234567", "12345678", "password", "qwerty", "admin", "letmein"]);
 function isPasswordStrongEnough(p: string): { ok: boolean; message?: string } {
   if (p.length < 8) return { ok: false, message: "Минимум 8 символов" };
@@ -222,6 +225,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [paymentCalendarSelectedInns, setPaymentCalendarSelectedInns] = useState<Set<string>>(new Set());
   const [paymentCalendarDaysInput, setPaymentCalendarDaysInput] = useState<string>("14");
   const [paymentCalendarSaving, setPaymentCalendarSaving] = useState(false);
+  const [paymentCalendarSavingInn, setPaymentCalendarSavingInn] = useState<string | null>(null);
   const [paymentCalendarSortColumn, setPaymentCalendarSortColumn] = useState<"inn" | "customer_name" | "days_to_pay" | null>(null);
   const [paymentCalendarSortDir, setPaymentCalendarSortDir] = useState<"asc" | "desc">("asc");
   const paymentCalendarCustomerListSorted = useMemo(() => {
@@ -2460,6 +2464,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               style={{ width: "5rem", padding: "0.35rem 0.5rem" }}
               aria-label="Количество дней на оплату"
             />
+            <Flex gap="0.25rem" wrap="wrap" align="center">
+              {PAYMENT_DAYS_OPTIONS.filter((d) => d > 0).map((d) => (
+                <Button
+                  key={d}
+                  type="button"
+                  className="filter-button"
+                  style={{ padding: "0.25rem 0.5rem", minWidth: "2.5rem" }}
+                  onClick={() => setPaymentCalendarDaysInput(String(d))}
+                >
+                  {d}
+                </Button>
+              ))}
+            </Flex>
             <Button
               type="button"
               className="button-primary"
@@ -2553,8 +2570,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </thead>
               <tbody>
                 {paymentCalendarCustomerListSorted.map((c) => {
-                  const days = c.days ?? "—";
+                  const currentDays = c.days != null ? Number(c.days) : 0;
                   const selected = paymentCalendarSelectedInns.has(c.inn);
+                  const saving = paymentCalendarSavingInn === c.inn;
+                  const options = [...new Set([...PAYMENT_DAYS_OPTIONS, currentDays].filter((d) => d >= 0 && d <= 365))].sort((a, b) => a - b);
                   return (
                     <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
                       <td style={{ padding: "0.4rem 0.5rem" }}>
@@ -2574,7 +2593,41 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </td>
                       <td style={{ padding: "0.4rem 0.5rem" }}>{c.inn}</td>
                       <td style={{ padding: "0.4rem 0.5rem" }}>{c.customer_name || "—"}</td>
-                      <td style={{ padding: "0.4rem 0.5rem", textAlign: "right", color: "var(--color-text-secondary)" }}>{days}</td>
+                      <td style={{ padding: "0.4rem 0.5rem", textAlign: "right" }}>
+                        {saving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" style={{ display: "inline-block", verticalAlign: "middle" }} />
+                        ) : (
+                          <select
+                            className="admin-form-input"
+                            value={currentDays}
+                            style={{ minWidth: "4rem", padding: "0.25rem 0.35rem", fontSize: "0.9rem" }}
+                            aria-label={`Дней на оплату для ${c.customer_name || c.inn}`}
+                            onChange={async (e) => {
+                              const val = Math.max(0, Math.min(365, parseInt(e.target.value, 10) || 0));
+                              setPaymentCalendarSavingInn(c.inn);
+                              setError(null);
+                              try {
+                                const res = await fetch("/api/admin-payment-calendar", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                  body: JSON.stringify({ inn: c.inn, days_to_pay: val }),
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                                fetchPaymentCalendar();
+                              } catch (err: unknown) {
+                                setError((err as Error)?.message || "Ошибка");
+                              } finally {
+                                setPaymentCalendarSavingInn(null);
+                              }
+                            }}
+                          >
+                            {options.map((d) => (
+                              <option key={d} value={d}>{d === 0 ? "—" : d}</option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}

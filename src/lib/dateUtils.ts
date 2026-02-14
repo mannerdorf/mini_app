@@ -293,3 +293,21 @@ export const getDateTextColor = (dateString: string | undefined) => {
     const info = getDateInfo(dateString);
     return info.isHoliday || info.isWeekend ? "#ef4444" : "var(--color-text-secondary)";
 };
+
+/**
+ * Первый рабочий день (пн–пт, без выходных) на указанную дату или после неё.
+ * Используется для плановой даты оплаты: не раньше (дата счёта + дни на оплату), не позднее первого рабочего дня по истечении срока.
+ */
+export const getFirstWorkingDayOnOrAfter = (dateStr: string): string => {
+    const d = parseDateOnly(dateStr);
+    if (!d) return dateStr;
+    let day = d.getDay();
+    while (day === 0 || day === 6) {
+        d.setDate(d.getDate() + 1);
+        day = d.getDay();
+    }
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`;
+};
