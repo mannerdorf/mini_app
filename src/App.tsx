@@ -710,6 +710,7 @@ function DashboardPage({
         const n = new Date();
         return { year: n.getFullYear(), month: n.getMonth() + 1 };
     });
+    const [paymentCalendarSelectedDate, setPaymentCalendarSelectedDate] = useState<string | null>(null);
 
     const handleSlaTableSort = (column: string) => {
         if (slaTableSortColumn === column) {
@@ -946,9 +947,9 @@ function DashboardPage({
         return res;
     }, [prevPeriodItems, useServiceRequest, statusFilter, senderFilter, receiverFilter, customerFilter, billStatusFilter, typeFilter, routeFilter]);
 
-    /** Плановое поступление денег по датам (дата выставления счёта + дни на оплату по справочнику) */
+    /** Плановое поступление денег по датам (дата перевозки + дни на оплату): сумма и разбивка по заказчикам */
     const plannedByDate = useMemo(() => {
-        const map = new Map<string, number>();
+        const map = new Map<string, { total: number; items: { customer: string; sum: number; number?: string }[] }>();
         const itemInn = (item: CargoItem) => String((item as any).INN ?? (item as any).Inn ?? (item as any).inn ?? '').trim();
         filteredItems.forEach((item) => {
             const dateStr = item.DatePrih?.split('T')[0];
@@ -961,7 +962,14 @@ function DashboardPage({
             if (isNaN(d.getTime())) return;
             d.setDate(d.getDate() + days);
             const key = d.toISOString().split('T')[0];
-            map.set(key, (map.get(key) ?? 0) + sum);
+            const customer = String((item.Customer ?? (item as any).customer ?? '').trim() || '—');
+            const entry = map.get(key);
+            if (!entry) {
+                map.set(key, { total: sum, items: [{ customer, sum, number: item.Number }] });
+            } else {
+                entry.total += sum;
+                entry.items.push({ customer, sum, number: item.Number });
+            }
         });
         return map;
     }, [filteredItems, paymentCalendarDaysByInn]);
@@ -2277,31 +2285,63 @@ function DashboardPage({
                                         cells.push({ day: d, key });
                                     }
                                     return cells.map((c, i) => {
-                                        const sum = c.key ? plannedByDate.get(c.key) : undefined;
+                                        const entry = c.key ? plannedByDate.get(c.key) : undefined;
+                                        const sum = entry?.total;
+                                        const hasSum = sum != null && sum > 0;
                                         return (
                                             <div
                                                 key={i}
+                                                role={hasSum ? 'button' : undefined}
+                                                tabIndex={hasSum ? 0 : undefined}
+                                                onClick={hasSum && c.key ? () => setPaymentCalendarSelectedDate(c.key) : undefined}
+                                                onKeyDown={hasSum && c.key ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPaymentCalendarSelectedDate(c.key); } } : undefined}
                                                 style={{
                                                     padding: '0.35rem',
                                                     textAlign: 'center',
                                                     borderRadius: 4,
-                                                    background: sum != null && sum > 0 ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
-                                                    color: sum != null && sum > 0 ? 'white' : 'var(--color-text-secondary)',
+                                                    background: hasSum ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
+                                                    color: hasSum ? 'white' : 'var(--color-text-secondary)',
                                                     minHeight: '2.25rem',
                                                     display: 'flex',
                                                     flexDirection: 'column',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
+                                                    cursor: hasSum ? 'pointer' : undefined,
                                                 }}
-                                                title={c.key && sum != null && sum > 0 ? `${c.key}: ${Math.round(sum).toLocaleString('ru-RU')} ₽` : undefined}
+                                                title={c.key && hasSum ? `${c.key}: ${Math.round(sum!).toLocaleString('ru-RU')} ₽ — нажмите для деталей` : undefined}
                                             >
                                                 {c.day != null ? c.day : ''}
-                                                {sum != null && sum > 0 && <span style={{ fontSize: '0.65rem', lineHeight: 1 }}>{formatCurrency(sum, true)}</span>}
+                                                {hasSum && <span style={{ fontSize: '0.65rem', lineHeight: 1 }}>{formatCurrency(sum!, true)}</span>}
                                             </div>
                                         );
                                     });
                                 })()}
                             </div>
+                            {paymentCalendarSelectedDate && plannedByDate.get(paymentCalendarSelectedDate) && (
+                                <div className="modal-overlay" style={{ zIndex: 10000 }} role="dialog" aria-modal="true" aria-labelledby="payment-calendar-day-title" onClick={() => setPaymentCalendarSelectedDate(null)}>
+                                    <div className="modal-content" style={{ maxWidth: '22rem', padding: '1rem', maxHeight: '80vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                                        <Typography.Body id="payment-calendar-day-title" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
+                                            Плановое поступление — {paymentCalendarSelectedDate}
+                                        </Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+                                            Заказчики и суммы:
+                                        </Typography.Body>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                            {plannedByDate.get(paymentCalendarSelectedDate)!.items.map((row, idx) => (
+                                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0', borderBottom: '1px solid var(--color-border)' }}>
+                                                    <Typography.Body style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.customer}>{row.customer}</Typography.Body>
+                                                    <Typography.Body style={{ fontWeight: 600, flexShrink: 0 }}>{formatCurrency(row.sum, true)}</Typography.Body>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <Flex justify="space-between" align="center" style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid var(--color-border)', fontWeight: 600 }}>
+                                            <Typography.Body>Итого:</Typography.Body>
+                                            <Typography.Body>{formatCurrency(plannedByDate.get(paymentCalendarSelectedDate)!.total, true)}</Typography.Body>
+                                        </Flex>
+                                        <Button type="button" className="filter-button" style={{ marginTop: '0.75rem', width: '100%' }} onClick={() => setPaymentCalendarSelectedDate(null)}>Закрыть</Button>
+                                    </div>
+                                </div>
+                            )}
                             {plannedByDate.size === 0 && !paymentCalendarLoading && (
                                 <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
                                     Нет данных за выбранный период или условия оплаты не заданы в справочнике.
