@@ -128,6 +128,11 @@ function UserRow({
       <Flex justify="space-between" align="flex-start" wrap="wrap" gap="0.5rem">
         <div style={{ flex: 1, minWidth: 0 }}>
           <Typography.Body style={{ fontWeight: 600 }}>{user.login}</Typography.Body>
+          {user.created_at && (
+            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.2rem" }}>
+              Зарегистрирован: {new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
+            </Typography.Body>
+          )}
         </div>
         <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>Профиль</Typography.Body>
@@ -145,6 +150,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [usersSearchQuery, setUsersSearchQuery] = useState("");
   const [usersViewMode, setUsersViewMode] = useState<"login" | "customer">("login");
+  const [usersSortBy, setUsersSortBy] = useState<"email" | "date" | "active">("email");
+  const [usersSortOrder, setUsersSortOrder] = useState<"asc" | "desc">("asc");
+  const [deactivateConfirmUserId, setDeactivateConfirmUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -490,6 +498,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     };
   })();
 
+  const handleDownloadBatchTemplate = async () => {
+    try {
+      const XLSX = await loadXlsxLibrary();
+      const rows = [
+        ["Логин (email)", "Пароль", "ИНН", "Название компании"],
+        ["example@mail.ru", "Пароль123", "7733751177", "ООО Пример"],
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Пользователи");
+      XLSX.writeFile(wb, "шаблон_массовая_регистрация.xlsx");
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Ошибка загрузки шаблона");
+    }
+  };
+
   const parseExcelEntries = async (file: File) => {
     const bytes = await file.arrayBuffer();
     const XLSX = await loadXlsxLibrary();
@@ -799,6 +823,44 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
       {tab === "users" && (
         <>
+          {deactivateConfirmUserId != null && (() => {
+            const u = users.find((x) => x.id === deactivateConfirmUserId);
+            return u ? (
+              <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => setDeactivateConfirmUserId(null)}>
+                <Panel className="cargo-card" style={{ maxWidth: "24rem", margin: "2rem auto", padding: "1rem" }} onClick={(e) => e.stopPropagation()}>
+                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Деактивировать пользователя?</Typography.Body>
+                  <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+                    {u.login} не сможет войти в приложение.
+                  </Typography.Body>
+                  <Flex gap="0.5rem">
+                    <Button
+                      className="filter-button"
+                      style={{ background: "var(--color-error, #dc2626)", color: "white" }}
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                            body: JSON.stringify({ active: false }),
+                          });
+                          if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
+                          setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: false } : x)));
+                        } catch (e: unknown) {
+                          setError((e as Error)?.message || "Ошибка обновления");
+                        }
+                        setDeactivateConfirmUserId(null);
+                      }}
+                    >
+                      Деактивировать
+                    </Button>
+                    <Button className="filter-button" onClick={() => setDeactivateConfirmUserId(null)}>
+                      Отмена
+                    </Button>
+                  </Flex>
+                </Panel>
+              </div>
+            ) : null;
+          })()}
           <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
             <Typography.Body style={{ fontWeight: 600, marginBottom: "0.25rem" }}>Варианты верификации</Typography.Body>
             <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
@@ -925,6 +987,26 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 className="admin-form-input"
                 style={{ maxWidth: "20rem" }}
               />
+              <Flex align="center" gap="0.35rem">
+                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Сортировка:</Typography.Body>
+                <select
+                  value={`${usersSortBy}-${usersSortOrder}`}
+                  onChange={(e) => {
+                    const [by, order] = (e.target.value as string).split("-") as [typeof usersSortBy, typeof usersSortOrder];
+                    setUsersSortBy(by);
+                    setUsersSortOrder(order);
+                  }}
+                  className="admin-form-input"
+                  style={{ padding: "0.35rem 0.5rem", fontSize: "0.85rem", minWidth: "10rem" }}
+                >
+                  <option value="email-asc">По email (А–Я)</option>
+                  <option value="email-desc">По email (Я–А)</option>
+                  <option value="date-desc">По дате (новые)</option>
+                  <option value="date-asc">По дате (старые)</option>
+                  <option value="active-desc">Сначала активные</option>
+                  <option value="active-asc">Сначала неактивные</option>
+                </select>
+              </Flex>
             </Flex>
             {loading ? (
               <Flex align="center" gap="0.5rem">
@@ -935,6 +1017,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет зарегистрированных пользователей</Typography.Body>
             ) : (() => {
               const filtered = users.filter((u) => !usersSearchQuery.trim() || u.login.toLowerCase().includes(usersSearchQuery.trim().toLowerCase()));
+              const sorted = [...filtered].sort((a, b) => {
+                let cmp = 0;
+                if (usersSortBy === "email") cmp = (a.login || "").localeCompare(b.login || "", "ru");
+                else if (usersSortBy === "date") cmp = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+                else cmp = (a.active ? 1 : 0) - (b.active ? 1 : 0);
+                return usersSortOrder === "desc" ? -cmp : cmp;
+              });
               const togglePermissionsEditor = (u: User) => {
                 if (selectedUser?.id === u.id) closePermissionsEditor();
                 else openPermissionsEditor(u);
@@ -1094,6 +1183,20 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   </Flex>
                 </Panel>
               ) : null;
+              const performSetActive = async (u: User, next: boolean) => {
+                try {
+                  const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                    body: JSON.stringify({ active: next }),
+                  });
+                  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
+                  setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: next } : x)));
+                  setDeactivateConfirmUserId(null);
+                } catch (e: unknown) {
+                  setError((e as Error)?.message || "Ошибка обновления");
+                }
+              };
               const renderUserBlock = (u: User) => (
                 <div key={u.id} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   <UserRow
@@ -1101,17 +1204,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     adminToken={adminToken}
                     onToggleActive={async () => {
                       const next = !u.active;
-                      try {
-                        const res = await fetch(`/api/admin-user-update?id=${u.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                          body: JSON.stringify({ active: next }),
-                        });
-                        if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Ошибка");
-                        setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, active: next } : x)));
-                      } catch (e: unknown) {
-                        setError((e as Error)?.message || "Ошибка обновления");
+                      if (next === false) {
+                        setDeactivateConfirmUserId(u.id);
+                        return;
                       }
+                      await performSetActive(u, true);
                     }}
                     onEditPermissions={() => togglePermissionsEditor(u)}
                   />
@@ -1121,10 +1218,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               if (usersViewMode === "login") {
                 return (
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                    {filtered.length === 0 ? (
+                    {sorted.length === 0 ? (
                       <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет пользователей по запросу</Typography.Body>
                     ) : (
-                      filtered.map((u) => renderUserBlock(u))
+                      sorted.map((u) => renderUserBlock(u))
                     )}
                   </div>
                 );
@@ -1136,7 +1233,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 if (!list.some((x) => x.id === user.id)) list.push(user);
                 groups.set(label, list);
               };
-              for (const u of filtered) {
+              for (const u of sorted) {
                 if (u.access_all_inns && (!u.companies || u.companies.length === 0)) {
                   addToGroup(CUSTOMER_ALL, u);
                   continue;
@@ -1194,6 +1291,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
               Если в файле нет ИНН (только названия в 3-м столбце), отметьте «Доступ ко всем заказчикам» ниже.
             </Typography.Body>
+            <Button type="button" className="filter-button" onClick={handleDownloadBatchTemplate} style={{ alignSelf: "flex-start" }}>
+              Скачать шаблон .xlsx
+            </Button>
             <Flex align="center" gap="0.5rem" style={{ marginTop: "0.25rem" }}>
               <input
                 type="checkbox"
