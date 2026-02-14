@@ -549,6 +549,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       if (!res.ok) throw new Error((data?.error as string) || "Ошибка сохранения");
       setEmailPassword("");
       setError(null);
+      await fetchEmailSettings();
     } catch (e: unknown) {
       setError((e as Error).message);
     } finally {

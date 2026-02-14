@@ -69,20 +69,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const templateReg = typeof body?.email_template_registration === "string" ? body.email_template_registration.trim() || null : null;
     const templateReset = typeof body?.email_template_password_reset === "string" ? body.email_template_password_reset.trim() || null : null;
 
-    // Upsert: создаём строку если нет, иначе обновляем
+    // Upsert: при обновлении записываем переданные значения (EXCLUDED), чтобы введённые данные сохранялись
     if (smtpPassword) {
       await pool.query(
         `INSERT INTO admin_email_settings (id, smtp_host, smtp_port, smtp_user, smtp_password_encrypted, from_email, from_name, email_template_registration, email_template_password_reset, updated_at)
          VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, now())
          ON CONFLICT (id) DO UPDATE SET
-          smtp_host = COALESCE(EXCLUDED.smtp_host, admin_email_settings.smtp_host),
-          smtp_port = COALESCE(EXCLUDED.smtp_port, admin_email_settings.smtp_port),
-          smtp_user = COALESCE(EXCLUDED.smtp_user, admin_email_settings.smtp_user),
+          smtp_host = EXCLUDED.smtp_host,
+          smtp_port = EXCLUDED.smtp_port,
+          smtp_user = EXCLUDED.smtp_user,
           smtp_password_encrypted = EXCLUDED.smtp_password_encrypted,
-          from_email = COALESCE(EXCLUDED.from_email, admin_email_settings.from_email),
-          from_name = COALESCE(EXCLUDED.from_name, admin_email_settings.from_name),
-          email_template_registration = COALESCE(EXCLUDED.email_template_registration, admin_email_settings.email_template_registration),
-          email_template_password_reset = COALESCE(EXCLUDED.email_template_password_reset, admin_email_settings.email_template_password_reset),
+          from_email = EXCLUDED.from_email,
+          from_name = EXCLUDED.from_name,
+          email_template_registration = EXCLUDED.email_template_registration,
+          email_template_password_reset = EXCLUDED.email_template_password_reset,
           updated_at = now()`,
         [smtpHost, smtpPort, smtpUser, smtpPassword, fromEmail, fromName || "HAULZ", templateReg, templateReset]
       );
@@ -91,13 +91,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `INSERT INTO admin_email_settings (id, smtp_host, smtp_port, smtp_user, from_email, from_name, email_template_registration, email_template_password_reset, updated_at)
          VALUES (1, $1, $2, $3, $4, $5, $6, $7, now())
          ON CONFLICT (id) DO UPDATE SET
-          smtp_host = COALESCE(EXCLUDED.smtp_host, admin_email_settings.smtp_host),
-          smtp_port = COALESCE(EXCLUDED.smtp_port, admin_email_settings.smtp_port),
-          smtp_user = COALESCE(EXCLUDED.smtp_user, admin_email_settings.smtp_user),
-          from_email = COALESCE(EXCLUDED.from_email, admin_email_settings.from_email),
-          from_name = COALESCE(EXCLUDED.from_name, admin_email_settings.from_name),
-          email_template_registration = COALESCE(EXCLUDED.email_template_registration, admin_email_settings.email_template_registration),
-          email_template_password_reset = COALESCE(EXCLUDED.email_template_password_reset, admin_email_settings.email_template_password_reset),
+          smtp_host = EXCLUDED.smtp_host,
+          smtp_port = EXCLUDED.smtp_port,
+          smtp_user = EXCLUDED.smtp_user,
+          from_email = EXCLUDED.from_email,
+          from_name = EXCLUDED.from_name,
+          email_template_registration = EXCLUDED.email_template_registration,
+          email_template_password_reset = EXCLUDED.email_template_password_reset,
           updated_at = now()`,
         [smtpHost, smtpPort, smtpUser, fromEmail, fromName || "HAULZ", templateReg, templateReset]
       );
