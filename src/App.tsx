@@ -2253,7 +2253,7 @@ function DashboardPage({
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>Платёжный календарь</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
-                        Плановое поступление по реальным счетам: дата оплаты не раньше (дата счёта + дни на оплату), не позднее первого рабочего дня по истечении срока.
+                        Плановое поступление по реальным счетам: срок оплаты задаётся в календарных днях с момента выставления счёта (не день недели). Дата оплаты — не раньше (дата счёта + срок в днях), не позднее первого рабочего дня по истечении срока.
                     </Typography.Body>
                     {paymentCalendarLoading ? (
                         <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка условий оплаты...</Typography.Body></Flex>

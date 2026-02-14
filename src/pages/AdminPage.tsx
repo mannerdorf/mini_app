@@ -66,7 +66,7 @@ function highlightMatch(text: string, query: string, keyPrefix: string): React.R
   );
 }
 
-/** Варианты «дней на оплату» в платёжном календаре (для выбора по каждой компании) */
+/** Варианты срока оплаты (календарных дней с момента выставления счёта) в платёжном календаре */
 const PAYMENT_DAYS_OPTIONS = [0, 3, 5, 7, 14, 21, 30, 45, 60, 90];
 
 const WEAK_PASSWORDS = new Set(["123", "1234", "12345", "123456", "1234567", "12345678", "password", "qwerty", "admin", "letmein"]);
@@ -2429,7 +2429,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Платёжный календарь</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-            Подбор заказчиков и установление срока оплаты счёта (в днях с момента выставления). Выберите заказчиков и укажите «Дней на оплату» — условие применится ко всем выбранным.
+            Подбор заказчиков и установление срока оплаты счёта: указывается срок в календарных днях с момента выставления счёта (не день недели — понедельник, вторник и т.д.). Выберите заказчиков и укажите «Срок (дней)» — условие применится ко всем выбранным.
           </Typography.Body>
           <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
             <Input
@@ -2452,7 +2452,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             </Flex>
           ) : null}
           <Flex gap="0.75rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
-            <label htmlFor="payment-calendar-days" style={{ fontSize: "0.9rem", whiteSpace: "nowrap" }}>Дней на оплату с момента выставления счёта:</label>
+            <label htmlFor="payment-calendar-days" style={{ fontSize: "0.9rem", whiteSpace: "nowrap" }}>Срок оплаты (календарных дней с момента выставления счёта):</label>
             <input
               id="payment-calendar-days"
               type="number"
@@ -2462,7 +2462,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               onChange={(e) => setPaymentCalendarDaysInput(e.target.value)}
               className="admin-form-input"
               style={{ width: "5rem", padding: "0.35rem 0.5rem" }}
-              aria-label="Количество дней на оплату"
+              aria-label="Срок в календарных днях (не день недели)"
             />
             <Flex gap="0.25rem" wrap="wrap" align="center">
               {PAYMENT_DAYS_OPTIONS.filter((d) => d > 0).map((d) => (
@@ -2562,9 +2562,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       setPaymentCalendarSortColumn((prev) => (prev === "days_to_pay" ? prev : "days_to_pay"));
                       setPaymentCalendarSortDir((prev) => (paymentCalendarSortColumn === "days_to_pay" ? (prev === "asc" ? "desc" : "asc") : "asc"));
                     }}
-                    title="Сортировка по дням на оплату"
+                    title="Сортировка по сроку (календарных дней)"
                   >
-                    Дней на оплату {paymentCalendarSortColumn === "days_to_pay" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
+                    Срок (дней) {paymentCalendarSortColumn === "days_to_pay" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
                   </th>
                 </tr>
               </thead>
@@ -2601,7 +2601,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             className="admin-form-input"
                             value={currentDays}
                             style={{ minWidth: "4rem", padding: "0.25rem 0.35rem", fontSize: "0.9rem" }}
-                            aria-label={`Дней на оплату для ${c.customer_name || c.inn}`}
+                            aria-label={`Срок оплаты в календарных днях для ${c.customer_name || c.inn}`}
                             onChange={async (e) => {
                               const val = Math.max(0, Math.min(365, parseInt(e.target.value, 10) || 0));
                               setPaymentCalendarSavingInn(c.inn);
@@ -2698,9 +2698,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           setPaymentCalendarSortColumn((prev) => (prev === "days_to_pay" ? prev : "days_to_pay"));
                           setPaymentCalendarSortDir((prev) => (paymentCalendarSortColumn === "days_to_pay" ? (prev === "asc" ? "desc" : "asc") : "asc"));
                         }}
-                        title="Сортировка по дням на оплату"
+                        title="Сортировка по сроку (календарных дней)"
                       >
-                        Дней на оплату {paymentCalendarSortColumn === "days_to_pay" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
+                        Срок (дней) {paymentCalendarSortColumn === "days_to_pay" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
                       </th>
                     </tr>
                   </thead>
