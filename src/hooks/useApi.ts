@@ -4,7 +4,7 @@
  */
 import useSWR from "swr";
 import { useCallback } from "react";
-import { ensureOk } from "../utils";
+import { apiFetchJson } from "../utils";
 import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL, PROXY_API_ACTS_URL } from "../constants/config";
 import type { AuthData, CargoItem, PerevozkiRole } from "../types";
 
@@ -62,14 +62,12 @@ async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
         ...(inn ? { inn } : auth.inn ? { inn: auth.inn } : {}),
         ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
     };
-    const res = await fetch(PROXY_API_BASE_URL, {
+    const data = await apiFetchJson<{ items?: unknown[] } | unknown[]>(PROXY_API_BASE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
     });
-    await ensureOk(res, "Ошибка загрузки данных");
-    const data = await res.json();
-    const list = Array.isArray(data) ? data : (data.items || []);
+    const list = Array.isArray(data) ? data : (data && typeof data === "object" && "items" in data ? (data as { items: unknown[] }).items : []);
     return list.map((item: Record<string, unknown>) => mapCargoItem(item, useServiceRequest ? "Customer" : undefined));
 }
 
@@ -128,14 +126,12 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
 
     const allMapped: CargoItem[] = [];
     for (const mode of modes) {
-        const res = await fetch(PROXY_API_BASE_URL, {
+        const data = await apiFetchJson<{ items?: unknown[] } | unknown[]>(PROXY_API_BASE_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ...basePayload, mode }),
         });
-        await ensureOk(res, "Ошибка загрузки данных");
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : (data.items || []);
+        const list = Array.isArray(data) ? data : (data && typeof data === "object" && "items" in data ? (data as { items: unknown[] }).items : []);
         allMapped.push(...list.map((item: Record<string, unknown>) => mapCargoItem(item, mode)));
     }
 
@@ -287,7 +283,7 @@ type InvoicesParams = {
 async function fetcherInvoices(params: InvoicesParams): Promise<unknown[]> {
     const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
     if (!auth?.login || !auth?.password) return [];
-    const res = await fetch(PROXY_API_INVOICES_URL, {
+    const data = await apiFetchJson<{ items?: unknown[]; Invoices?: unknown[]; invoices?: unknown[] } | unknown[]>(PROXY_API_INVOICES_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -300,9 +296,7 @@ async function fetcherInvoices(params: InvoicesParams): Promise<unknown[]> {
             ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         }),
     });
-    await ensureOk(res, "Ошибка загрузки счетов");
-    const data = await res.json();
-    const list = Array.isArray(data) ? data : (data.items ?? data.Invoices ?? data.invoices ?? []);
+    const list = Array.isArray(data) ? data : (data && typeof data === "object" ? (data as Record<string, unknown>).items ?? (data as Record<string, unknown>).Invoices ?? (data as Record<string, unknown>).invoices ?? [] : []);
     return Array.isArray(list) ? list : [];
 }
 
@@ -335,7 +329,7 @@ type ActsParams = {
 async function fetcherActs(params: ActsParams): Promise<unknown[]> {
     const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
     if (!auth?.login || !auth?.password) return [];
-    const res = await fetch(PROXY_API_ACTS_URL, {
+    const data = await apiFetchJson<{ items?: unknown[]; Acts?: unknown[]; acts?: unknown[] } | unknown[]>(PROXY_API_ACTS_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -348,9 +342,7 @@ async function fetcherActs(params: ActsParams): Promise<unknown[]> {
             ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         }),
     });
-    await ensureOk(res, "Ошибка загрузки УПД");
-    const data = await res.json();
-    const list = Array.isArray(data) ? data : (data.items ?? data.Acts ?? data.acts ?? []);
+    const list = Array.isArray(data) ? data : (data && typeof data === "object" ? (data as Record<string, unknown>).items ?? (data as Record<string, unknown>).Acts ?? (data as Record<string, unknown>).acts ?? [] : []);
     return Array.isArray(list) ? list : [];
 }
 
@@ -377,14 +369,12 @@ type CustomersParams = { auth: AuthData | null };
 async function fetcherCustomers(params: CustomersParams): Promise<{ name: string; inn: string }[]> {
     const { auth } = params;
     if (!auth?.login || !auth?.password) return [];
-    const res = await fetch(PROXY_API_GETCUSTOMERS_URL, {
+    const data = await apiFetchJson<{ customers?: unknown[]; items?: unknown[] } | unknown[]>(PROXY_API_GETCUSTOMERS_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ login: auth.login, password: auth.password }),
     });
-    await ensureOk(res, "Ошибка загрузки контрагентов");
-    const data = await res.json();
-    const list = Array.isArray(data) ? data : (data.customers ?? data.items ?? []);
+    const list = Array.isArray(data) ? data : (data && typeof data === "object" ? (data as Record<string, unknown>).customers ?? (data as Record<string, unknown>).items ?? [] : []);
     return (list || []).map((c: Record<string, unknown>) => ({
         name: String(c.name ?? c.Name ?? c.наименование ?? ""),
         inn: String(c.inn ?? c.INN ?? c.ИНН ?? ""),

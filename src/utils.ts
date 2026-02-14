@@ -1,4 +1,4 @@
-import type { CustomerOption } from "./types";
+import type { CustomerOption, CompanyRow } from "./types";
 
 /** Читает ответ как JSON или текст по content-type */
 export async function readJsonOrText(res: Response): Promise<any> {
@@ -60,6 +60,47 @@ export async function ensureOk(res: Response, fallback?: string): Promise<void> 
     throw new Error(message);
 }
 
+/** Получить сообщение об ошибке из ответа для показа пользователю */
+async function getErrorMessageFromResponse(res: Response, fallback?: string): Promise<string> {
+    const payload = await readJsonOrText(res);
+    const safe = extractErrorMessage(payload)
+        || (typeof payload === "string" && payload.trim() ? payload.trim() : "");
+    return safe || fallback || humanizeStatus(res.status);
+}
+
+/**
+ * Единая обёртка над fetch: при !res.ok бросает Error с текстом от сервера (error/message)
+ * или человекочитаемым сообщением по коду. Возвращает Response при успехе.
+ */
+export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const res = await fetch(input, init);
+    if (!res.ok) {
+        const message = await getErrorMessageFromResponse(res);
+        throw new Error(message);
+    }
+    return res;
+}
+
+/**
+ * То же, что apiFetch, но парсит тело как JSON и возвращает его. Удобно для API, возвращающих JSON.
+ * При !res.ok бросает Error с сообщением от сервера для показа пользователю.
+ */
+export async function apiFetchJson<T = unknown>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+    const res = await fetch(input, init);
+    const contentType = res.headers.get("content-type") || "";
+    const isJson = contentType.includes("application/json");
+    if (!res.ok) {
+        const message = await getErrorMessageFromResponse(res);
+        throw new Error(message);
+    }
+    if (!isJson) return {} as T;
+    try {
+        return await res.json() as T;
+    } catch {
+        return {} as T;
+    }
+}
+
 /** Заказчик из ответа GetPerevozki (первая запись с Customer) */
 export function extractCustomerFromPerevozki(payload: any): string | null {
     const list = Array.isArray(payload) ? payload : payload?.items || [];
@@ -91,6 +132,25 @@ export async function getExistingInns(logins: string[]): Promise<Set<string>> {
         if (inn.length > 0) inns.add(inn);
     }
     return inns;
+}
+
+/** Одна компания на одно название (для списка компаний/заказчиков). Приоритет — строка с непустым ИНН. */
+export function dedupeCompaniesByName(rows: CompanyRow[]): CompanyRow[] {
+    const byName = new Map<string, CompanyRow>();
+    const normalize = (s: string) => (s || "").trim().toLowerCase();
+    for (const c of rows) {
+        const key = normalize(c.name);
+        if (!key) continue;
+        const existing = byName.get(key);
+        if (!existing) {
+            byName.set(key, c);
+        } else {
+            const hasInn = (c.inn || "").trim().length > 0;
+            const existingHasInn = (existing.inn || "").trim().length > 0;
+            if (hasInn && !existingHasInn) byName.set(key, c);
+        }
+    }
+    return Array.from(byName.values());
 }
 
 /** Один заказчик на один ИНН; при дубликатах оставляем запись с более длинным name */

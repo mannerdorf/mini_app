@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { SWRConfig } from "swr";
 import { MaxUI } from "@maxhub/max-ui";
 import "@maxhub/max-ui/dist/styles.css";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import App from "./App";
 import "./styles.css";
 
@@ -100,10 +101,12 @@ setupDebugOverlay();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <SWRConfig value={swrConfig}>
-      <MaxUI>
-        <App />
-      </MaxUI>
-    </SWRConfig>
+    <ErrorBoundary>
+      <SWRConfig value={swrConfig}>
+        <MaxUI>
+          <App />
+        </MaxUI>
+      </SWRConfig>
+    </ErrorBoundary>
   </React.StrictMode>
 );

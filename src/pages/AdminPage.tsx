@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, Settings, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 
@@ -146,10 +146,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [usersSearchQuery, setUsersSearchQuery] = useState("");
   const [usersViewMode, setUsersViewMode] = useState<"login" | "customer">("login");
+  /** В режиме «По заказчикам» — какие группы развёрнуты (показаны логины) */
+  const [expandedCustomerLabels, setExpandedCustomerLabels] = useState<Set<string>>(new Set());
   const [usersSortBy, setUsersSortBy] = useState<"email" | "date" | "active">("email");
   const [usersSortOrder, setUsersSortOrder] = useState<"asc" | "desc">("asc");
   const [usersFilterBy, setUsersFilterBy] = useState<"all" | "cms" | "service_mode">("all");
-  const [usersCustomerSearchQuery, setUsersCustomerSearchQuery] = useState("");
   const [usersVisibleCount, setUsersVisibleCount] = useState(50);
   const [deactivateConfirmUserId, setDeactivateConfirmUserId] = useState<number | null>(null);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
@@ -336,25 +337,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (tab === "email") fetchEmailSettings();
   }, [tab, fetchUsers, fetchEmailSettings, fetchTopActive]);
 
+  const matchesUserSearch = useCallback((u: User, q: string) => {
+    if (!q) return true;
+    const ql = q.trim().toLowerCase();
+    if (!ql) return true;
+    if (u.login && String(u.login).toLowerCase().includes(ql)) return true;
+    const searchIn = [...(u.companies ?? []).flatMap((c) => [c.inn, c.name].filter(Boolean)), u.inn, u.company_name].map((s) => String(s).toLowerCase());
+    return searchIn.some((s) => s.includes(ql));
+  }, []);
+
   const usersFilterCounts = useMemo(() => {
-    const q = usersSearchQuery.trim().toLowerCase();
-    const cq = usersCustomerSearchQuery.trim().toLowerCase();
-    const matchesCustomer = (u: User) => {
-      if (!cq) return true;
-      const searchIn = [...(u.companies ?? []).flatMap((c) => [c.inn, c.name].filter(Boolean)), u.inn, u.company_name].map((s) => String(s).toLowerCase());
-      return searchIn.some((s) => s.includes(cq));
-    };
-    const base = users.filter((u) => (!q || (u.login && String(u.login).toLowerCase().includes(q))) && matchesCustomer(u));
+    const q = usersSearchQuery.trim();
+    const base = users.filter((u) => matchesUserSearch(u, q));
     return {
       all: base.length,
       cms: base.filter((u) => !!u.permissions?.cms_access).length,
       service_mode: base.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns).length,
     };
-  }, [users, usersSearchQuery, usersCustomerSearchQuery]);
+  }, [users, usersSearchQuery, matchesUserSearch]);
 
   useEffect(() => {
     setUsersVisibleCount(USERS_PAGE_SIZE);
-  }, [usersSearchQuery, usersCustomerSearchQuery, usersFilterBy]);
+  }, [usersSearchQuery, usersFilterBy]);
 
   useEffect(() => {
     if (tab !== "audit") return;
@@ -774,6 +778,35 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
   }, [selectedUserIds, bulkPermissions, bulkFinancial, bulkAccessAllInns, adminToken]);
 
+  const handleBulkDeactivate = useCallback(async () => {
+    if (selectedUserIds.length === 0) return;
+    if (!window.confirm(`Деактивировать выбранных пользователей (${selectedUserIds.length})? Они не смогут входить в приложение.`)) return;
+    setBulkLoading(true);
+    setBulkError(null);
+    const failed: { id: number; error: string }[] = [];
+    for (const id of selectedUserIds) {
+      try {
+        const res = await fetch(`/api/admin-user-update?id=${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+          body: JSON.stringify({ active: false }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) failed.push({ id, error: (data?.error as string) || "Ошибка" });
+      } catch {
+        failed.push({ id, error: "Ошибка запроса" });
+      }
+    }
+    await fetchUsers();
+    setBulkLoading(false);
+    if (failed.length > 0) {
+      setBulkError(`Не удалось деактивировать: ${failed.length}. ${failed.slice(0, 3).map((f) => f.id).join(", ")}${failed.length > 3 ? "…" : ""}`);
+    } else {
+      setSelectedUserIds([]);
+      setBulkSelectedPresetId("");
+    }
+  }, [selectedUserIds, adminToken, fetchUsers]);
+
   const handleSaveUserPermissions = async () => {
     if (!selectedUser) return;
     setEditorLoading(true);
@@ -1054,19 +1087,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </Flex>
               <Input
                 type="text"
-                placeholder="Поиск по email..."
+                placeholder="Поиск по email или заказчику (ИНН / название)"
                 value={usersSearchQuery}
                 onChange={(e) => setUsersSearchQuery(e.target.value)}
                 className="admin-form-input"
-                style={{ maxWidth: "20rem" }}
-              />
-              <Input
-                type="text"
-                placeholder="Поиск по заказчику (ИНН / название)"
-                value={usersCustomerSearchQuery}
-                onChange={(e) => setUsersCustomerSearchQuery(e.target.value)}
-                className="admin-form-input"
-                style={{ maxWidth: "18rem" }}
+                style={{ maxWidth: "24rem" }}
               />
               <Flex align="center" gap="0.35rem">
                 <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Права:</Typography.Body>
@@ -1105,14 +1130,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 type="button"
                 className="filter-button"
                 onClick={() => {
-                  const q = usersSearchQuery.trim().toLowerCase();
-                  const cq = usersCustomerSearchQuery.trim().toLowerCase();
-                  const matchesCustomer = (u: User) => {
-                    if (!cq) return true;
-                    const searchIn = [...(u.companies ?? []).flatMap((c) => [c.inn, c.name].filter(Boolean)), u.inn, u.company_name].map((s) => String(s).toLowerCase());
-                    return searchIn.some((s) => s.includes(cq));
-                  };
-                  let list = users.filter((u) => (!q || (u.login && String(u.login).toLowerCase().includes(q))) && matchesCustomer(u));
+                  const q = usersSearchQuery.trim();
+                  let list = users.filter((u) => matchesUserSearch(u, q));
                   if (usersFilterBy === "cms") list = list.filter((u) => !!u.permissions?.cms_access);
                   else if (usersFilterBy === "service_mode") list = list.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
                   const rows = list.map((u) => {
@@ -1141,18 +1160,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             ) : users.length === 0 ? (
               <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет зарегистрированных пользователей</Typography.Body>
             ) : (() => {
-              const q = usersSearchQuery.trim().toLowerCase();
-              const cq = usersCustomerSearchQuery.trim().toLowerCase();
-              const matchesCustomer = (u: User) => {
-                if (!cq) return true;
-                const searchIn = [
-                  ...(u.companies ?? []).flatMap((c) => [c.inn, c.name].filter(Boolean)),
-                  u.inn,
-                  u.company_name,
-                ].map((s) => String(s).toLowerCase());
-                return searchIn.some((s) => s.includes(cq));
-              };
-              let filtered = users.filter((u) => (!q || (u.login && String(u.login).toLowerCase().includes(q))) && matchesCustomer(u));
+              const q = usersSearchQuery.trim();
+              let filtered = users.filter((u) => matchesUserSearch(u, q));
               if (usersFilterBy === "cms") filtered = filtered.filter((u) => !!u.permissions?.cms_access);
               else if (usersFilterBy === "service_mode") filtered = filtered.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
               const sorted = [...filtered].sort((a, b) => {
@@ -1429,10 +1438,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     ))}
                   </div>
                   {bulkError && <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginTop: "0.5rem" }}>{bulkError}</Typography.Body>}
-                  <Flex gap="0.5rem" align="center" style={{ marginTop: "0.75rem" }}>
+                  <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginTop: "0.75rem" }}>
                     <Button className="button-primary" disabled={bulkLoading} onClick={handleBulkApplyPermissions}>
                       {bulkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                       {bulkLoading ? " Применяем…" : "Применить к выбранным"}
+                    </Button>
+                    <Button
+                      type="button"
+                      className="filter-button"
+                      disabled={bulkLoading}
+                      onClick={handleBulkDeactivate}
+                      style={{ color: "var(--color-error, #dc2626)" }}
+                    >
+                      Выключить профили
                     </Button>
                     <Button className="filter-button" onClick={clearSelection}>Снять выделение</Button>
                   </Flex>
@@ -1510,16 +1528,50 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   {sortedLabels.length === 0 ? (
                     <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет пользователей по запросу</Typography.Body>
                   ) : (
-                    sortedLabels.map((label) => (
-                      <div key={label} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                        <Typography.Body style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--color-text-secondary)", borderBottom: "1px solid var(--color-border)", paddingBottom: "0.25rem" }}>
-                          {groupDisplayName(label)}
-                        </Typography.Body>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", paddingLeft: "0.5rem" }}>
-                          {(groups.get(label) ?? []).map((u) => renderUserBlock(u))}
+                    sortedLabels.map((label) => {
+                      const groupUsers = groups.get(label) ?? [];
+                      const isExpanded = expandedCustomerLabels.has(label);
+                      const toggleExpand = () => setExpandedCustomerLabels((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(label)) next.delete(label);
+                        else next.add(label);
+                        return next;
+                      });
+                      return (
+                        <div key={label} style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={toggleExpand}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleExpand(); } }}
+                            style={{
+                              padding: "0.75rem",
+                              border: "1px solid var(--color-border)",
+                              borderRadius: "8px",
+                              background: "var(--color-bg-hover)",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: "0.5rem",
+                            }}
+                          >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <Typography.Body style={{ fontWeight: 600 }}>{groupDisplayName(label)}</Typography.Body>
+                              <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.2rem" }}>
+                                {groupUsers.length} {groupUsers.length === 1 ? "логин" : groupUsers.length < 5 ? "логина" : "логинов"}
+                              </Typography.Body>
+                            </div>
+                            {isExpanded ? <ChevronDown size={20} style={{ flexShrink: 0, color: "var(--color-text-secondary)" }} /> : <ChevronRight size={20} style={{ flexShrink: 0, color: "var(--color-text-secondary)" }} />}
+                          </div>
+                          {isExpanded && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", paddingLeft: "0.5rem" }}>
+                              {groupUsers.map((u) => renderUserBlock(u))}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                   {hasMore && (
                     <Button type="button" className="filter-button" onClick={() => setUsersVisibleCount((n) => n + USERS_PAGE_SIZE)} style={{ alignSelf: "flex-start" }}>

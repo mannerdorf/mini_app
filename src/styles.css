@@ -46,6 +46,19 @@
 * { box-sizing: border-box; }
 body { margin: 0; font-family: 'Inter', sans-serif; }
 
+/* Скрыть визуально, оставить для скринридеров (a11y) */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* --- THEME VARIABLES --- */
 :root {
     --color-bg-primary: #1f2937; /* gray-900 - Фон страницы */
@@ -696,6 +709,30 @@ body { margin: 0; font-family: 'Inter', sans-serif; }
     align-items: center;
 }
 .admin-audit-toolbar .admin-form-input input {
+    flex: 1;
+    min-height: 0;
+}
+
+/* Единая высота полей ввода и кнопок в строках по всему приложению */
+.form-row-same-height .admin-form-input,
+.form-row-same-height .admin-form-input input,
+.form-row-same-height select,
+.form-row-same-height input[type="email"],
+.form-row-same-height input[type="text"],
+.form-row-same-height input[type="password"],
+.form-row-same-height input[type="number"],
+.form-row-same-height .button-primary,
+.form-row-same-height .filter-button,
+.form-row-same-height button {
+    height: 36px;
+    min-height: 36px;
+    box-sizing: border-box;
+}
+.form-row-same-height .admin-form-input {
+    display: flex;
+    align-items: center;
+}
+.form-row-same-height .admin-form-input input {
     flex: 1;
     min-height: 0;
 }
