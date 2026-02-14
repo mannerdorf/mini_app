@@ -9617,9 +9617,11 @@ export default function App() {
         }).catch(() => {});
     };
 
-    // CMS как отдельная ссылка ?tab=cms — без входа в мини-приложение
+    // Админка: постоянные ссылки /admin, /cms или ?tab=cms
     const isCmsStandalone =
-        typeof window !== "undefined" && new URL(window.location.href).searchParams.get("tab") === "cms";
+        typeof window !== "undefined" &&
+        (new URL(window.location.href).searchParams.get("tab") === "cms" ||
+            /^\/(admin|cms)\/?$/i.test(window.location.pathname));
     if (isCmsStandalone) {
         return <CMSStandalonePage />;
     }

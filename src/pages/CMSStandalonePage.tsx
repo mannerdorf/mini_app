@@ -55,12 +55,17 @@ export function CMSStandalonePage() {
 
   const goBackToApp = () => {
     try {
+      const path = window.location.pathname || "/";
+      if (path === "/admin" || path === "/cms" || path.startsWith("/admin/") || path.startsWith("/cms/")) {
+        window.location.href = "/";
+        return;
+      }
       const url = new URL(window.location.href);
       url.searchParams.delete("tab");
       window.history.replaceState(null, "", url.toString());
       window.location.reload();
     } catch {
-      window.location.href = window.location.pathname || "/";
+      window.location.href = "/";
     }
   };
 
