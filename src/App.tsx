@@ -9759,34 +9759,15 @@ export default function App() {
                             )}
                         </Flex>
                     )}
-                    {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (showDashboard || activeAccount?.permissions?.analytics === true) && (
+                    {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (
                         <DashboardPage
                             auth={auth}
                             onClose={() => {}}
                             onOpenCargoFilters={openCargoWithFilters}
                             showSums={activeAccount?.roleCustomer ?? true}
                             useServiceRequest={useServiceRequest}
-                            hasAnalytics={activeAccount?.permissions?.analytics === true}
+                            hasAnalytics={true}
                         />
-                    )}
-                    {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && !showDashboard && activeAccount?.permissions?.analytics !== true && (
-                        <div className="w-full" style={{ padding: "1.5rem 1rem" }}>
-                            <Typography.Headline style={{ fontSize: "1.25rem", marginBottom: "0.5rem" }}>Главная</Typography.Headline>
-                            <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "1.25rem" }}>
-                                Быстрый доступ к разделам приложения.
-                            </Typography.Body>
-                            <Flex gap="0.75rem" wrap="wrap" style={{ marginBottom: "1.25rem" }}>
-                                <Button className="filter-button" type="button" onClick={() => setActiveTab("cargo")} style={{ padding: "0.75rem 1.25rem" }}>
-                                    Грузы
-                                </Button>
-                                <Button className="filter-button" type="button" onClick={() => setActiveTab("docs")} style={{ padding: "0.75rem 1.25rem" }}>
-                                    Документы
-                                </Button>
-                            </Flex>
-                            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                                Дашборды (графики, платёжный календарь) доступны пользователям с правом «Аналитика».
-                            </Typography.Body>
-                        </div>
                     )}
                     {!showDashboard && activeTab === "support" && auth && (
                         <AiChatProfilePage
