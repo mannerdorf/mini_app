@@ -1,7 +1,38 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Component, type ErrorInfo } from "react";
 import { Button, Container, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import { Eye, EyeOff } from "lucide-react";
 import { AdminPage } from "./AdminPage";
+
+class AdminErrorBoundary extends Component<{ children: React.ReactNode; onBack: () => void }, { error: Error | null }> {
+  state = { error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("AdminPage error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <Container className="app-container" style={{ padding: "1rem" }}>
+          <Panel className="cargo-card" style={{ padding: "1rem" }}>
+            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Ошибка загрузки админки</Typography.Body>
+            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+              {this.state.error.message}
+            </Typography.Body>
+            <Button className="filter-button" onClick={this.props.onBack}>
+              ← В приложение
+            </Button>
+          </Panel>
+        </Container>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /** CMS как отдельная страница по ?tab=cms — без входа в мини-приложение */
 export function CMSStandalonePage() {
@@ -64,19 +95,21 @@ export function CMSStandalonePage() {
 
   if (adminToken) {
     return (
-      <Container className="app-container" style={{ padding: "1rem" }}>
-        <AdminPage
-          adminToken={adminToken}
-          onBack={goBackToApp}
-          onLogout={(reason) => {
-            try {
-              if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("haulz.adminToken");
-            } catch {}
-            setSessionExpired(reason === "expired");
-            setAdminToken(null);
-          }}
-        />
-      </Container>
+      <AdminErrorBoundary onBack={goBackToApp}>
+        <Container className="app-container" style={{ padding: "1rem" }}>
+          <AdminPage
+            adminToken={adminToken}
+            onBack={goBackToApp}
+            onLogout={(reason) => {
+              try {
+                if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("haulz.adminToken");
+              } catch {}
+              setSessionExpired(reason === "expired");
+              setAdminToken(null);
+            }}
+          />
+        </Container>
+      </AdminErrorBoundary>
     );
   }
 

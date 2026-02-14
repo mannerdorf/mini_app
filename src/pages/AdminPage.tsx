@@ -152,7 +152,7 @@ function UserRow({
     >
       <Flex justify="space-between" align="flex-start" wrap="wrap" gap="0.5rem">
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Typography.Body style={{ fontWeight: 600 }}>{user.login}</Typography.Body>
+          <Typography.Body style={{ fontWeight: 600 }}>{user.login ?? "—"}</Typography.Body>
           {user.created_at && (
             <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.2rem" }}>
               Зарегистрирован: {new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
@@ -388,7 +388,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       const searchIn = [...(u.companies ?? []).flatMap((c) => [c.inn, c.name].filter(Boolean)), u.inn, u.company_name].map((s) => String(s).toLowerCase());
       return searchIn.some((s) => s.includes(cq));
     };
-    const base = users.filter((u) => (!q || u.login.toLowerCase().includes(q)) && matchesCustomer(u));
+    const base = users.filter((u) => (!q || (u.login && String(u.login).toLowerCase().includes(q))) && matchesCustomer(u));
     return {
       all: base.length,
       cms: base.filter((u) => !!u.permissions?.cms_access).length,
@@ -1165,7 +1165,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     const searchIn = [...(u.companies ?? []).flatMap((c) => [c.inn, c.name].filter(Boolean)), u.inn, u.company_name].map((s) => String(s).toLowerCase());
                     return searchIn.some((s) => s.includes(cq));
                   };
-                  let list = users.filter((u) => (!q || u.login.toLowerCase().includes(q)) && matchesCustomer(u));
+                  let list = users.filter((u) => (!q || (u.login && String(u.login).toLowerCase().includes(q))) && matchesCustomer(u));
                   if (usersFilterBy === "cms") list = list.filter((u) => !!u.permissions?.cms_access);
                   else if (usersFilterBy === "service_mode") list = list.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
                   const rows = list.map((u) => {
@@ -1205,7 +1205,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 ].map((s) => String(s).toLowerCase());
                 return searchIn.some((s) => s.includes(cq));
               };
-              let filtered = users.filter((u) => (!q || u.login.toLowerCase().includes(q)) && matchesCustomer(u));
+              let filtered = users.filter((u) => (!q || (u.login && String(u.login).toLowerCase().includes(q))) && matchesCustomer(u));
               if (usersFilterBy === "cms") filtered = filtered.filter((u) => !!u.permissions?.cms_access);
               else if (usersFilterBy === "service_mode") filtered = filtered.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
               const sorted = [...filtered].sort((a, b) => {
@@ -1224,7 +1224,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               const permissionsEditorPanel = selectedUser ? (
                 <Panel className="cargo-card" style={{ padding: "1rem", marginTop: "0.5rem" }}>
                   <Flex justify="space-between" align="center" style={{ marginBottom: "0.5rem", gap: "0.5rem" }}>
-                    <Typography.Body style={{ fontWeight: 600 }}>{selectedUser.login}</Typography.Body>
+                    <Typography.Body style={{ fontWeight: 600 }}>{selectedUser.login ?? "—"}</Typography.Body>
                     <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={closePermissionsEditor}>
                       Закрыть
                     </Button>
