@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
-import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
+import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { getClientIp, isRateLimited, ADMIN_API_LIMIT } from "../lib/rateLimit.js";
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
@@ -35,6 +35,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     active?: boolean;
     reset_password?: boolean;
     send_password_to_email?: boolean;
+    delete_profile?: boolean;
+    login?: string;
   } = req.body;
   if (typeof body === "string") {
     try {
@@ -54,6 +56,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(404).json({ error: "Пользователь не найден" });
     }
     const { login, inn: oldInn } = existing[0]!;
+
+    if (body?.delete_profile === true) {
+      const payload = getAdminTokenPayload(getAdminTokenFromRequest(req));
+      if (payload?.superAdmin !== true) {
+        return res.status(403).json({ error: "Удаление профиля доступно только суперадминистратору" });
+      }
+      await pool.query("DELETE FROM account_companies WHERE login = $1", [login]);
+      const { rowCount } = await pool.query("DELETE FROM registered_users WHERE id = $1", [id]);
+      if ((rowCount ?? 0) > 0) {
+        await writeAuditLog(pool, {
+          action: "user_deleted",
+          target_type: "user",
+          target_id: id,
+          details: { login },
+        });
+        return res.status(200).json({ ok: true, deleted: true });
+      }
+      return res.status(404).json({ error: "Пользователь не найден" });
+    }
+
+    const newLogin = typeof body?.login === "string" ? body.login.trim().toLowerCase() : undefined;
+    if (newLogin !== undefined) {
+      if (newLogin.length === 0) {
+        return res.status(400).json({ error: "Укажите новый логин (email)" });
+      }
+      const { rows: conflict } = await pool.query<{ id: number }>(
+        "SELECT id FROM registered_users WHERE LOWER(TRIM(login)) = $1 AND id != $2",
+        [newLogin, id]
+      );
+      if (conflict.length > 0) {
+        return res.status(400).json({ error: "Пользователь с таким логином уже существует" });
+      }
+      await pool.query("UPDATE account_companies SET login = $1 WHERE login = $2", [newLogin, login]);
+      await pool.query("UPDATE registered_users SET login = $1, updated_at = now() WHERE id = $2", [newLogin, id]);
+      await writeAuditLog(pool, {
+        action: "user_update",
+        target_type: "user",
+        target_id: id,
+        details: { login_change: true, old_login: login, new_login: newLogin },
+      });
+      return res.status(200).json({ ok: true, login: newLogin });
+    }
 
     const updates: string[] = [];
     const values: unknown[] = [];

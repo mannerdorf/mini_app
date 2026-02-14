@@ -387,7 +387,8 @@ body {
   }
 }
 .password-input-container { position: relative; }
-.toggle-password-visibility { position: absolute; right: 2.5rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--color-text-secondary); cursor: pointer; }
+.password-input-container input { padding-right: 2.75rem; }
+.toggle-password-visibility { position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--color-text-secondary); cursor: pointer; padding: 0.35rem 0.5rem; margin: 0 0.25rem; display: inline-flex; align-items: center; justify-content: center; }
 .checkbox-row a { color: var(--color-primary-blue); text-decoration: none; }
 .checkbox-row a:hover { text-decoration: underline; }
 .button-primary {

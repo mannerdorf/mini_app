@@ -140,7 +140,7 @@ function UserRow({
         <div style={{ flex: 1, minWidth: 0 }}>
           <Typography.Body style={{ fontWeight: 600 }}>{user.login ?? "—"}</Typography.Body>
           {user.created_at && (
-            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.2rem" }}>
+            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
               {new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
             </Typography.Body>
           )}
@@ -212,6 +212,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [presetDeleteLoading, setPresetDeleteLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [editorChangeLoginValue, setEditorChangeLoginValue] = useState("");
+  const [editorChangeLoginOpen, setEditorChangeLoginOpen] = useState(false);
+  const [editorChangeLoginLoading, setEditorChangeLoginLoading] = useState(false);
+  const [deleteProfileConfirmOpen, setDeleteProfileConfirmOpen] = useState(false);
+  const [deleteProfileLoading, setDeleteProfileLoading] = useState(false);
 
   const deactivateModalRef = useRef<HTMLDivElement>(null);
   const bulkDeactivateModalRef = useRef<HTMLDivElement>(null);
@@ -455,6 +461,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     fetchPresets();
   }, [fetchPresets]);
+
+  useEffect(() => {
+    if (!adminToken) return;
+    fetch("/api/admin-me", { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((res) => (res.ok ? res.json() : {}))
+      .then((data: { isSuperAdmin?: boolean }) => setIsSuperAdmin(data?.isSuperAdmin === true))
+      .catch(() => {});
+  }, [adminToken]);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -777,6 +791,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setSelectedUser(null);
     setResetPasswordInfo(null);
     setEditorSelectedPresetId("");
+    setEditorChangeLoginOpen(false);
+    setDeleteProfileConfirmOpen(false);
   };
 
   const handlePermissionsToggle = (key: string) => {
@@ -1122,11 +1138,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           background: "var(--color-bg-hover)",
                           borderRadius: 6,
                           flexWrap: "wrap",
-                          gap: "0.25rem",
+                          gap: "0.75rem",
                         }}
                       >
                         <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{i + 1}. {u.login}</span>
-                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginLeft: "0.5rem" }}>
                           {u.last_login_at
                             ? (() => {
                                 const d = new Date(u.last_login_at);
@@ -1337,11 +1353,123 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     />
                     <label htmlFor="editorSendPasswordToEmail" style={{ fontSize: "0.9rem" }}>Новый пароль отправить на почту</label>
                   </Flex>
-                  <Flex gap="0.5rem" align="center" style={{ marginBottom: "0.75rem" }}>
+                  <Flex gap="0.5rem" align="center" style={{ marginBottom: "0.75rem", flexWrap: "wrap" }}>
                     <Button className="filter-button" style={{ padding: "0.25rem 0.75rem" }} onClick={handleResetPassword}>
                       Сбросить пароль
                     </Button>
+                    <Button
+                      type="button"
+                      className="filter-button"
+                      style={{ padding: "0.25rem 0.75rem" }}
+                      onClick={() => {
+                        setEditorChangeLoginOpen(true);
+                        setEditorChangeLoginValue(selectedUser?.login ?? "");
+                      }}
+                    >
+                      Изменить логин
+                    </Button>
+                    {isSuperAdmin && (
+                      <Button
+                        type="button"
+                        className="filter-button"
+                        style={{ padding: "0.25rem 0.75rem", color: "var(--color-error)" }}
+                        onClick={() => setDeleteProfileConfirmOpen(true)}
+                      >
+                        Удалить профиль
+                      </Button>
+                    )}
                   </Flex>
+                  {editorChangeLoginOpen && (
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <label htmlFor="editor-new-login" style={{ display: "block", fontSize: "0.85rem", marginBottom: "0.25rem" }}>Новый логин (email)</label>
+                      <Flex gap="0.5rem" align="center" wrap="wrap">
+                        <Input
+                          id="editor-new-login"
+                          className="admin-form-input"
+                          type="email"
+                          value={editorChangeLoginValue}
+                          onChange={(e) => setEditorChangeLoginValue(e.target.value)}
+                          placeholder="email@example.com"
+                          style={{ flex: 1, minWidth: "12rem" }}
+                        />
+                        <Button
+                          type="button"
+                          className="filter-button"
+                          disabled={editorChangeLoginLoading || !editorChangeLoginValue.trim()}
+                          onClick={async () => {
+                            const newLogin = editorChangeLoginValue.trim().toLowerCase();
+                            if (!newLogin || !selectedUser) return;
+                            setEditorChangeLoginLoading(true);
+                            setEditorError(null);
+                            try {
+                              const res = await fetch(`/api/admin-user-update?id=${selectedUser.id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                body: JSON.stringify({ login: newLogin }),
+                              });
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok) throw new Error(data?.error || "Ошибка");
+                              setUsers((prev) => prev.map((u) => (u.id === selectedUser.id ? { ...u, login: newLogin } : u)));
+                              setEditorChangeLoginOpen(false);
+                              openPermissionsEditor({ ...selectedUser, login: newLogin });
+                            } catch (e: unknown) {
+                              setEditorError((e as Error)?.message ?? "Не удалось изменить логин");
+                            } finally {
+                              setEditorChangeLoginLoading(false);
+                            }
+                          }}
+                        >
+                          {editorChangeLoginLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить логин"}
+                        </Button>
+                        <Button type="button" className="filter-button" onClick={() => setEditorChangeLoginOpen(false)}>
+                          Отмена
+                        </Button>
+                      </Flex>
+                    </div>
+                  )}
+                  {deleteProfileConfirmOpen && selectedUser && (
+                    <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => !deleteProfileLoading && setDeleteProfileConfirmOpen(false)} role="dialog" aria-modal="true" aria-labelledby="delete-profile-title">
+                      <div className="modal-content" style={{ maxWidth: "22rem", padding: "1.25rem" }} onClick={(e) => e.stopPropagation()}>
+                        <Typography.Body id="delete-profile-title" style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Удалить профиль?</Typography.Body>
+                        <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+                          Пользователь {selectedUser.login} будет удалён из системы без возможности восстановления. Запись в registered_users и привязки заказчиков удалятся.
+                        </Typography.Body>
+                        <Flex gap="0.5rem" wrap="wrap">
+                          <Button
+                            type="button"
+                            className="filter-button"
+                            disabled={deleteProfileLoading}
+                            style={{ color: "var(--color-error)" }}
+                            onClick={async () => {
+                              if (!selectedUser || deleteProfileLoading) return;
+                              setDeleteProfileLoading(true);
+                              try {
+                                const res = await fetch(`/api/admin-user-update?id=${selectedUser.id}`, {
+                                  method: "PATCH",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                  body: JSON.stringify({ delete_profile: true }),
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok) throw new Error(data?.error || "Ошибка удаления");
+                                setDeleteProfileConfirmOpen(false);
+                                closePermissionsEditor();
+                                fetchUsers();
+                              } catch (e: unknown) {
+                                setEditorError((e as Error)?.message ?? "Не удалось удалить");
+                              } finally {
+                                setDeleteProfileLoading(false);
+                              }
+                            }}
+                          >
+                            {deleteProfileLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Удалить"}
+                          </Button>
+                          <Button type="button" className="filter-button" disabled={deleteProfileLoading} onClick={() => setDeleteProfileConfirmOpen(false)}>
+                            Отмена
+                          </Button>
+                        </Flex>
+                      </div>
+                    </div>
+                  )}
                   {resetPasswordInfo && (
                     <div style={{ fontSize: "0.85rem", marginBottom: "0.5rem", color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                       {resetPasswordInfo.emailSent ? (
@@ -2147,6 +2275,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <option value="preset_created">Пресет создан</option>
               <option value="preset_updated">Пресет обновлён</option>
               <option value="preset_deleted">Пресет удалён</option>
+              <option value="user_deleted">Профиль удалён</option>
             </select>
             <label htmlFor="audit-filter-type" className="visually-hidden">Тип объекта</label>
             <select
@@ -2198,7 +2327,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 const escape = (s: string) => (s.includes(";") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s);
                 const actionLabel = (a: string) =>
                   a === "admin_login" ? "Вход в админку" : a === "user_register" ? "Регистрация" : a === "user_update" ? "Изменение"
-                    : a === "email_settings_saved" ? "Настройки почты" : a === "preset_created" ? "Пресет создан" : a === "preset_updated" ? "Пресет обновлён" : a === "preset_deleted" ? "Пресет удалён" : a;
+                    : a === "email_settings_saved" ? "Настройки почты" : a === "preset_created" ? "Пресет создан" : a === "preset_updated" ? "Пресет обновлён" : a === "preset_deleted" ? "Пресет удалён" : a === "user_deleted" ? "Профиль удалён" : a;
                 const objCell = (e: (typeof auditEntries)[0]) =>
                   e.target_type === "user" && e.details && typeof e.details.login === "string" ? e.details.login : e.target_id ?? "—";
                 const detailsCell = (e: (typeof auditEntries)[0]) =>
@@ -2245,7 +2374,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </thead>
                 <tbody>
                   {auditEntries.map((e) => {
-                    const actionLabel = e.action === "admin_login" ? "Вход в админку" : e.action === "user_register" ? "Регистрация" : e.action === "user_update" ? "Изменение" : e.action === "email_settings_saved" ? "Настройки почты" : e.action === "preset_created" ? "Пресет создан" : e.action === "preset_updated" ? "Пресет обновлён" : e.action === "preset_deleted" ? "Пресет удалён" : e.action;
+                    const actionLabel = e.action === "admin_login" ? "Вход в админку" : e.action === "user_register" ? "Регистрация" : e.action === "user_update" ? "Изменение" : e.action === "email_settings_saved" ? "Настройки почты" : e.action === "preset_created" ? "Пресет создан" : e.action === "preset_updated" ? "Пресет обновлён" : e.action === "preset_deleted" ? "Пресет удалён" : e.action === "user_deleted" ? "Профиль удалён" : e.action;
                     const objCell = e.target_type === "user" && e.details && typeof e.details.login === "string" ? e.details.login : e.target_id ?? "—";
                     const detailsStr = e.details && typeof e.details === "object" && Object.keys(e.details).filter((k) => k !== "login").length > 0
                       ? Object.entries(e.details)

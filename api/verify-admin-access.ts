@@ -59,7 +59,7 @@ export default async function handler(
     } catch (e) {
       console.error("verify-admin-access: audit log error", e);
     }
-    const adminToken = createAdminToken();
+    const adminToken = createAdminToken(true);
     return res.status(200).json({ ok: true, adminToken });
   }
 

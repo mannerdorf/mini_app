@@ -281,7 +281,7 @@ export function CMSStandalonePage() {
         <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
           Введите логин и пароль администратора.
         </Typography.Body>
-        <div className="field">
+        <div className="field" style={{ marginBottom: "1rem" }}>
           <Input
             className="login-input"
             type="text"
@@ -292,7 +292,7 @@ export function CMSStandalonePage() {
               setSessionExpired(false);
             }}
             placeholder="Логин"
-            style={{ marginBottom: "0.5rem", width: "100%" }}
+            style={{ width: "100%" }}
             autoComplete="username"
           />
         </div>
@@ -332,6 +332,25 @@ export function CMSStandalonePage() {
         >
           {adminVerifyLoading ? "Проверка…" : "Войти"}
         </Button>
+        <Flex justify="center" style={{ marginTop: "0.75rem" }}>
+          <a
+            href="/?forgot=1"
+            onClick={(e) => {
+              e.preventDefault();
+              const url = new URL(window.location.href);
+              const origin = url.origin;
+              const path = url.pathname === "/admin" || url.pathname === "/cms" ? "/" : url.pathname;
+              window.location.href = `${origin}${path}?forgot=1`;
+            }}
+            style={{
+              fontSize: "0.9rem",
+              color: "var(--color-primary-blue)",
+              textDecoration: "underline",
+            }}
+          >
+            Забыли пароль?
+          </a>
+        </Flex>
       </Panel>
     </Container>
   );

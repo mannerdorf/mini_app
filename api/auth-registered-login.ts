@@ -25,6 +25,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Введите email и пароль" });
   }
 
+  const adminLogin = process.env.ADMIN_LOGIN?.trim()?.toLowerCase() ?? "";
+  const adminPassword = process.env.ADMIN_PASSWORD ?? "";
+  const isAdminEnvCredentials =
+    adminLogin !== "" &&
+    adminPassword !== "" &&
+    email === adminLogin &&
+    password === adminPassword;
+
   try {
     const pool = getPool();
     const { rows } = await pool.query<{
@@ -43,7 +51,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     const user = rows[0];
-    if (!user || !verifyPassword(password, user.password_hash)) {
+    if (isAdminEnvCredentials) {
+      if (!user) {
+        return res.status(401).json({
+          error:
+            "Этот логин и пароль подходят только для входа в админку. Для входа в приложение зарегистрируйте этот email в разделе «Пользователи» в админке.",
+        });
+      }
+      // Вход по ADMIN_LOGIN/ADMIN_PASSWORD: используем пользователя из БД без проверки password_hash
+    } else if (!user || !verifyPassword(password, user.password_hash)) {
       return res.status(401).json({ error: "Неверный email или пароль" });
     }
 

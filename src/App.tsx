@@ -43,6 +43,7 @@ import { CompaniesPage } from "./pages/CompaniesPage";
 import { AddCompanyByINNPage } from "./pages/AddCompanyByINNPage";
 import { AddCompanyByLoginPage } from "./pages/AddCompanyByLoginPage";
 import { CompaniesListPage } from "./pages/CompaniesListPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
 import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
@@ -7732,6 +7733,14 @@ export default function App() {
     const [showPassword, setShowPassword] = useState(false); 
     const [twoFactorPending, setTwoFactorPending] = useState(false);
     const [twoFactorCode, setTwoFactorCode] = useState("");
+    const [showForgotPage, setShowForgotPage] = useState(() => {
+        try {
+            if (typeof window === "undefined") return false;
+            return new URL(window.location.href).searchParams.get("forgot") === "1";
+        } catch {
+            return false;
+        }
+    });
     const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
     const [twoFactorLoading, setTwoFactorLoading] = useState(false);
     const [pendingLogin, setPendingLogin] = useState<{ login: string; loginKey: string; password: string; customer?: string | null; customers?: CustomerOption[]; perevozkiInn?: string } | null>(null);
@@ -8822,6 +8831,23 @@ export default function App() {
         return <CMSStandalonePage />;
     }
 
+    if (!auth && showForgotPage) {
+        return (
+            <ForgotPasswordPage
+                onBackToLogin={() => {
+                    setShowForgotPage(false);
+                    try {
+                        const u = new URL(window.location.href);
+                        u.searchParams.delete("forgot");
+                        window.history.replaceState(null, "", u.toString());
+                    } catch {
+                        // ignore
+                    }
+                }}
+            />
+        );
+    }
+
     if (!auth) {
         return (
             <>
@@ -8974,25 +9000,30 @@ export default function App() {
                                 {loading ? <Loader2 className="animate-spin w-5 h-5" /> : "Подтвердить"}
                             </Button>
                             <Flex justify="center" style={{ marginTop: '1rem' }}>
-                                <Typography.Body 
-                                    style={{ 
-                                        color: 'var(--color-primary-blue)', 
+                                <button
+                                    type="button"
+                                    style={{
+                                        color: 'var(--color-primary-blue)',
                                         cursor: 'pointer',
                                         textDecoration: 'underline',
-                                        fontSize: '0.9rem'
+                                        fontSize: '0.9rem',
+                                        background: 'none',
+                                        border: 'none',
+                                        padding: 0,
                                     }}
                                     onClick={() => {
-                                        const webApp = getWebApp();
-                                        const forgotPasswordUrl = 'https://lk.haulz.pro/forgot-password';
-                                        if (webApp && typeof webApp.openLink === 'function') {
-                                            webApp.openLink(forgotPasswordUrl);
-                                        } else {
-                                            window.open(forgotPasswordUrl, '_blank', 'noopener,noreferrer');
+                                        setShowForgotPage(true);
+                                        try {
+                                            const u = new URL(window.location.href);
+                                            u.searchParams.set('forgot', '1');
+                                            window.history.pushState(null, '', u.toString());
+                                        } catch {
+                                            // ignore
                                         }
                                     }}
                                 >
                                     Забыли пароль?
-                                </Typography.Body>
+                                </button>
                             </Flex>
                         </form>
                     )}

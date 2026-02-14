@@ -8,11 +8,26 @@ function getSecret(): string {
   return process.env.ADMIN_TOKEN_SECRET || "haulz-admin";
 }
 
-export function createAdminToken(): string {
-  const payload = { admin: true, exp: Date.now() + TTL_MS };
+export function createAdminToken(superAdmin?: boolean): string {
+  const payload = { admin: true, exp: Date.now() + TTL_MS, ...(superAdmin ? { superAdmin: true } : {}) };
   const payloadB64 = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const sig = crypto.createHmac(ALG, getSecret()).update(payloadB64).digest("base64url");
   return `${payloadB64}.${sig}`;
+}
+
+export function getAdminTokenPayload(token: string | undefined): { superAdmin?: boolean } | null {
+  if (!token || typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+  const [payloadB64, sig] = parts;
+  const expectedSig = crypto.createHmac(ALG, getSecret()).update(payloadB64).digest("base64url");
+  if (sig !== expectedSig) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8"));
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 export function verifyAdminToken(token: string | undefined): boolean {
