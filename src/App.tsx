@@ -3686,7 +3686,7 @@ function ProfilePage({
                     <>
                         <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
                             <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Пригласить сотрудника</Typography.Body>
-                            <Flex className="form-row-same-height" gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: '0.5rem' }}>
+                            <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: '0.5rem' }}>
                                 <Input
                                     type="email"
                                     placeholder="Email"
@@ -3696,12 +3696,14 @@ function ProfilePage({
                                     className="admin-form-input"
                                 />
                                 <select
-                                    className="admin-form-input"
+                                    className="admin-form-input invite-role-select"
                                     value={invitePresetId}
                                     onChange={(e) => { setInvitePresetId(e.target.value); setInviteError(null); }}
                                     style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem' }}
+                                    aria-label="Выберите роль"
+                                    title={rolePresets.length === 0 ? 'Роли загружаются или не настроены' : undefined}
                                 >
-                                    <option value="">Выберите роль</option>
+                                    <option value="">{rolePresets.length === 0 ? 'Нет ролей' : 'Выберите роль'}</option>
                                     {rolePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
                                 </select>
                                 <Button
@@ -3734,14 +3736,15 @@ function ProfilePage({
                             {inviteError && <Typography.Body style={{ color: 'var(--color-error)', fontSize: '0.85rem' }}>{inviteError}</Typography.Body>}
                             {inviteSuccess && <Typography.Body style={{ color: 'var(--color-success-status)', fontSize: '0.85rem' }}>{inviteSuccess}</Typography.Body>}
                         </Panel>
-                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Приглашённые</Typography.Body>
-                        {employeesLoading ? (
-                            <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>
-                        ) : employeesError ? (
-                            <Typography.Body style={{ color: 'var(--color-error)' }}>{employeesError}</Typography.Body>
-                        ) : employeesList.length === 0 ? (
-                            <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Пока никого не приглашали.</Typography.Body>
-                        ) : (
+                        <div style={{ marginTop: '1rem' }}>
+                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Приглашённые</Typography.Body>
+                            {employeesLoading ? (
+                                <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>
+                            ) : employeesError ? (
+                                <Typography.Body style={{ color: 'var(--color-error)' }}>{employeesError}</Typography.Body>
+                            ) : employeesList.length === 0 ? (
+                                <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Пока никого не приглашали.</Typography.Body>
+                            ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 {employeesList.map((emp) => (
                                     <Panel key={emp.id} className="cargo-card" style={{ padding: '0.75rem' }}>
@@ -3767,11 +3770,12 @@ function ProfilePage({
                                                     }}
                                                 />
                                             </Flex>
-                                        </Flex>
-                                    </Panel>
-                                ))}
-                            </div>
-                        )}
+                                            </Flex>
+                                        </Panel>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </>
                 )}
             </div>

@@ -1009,6 +1009,21 @@ body {
     min-height: 0;
 }
 
+/* Строка приглашения сотрудника: одна высота полей и кнопки, селект роли кликабельный */
+.invite-form-row .admin-form-input,
+.invite-form-row .admin-form-input input,
+.invite-form-row select.invite-role-select,
+.invite-form-row .button-primary {
+    height: 36px !important;
+    min-height: 36px !important;
+    box-sizing: border-box;
+}
+.invite-form-row select.invite-role-select {
+    min-width: 10rem;
+    cursor: pointer;
+    appearance: auto;
+}
+
 /* Поле выбора файла в админке: в светлом режиме не чёрная строка */
 .light-mode .admin-file-input-wrap,
 .light-mode .admin-file-input-wrap .admin-file-input,
