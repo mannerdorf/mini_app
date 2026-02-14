@@ -1,7 +1,7 @@
 import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect, Suspense, lazy } from "react";
 import {
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Users, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw, Lock
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw, Lock, Crown
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
@@ -3651,12 +3651,21 @@ function ProfilePage({
             icon: <UserIcon className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('roles')
         },
-        ...(activeAccount?.isRegisteredUser && activeAccount?.inCustomerDirectory === true ? [{
+        ...(activeAccount?.isRegisteredUser && activeAccount?.inCustomerDirectory === true ? [
+        {
+            id: 'supervisor',
+            label: 'Руководитель',
+            icon: <Crown className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => setCurrentView('supervisor')
+        },
+        // Сотрудники доступны только если в админке включена кнопка «Руководитель» для этого пользователя
+        ...(activeAccount?.permissions?.supervisor === true ? [{
             id: 'employees',
             label: 'Сотрудники',
             icon: <Users className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('employees')
-        }] : []),
+        }] : [])
+        ] : []),
         ...(!!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true ? [
         { 
             id: 'voiceAssistants', 
@@ -3933,6 +3942,22 @@ function ProfilePage({
         );
     }
 
+    if (currentView === 'supervisor') {
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Руководитель</Typography.Headline>
+                </Flex>
+                <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                    Раздел для пользователей из справочника заказчиков.
+                </Typography.Body>
+            </div>
+        );
+    }
+
     if (currentView === 'employees') {
         return (
             <div className="w-full">
@@ -3952,6 +3977,10 @@ function ProfilePage({
                 ) : !activeAccount?.login || !activeAccount?.password ? (
                     <Panel className="cargo-card" style={{ padding: '1rem' }}>
                         <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Нужны логин и пароль текущего аккаунта для управления сотрудниками.</Typography.Body>
+                    </Panel>
+                ) : activeAccount.permissions?.supervisor !== true ? (
+                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Раздел «Сотрудники» доступен только при включённом праве «Руководитель» в админке.</Typography.Body>
                     </Panel>
                 ) : activeAccount.inCustomerDirectory === false ? (
                     <>

@@ -19,6 +19,7 @@ const DEFAULT_PERMISSIONS = {
   chat: true,
   service_mode: false,
   analytics: false,
+  supervisor: false,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

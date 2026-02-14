@@ -25,6 +25,7 @@ const PERMISSION_KEYS = [
   { key: "chat", label: "Чат" },
   { key: "service_mode", label: "Служебный режим" },
   { key: "analytics", label: "Аналитика" },
+  { key: "supervisor", label: "Руководитель" },
 ] as const;
 
 /** Первая строка разделов: при активном — красная. Аналитику может включить только суперадмин. */
@@ -33,6 +34,7 @@ const PERMISSION_ROW1 = [
   { key: "service_mode", label: "Служебный режим" },
   { key: "__financial__", label: "Фин. показатели" as const },
   { key: "analytics", label: "Аналитика" as const },
+  { key: "supervisor", label: "Руководитель" as const },
 ] as const;
 
 /** Вторая строка разделов: при активном — синяя */
@@ -199,7 +201,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [bulkDeactivateConfirmOpen, setBulkDeactivateConfirmOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false, analytics: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false, analytics: false, supervisor: false,
   });
   const [bulkFinancial, setBulkFinancial] = useState(false);
   const [bulkAccessAllInns, setBulkAccessAllInns] = useState(false);
@@ -277,7 +279,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
   const [presetFormLabel, setPresetFormLabel] = useState("");
   const [presetFormPermissions, setPresetFormPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false, analytics: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false, analytics: false, supervisor: false,
   });
   const [presetFormFinancial, setPresetFormFinancial] = useState(false);
   const [presetFormServiceMode, setPresetFormServiceMode] = useState(false);
@@ -317,6 +319,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     chat: true,
     service_mode: false,
     analytics: false,
+    supervisor: false,
   });
   const [formSelectedPresetId, setFormSelectedPresetId] = useState<string>("");
   const [formFinancial, setFormFinancial] = useState(false);
