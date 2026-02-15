@@ -9705,9 +9705,9 @@ export default function App() {
                             hasAnalytics={true}
                         />
                     )}
-                    {showDashboard && activeTab === "cargo" && auth && (
+                    {showDashboard && activeTab === "cargo" && selectedAuths.length > 0 && (
                         <CargoPage
-                            auths={[auth]}
+                            auths={selectedAuths}
                             searchText={searchText}
                             onOpenChat={undefined}
                             onCustomerDetected={updateActiveAccountCustomer}
@@ -9722,7 +9722,7 @@ export default function App() {
                             showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
                         />
                     )}
-                    {showDashboard && activeTab === "cargo" && !auth && (
+                    {showDashboard && activeTab === "cargo" && selectedAuths.length === 0 && (
                         <Flex direction="column" align="center" justify="center" style={{ minHeight: "40vh", padding: "2rem", textAlign: "center" }}>
                             {accounts.length === 0 ? (
                                 <>
@@ -9772,9 +9772,9 @@ export default function App() {
                             onUpdateAccount={handleUpdateAccount}
                         />
                     )}
-                    {!showDashboard && activeTab === "cargo" && auth && (
+                    {!showDashboard && activeTab === "cargo" && selectedAuths.length > 0 && (
                         <CargoPage
-                            auths={[auth]}
+                            auths={selectedAuths}
                             searchText={searchText}
                             onOpenChat={undefined}
                             onCustomerDetected={updateActiveAccountCustomer}
@@ -9789,7 +9789,7 @@ export default function App() {
                             showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
                         />
                     )}
-                    {!showDashboard && activeTab === "cargo" && !auth && (
+                    {!showDashboard && activeTab === "cargo" && selectedAuths.length === 0 && (
                         <Flex direction="column" align="center" justify="center" style={{ minHeight: "40vh", padding: "2rem", textAlign: "center" }}>
                             {accounts.length === 0 ? (
                                 <>
