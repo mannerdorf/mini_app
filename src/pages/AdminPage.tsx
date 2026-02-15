@@ -206,6 +206,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [usersSortOrder, setUsersSortOrder] = useState<"asc" | "desc">("asc");
   const [usersFilterBy, setUsersFilterBy] = useState<"all" | "cms" | "no_cms" | "service_mode">("all");
   const [usersFilterLastLogin, setUsersFilterLastLogin] = useState<"all" | "7d" | "30d" | "never" | "old">("all");
+  const [usersFilterSupervisor, setUsersFilterSupervisor] = useState<"all" | "yes" | "no">("all");
+  const [usersFilterAnalytics, setUsersFilterAnalytics] = useState<"all" | "yes" | "no">("all");
+  const [usersFilterActive, setUsersFilterActive] = useState<"all" | "active" | "inactive">("all");
   const [usersFilterPresetId, setUsersFilterPresetId] = useState<string>("");
   const [usersVisibleCount, setUsersVisibleCount] = useState(50);
   const [deactivateConfirmUserId, setDeactivateConfirmUserId] = useState<number | null>(null);
@@ -226,6 +229,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [customersSortOrder, setCustomersSortOrder] = useState<"asc" | "desc">("asc");
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersFetchTrigger, setCustomersFetchTrigger] = useState(0);
+  const [customersRefreshCacheLoading, setCustomersRefreshCacheLoading] = useState(false);
   const [paymentCalendarItems, setPaymentCalendarItems] = useState<{ inn: string; customer_name: string | null; days_to_pay: number; payment_weekdays: number[] }[]>([]);
   const [paymentCalendarLoading, setPaymentCalendarLoading] = useState(false);
   const [paymentCalendarSearch, setPaymentCalendarSearch] = useState("");
@@ -513,6 +517,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       cms: base.filter((u) => !!u.permissions?.cms_access).length,
       no_cms: base.filter((u) => !u.permissions?.cms_access).length,
       service_mode: base.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns).length,
+      supervisor: base.filter((u) => !!u.permissions?.supervisor).length,
+      no_supervisor: base.filter((u) => !u.permissions?.supervisor).length,
+      analytics: base.filter((u) => !!u.permissions?.analytics).length,
+      no_analytics: base.filter((u) => !u.permissions?.analytics).length,
+      active: base.filter((u) => !!u.active).length,
+      inactive: base.filter((u) => !u.active).length,
       last_login_7d: withLastLogin((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d),
       last_login_30d: withLastLogin((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms30d),
       last_login_never: withLastLogin((u) => u.last_login_at == null),
@@ -539,7 +549,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   useEffect(() => {
     setUsersVisibleCount(USERS_PAGE_SIZE);
-  }, [usersSearchQuery, usersFilterBy, usersFilterLastLogin, usersFilterPresetId]);
+  }, [usersSearchQuery, usersFilterBy, usersFilterLastLogin, usersFilterSupervisor, usersFilterAnalytics, usersFilterActive, usersFilterPresetId]);
 
   useEffect(() => {
     if (tab !== "audit") return;
@@ -1389,6 +1399,51 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </select>
               </Flex>
               <Flex align="center" gap="var(--space-2, 0.35rem)">
+                <label htmlFor="users-filter-supervisor" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Руководитель:</label>
+                <select
+                  id="users-filter-supervisor"
+                  value={usersFilterSupervisor}
+                  onChange={(e) => setUsersFilterSupervisor(e.target.value as "all" | "yes" | "no")}
+                  className="admin-form-input"
+                  style={{ padding: "0 0.5rem", fontSize: "0.85rem", minWidth: "10rem" }}
+                  aria-label="Фильтр: право Руководитель"
+                >
+                  <option value="all">Все</option>
+                  <option value="yes">С правом ({usersFilterCounts.supervisor})</option>
+                  <option value="no">Без права ({usersFilterCounts.no_supervisor})</option>
+                </select>
+              </Flex>
+              <Flex align="center" gap="var(--space-2, 0.35rem)">
+                <label htmlFor="users-filter-analytics" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Аналитика:</label>
+                <select
+                  id="users-filter-analytics"
+                  value={usersFilterAnalytics}
+                  onChange={(e) => setUsersFilterAnalytics(e.target.value as "all" | "yes" | "no")}
+                  className="admin-form-input"
+                  style={{ padding: "0 0.5rem", fontSize: "0.85rem", minWidth: "10rem" }}
+                  aria-label="Фильтр: право Аналитика"
+                >
+                  <option value="all">Все</option>
+                  <option value="yes">С правом ({usersFilterCounts.analytics})</option>
+                  <option value="no">Без права ({usersFilterCounts.no_analytics})</option>
+                </select>
+              </Flex>
+              <Flex align="center" gap="var(--space-2, 0.35rem)">
+                <label htmlFor="users-filter-active" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Активность:</label>
+                <select
+                  id="users-filter-active"
+                  value={usersFilterActive}
+                  onChange={(e) => setUsersFilterActive(e.target.value as "all" | "active" | "inactive")}
+                  className="admin-form-input"
+                  style={{ padding: "0 0.5rem", fontSize: "0.85rem", minWidth: "10rem" }}
+                  aria-label="Фильтр по активности"
+                >
+                  <option value="all">Все</option>
+                  <option value="active">Активные ({usersFilterCounts.active})</option>
+                  <option value="inactive">Неактивные ({usersFilterCounts.inactive})</option>
+                </select>
+              </Flex>
+              <Flex align="center" gap="var(--space-2, 0.35rem)">
                 <label htmlFor="users-filter-last-login" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Вход:</label>
                 <select
                   id="users-filter-last-login"
@@ -1452,6 +1507,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   if (usersFilterBy === "cms") list = list.filter((u) => !!u.permissions?.cms_access);
                   else if (usersFilterBy === "no_cms") list = list.filter((u) => !u.permissions?.cms_access);
                   else if (usersFilterBy === "service_mode") list = list.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
+                  if (usersFilterSupervisor === "yes") list = list.filter((u) => !!u.permissions?.supervisor);
+                  else if (usersFilterSupervisor === "no") list = list.filter((u) => !u.permissions?.supervisor);
+                  if (usersFilterAnalytics === "yes") list = list.filter((u) => !!u.permissions?.analytics);
+                  else if (usersFilterAnalytics === "no") list = list.filter((u) => !u.permissions?.analytics);
+                  if (usersFilterActive === "active") list = list.filter((u) => !!u.active);
+                  else if (usersFilterActive === "inactive") list = list.filter((u) => !u.active);
                   if (usersFilterLastLogin === "7d") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
                   else if (usersFilterLastLogin === "30d") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms30d);
                   else if (usersFilterLastLogin === "never") list = list.filter((u) => u.last_login_at == null);
@@ -1491,6 +1552,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               if (usersFilterBy === "cms") filtered = filtered.filter((u) => !!u.permissions?.cms_access);
               else if (usersFilterBy === "no_cms") filtered = filtered.filter((u) => !u.permissions?.cms_access);
               else if (usersFilterBy === "service_mode") filtered = filtered.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
+              if (usersFilterSupervisor === "yes") filtered = filtered.filter((u) => !!u.permissions?.supervisor);
+              else if (usersFilterSupervisor === "no") filtered = filtered.filter((u) => !u.permissions?.supervisor);
+              if (usersFilterAnalytics === "yes") filtered = filtered.filter((u) => !!u.permissions?.analytics);
+              else if (usersFilterAnalytics === "no") filtered = filtered.filter((u) => !u.permissions?.analytics);
+              if (usersFilterActive === "active") filtered = filtered.filter((u) => !!u.active);
+              else if (usersFilterActive === "inactive") filtered = filtered.filter((u) => !u.active);
               if (usersFilterLastLogin === "7d") filtered = filtered.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
               else if (usersFilterLastLogin === "30d") filtered = filtered.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms30d);
               else if (usersFilterLastLogin === "never") filtered = filtered.filter((u) => u.last_login_at == null);
@@ -2373,6 +2440,33 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
             Данные из кэша (cache_customers). Кэш в БД обновляется по крону каждые 15 минут. На экране — данные загружаются при открытии вкладки и по кнопке «Обновить».
           </Typography.Body>
+          <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={customersRefreshCacheLoading}
+              onClick={async () => {
+                setCustomersRefreshCacheLoading(true);
+                setError(null);
+                try {
+                  const res = await fetch("/api/admin-refresh-customers-cache", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(data?.error || data?.details || "Ошибка обновления");
+                  setCustomersFetchTrigger((n) => n + 1);
+                } catch (e: unknown) {
+                  setError((e as Error)?.message || "Не удалось обновить справочник");
+                } finally {
+                  setCustomersRefreshCacheLoading(false);
+                }
+              }}
+            >
+              {customersRefreshCacheLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+              Обновить справочник
+            </Button>
+          </Flex>
           <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "var(--space-3, 0.75rem)" }}>
             <label htmlFor="customers-search" className="visually-hidden">Поиск заказчиков по ИНН или наименованию</label>
             <Input
