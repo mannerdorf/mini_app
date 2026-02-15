@@ -1793,6 +1793,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик</Typography.Body>
                       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
                         <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setEditorCustomerPickOpen(true)}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditorCustomerPickOpen(true); } }}
                           style={{
                             flex: 1,
                             minHeight: 80,
@@ -1805,7 +1809,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             display: "flex",
                             flexDirection: "column",
                             gap: "0.5rem",
+                            cursor: "pointer",
                           }}
+                          aria-label="Выбрать заказчика"
                         >
                           {editorCustomers.length === 0 ? (
                             <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Не выбран</Typography.Body>
@@ -1828,7 +1834,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 </Typography.Body>
                                 <button
                                   type="button"
-                                  onClick={() => setEditorCustomers((prev) => prev.filter((c) => c.inn !== cust.inn))}
+                                  onClick={(e) => { e.stopPropagation(); setEditorCustomers((prev) => prev.filter((c) => c.inn !== cust.inn)); }}
                                   style={{
                                     border: "none",
                                     background: "transparent",
@@ -2200,6 +2206,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <>
                   <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
                     <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setCustomerPickModalOpen(true)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCustomerPickModalOpen(true); } }}
                       style={{
                         flex: 1,
                         minHeight: 160,
@@ -2212,7 +2222,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         display: "flex",
                         flexDirection: "column",
                         gap: "0.5rem",
+                        cursor: "pointer",
                       }}
+                      aria-label="Выбрать заказчика"
                     >
                       {selectedCustomers.length === 0 ? (
                         <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Не выбран</Typography.Body>
@@ -2242,7 +2254,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             </div>
                             <button
                               type="button"
-                              onClick={() => removeSelectedCustomer(cust.inn)}
+                              onClick={(e) => { e.stopPropagation(); removeSelectedCustomer(cust.inn); }}
                               style={{
                                 border: "none",
                                 background: "transparent",
