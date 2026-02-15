@@ -3,6 +3,7 @@ import { getPool } from "./_db.js";
 import { getClientIp, isRateLimited } from "../lib/rateLimit.js";
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
+import { withErrorLog } from "../lib/requestErrorLog.js";
 
 /** Лимит запросов сброса пароля с одного IP в минуту */
 const FORGOT_PASSWORD_LIMIT = 5;
@@ -12,7 +13,7 @@ const FORGOT_PASSWORD_LIMIT = 5;
  * Сброс пароля по логину (email): то же, что сброс из админки — новый пароль на почту.
  * Тело: { login: "email@example.com" }
  */
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
@@ -73,3 +74,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: err?.message || "Ошибка сервера" });
   }
 }
+export default withErrorLog(handler);

@@ -7,35 +7,46 @@ const ACTS_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetActs";
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
-function normalizeCacheCustomers(raw: unknown): { inn: string; customer_name: string; email: string }[] {
+function extractCustomerArray(raw: unknown): any[] {
   if (!raw || typeof raw !== "object") return [];
-  let arr: any[] = [];
-  if (Array.isArray(raw)) arr = raw;
-  else {
-    const o = raw as Record<string, unknown>;
-    const items = o.Items ?? o.items ?? o.Customers ?? o.customers;
-    if (Array.isArray(items)) arr = items;
-    else if (o.INN != null || o.Inn != null || o.inn != null) arr = [o];
-    else {
-      const values = Object.values(o);
-      if (values.some((v: any) => v && typeof v === "object" && ("INN" in v || "Inn" in v || "inn" in v)))
-        arr = values.filter((v) => v && typeof v === "object") as any[];
-    }
+  if (Array.isArray(raw)) return raw;
+  const o = raw as Record<string, unknown>;
+  const from =
+    o.Items ?? o.items ?? o.Customers ?? o.customers ?? o.Data ?? o.data ?? o.Result ?? o.result ?? o.Rows ?? o.rows;
+  if (Array.isArray(from)) return from;
+  if (o.INN != null || o.Inn != null || o.inn != null) return [o];
+  const values = Object.values(o);
+  if (values.some((v: any) => v && typeof v === "object" && ("INN" in v || "Inn" in v || "inn" in v || "ИНН" in v)))
+    return values.filter((v) => v && typeof v === "object") as any[];
+  return [];
+}
+
+function getStr(el: any, ...keys: string[]): string {
+  if (!el || typeof el !== "object") return "";
+  for (const k of keys) {
+    const v = el[k];
+    if (v != null && v !== "") return String(v).trim();
   }
+  return "";
+}
+
+function normalizeCacheCustomers(raw: unknown): { inn: string; customer_name: string; email: string }[] {
+  const arr = extractCustomerArray(raw);
+  const out: { inn: string; customer_name: string; email: string }[] = [];
   const seen = new Set<string>();
-  return arr
-    .map((el: any) => {
-      const inn = String(el?.Inn ?? el?.INN ?? el?.inn ?? "").trim();
-      if (!inn || inn.length < 10) return null;
-      const name = String(el?.Name ?? el?.name ?? el?.Customer ?? el?.customer ?? "").trim() || inn;
-      const email = String(el?.Email ?? el?.email ?? "").trim() || "";
-      return { inn, customer_name: name, email };
-    })
-    .filter((x): x is { inn: string; customer_name: string; email: string } => {
-      if (!x || seen.has(x.inn)) return false;
-      seen.add(x.inn);
-      return true;
-    });
+  for (const el of arr) {
+    if (!el || typeof el !== "object") continue;
+    let inn = getStr(el, "Inn", "INN", "inn", "ИНН", "Code", "code", "Код");
+    inn = (inn.replace(/\D/g, "") || inn.trim());
+    if (!inn || (inn.length !== 10 && inn.length !== 12)) continue;
+    if (seen.has(inn)) continue;
+    seen.add(inn);
+    const name =
+      getStr(el, "Name", "name", "Customer", "customer", "Contragent", "contragent", "Client", "client", "Заказчик", "Наименование") || inn;
+    const email = getStr(el, "Email", "email", "E-mail", "e-mail", "Почта", "Mail");
+    out.push({ inn, customer_name: name, email });
+  }
+  return out;
 }
 
 /** Кэш считается свежим 15 минут */
@@ -171,7 +182,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [JSON.stringify(Array.isArray(actsList) ? actsList : [])]
     );
 
-    // 4) Заказчики из Getcustomers (ИНН, Заказчик, email)
+    // 4) Заказчики из Getcustomers (ИНН, Заказчик, email). Пакетная вставка в БД.
     let customersCount = 0;
     try {
       const customersUrl = `${GETAPI_URL}?metod=Getcustomers`;
@@ -186,13 +197,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (customersRes.ok) {
         try {
           const json = JSON.parse(customersText);
-          const payload = json?.Success === false ? [] : (json?.Customers ?? json?.customers ?? json?.Items ?? json?.items ?? json ?? []);
-          const rows = normalizeCacheCustomers(payload);
+          const rows = json?.Success === false ? [] : normalizeCacheCustomers(json);
           await pool.query("delete from cache_customers");
-          for (const r of rows) {
+          if (rows.length > 0) {
+            const inns = rows.map((r) => r.inn);
+            const names = rows.map((r) => r.customer_name);
+            const emails = rows.map((r) => r.email);
             await pool.query(
-              "insert into cache_customers (inn, customer_name, email, fetched_at) values ($1, $2, $3, now()) on conflict (inn) do update set customer_name = excluded.customer_name, email = excluded.email, fetched_at = now()",
-              [r.inn, r.customer_name, r.email]
+              `insert into cache_customers (inn, customer_name, email, fetched_at)
+               select inn, customer_name, email, now()
+               from unnest($1::text[], $2::text[], $3::text[]) as t(inn, customer_name, email)
+               on conflict (inn) do update set customer_name = excluded.customer_name, email = excluded.email, fetched_at = now()`,
+              [inns, names, emails]
             );
           }
           customersCount = rows.length;

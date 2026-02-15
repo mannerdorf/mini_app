@@ -3,6 +3,7 @@ import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { getClientIp, isRateLimited, ADMIN_API_LIMIT } from "../lib/rateLimit.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
+import { withErrorLog } from "../lib/requestErrorLog.js";
 
 type PresetRow = {
   id: number;
@@ -31,7 +32,7 @@ function normalizePermissions(permissions: unknown): Record<string, boolean> {
   return out;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   const token = getAdminTokenFromRequest(req);
   if (!verifyAdminToken(token)) {
     return res.status(401).json({ error: "Требуется авторизация админа" });
@@ -138,3 +139,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Allow", "GET, POST, DELETE");
   return res.status(405).json({ error: "Method not allowed" });
 }
+export default withErrorLog(handler);

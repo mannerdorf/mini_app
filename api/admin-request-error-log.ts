@@ -14,8 +14,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const limit = Math.min(500, Math.max(10, parseInt(String(req.query.limit || 100), 10) || 100));
-  const action = typeof req.query.action === "string" ? req.query.action.trim() || null : null;
-  const targetType = typeof req.query.target_type === "string" ? req.query.target_type.trim() || null : null;
+  const statusFilter = typeof req.query.status === "string" ? req.query.status.trim() || null : null;
   const from = typeof req.query.from === "string" ? req.query.from.trim() || null : null;
   const to = typeof req.query.to === "string" ? req.query.to.trim() || null : null;
   const q = typeof req.query.q === "string" ? req.query.q.trim() || null : null;
@@ -24,15 +23,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   const params: (string | number)[] = [];
   let idx = 1;
 
-  if (action) {
-    conditions.push(`action = $${idx}`);
-    params.push(action);
-    idx += 1;
-  }
-  if (targetType) {
-    conditions.push(`target_type = $${idx}`);
-    params.push(targetType);
-    idx += 1;
+  if (statusFilter) {
+    const statusNum = parseInt(statusFilter, 10);
+    if (!isNaN(statusNum) && statusNum >= 400) {
+      conditions.push(`status_code = $${idx}`);
+      params.push(statusNum);
+      idx += 1;
+    }
   }
   if (from) {
     conditions.push(`created_at >= $${idx}::timestamptz`);
@@ -46,7 +43,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (q) {
     conditions.push(
-      `(details->>'login' ILIKE $${idx} OR target_id ILIKE $${idx} OR action ILIKE $${idx} OR target_type ILIKE $${idx})`
+      `(path ILIKE $${idx} OR error_message ILIKE $${idx} OR details::text ILIKE $${idx})`
     );
     params.push("%" + q.replace(/%/g, "\\%").replace(/_/g, "\\_") + "%");
     idx += 1;
@@ -59,14 +56,15 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const pool = getPool();
     const { rows } = await pool.query<{
       id: number;
-      action: string;
-      target_type: string;
-      target_id: string | null;
+      path: string;
+      method: string;
+      status_code: number;
+      error_message: string | null;
       details: Record<string, unknown> | null;
       created_at: string;
     }>(
-      `SELECT id, action, target_type, target_id, details, created_at
-       FROM admin_audit_log
+      `SELECT id, path, method, status_code, error_message, details, created_at
+       FROM request_error_log
        ${where}
        ORDER BY created_at DESC
        LIMIT $${idx}`,
@@ -75,8 +73,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ entries: rows });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("admin-audit-log error:", err);
+    console.error("admin-request-error-log error:", err);
     return res.status(500).json({ error: err?.message || "Ошибка загрузки журнала" });
   }
 }
+
 export default withErrorLog(handler);

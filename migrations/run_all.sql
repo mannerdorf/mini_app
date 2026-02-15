@@ -233,3 +233,17 @@ alter table payment_calendar
   add column if not exists payment_weekdays integer[] not null default '{}';
 
 comment on column payment_calendar.payment_weekdays is 'Платежные дни недели (0=вс, 1=пн, ..., 6=сб). При наступлении срока оплата в первый из этих дней. Пустой = первый рабочий день.';
+
+-- ========== 023_request_error_log.sql ==========
+-- Журнал запросов к API, завершившихся ошибкой или отказом (4xx, 5xx)
+create table if not exists request_error_log (
+  id bigserial primary key,
+  path varchar(512) not null,
+  method varchar(16) not null,
+  status_code smallint not null,
+  error_message text,
+  details jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists request_error_log_created_at_idx on request_error_log(created_at desc);
+create index if not exists request_error_log_status_code_idx on request_error_log(status_code);

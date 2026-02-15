@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createAdminToken } from "../lib/adminAuth.js";
 import { getClientIp, isRateLimited, ADMIN_LOGIN_LIMIT } from "../lib/rateLimit.js";
+import { withErrorLog } from "../lib/requestErrorLog.js";
 
 /**
  * POST /api/verify-admin-access
@@ -10,10 +11,7 @@ import { getClientIp, isRateLimited, ADMIN_LOGIN_LIMIT } from "../lib/rateLimit.
  * ADMIN_LOGIN и ADMIN_PASSWORD (Environment Variables в настройках проекта).
  * Пользователи из БД с правом cms_access больше не могут входить в админку.
  */
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
@@ -65,3 +63,4 @@ export default async function handler(
 
   return res.status(403).json({ error: "Доступ запрещён" });
 }
+export default withErrorLog(handler);

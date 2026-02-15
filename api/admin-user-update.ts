@@ -5,8 +5,9 @@ import { getClientIp, isRateLimited, ADMIN_API_LIMIT } from "../lib/rateLimit.js
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
+import { withErrorLog } from "../lib/requestErrorLog.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "PATCH" && req.method !== "POST") {
     res.setHeader("Allow", "PATCH, POST");
     return res.status(405).json({ error: "Method not allowed" });
@@ -211,3 +212,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: err?.message || "Ошибка обновления" });
   }
 }
+export default withErrorLog(handler);

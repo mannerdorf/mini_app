@@ -5,6 +5,7 @@ import { getClientIp, isRateLimited, ADMIN_API_LIMIT } from "../lib/rateLimit.js
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
+import { withErrorLog } from "../lib/requestErrorLog.js";
 
 const DEFAULT_PERMISSIONS = {
   cms_access: false,
@@ -22,7 +23,7 @@ const DEFAULT_PERMISSIONS = {
   supervisor: false,
 };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
@@ -165,3 +166,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: err?.message || "Ошибка создания пользователя" });
   }
 }
+export default withErrorLog(handler);

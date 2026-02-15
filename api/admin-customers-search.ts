@@ -1,16 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
+import { withErrorLog } from "../lib/requestErrorLog.js";
 
 /**
  * GET /api/admin-customers-search?q=...&limit=20
  * Поиск заказчиков в cache_customers (ИНН, наименование) для подстановки в поле ИНН в админке.
  * Требует adminToken.
  */
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-) {
+async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Method not allowed" });
@@ -50,3 +48,4 @@ export default async function handler(
     return res.status(500).json({ error: err?.message || "Ошибка поиска" });
   }
 }
+export default withErrorLog(handler);
