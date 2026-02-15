@@ -5052,7 +5052,15 @@ function CargoPage({
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
     const [showSummary, setShowSummary] = useState(true);
     /** В служебном режиме: табличный вид с суммированием по заказчику */
-    const [tableModeByCustomer, setTableModeByCustomer] = useState(false);
+    const CARGO_TABLE_MODE_KEY = 'haulz.cargo.tableMode';
+    const [tableModeByCustomer, setTableModeByCustomer] = useState<boolean>(() => {
+        try {
+            return localStorage.getItem(CARGO_TABLE_MODE_KEY) === 'true';
+        } catch { return false; }
+    });
+    useEffect(() => {
+        try { localStorage.setItem(CARGO_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
+    }, [tableModeByCustomer]);
     /** Сортировка таблицы по заказчику: столбец и направление (а-я / я-а) */
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'mest' | 'pw' | 'w' | 'vol' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');

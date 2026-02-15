@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, Mail, Sun, Moon, Calendar, AlertCircle } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -2543,14 +2543,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
                     <thead>
                       <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
-                        <th className={thClass} style={thStyle} onClick={() => toggleSort("inn")} role="columnheader" aria-sort={customersSortBy === "inn" ? (customersSortOrder === "asc" ? "ascending" : "descending") : undefined}>
-                          ИНН {customersSortBy === "inn" && (customersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />)}
+                        <th className={thClass} style={thStyle} onClick={() => toggleSort("inn")} role="columnheader" aria-sort={customersSortBy === "inn" ? (customersSortOrder === "asc" ? "ascending" : "descending") : undefined} title="Нажмите для сортировки">
+                          ИНН {customersSortBy === "inn" ? (customersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />) : <ChevronsUpDown size={14} style={{ verticalAlign: "middle", marginLeft: 2, opacity: 0.5 }} />}
                         </th>
-                        <th className={thClass} style={thStyle} onClick={() => toggleSort("customer_name")} role="columnheader" aria-sort={customersSortBy === "customer_name" ? (customersSortOrder === "asc" ? "ascending" : "descending") : undefined}>
-                          Наименование {customersSortBy === "customer_name" && (customersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />)}
+                        <th className={thClass} style={thStyle} onClick={() => toggleSort("customer_name")} role="columnheader" aria-sort={customersSortBy === "customer_name" ? (customersSortOrder === "asc" ? "ascending" : "descending") : undefined} title="Нажмите для сортировки">
+                          Наименование {customersSortBy === "customer_name" ? (customersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />) : <ChevronsUpDown size={14} style={{ verticalAlign: "middle", marginLeft: 2, opacity: 0.5 }} />}
                         </th>
-                        <th className={thClass} style={thStyle} onClick={() => toggleSort("email")} role="columnheader" aria-sort={customersSortBy === "email" ? (customersSortOrder === "asc" ? "ascending" : "descending") : undefined}>
-                          Email {customersSortBy === "email" && (customersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />)}
+                        <th className={thClass} style={thStyle} onClick={() => toggleSort("email")} role="columnheader" aria-sort={customersSortBy === "email" ? (customersSortOrder === "asc" ? "ascending" : "descending") : undefined} title="Нажмите для сортировки">
+                          Email {customersSortBy === "email" ? (customersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />) : <ChevronsUpDown size={14} style={{ verticalAlign: "middle", marginLeft: 2, opacity: 0.5 }} />}
                         </th>
                         <th style={{ ...thStyle, cursor: "default", minWidth: "10rem" }}>Действия</th>
                       </tr>

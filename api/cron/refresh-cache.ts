@@ -32,21 +32,18 @@ function getStr(el: any, ...keys: string[]): string {
 
 function normalizeCacheCustomers(raw: unknown): { inn: string; customer_name: string; email: string }[] {
   const arr = extractCustomerArray(raw);
-  const out: { inn: string; customer_name: string; email: string }[] = [];
-  const seen = new Set<string>();
+  const byInn = new Map<string, { inn: string; customer_name: string; email: string }>();
   for (const el of arr) {
     if (!el || typeof el !== "object") continue;
     let inn = getStr(el, "Inn", "INN", "inn", "ИНН", "Code", "code", "Код");
     inn = (inn.replace(/\D/g, "") || inn.trim());
     if (!inn || (inn.length !== 10 && inn.length !== 12)) continue;
-    if (seen.has(inn)) continue;
-    seen.add(inn);
     const name =
       getStr(el, "Name", "name", "Customer", "customer", "Contragent", "contragent", "Client", "client", "Заказчик", "Наименование") || inn;
     const email = getStr(el, "Email", "email", "E-mail", "e-mail", "Почта", "Mail");
-    out.push({ inn, customer_name: name, email });
+    byInn.set(inn, { inn, customer_name: name, email });
   }
-  return out;
+  return Array.from(byInn.values());
 }
 
 /** Кэш считается свежим 15 минут */
