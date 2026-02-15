@@ -28,13 +28,13 @@ const PERMISSION_KEYS = [
   { key: "supervisor", label: "Руководитель" },
 ] as const;
 
-/** Первая строка разделов: при активном — красная. Аналитику может включить только суперадмин. */
+/** Первая строка разделов: при активном — красная. Аналитику может включить только суперадмин. По умолчанию при регистрации: Фин. показатели и Руководитель — активны, остальное — пассивно. */
 const PERMISSION_ROW1 = [
+  { key: "__financial__", label: "Фин. показатели" as const },
+  { key: "supervisor", label: "Руководитель" as const },
   { key: "cms_access", label: "Доступ в CMS" },
   { key: "service_mode", label: "Служебный режим" },
-  { key: "__financial__", label: "Фин. показатели" as const },
   { key: "analytics", label: "Аналитика" as const },
-  { key: "supervisor", label: "Руководитель" as const },
 ] as const;
 
 /** Вторая строка разделов: при активном — синяя */
@@ -227,7 +227,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [customersSortOrder, setCustomersSortOrder] = useState<"asc" | "desc">("asc");
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersFetchTrigger, setCustomersFetchTrigger] = useState(0);
-  const [customersRefreshCacheLoading, setCustomersRefreshCacheLoading] = useState(false);
   const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
   const [paymentCalendarItems, setPaymentCalendarItems] = useState<{ inn: string; customer_name: string | null; days_to_pay: number; payment_weekdays: number[] }[]>([]);
   const [paymentCalendarLoading, setPaymentCalendarLoading] = useState(false);
@@ -347,10 +346,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     chat: true,
     service_mode: false,
     analytics: false,
-    supervisor: false,
+    supervisor: true,
   });
   const [formSelectedPresetId, setFormSelectedPresetId] = useState<string>("");
-  const [formFinancial, setFormFinancial] = useState(false);
+  const [formFinancial, setFormFinancial] = useState(true);
   const [formSendEmail, setFormSendEmail] = useState(true);
   const [formPassword, setFormPassword] = useState("");
   const [formPasswordVisible, setFormPasswordVisible] = useState(false);
@@ -2444,36 +2443,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       {tab === "customers" && (
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник заказчиков</Typography.Body>
-          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-            Данные из кэша (cache_customers). Кэш в БД обновляется по крону каждые 15 минут. Кнопка «Обновить справочник» — запуск того же процесса вручную. На экране список подгружается при открытии вкладки и по кнопке «Обновить».
-          </Typography.Body>
-          <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
-            <Button
-              type="button"
-              className="button-primary"
-              disabled={customersRefreshCacheLoading}
-              onClick={async () => {
-                setCustomersRefreshCacheLoading(true);
-                setError(null);
-                try {
-                  const res = await fetch("/api/admin-refresh-customers-cache", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                  });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok) throw new Error(data?.error || data?.details || "Ошибка обновления");
-                  setCustomersFetchTrigger((n) => n + 1);
-                } catch (e: unknown) {
-                  setError((e as Error)?.message || "Не удалось обновить справочник");
-                } finally {
-                  setCustomersRefreshCacheLoading(false);
-                }
-              }}
-            >
-              {customersRefreshCacheLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
-              Обновить справочник
-            </Button>
-          </Flex>
           <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "var(--space-3, 0.75rem)" }}>
             <label htmlFor="customers-search" className="visually-hidden">Поиск заказчиков по ИНН или наименованию</label>
             <Input
