@@ -8529,6 +8529,21 @@ export default function App() {
             // ignore
         }
     }, [activeTab]);
+
+    // Виджет Bitrix24 Открытая линия — подключаем только на странице «Чат» (support)
+    const BITRIX_WIDGET_SCRIPT_ID = "haulz-bitrix24-widget";
+    useEffect(() => {
+        if (typeof window === "undefined" || activeTab !== "support") return;
+        if (document.getElementById(BITRIX_WIDGET_SCRIPT_ID)) return;
+        const d = document;
+        const u = "https://cdn-ru.bitrix24.ru/b33102400/crm/site_button/loader_1_q2c97k.js";
+        const s = d.createElement("script");
+        s.id = BITRIX_WIDGET_SCRIPT_ID;
+        s.async = true;
+        s.src = u + "?" + (Date.now() / 60000 | 0);
+        const h = d.getElementsByTagName("script")[0];
+        if (h?.parentNode) h.parentNode.insertBefore(s, h);
+    }, [activeTab]);
     
     // Сохранение аккаунтов и выбранных компаний в localStorage
     useEffect(() => {
