@@ -72,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const items = rows.map((r) => ({
       inn: r.inn,
       days_to_pay: r.days_to_pay,
-      payment_weekdays: Array.isArray(r.payment_weekdays) ? r.payment_weekdays.filter((d) => d >= 0 && d <= 6) : [],
+      payment_weekdays: Array.isArray(r.payment_weekdays) ? r.payment_weekdays.filter((d) => d >= 1 && d <= 5) : [],
     }));
     return res.status(200).json({ items });
   } catch (e: unknown) {

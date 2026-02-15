@@ -891,7 +891,7 @@ function DashboardPage({
                     if (row?.inn == null) return;
                     const inn = String(row.inn).trim();
                     const days = Math.max(0, Number(row.days_to_pay) || 0);
-                    const weekdays = Array.isArray(row.payment_weekdays) ? row.payment_weekdays.filter((d) => d >= 0 && d <= 6) : [];
+                    const weekdays = Array.isArray(row.payment_weekdays) ? row.payment_weekdays.filter((d) => d >= 1 && d <= 5) : [];
                     map[inn] = { days_to_pay: days, payment_weekdays: weekdays };
                 });
                 setPaymentCalendarByInn(map);

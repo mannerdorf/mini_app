@@ -46,7 +46,7 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
       inn: r.inn,
       customer_name: r.customer_name,
       days_to_pay: r.days_to_pay,
-      payment_weekdays: Array.isArray(r.payment_weekdays) ? r.payment_weekdays.filter((d) => d >= 0 && d <= 6) : [],
+      payment_weekdays: Array.isArray(r.payment_weekdays) ? r.payment_weekdays.filter((d) => d >= 1 && d <= 5) : [],
     }));
     return res.status(200).json({ items });
   } catch (e: unknown) {
@@ -60,14 +60,14 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
  * POST /api/admin-payment-calendar
  * Установить срок оплаты и/или платежные дни недели для одного или нескольких заказчиков.
  * Body: { inns?: string[], inn?: string, days_to_pay?: number, payment_weekdays?: number[] }
- * payment_weekdays: 0=вс, 1=пн, ..., 6=сб. Пустой массив = сброс.
+ * payment_weekdays: только рабочие дни (1=пн … 5=пт). Выходные не сохраняются.
  * Только суперадмин.
  */
 function normalizePaymentWeekdays(arr: unknown): number[] {
   if (!Array.isArray(arr)) return [];
   return arr
     .map((x) => (typeof x === "number" && Number.isInteger(x) ? x : parseInt(String(x), 10)))
-    .filter((d) => !Number.isNaN(d) && d >= 0 && d <= 6);
+    .filter((d) => !Number.isNaN(d) && d >= 1 && d <= 5);
 }
 
 async function handlePost(req: VercelRequest, res: VercelResponse) {
@@ -103,7 +103,8 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
 
   const daysToPay = typeof body?.days_to_pay === "number" ? Math.max(0, Math.floor(body.days_to_pay)) : null;
   const paymentWeekdaysRaw = body?.payment_weekdays;
-  const paymentWeekdays = paymentWeekdaysRaw === undefined ? null : normalizePaymentWeekdays(paymentWeekdaysRaw);
+  const paymentWeekdays =
+    paymentWeekdaysRaw === undefined ? null : normalizePaymentWeekdays(Array.isArray(paymentWeekdaysRaw) ? paymentWeekdaysRaw : [paymentWeekdaysRaw]);
 
   if (daysToPay === null && paymentWeekdays === null) {
     return res.status(400).json({ error: "Укажите days_to_pay и/или payment_weekdays" });

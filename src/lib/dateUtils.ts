@@ -314,10 +314,10 @@ export const getFirstWorkingDayOnOrAfter = (dateStr: string): string => {
 
 /**
  * Первый платёжный день недели на указанную дату или после неё.
- * weekdays: номера дней недели (0=вс, 1=пн, ..., 6=сб). При наступлении срока оплата в первый из этих дней.
+ * weekdays: только рабочие дни (1=пн … 5=пт). Выходные (0, 6) отфильтровываются.
  */
 export const getFirstPaymentWeekdayOnOrAfter = (dateStr: string, weekdays: number[]): string => {
-    const set = new Set(weekdays.filter((d) => d >= 0 && d <= 6));
+    const set = new Set(weekdays.filter((d) => d >= 1 && d <= 5));
     if (set.size === 0) return dateStr;
     const d = parseDateOnly(dateStr);
     if (!d) return dateStr;

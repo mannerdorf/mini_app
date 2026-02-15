@@ -81,6 +81,7 @@ body {
     --color-tumbler-bg-off: #3a3a3c;
     --color-tumbler-bg-on: #0071e3;
     --color-tumbler-knob: #fff;
+    --color-error: #ff453a;
     --color-error-bg: rgba(255, 69, 58, 0.12);
     --color-error-border: #ff453a;
     --color-error-text: #ff6961;
@@ -148,6 +149,7 @@ body {
     --color-text-secondary: #6e6e73;
     --color-border: #d2d2d7;
     --color-tumbler-bg-off: #d2d2d7;
+    --color-error: #dc2626;
     --color-error-bg: rgba(255, 69, 58, 0.08);
     --color-error-border: #ff3b30;
     --color-error-text: #c9342a;

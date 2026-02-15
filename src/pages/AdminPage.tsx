@@ -68,15 +68,13 @@ function highlightMatch(text: string, query: string, keyPrefix: string): React.R
 
 /** Варианты срока оплаты (календарных дней с момента выставления счёта) в платёжном календаре */
 const PAYMENT_DAYS_OPTIONS = [0, 3, 5, 7, 14, 21, 30, 45, 60, 90];
-/** Платежные дни недели: 0=вс, 1=пн, ..., 6=сб (для выбора в платёжном календаре) */
+/** Платежные дни недели — только рабочие (1=пн … 5=пт). Выходные не допускаются. */
 const PAYMENT_WEEKDAY_LABELS: { value: number; label: string }[] = [
   { value: 1, label: "Пн" },
   { value: 2, label: "Вт" },
   { value: 3, label: "Ср" },
   { value: 4, label: "Чт" },
   { value: 5, label: "Пт" },
-  { value: 6, label: "Сб" },
-  { value: 0, label: "Вс" },
 ];
 
 const WEAK_PASSWORDS = new Set(["123", "1234", "12345", "123456", "1234567", "12345678", "password", "qwerty", "admin", "letmein"]);
@@ -585,7 +583,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           inn: r.inn,
           customer_name: r.customer_name,
           days_to_pay: r.days_to_pay,
-          payment_weekdays: Array.isArray(r.payment_weekdays) ? r.payment_weekdays.filter((d) => d >= 0 && d <= 6) : [],
+          payment_weekdays: Array.isArray(r.payment_weekdays) ? r.payment_weekdays.filter((d) => d >= 1 && d <= 5) : [],
         })));
       })
       .catch(() => setPaymentCalendarItems([]))
@@ -2583,6 +2581,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   });
                   const data = await res.json().catch(() => ({}));
                   if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                  setPaymentCalendarItems((prev) => {
+                    const next = new Map(prev.map((p) => [p.inn, { ...p }]));
+                    for (const inn of paymentCalendarSelectedInns) {
+                      const cur = next.get(inn);
+                      next.set(inn, {
+                        inn,
+                        customer_name: cur?.customer_name ?? null,
+                        days_to_pay: cur?.days_to_pay ?? 0,
+                        payment_weekdays: [...paymentCalendarBulkWeekdays],
+                      });
+                    }
+                    return Array.from(next.values());
+                  });
                   fetchPaymentCalendar();
                 } catch (e: unknown) {
                   setError((e as Error)?.message || "Ошибка");
