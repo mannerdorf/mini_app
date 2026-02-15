@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { Calendar, ChevronDown, ArrowUp, ArrowDown, Share2, MessageCircle, Heart, Ship, AlertTriangle, Loader2 } from "lucide-react";
+import { Calendar, ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, AlertTriangle, Loader2 } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
@@ -912,7 +912,6 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                     </Flex>
                                     <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
                                         <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); const lines = [`Счёт: ${formatInvoiceNumber(num)}`, cust && `Заказчик: ${stripOoo(String(cust))}`, sum != null && `Сумма: ${formatCurrency(sum)}`, dt && `Дата: ${typeof dt === 'string' ? dt : String(dt)}`, payTill && `Оплата до: ${payTill}`].filter(Boolean); const text = lines.join('\n'); if (typeof navigator !== 'undefined' && (navigator as any).share) { (navigator as any).share({ title: `Счёт ${formatInvoiceNumber(num)}`, text }).catch(() => {}); } else { try { navigator.clipboard?.writeText(text); } catch {} } }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
-                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); onOpenChat?.(`Счёт ${formatInvoiceNumber(num)}`); }} title="Чат"><MessageCircle className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
                                         <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); toggleInvoiceFavorite(String(num || '')); }} title={isInvoiceFavorite(String(num || '')) ? 'Удалить из избранного' : 'В избранное'}>
                                             <Heart className="w-4 h-4" style={{ fill: isInvoiceFavorite(String(num || '')) ? '#ef4444' : 'transparent', color: isInvoiceFavorite(String(num || '')) ? '#ef4444' : 'var(--color-text-secondary)' }} />
                                         </Button>
@@ -1067,7 +1066,6 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                     </Flex>
                                     <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
                                         <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); const lines = [`УПД: ${formatInvoiceNumber(String(num))}`, cust && `Заказчик: ${stripOoo(String(cust))}`, sumDoc != null && `Сумма: ${formatCurrency(sumDoc)}`, dateDoc && `Дата: ${typeof dateDoc === 'string' ? dateDoc : String(dateDoc)}`, invoiceNum && `Счёт: ${formatInvoiceNumber(String(invoiceNum))}`].filter(Boolean); const text = lines.join('\n'); if (typeof navigator !== 'undefined' && (navigator as any).share) { (navigator as any).share({ title: `УПД ${formatInvoiceNumber(String(num))}`, text }).catch(() => {}); } else { try { navigator.clipboard?.writeText(text); } catch {} } }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
-                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); onOpenChat?.(`УПД ${formatInvoiceNumber(String(num))}`); }} title="Чат"><MessageCircle className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
                                         <span style={{ padding: '0.25rem', display: 'flex', alignItems: 'center', color: 'var(--color-text-secondary)', opacity: 0.5 }} title="Избранное"><Heart className="w-4 h-4" /></span>
                                         <Calendar className="w-4 h-4 text-theme-secondary" />
                                         <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>

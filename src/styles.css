@@ -754,6 +754,61 @@ body {
     .summary-metrics { display: grid; grid-template-columns: repeat(3, 1fr); justify-items: center; }
 }
 
+/* Монитор SLA — компактнее на телефоне */
+@media (max-width: 640px) {
+    .sla-monitor-panel {
+        padding: 0.75rem 1rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+    .sla-monitor-header {
+        margin-bottom: 0.5rem !important;
+    }
+    .sla-monitor-metrics {
+        gap: 0.75rem 1.25rem !important;
+        margin-bottom: 0.75rem !important;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+    }
+    .sla-monitor-metrics > div {
+        min-width: 0 !important;
+        font-size: 0.75rem;
+    }
+    .sla-monitor-metrics [style*="1.25rem"] {
+        font-size: 1rem !important;
+    }
+    .sla-monitor-details-toggle {
+        margin-bottom: 0.5rem !important;
+    }
+    .sla-monitor-details-toggle [style*="0.7rem"] {
+        font-size: 0.65rem !important;
+    }
+}
+
+/* Платёжный календарь — цифры компактнее на мобильном, чтобы влезали в ячейки дней */
+@media (max-width: 640px) {
+    .payment-calendar-grid {
+        font-size: 0.7rem !important;
+        min-width: 0 !important;
+        grid-template-columns: repeat(6, minmax(2rem, 1fr)) !important;
+    }
+    .payment-calendar-day-cell {
+        padding: 0.2rem 0.15rem !important;
+        min-height: 1.9rem !important;
+    }
+    .payment-calendar-day-amount {
+        font-size: 0.5rem !important;
+        line-height: 1.1 !important;
+        word-break: break-all;
+        max-width: 100%;
+    }
+    .payment-calendar-week-total {
+        font-size: 0.55rem !important;
+        padding: 0.2rem 0.15rem !important;
+        min-height: 1.9rem !important;
+        word-break: break-all;
+    }
+}
+
 .details-item-modal { padding: var(--space-2, 8px); background-color: var(--color-bg-hover); border-radius: var(--radius-md, 12px); }
 .login-input.date-input { margin-bottom: 0; }
 .modal-button-container { margin-top: var(--element-gap, 16px); }

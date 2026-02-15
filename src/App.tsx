@@ -629,6 +629,7 @@ function DashboardPage({
     showSums = true,
     useServiceRequest = false,
     hasAnalytics = false,
+    hasSupervisor = false,
 }: {
     auth: AuthData;
     onClose: () => void;
@@ -639,7 +640,10 @@ function DashboardPage({
     useServiceRequest?: boolean;
     /** право «Аналитика»: показывать дашборд платёжного календаря (плановое поступление денег) */
     hasAnalytics?: boolean;
+    /** право «Руководитель»: показывать дашборд платёжного календаря (дата создания счёта + дни на оплату из админки) */
+    hasSupervisor?: boolean;
 }) {
+    const showPaymentCalendar = hasAnalytics || hasSupervisor;
     const [debugInfo, setDebugInfo] = useState<string>("");
     
     // Filters State (такие же как на странице грузов); при переключении вкладок восстанавливаем из localStorage
@@ -870,7 +874,7 @@ function DashboardPage({
     const calendarDateFrom = `${calendarYear - 1}-01-01`;
     const calendarDateTo = `${calendarYear + 1}-12-31`;
     const { items: calendarInvoiceItems, mutate: mutateCalendarInvoices } = useInvoices({
-        auth: hasAnalytics ? auth : null,
+        auth: showPaymentCalendar ? auth : null,
         dateFrom: calendarDateFrom,
         dateTo: calendarDateTo,
         activeInn: !useServiceRequest ? auth?.inn : undefined,
@@ -885,7 +889,7 @@ function DashboardPage({
     }, [useServiceRequest, mutatePerevozki]);
 
     useEffect(() => {
-        if (!hasAnalytics || !auth?.login || !auth?.password) return;
+        if (!showPaymentCalendar || !auth?.login || !auth?.password) return;
         let cancelled = false;
         setPaymentCalendarLoading(true);
         fetch('/api/my-payment-calendar', {
@@ -909,7 +913,7 @@ function DashboardPage({
             .catch(() => { if (!cancelled) setPaymentCalendarByInn({}); })
             .finally(() => { if (!cancelled) setPaymentCalendarLoading(false); });
         return () => { cancelled = true; };
-    }, [hasAnalytics, auth?.login, auth?.password]);
+    }, [showPaymentCalendar, auth?.login, auth?.password]);
 
     const unpaidCount = useMemo(() => {
         return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
@@ -2044,15 +2048,15 @@ function DashboardPage({
 
             {/* Монитор SLA: плановые сроки авто 7 дн., паром 20 дн. (MSK-KGD); KGD-MSK 60 дн. */}
             {!loading && !error && slaStats.total > 0 && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
-                    <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem' }}>
+                <Panel className="cargo-card sla-monitor-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
+                    <Flex align="center" justify="space-between" className="sla-monitor-header" style={{ marginBottom: '0.75rem' }}>
                         <Typography.Headline style={{ fontSize: '0.95rem', fontWeight: 600 }}>
                             Монитор SLA
                         </Typography.Headline>
                         {slaTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} title="Динамика SLA улучшается" />}
                         {slaTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} title="Динамика SLA ухудшается" />}
                     </Flex>
-                    <Flex gap="2rem" wrap="wrap" align="flex-start" style={{ marginBottom: '1rem' }}>
+                    <Flex gap="2rem" wrap="wrap" align="flex-start" className="sla-monitor-metrics" style={{ marginBottom: '1rem' }}>
                         <div style={{ minWidth: 0 }}>
                             <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>В срок{'   '}</Typography.Body>
                             <Typography.Body style={{ fontWeight: 700, fontSize: '1.25rem', color: slaStats.percentOnTime >= 90 ? 'var(--color-success-status)' : slaStats.percentOnTime >= 70 ? '#f59e0b' : '#ef4444', display: 'inline' }}>
@@ -2090,6 +2094,7 @@ function DashboardPage({
                         )}
                     </Flex>
                     <div
+                        className="sla-monitor-details-toggle"
                         role="button"
                         tabIndex={0}
                         onClick={() => setSlaDetailsOpen(!slaDetailsOpen)}
@@ -2264,12 +2269,12 @@ function DashboardPage({
                 </Panel>
             )}
 
-            {/* Платёжный календарь: плановое поступление денег (только при праве «Аналитика») */}
-            {hasAnalytics && !loading && !error && (
+            {/* Платёжный календарь: дата создания счёта + дни на оплату из админки (права «Аналитика» или «Руководитель») */}
+            {showPaymentCalendar && !loading && !error && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>Платёжный календарь</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
-                        Плановое поступление по реальным счетам: срок в календарных днях с момента выставления счёта; при наступлении срока — первый платёжный день недели (если заданы у компании) или первый рабочий день.
+                        Плановое поступление по реальным счетам: срок в календарных днях с момента выставления счёта (настраивается в админке по ИНН); при наступлении срока — первый платёжный день недели (если заданы у компании) или первый рабочий день.
                     </Typography.Body>
                     {paymentCalendarLoading ? (
                         <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка условий оплаты...</Typography.Body></Flex>
@@ -2286,7 +2291,7 @@ function DashboardPage({
                                 </Button>
                             </Flex>
                             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(2.5rem, 1fr))', gap: '2px', fontSize: '0.75rem', minWidth: '22rem' }}>
+                                <div className="payment-calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(2.5rem, 1fr))', gap: '2px', fontSize: '0.75rem', minWidth: '22rem' }}>
                                     {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'За неделю'].map((wd) => (
                                         <div key={wd} style={{ textAlign: 'center', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.25rem' }}>{wd}</div>
                                     ))}
@@ -2326,6 +2331,7 @@ function DashboardPage({
                                                 return (
                                                     <div
                                                         key={`w${wi}-${i}-${c.key ?? ''}`}
+                                                        className="payment-calendar-day-cell"
                                                         role={hasSum ? 'button' : undefined}
                                                         tabIndex={hasSum ? 0 : undefined}
                                                         onClick={hasSum && c.key ? () => setPaymentCalendarSelectedDate(c.key) : undefined}
@@ -2346,13 +2352,14 @@ function DashboardPage({
                                                         title={c.key && hasSum ? `${c.key}: ${Math.round(sum!).toLocaleString('ru-RU')} ₽` : undefined}
                                                     >
                                                         {c.day != null ? c.day : ''}
-                                                        {hasSum && <span style={{ fontSize: '0.65rem', lineHeight: 1 }}>{formatCurrency(sum!, true)}</span>}
+                                                        {hasSum && <span className="payment-calendar-day-amount" style={{ fontSize: '0.65rem', lineHeight: 1 }}>{formatCurrency(sum!, true)}</span>}
                                                     </div>
                                                 );
                                             });
                                             row.push(
                                                 <div
                                                     key={`week-${wi}`}
+                                                    className="payment-calendar-week-total"
                                                     style={{
                                                         padding: '0.35rem',
                                                         textAlign: 'center',
@@ -5040,12 +5047,14 @@ function CargoPage({
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
+    const [customerFilter, setCustomerFilter] = useState<string>('');
     const [statusFilterSet, setStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
     const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<BillStatusFilterKey>>(() => new Set());
     const [typeFilterSet, setTypeFilterSet] = useState<Set<'ferry' | 'auto'>>(() => new Set());
     const [routeFilterSet, setRouteFilterSet] = useState<Set<'MSK-KGD' | 'KGD-MSK'>>(() => new Set());
     const [isSenderDropdownOpen, setIsSenderDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
+    const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
     const [isBillStatusDropdownOpen, setIsBillStatusDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
@@ -5073,6 +5082,7 @@ function CargoPage({
     const statusButtonRef = useRef<HTMLDivElement>(null);
     const senderButtonRef = useRef<HTMLDivElement>(null);
     const receiverButtonRef = useRef<HTMLDivElement>(null);
+    const customerButtonRef = useRef<HTMLDivElement>(null);
     const billStatusButtonRef = useRef<HTMLDivElement>(null);
     const typeButtonRef = useRef<HTMLDivElement>(null);
     const routeButtonRef = useRef<HTMLDivElement>(null);
@@ -5216,6 +5226,7 @@ function CargoPage({
 
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
+    const uniqueCustomers = useMemo(() => [...new Set(items.map(i => (i.Customer ?? (i as any).customer ?? '').trim()).filter(Boolean))].sort(), [items]);
 
     // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
@@ -5240,6 +5251,7 @@ function CargoPage({
         }
         if (senderFilter) res = res.filter(i => (i.Sender ?? '').trim() === senderFilter);
         if (receiverFilter) res = res.filter(i => (i.Receiver ?? (i as any).receiver ?? '').trim() === receiverFilter);
+        if (customerFilter) res = res.filter(i => (i.Customer ?? (i as any).customer ?? '').trim() === customerFilter);
         if (useServiceRequest && billStatusFilterSet.size > 0) res = res.filter(i => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
         if (typeFilterSet.size > 0) res = res.filter(i => {
             const isFerry = i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1;
@@ -5349,7 +5361,7 @@ function CargoPage({
         }
         
         return res;
-    }, [items, statusFilterSet, searchText, senderFilter, receiverFilter, billStatusFilterSet, useServiceRequest, typeFilterSet, routeFilterSet, sortBy, sortOrder, favorites]);
+    }, [items, statusFilterSet, searchText, senderFilter, receiverFilter, customerFilter, billStatusFilterSet, useServiceRequest, typeFilterSet, routeFilterSet, sortBy, sortOrder, favorites]);
 
     // Подсчет сумм из отфильтрованных элементов
     const summary = useMemo(() => {
@@ -5534,7 +5546,7 @@ function CargoPage({
                         )}
                     </Button>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8,10)}.${r.dateFrom.slice(5,7)} – ${r.dateTo.slice(8,10)}.${r.dateTo.slice(5,7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -5632,7 +5644,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Статус: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? STATUS_MAP[[...statusFilterSet][0]] : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -5647,7 +5659,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={senderButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsSenderDropdownOpen(!isSenderDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Отправитель: {senderFilter ? stripOoo(senderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -5660,7 +5672,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Получатель: {receiverFilter ? stripOoo(receiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -5671,10 +5683,23 @@ function CargoPage({
                         ))}
                     </FilterDropdownPortal>
                 </div>
+                <div className="filter-group" style={{ flexShrink: 0 }}>
+                    <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
+                        <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            Заказчик: {customerFilter ? stripOoo(customerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                        </Button>
+                    </div>
+                    <FilterDropdownPortal triggerRef={customerButtonRef} isOpen={isCustomerDropdownOpen} onClose={() => setIsCustomerDropdownOpen(false)}>
+                        <div className="dropdown-item" onClick={() => { setCustomerFilter(''); setIsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        {uniqueCustomers.map(c => (
+                            <div key={c} className="dropdown-item" onClick={() => { setCustomerFilter(c); setIsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
+                        ))}
+                    </FilterDropdownPortal>
+                </div>
                 {useServiceRequest && (
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                                 Статус счёта: {billStatusFilterSet.size === 0 ? 'Все' : billStatusFilterSet.size === 1 ? BILL_STATUS_MAP[[...billStatusFilterSet][0]] : `Выбрано: ${billStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -5690,7 +5715,7 @@ function CargoPage({
                 )}
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
                             Тип: {typeFilterSet.size === 0 ? 'Все' : typeFilterSet.size === 2 ? 'Паром, Авто' : typeFilterSet.has('ferry') ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -5702,7 +5727,7 @@ function CargoPage({
                 </div>
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={routeButtonRef} style={{ display: 'inline-flex' }}>
-                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
+                        <Button className="filter-button" onClick={() => { setIsRouteDropdownOpen(!isRouteDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); }}>
                             Маршрут: {routeFilterSet.size === 0 ? 'Все' : routeFilterSet.size === 2 ? 'Выбрано: 2' : [...routeFilterSet][0] === 'MSK-KGD' ? 'MSK – KGD' : 'KGD – MSK'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
@@ -9819,6 +9844,7 @@ export default function App() {
                             showSums={activeAccount?.roleCustomer ?? true}
                             useServiceRequest={useServiceRequest}
                             hasAnalytics={activeAccount?.permissions?.analytics === true}
+                            hasSupervisor={activeAccount?.permissions?.supervisor === true}
                         />
                     )}
                     {!showDashboard && activeTab === "profile" && (
