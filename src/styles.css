@@ -1408,3 +1408,11 @@ body {
     border-color: var(--color-bg-card);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
+
+/* Bitrix24 CRM site button — сдвиг влево */
+#bx24_form_container,
+[id^="bx24"],
+[class*="b24-widget"],
+iframe[src*="bitrix24"] {
+    right: 48px !important;
+}
