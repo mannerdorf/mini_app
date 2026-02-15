@@ -433,10 +433,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
   }, [adminToken, onLogout]);
 
+  const fetchUsersRef = useRef(fetchUsers);
+  const fetchTemplatesRef = useRef(fetchTemplates);
+  const fetchingTabRef = useRef<string | null>(null);
+  fetchUsersRef.current = fetchUsers;
+  fetchTemplatesRef.current = fetchTemplates;
   useEffect(() => {
-    if (tab === "users") fetchUsers();
-    if (tab === "templates") fetchTemplates();
-  }, [tab, fetchUsers, fetchTemplates]);
+    if (tab === "users") {
+      if (fetchingTabRef.current === "users") return;
+      fetchingTabRef.current = "users";
+      fetchUsersRef.current()?.finally(() => { fetchingTabRef.current = null; });
+    } else if (tab === "templates") {
+      if (fetchingTabRef.current === "templates") return;
+      fetchingTabRef.current = "templates";
+      fetchTemplatesRef.current()?.finally(() => { fetchingTabRef.current = null; });
+    } else {
+      fetchingTabRef.current = null;
+    }
+  }, [tab]);
 
   const handleSaveTemplates = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2820,7 +2834,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <tbody>
                     {paymentCalendarItemsSorted.map((c) => {
                       const selected = paymentCalendarSelectedInns.has(c.inn);
-                      const weekdays = c.payment_weekdays ?? [];
+                      const weekdays = (c.payment_weekdays ?? []).filter((d) => d >= 1 && d <= 5);
                       const weekdaysLabel = weekdays.length > 0
                         ? weekdays.sort((a, b) => a - b).map((d) => PAYMENT_WEEKDAY_LABELS.find((w) => w.value === d)?.label ?? d).join(", ")
                         : "—";
