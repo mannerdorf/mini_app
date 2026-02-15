@@ -225,6 +225,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [customersSortBy, setCustomersSortBy] = useState<"inn" | "customer_name" | "email">("customer_name");
   const [customersSortOrder, setCustomersSortOrder] = useState<"asc" | "desc">("asc");
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [customersFetchTrigger, setCustomersFetchTrigger] = useState(0);
   const [paymentCalendarItems, setPaymentCalendarItems] = useState<{ inn: string; customer_name: string | null; days_to_pay: number; payment_weekdays: number[] }[]>([]);
   const [paymentCalendarLoading, setPaymentCalendarLoading] = useState(false);
   const [paymentCalendarSearch, setPaymentCalendarSearch] = useState("");
@@ -570,7 +571,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       })
       .catch(() => setCustomersList([]))
       .finally(() => setCustomersLoading(false));
-  }, [tab, customersSearch, adminToken]);
+  }, [tab, customersSearch, adminToken, customersFetchTrigger]);
 
   const fetchPresets = useCallback(() => {
     setPresetsLoading(true);
@@ -2370,7 +2371,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник заказчиков</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-            Данные из кэша (cache_customers). Обновление по расписанию.
+            Данные из кэша (cache_customers). Кэш в БД обновляется по крону каждые 15 минут. На экране — данные загружаются при открытии вкладки и по кнопке «Обновить».
           </Typography.Body>
           <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "var(--space-3, 0.75rem)" }}>
             <label htmlFor="customers-search" className="visually-hidden">Поиск заказчиков по ИНН или наименованию</label>
@@ -2393,6 +2394,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               />
               <Typography.Body>Только без email</Typography.Body>
             </label>
+            <Button
+              type="button"
+              className="filter-button"
+              disabled={customersLoading}
+              onClick={() => setCustomersFetchTrigger((n) => n + 1)}
+              style={{ marginLeft: "auto" }}
+            >
+              {customersLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+              Обновить
+            </Button>
           </Flex>
           {customersLoading ? (
             <Flex align="center" gap="0.5rem">
