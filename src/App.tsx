@@ -1,7 +1,7 @@
 import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect, Suspense, lazy } from "react";
 import {
     LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Users, Scale, RussianRuble, List, Download, Maximize,
-    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw, Lock, Crown
+    Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw, Lock
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button, Container, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
@@ -54,7 +54,7 @@ import type {
     PerevozkiRole, ProfileView, StatusFilter, Tab,
 } from "./types";
 
-const { getTodayDate, isDateToday, isDateInRange, getSixMonthsAgoDate, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, loadDateFilterState, saveDateFilterState, getDateRange, MONTH_NAMES, getWeekRange, getPreviousPeriodRange, getWeeksList, getYearsList, formatDate, formatDateTime, formatTimelineDate, formatTimelineTime, getDateTextColor, getFirstWorkingDayOnOrAfter } = dateUtils;
+const { getTodayDate, isDateToday, isDateInRange, getSixMonthsAgoDate, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, loadDateFilterState, saveDateFilterState, getDateRange, MONTH_NAMES, getWeekRange, getPreviousPeriodRange, getWeeksList, getYearsList, formatDate, formatDateTime, formatTimelineDate, formatTimelineTime, getDateTextColor, getFirstWorkingDayOnOrAfter, getFirstPaymentWeekdayOnOrAfter } = dateUtils;
 type DateFilterState = dateUtils.DateFilterState;
 type AuthMethodsConfig = {
     api_v1: boolean;
@@ -701,7 +701,7 @@ function DashboardPage({
     const [slaTableSortColumn, setSlaTableSortColumn] = useState<string | null>(null);
     const [slaTableSortOrder, setSlaTableSortOrder] = useState<'asc' | 'desc'>('asc');
     /** Платёжный календарь: дни на оплату по ИНН (для hasAnalytics) */
-    const [paymentCalendarDaysByInn, setPaymentCalendarDaysByInn] = useState<Record<string, number>>({});
+    const [paymentCalendarByInn, setPaymentCalendarByInn] = useState<Record<string, { days_to_pay: number; payment_weekdays: number[] }>>({});
     const [paymentCalendarLoading, setPaymentCalendarLoading] = useState(false);
     const [paymentCalendarMonth, setPaymentCalendarMonth] = useState<{ year: number; month: number }>(() => {
         const n = new Date();
@@ -884,15 +884,19 @@ function DashboardPage({
             body: JSON.stringify({ login: auth.login, password: auth.password }),
         })
             .then((r) => r.json())
-            .then((data: { items?: { inn: string; days_to_pay: number }[] }) => {
+            .then((data: { items?: { inn: string; days_to_pay: number; payment_weekdays?: number[] }[] }) => {
                 if (cancelled) return;
-                const map: Record<string, number> = {};
+                const map: Record<string, { days_to_pay: number; payment_weekdays: number[] }> = {};
                 (data?.items ?? []).forEach((row) => {
-                    if (row?.inn != null) map[String(row.inn).trim()] = Math.max(0, Number(row.days_to_pay) || 0);
+                    if (row?.inn == null) return;
+                    const inn = String(row.inn).trim();
+                    const days = Math.max(0, Number(row.days_to_pay) || 0);
+                    const weekdays = Array.isArray(row.payment_weekdays) ? row.payment_weekdays.filter((d) => d >= 0 && d <= 6) : [];
+                    map[inn] = { days_to_pay: days, payment_weekdays: weekdays };
                 });
-                setPaymentCalendarDaysByInn(map);
+                setPaymentCalendarByInn(map);
             })
-            .catch(() => { if (!cancelled) setPaymentCalendarDaysByInn({}); })
+            .catch(() => { if (!cancelled) setPaymentCalendarByInn({}); })
             .finally(() => { if (!cancelled) setPaymentCalendarLoading(false); });
         return () => { cancelled = true; };
     }, [hasAnalytics, auth?.login, auth?.password]);
@@ -948,7 +952,7 @@ function DashboardPage({
         return res;
     }, [prevPeriodItems, useServiceRequest, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter]);
 
-    /** Плановое поступление денег по датам: из реальных счетов. Дата оплаты не раньше (дата счёта + дни на оплату), не позднее первого рабочего дня по истечении срока. */
+    /** Плановое поступление по счетам: срок в календарных днях; при наступлении срока — первый платёжный день недели (если заданы) или первый рабочий день. */
     const plannedByDate = useMemo(() => {
         const map = new Map<string, { total: number; items: { customer: string; sum: number; number?: string }[] }>();
         const invDate = (inv: any) => String(inv?.DateDoc ?? inv?.Date ?? inv?.date ?? inv?.dateDoc ?? inv?.Дата ?? '').split('T')[0];
@@ -965,12 +969,14 @@ function DashboardPage({
             const sum = invSum(inv);
             if (sum <= 0) return;
             const inn = invInn(inv);
-            const days = paymentCalendarDaysByInn[inn] ?? 0;
+            const cal = paymentCalendarByInn[inn] ?? { days_to_pay: 0, payment_weekdays: [] };
+            const days = cal.days_to_pay ?? 0;
+            const weekdays = cal.payment_weekdays ?? [];
             const d = new Date(dateStr);
             if (isNaN(d.getTime())) return;
             d.setDate(d.getDate() + days);
             const deadline = d.toISOString().split('T')[0];
-            const key = getFirstWorkingDayOnOrAfter(deadline);
+            const key = weekdays.length > 0 ? getFirstPaymentWeekdayOnOrAfter(deadline, weekdays) : getFirstWorkingDayOnOrAfter(deadline);
             const customer = invCustomer(inv);
             const entry = map.get(key);
             if (!entry) {
@@ -981,7 +987,7 @@ function DashboardPage({
             }
         });
         return map;
-    }, [invoiceItems, paymentCalendarDaysByInn]);
+    }, [invoiceItems, paymentCalendarByInn]);
     
     // Подготовка данных для графиков (группировка по датам)
     const chartData = useMemo(() => {
@@ -2253,7 +2259,7 @@ function DashboardPage({
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>Платёжный календарь</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
-                        Плановое поступление по реальным счетам: срок оплаты задаётся в календарных днях с момента выставления счёта (не день недели). Дата оплаты — не раньше (дата счёта + срок в днях), не позднее первого рабочего дня по истечении срока.
+                        Плановое поступление по реальным счетам: срок в календарных днях с момента выставления счёта; при наступлении срока — первый платёжный день недели (если заданы у компании) или первый рабочий день.
                     </Typography.Body>
                     {paymentCalendarLoading ? (
                         <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка условий оплаты...</Typography.Body></Flex>
@@ -3538,6 +3544,7 @@ function ProfilePage({
     const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
     const [employeeDeleteId, setEmployeeDeleteId] = useState<number | null>(null);
     const [employeeDeleteLoading, setEmployeeDeleteLoading] = useState(false);
+    const [employeePresetLoadingId, setEmployeePresetLoadingId] = useState<number | null>(null);
 
     const fetchEmployeesAndPresets = useCallback(async () => {
         if (!activeAccount?.login) return;
@@ -3635,13 +3642,7 @@ function ProfilePage({
             onClick: () => setCurrentView('roles')
         },
         ...(activeAccount?.isRegisteredUser && activeAccount?.inCustomerDirectory === true ? [
-        {
-            id: 'supervisor',
-            label: 'Руководитель',
-            icon: <Crown className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => setCurrentView('supervisor')
-        },
-        // Сотрудники доступны только если в админке включена кнопка «Руководитель» для этого пользователя
+        // Сотрудники доступны только если в админке включено право «Руководитель» для этого пользователя
         ...(activeAccount?.permissions?.supervisor === true ? [{
             id: 'employees',
             label: 'Сотрудники',
@@ -3925,22 +3926,6 @@ function ProfilePage({
         );
     }
 
-    if (currentView === 'supervisor') {
-        return (
-            <div className="w-full">
-                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Руководитель</Typography.Headline>
-                </Flex>
-                <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                    Раздел для пользователей из справочника заказчиков.
-                </Typography.Body>
-            </div>
-        );
-    }
-
     if (currentView === 'employees') {
         return (
             <div className="w-full">
@@ -3987,7 +3972,35 @@ function ProfilePage({
                                                 <Typography.Body style={{ fontWeight: 600 }}>{emp.login}</Typography.Body>
                                                 <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}</Typography.Body>
                                             </div>
-                                            <Flex align="center" gap="0.5rem">
+                                            <Flex align="center" gap="0.5rem" wrap="wrap">
+                                                <select
+                                                    className="admin-form-input invite-role-select"
+                                                    value={rolePresets.find((p) => p.label === emp.presetLabel)?.id ?? rolePresets[0]?.id ?? ''}
+                                                    disabled={rolePresets.length === 0 || employeePresetLoadingId === emp.id}
+                                                    onChange={async (e) => {
+                                                        const presetId = e.target.value;
+                                                        if (!presetId || !activeAccount?.login || !activeAccount?.password) return;
+                                                        setEmployeePresetLoadingId(emp.id);
+                                                        try {
+                                                            const res = await fetch(`/api/my-employees?id=${emp.id}`, {
+                                                                method: 'PATCH',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, presetId }),
+                                                            });
+                                                            const data = await res.json().catch(() => ({}));
+                                                            if (!res.ok) throw new Error(data.error || 'Ошибка');
+                                                            const newLabel = rolePresets.find((p) => p.id === presetId)?.label ?? emp.presetLabel;
+                                                            setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, presetLabel: newLabel } : e));
+                                                        } finally {
+                                                            setEmployeePresetLoadingId(null);
+                                                        }
+                                                    }}
+                                                    style={{ padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.85rem', minWidth: '8rem' }}
+                                                    aria-label="Роль (пресет)"
+                                                    title="Изменить роль"
+                                                >
+                                                    {rolePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                                                </select>
                                                 <Typography.Body style={{ fontSize: '0.85rem' }}>{emp.active ? 'Вкл' : 'Выкл'}</Typography.Body>
                                                 <TapSwitch
                                                     checked={emp.active}
@@ -4140,7 +4153,35 @@ function ProfilePage({
                                                 <Typography.Body style={{ fontWeight: 600 }}>{emp.login}</Typography.Body>
                                                 <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}</Typography.Body>
                                             </div>
-                                            <Flex align="center" gap="0.5rem">
+                                            <Flex align="center" gap="0.5rem" wrap="wrap">
+                                                <select
+                                                    className="admin-form-input invite-role-select"
+                                                    value={rolePresets.find((p) => p.label === emp.presetLabel)?.id ?? rolePresets[0]?.id ?? ''}
+                                                    disabled={rolePresets.length === 0 || employeePresetLoadingId === emp.id}
+                                                    onChange={async (e) => {
+                                                        const presetId = e.target.value;
+                                                        if (!presetId || !activeAccount?.login || !activeAccount?.password) return;
+                                                        setEmployeePresetLoadingId(emp.id);
+                                                        try {
+                                                            const res = await fetch(`/api/my-employees?id=${emp.id}`, {
+                                                                method: 'PATCH',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, presetId }),
+                                                            });
+                                                            const data = await res.json().catch(() => ({}));
+                                                            if (!res.ok) throw new Error(data.error || 'Ошибка');
+                                                            const newLabel = rolePresets.find((p) => p.id === presetId)?.label ?? emp.presetLabel;
+                                                            setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, presetLabel: newLabel } : e));
+                                                        } finally {
+                                                            setEmployeePresetLoadingId(null);
+                                                        }
+                                                    }}
+                                                    style={{ padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.85rem', minWidth: '8rem' }}
+                                                    aria-label="Роль (пресет)"
+                                                    title="Изменить роль"
+                                                >
+                                                    {rolePresets.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                                                </select>
                                                 <Typography.Body style={{ fontSize: '0.85rem' }}>{emp.active ? 'Вкл' : 'Выкл'}</Typography.Body>
                                                 <TapSwitch
                                                     checked={emp.active}
@@ -4166,8 +4207,8 @@ function ProfilePage({
                                                     <Trash2 className="w-4 h-4" style={{ color: 'var(--color-error)' }} />
                                                 </Button>
                                             </Flex>
-                                            </Flex>
-                                        </Panel>
+                                        </Flex>
+                                    </Panel>
                                     ))}
                                 {employeeDeleteId != null && (() => {
                                     const emp = employeesList.find((e) => e.id === employeeDeleteId);

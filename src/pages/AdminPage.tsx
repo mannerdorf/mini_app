@@ -68,6 +68,16 @@ function highlightMatch(text: string, query: string, keyPrefix: string): React.R
 
 /** Варианты срока оплаты (календарных дней с момента выставления счёта) в платёжном календаре */
 const PAYMENT_DAYS_OPTIONS = [0, 3, 5, 7, 14, 21, 30, 45, 60, 90];
+/** Платежные дни недели: 0=вс, 1=пн, ..., 6=сб (для выбора в платёжном календаре) */
+const PAYMENT_WEEKDAY_LABELS: { value: number; label: string }[] = [
+  { value: 1, label: "Пн" },
+  { value: 2, label: "Вт" },
+  { value: 3, label: "Ср" },
+  { value: 4, label: "Чт" },
+  { value: 5, label: "Пт" },
+  { value: 6, label: "Сб" },
+  { value: 0, label: "Вс" },
+];
 
 const WEAK_PASSWORDS = new Set(["123", "1234", "12345", "123456", "1234567", "12345678", "password", "qwerty", "admin", "letmein"]);
 function isPasswordStrongEnough(p: string): { ok: boolean; message?: string } {
@@ -217,7 +227,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [customersSortBy, setCustomersSortBy] = useState<"inn" | "customer_name" | "email">("customer_name");
   const [customersSortOrder, setCustomersSortOrder] = useState<"asc" | "desc">("asc");
   const [customersLoading, setCustomersLoading] = useState(false);
-  const [paymentCalendarItems, setPaymentCalendarItems] = useState<{ inn: string; customer_name: string | null; days_to_pay: number }[]>([]);
+  const [paymentCalendarItems, setPaymentCalendarItems] = useState<{ inn: string; customer_name: string | null; days_to_pay: number; payment_weekdays: number[] }[]>([]);
   const [paymentCalendarLoading, setPaymentCalendarLoading] = useState(false);
   const [paymentCalendarSearch, setPaymentCalendarSearch] = useState("");
   const [paymentCalendarCustomerList, setPaymentCalendarCustomerList] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
@@ -226,13 +236,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [paymentCalendarDaysInput, setPaymentCalendarDaysInput] = useState<string>("14");
   const [paymentCalendarSaving, setPaymentCalendarSaving] = useState(false);
   const [paymentCalendarSavingInn, setPaymentCalendarSavingInn] = useState<string | null>(null);
+  const [paymentCalendarBulkWeekdays, setPaymentCalendarBulkWeekdays] = useState<number[]>([]);
   const [paymentCalendarSortColumn, setPaymentCalendarSortColumn] = useState<"inn" | "customer_name" | "days_to_pay" | null>(null);
   const [paymentCalendarSortDir, setPaymentCalendarSortDir] = useState<"asc" | "desc">("asc");
   const paymentCalendarCustomerListSorted = useMemo(() => {
-    const withDays = paymentCalendarCustomerList.map((c) => ({
-      ...c,
-      days: paymentCalendarItems.find((x) => x.inn === c.inn)?.days_to_pay ?? null,
-    }));
+    const withDays = paymentCalendarCustomerList.map((c) => {
+      const item = paymentCalendarItems.find((x) => x.inn === c.inn);
+      return {
+        ...c,
+        days: item?.days_to_pay ?? null,
+        payment_weekdays: item?.payment_weekdays ?? [],
+      };
+    });
     if (!paymentCalendarSortColumn) return withDays;
     return [...withDays].sort((a, b) => {
       let va: string | number | null;
@@ -565,8 +580,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setPaymentCalendarLoading(true);
     fetch("/api/admin-payment-calendar", { headers: { Authorization: `Bearer ${adminToken}` } })
       .then((res) => res.json())
-      .then((data: { items?: { inn: string; customer_name: string | null; days_to_pay: number }[] }) => {
-        setPaymentCalendarItems(data.items || []);
+      .then((data: { items?: { inn: string; customer_name: string | null; days_to_pay: number; payment_weekdays?: number[] }[] }) => {
+        setPaymentCalendarItems((data.items || []).map((r) => ({
+          inn: r.inn,
+          customer_name: r.customer_name,
+          days_to_pay: r.days_to_pay,
+          payment_weekdays: Array.isArray(r.payment_weekdays) ? r.payment_weekdays.filter((d) => d >= 0 && d <= 6) : [],
+        })));
       })
       .catch(() => setPaymentCalendarItems([]))
       .finally(() => setPaymentCalendarLoading(false));
@@ -2429,7 +2449,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Платёжный календарь</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-            Подбор заказчиков и установление срока оплаты счёта: указывается срок в календарных днях с момента выставления счёта (не день недели — понедельник, вторник и т.д.). Выберите заказчиков и укажите «Срок (дней)» — условие применится ко всем выбранным.
+            Срок оплаты — в календарных днях с момента выставления счёта. Можно задать платёжные дни недели (например вторник и четверг): при наступлении срока оплата планируется на первый из этих дней. Если платёжные дни не заданы — на первый рабочий день.
           </Typography.Body>
           <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
             <Input
@@ -2531,6 +2551,49 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 : "Выделить все"}
             </Button>
           </Flex>
+          <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.5rem" }}>
+            <Typography.Body style={{ fontSize: "0.9rem" }}>Платежные дни недели (при наступлении срока — первый из этих дней):</Typography.Body>
+            {PAYMENT_WEEKDAY_LABELS.map(({ value, label }) => (
+              <label key={value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={paymentCalendarBulkWeekdays.includes(value)}
+                  onChange={() => {
+                    setPaymentCalendarBulkWeekdays((prev) =>
+                      prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value].sort((a, b) => a - b)
+                    );
+                  }}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+            <Button
+              type="button"
+              className="filter-button"
+              disabled={paymentCalendarSaving || paymentCalendarSelectedInns.size === 0 || paymentCalendarBulkWeekdays.length === 0}
+              onClick={async () => {
+                if (paymentCalendarSelectedInns.size === 0 || paymentCalendarBulkWeekdays.length === 0) return;
+                setPaymentCalendarSaving(true);
+                setError(null);
+                try {
+                  const res = await fetch("/api/admin-payment-calendar", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                    body: JSON.stringify({ inns: Array.from(paymentCalendarSelectedInns), payment_weekdays: paymentCalendarBulkWeekdays }),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                  fetchPaymentCalendar();
+                } catch (e: unknown) {
+                  setError((e as Error)?.message || "Ошибка");
+                } finally {
+                  setPaymentCalendarSaving(false);
+                }
+              }}
+            >
+              Применить к выбранным
+            </Button>
+          </Flex>
           <div style={{ overflowX: "auto", maxHeight: "50vh", overflowY: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
               <thead>
@@ -2566,11 +2629,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   >
                     Срок (дней) {paymentCalendarSortColumn === "days_to_pay" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
                   </th>
+                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Платежные дни</th>
                 </tr>
               </thead>
               <tbody>
                 {paymentCalendarCustomerListSorted.map((c) => {
                   const currentDays = c.days != null ? Number(c.days) : 0;
+                  const currentWeekdays = c.payment_weekdays ?? [];
                   const selected = paymentCalendarSelectedInns.has(c.inn);
                   const saving = paymentCalendarSavingInn === c.inn;
                   const options = [...new Set([...PAYMENT_DAYS_OPTIONS, currentDays].filter((d) => d >= 0 && d <= 365))].sort((a, b) => a - b);
@@ -2626,6 +2691,42 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               <option key={d} value={d}>{d === 0 ? "—" : d}</option>
                             ))}
                           </select>
+                        )}
+                      </td>
+                      <td style={{ padding: "0.4rem 0.5rem" }}>
+                        {saving ? null : (
+                          <Flex gap="0.2rem" wrap="wrap">
+                            {PAYMENT_WEEKDAY_LABELS.map(({ value, label }) => (
+                              <label key={value} style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", fontSize: "0.8rem" }} title={label}>
+                                <input
+                                  type="checkbox"
+                                  checked={currentWeekdays.includes(value)}
+                                  onChange={async () => {
+                                    const next = currentWeekdays.includes(value)
+                                      ? currentWeekdays.filter((d) => d !== value)
+                                      : [...currentWeekdays, value].sort((a, b) => a - b);
+                                    setPaymentCalendarSavingInn(c.inn);
+                                    setError(null);
+                                    try {
+                                      const res = await fetch("/api/admin-payment-calendar", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                        body: JSON.stringify({ inn: c.inn, payment_weekdays: next }),
+                                      });
+                                      const data = await res.json().catch(() => ({}));
+                                      if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                                      fetchPaymentCalendar();
+                                    } catch (err: unknown) {
+                                      setError((err as Error)?.message || "Ошибка");
+                                    } finally {
+                                      setPaymentCalendarSavingInn(null);
+                                    }
+                                  }}
+                                />
+                                <span>{label}</span>
+                              </label>
+                            ))}
+                          </Flex>
                         )}
                       </td>
                     </tr>
@@ -2702,11 +2803,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       >
                         Срок (дней) {paymentCalendarSortColumn === "days_to_pay" ? (paymentCalendarSortDir === "asc" ? <ChevronUp className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} /> : <ChevronDown className="w-4 h-4 inline-block ml-0.5" style={{ verticalAlign: "middle" }} />) : null}
                       </th>
+                      <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Платежные дни</th>
                     </tr>
                   </thead>
                   <tbody>
                     {paymentCalendarItemsSorted.map((c) => {
                       const selected = paymentCalendarSelectedInns.has(c.inn);
+                      const weekdays = c.payment_weekdays ?? [];
+                      const weekdaysLabel = weekdays.length > 0
+                        ? weekdays.sort((a, b) => a - b).map((d) => PAYMENT_WEEKDAY_LABELS.find((w) => w.value === d)?.label ?? d).join(", ")
+                        : "—";
                       return (
                         <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
                           <td style={{ padding: "0.4rem 0.5rem" }}>
@@ -2727,6 +2833,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           <td style={{ padding: "0.4rem 0.5rem" }}>{c.inn}</td>
                           <td style={{ padding: "0.4rem 0.5rem" }}>{c.customer_name || "—"}</td>
                           <td style={{ padding: "0.4rem 0.5rem", textAlign: "right", color: "var(--color-text-secondary)" }}>{c.days_to_pay}</td>
+                          <td style={{ padding: "0.4rem 0.5rem", color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>{weekdaysLabel}</td>
                         </tr>
                       );
                     })}

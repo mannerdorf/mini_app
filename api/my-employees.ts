@@ -162,6 +162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const login = typeof body.login === "string" ? body.login.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
     const active = typeof body.active === "boolean" ? body.active : undefined;
+    const presetIdParam = typeof body.presetId === "string" ? body.presetId.trim() : "";
     const idParam = typeof req.query.id === "string" ? req.query.id.trim() : "";
     const id = parseInt(idParam, 10);
     if (!login || !password) {
@@ -170,8 +171,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (isNaN(id) || id < 1) {
       return res.status(400).json({ error: "Укажите id сотрудника" });
     }
-    if (active === undefined) {
-      return res.status(400).json({ error: "Укажите active: true или false" });
+    if (active === undefined && !presetIdParam) {
+      return res.status(400).json({ error: "Укажите active: true/false или presetId для смены роли" });
     }
     const inviterId = await getInviterId(login, password);
     if (inviterId == null) {
@@ -179,9 +180,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     try {
       const pool = getPool();
+      let setParts: string[] = ["updated_at = now()"];
+      const values: unknown[] = [];
+      let paramIndex = 1;
+
+      if (presetIdParam) {
+        const presetRow = await pool.query<{ label: string; permissions: unknown; financial_access: boolean; service_mode: boolean }>(
+          "SELECT label, permissions, financial_access, service_mode FROM admin_role_presets WHERE id = $1",
+          [parseInt(presetIdParam, 10)]
+        );
+        const preset = presetRow.rows[0];
+        if (!preset) {
+          return res.status(400).json({ error: "Роль не найдена" });
+        }
+        const permissions = preset.permissions && typeof preset.permissions === "object" ? (preset.permissions as Record<string, boolean>) : {};
+        const accessAllInns = !!preset.service_mode;
+        setParts.push(`permissions = $${++paramIndex}`, `financial_access = $${++paramIndex}`, `access_all_inns = $${++paramIndex}`, `invited_with_preset_label = $${++paramIndex}`);
+        values.push(JSON.stringify(permissions), !!preset.financial_access, accessAllInns, preset.label);
+        if (!accessAllInns) {
+          const inviterRow = await pool.query<{ inn: string }>("SELECT inn FROM registered_users WHERE id = $1", [inviterId]);
+          const inviterInn = inviterRow.rows[0]?.inn ?? "";
+          const companies = await pool.query<{ inn: string }>("SELECT inn FROM account_companies WHERE login = (SELECT login FROM registered_users WHERE id = $1) ORDER BY inn LIMIT 1", [inviterId]);
+          const firstInn = companies.rows[0]?.inn ?? inviterInn;
+          setParts.push(`inn = $${++paramIndex}`);
+          values.push(firstInn);
+        }
+      }
+
+      if (active !== undefined) {
+        setParts.push(`active = $${++paramIndex}`);
+        values.push(active);
+      }
+
+      values.push(id, inviterId);
       const { rowCount } = await pool.query(
-        "UPDATE registered_users SET active = $1, updated_at = now() WHERE id = $2 AND invited_by_user_id = $3",
-        [active, id, inviterId]
+        `UPDATE registered_users SET ${setParts.join(", ")} WHERE id = $${++paramIndex} AND invited_by_user_id = $${++paramIndex}`,
+        values
       );
       if (rowCount === 0) {
         return res.status(404).json({ error: "Сотрудник не найден или доступ запрещён" });

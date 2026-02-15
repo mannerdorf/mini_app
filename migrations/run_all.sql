@@ -226,3 +226,10 @@ create table if not exists payment_calendar (
 
 comment on table payment_calendar is 'Условия оплаты по заказчикам: срок в днях с момента выставления счёта';
 comment on column payment_calendar.days_to_pay is 'Количество дней на оплату с момента выставления счёта';
+
+-- ========== 022_payment_calendar_weekdays.sql ==========
+-- Платёжный календарь: платежные дни недели (например вторник и четверг).
+alter table payment_calendar
+  add column if not exists payment_weekdays integer[] not null default '{}';
+
+comment on column payment_calendar.payment_weekdays is 'Платежные дни недели (0=вс, 1=пн, ..., 6=сб). При наступлении срока оплата в первый из этих дней. Пустой = первый рабочий день.';

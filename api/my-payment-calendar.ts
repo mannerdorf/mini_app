@@ -51,11 +51,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ items: [] });
     }
 
-    const { rows } = await pool.query<{ inn: string; days_to_pay: number }>(
-      "SELECT inn, days_to_pay FROM payment_calendar WHERE inn = ANY($1)",
-      [inns]
-    );
-    return res.status(200).json({ items: rows });
+    let rows: { inn: string; days_to_pay: number; payment_weekdays?: number[] | null }[];
+    try {
+      const result = await pool.query<{ inn: string; days_to_pay: number; payment_weekdays?: number[] | null }>(
+        "SELECT inn, days_to_pay, COALESCE(payment_weekdays, ARRAY[]::integer[]) AS payment_weekdays FROM payment_calendar WHERE inn = ANY($1)",
+        [inns]
+      );
+      rows = result.rows;
+    } catch (colErr: unknown) {
+      if (String(colErr).includes("payment_weekdays") || String((colErr as Error)?.message).includes("payment_weekdays")) {
+        const fallback = await pool.query<{ inn: string; days_to_pay: number }>(
+          "SELECT inn, days_to_pay FROM payment_calendar WHERE inn = ANY($1)",
+          [inns]
+        );
+        rows = fallback.rows.map((r) => ({ ...r, payment_weekdays: [] }));
+      } else {
+        throw colErr;
+      }
+    }
+    const items = rows.map((r) => ({
+      inn: r.inn,
+      days_to_pay: r.days_to_pay,
+      payment_weekdays: Array.isArray(r.payment_weekdays) ? r.payment_weekdays.filter((d) => d >= 0 && d <= 6) : [],
+    }));
+    return res.status(200).json({ items });
   } catch (e: unknown) {
     const err = e as Error;
     console.error("my-payment-calendar error:", err);

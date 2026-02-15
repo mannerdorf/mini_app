@@ -311,3 +311,21 @@ export const getFirstWorkingDayOnOrAfter = (dateStr: string): string => {
     const dd = String(d.getDate()).padStart(2, "0");
     return `${y}-${m}-${dd}`;
 };
+
+/**
+ * Первый платёжный день недели на указанную дату или после неё.
+ * weekdays: номера дней недели (0=вс, 1=пн, ..., 6=сб). При наступлении срока оплата в первый из этих дней.
+ */
+export const getFirstPaymentWeekdayOnOrAfter = (dateStr: string, weekdays: number[]): string => {
+    const set = new Set(weekdays.filter((d) => d >= 0 && d <= 6));
+    if (set.size === 0) return dateStr;
+    const d = parseDateOnly(dateStr);
+    if (!d) return dateStr;
+    while (!set.has(d.getDay())) {
+        d.setDate(d.getDate() + 1);
+    }
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`;
+};
