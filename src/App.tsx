@@ -8596,7 +8596,8 @@ export default function App() {
                     return {
                         ...a,
                         customers: hadCustomers ? (a.customers ?? up.customers) : up.customers,
-                        activeCustomerInn: hadCustomers ? (a.activeCustomerInn ?? up.activeCustomerInn ?? undefined) : (up.activeCustomerInn ?? undefined),
+                        // Не перезаписывать activeCustomerInn, если пользователь уже выбрал компанию в шапке (CustomerSwitcher)
+                        activeCustomerInn: a.activeCustomerInn ?? up.activeCustomerInn ?? undefined,
                         customer: hadCustomers ? (a.customer ?? up.customer ?? undefined) : (up.customer ?? undefined),
                         accessAllInns: up.accessAllInns,
                         inCustomerDirectory: up.inCustomerDirectory,
