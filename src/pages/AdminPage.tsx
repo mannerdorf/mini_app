@@ -1183,7 +1183,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Нет активных пользователей. Данные о входах появятся после входа через CMS.</Typography.Body>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                    {topActiveUsers.map((u, i) => (
+                    {topActiveUsers.map((u, i) => {
+                      const now = Date.now();
+                      const lastMs = u.last_login_at ? new Date(u.last_login_at).getTime() : 0;
+                      const diffMs = lastMs ? now - lastMs : Infinity;
+                      const ms30d = 30 * 24 * 3600 * 1000;
+                      const intensity = diffMs >= ms30d ? 0 : Math.max(0, 1 - diffMs / ms30d);
+                      const h = 140 * (1 - intensity);
+                      const s = 35 + 25 * intensity;
+                      const bg = `hsl(${h}, ${s}%, 94%)`;
+                      return (
                       <div
                         key={u.id}
                         style={{
@@ -1191,7 +1200,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           justifyContent: "space-between",
                           alignItems: "center",
                           padding: "0.4rem 0.5rem",
-                          background: "var(--color-bg-hover)",
+                          background: bg,
                           borderRadius: 6,
                           flexWrap: "wrap",
                           gap: "0.75rem",
@@ -1216,7 +1225,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             : "никогда"}
                         </Typography.Body>
                       </div>
-                    ))}
+                    ); })}
                   </div>
                 )}
               </>

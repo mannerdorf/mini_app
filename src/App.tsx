@@ -2274,7 +2274,7 @@ function DashboardPage({
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>Платёжный календарь</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
-                        Плановое поступление по реальным счетам: срок в календарных днях с момента выставления счёта (настраивается в админке по ИНН); при наступлении срока — первый платёжный день недели (если заданы у компании) или первый рабочий день.
+                        Рекомендуемые дни оплаты выставленных и неоплаченных счетов
                     </Typography.Body>
                     {paymentCalendarLoading ? (
                         <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка условий оплаты...</Typography.Body></Flex>
@@ -5488,12 +5488,19 @@ function CargoPage({
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>Грузы</Typography.Headline>
                 <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                     <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
-                    <span className="roles-switch-wrap">
-                        <TapSwitch
-                            checked={tableModeByCustomer}
-                            onToggle={() => setTableModeByCustomer(v => !v)}
-                        />
-                    </span>
+                    <button
+                        type="button"
+                        className="roles-switch-wrap"
+                        onClick={(e: React.MouseEvent) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setTableModeByCustomer(v => !v);
+                        }}
+                        style={{ cursor: 'pointer', border: 'none', background: 'transparent', padding: 2 }}
+                        aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}
+                    >
+                        <TapSwitch checked={tableModeByCustomer} onToggle={() => {}} />
+                    </button>
                 </Flex>
             </Flex>
             {/* Filters */}
@@ -5918,8 +5925,8 @@ function CargoPage({
                             style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
                         >
                             <Flex className="cargo-item-row-1" justify="space-between" align="center" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <Flex align="center" gap="0.5rem" style={{ flex: '0 1 auto', minWidth: 0, overflow: 'hidden' }} className="cargo-item-number-wrap">
-                                    <Typography.Body className="cargo-item-number" style={{ fontWeight: 600, fontSize: '1rem', color: numberColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <Flex direction="column" align="flex-start" gap="0.25rem" style={{ flex: '0 1 auto', minWidth: 0 }} className="cargo-item-number-wrap">
+                                    <Typography.Body className="cargo-item-number" style={{ fontWeight: 600, fontSize: '1rem', color: numberColor, wordBreak: 'break-all' }}>
                                         {item.Number || '—'}
                                     </Typography.Body>
                                     {item._role && (

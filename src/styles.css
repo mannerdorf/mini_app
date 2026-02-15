@@ -508,12 +508,9 @@ body {
     }
     .cargo-list-item .cargo-item-row-1 .cargo-item-number-wrap {
         min-width: 0;
-        overflow: hidden;
     }
     .cargo-list-item .cargo-item-row-1 .cargo-item-number {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        word-break: break-all;
     }
     .cargo-list-item .cargo-item-route-customer {
         flex-wrap: nowrap !important;
