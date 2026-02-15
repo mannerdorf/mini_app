@@ -5,13 +5,6 @@ import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 
-declare global {
-  interface Window {
-    XLSX?: any;
-  }
-}
-
-
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
   { key: "cargo", label: "Грузы" },
@@ -167,7 +160,8 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "add" | "templates" | "customers" | "audit" | "logs" | "presets" | "payment_calendar">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "audit" | "logs" | "presets" | "payment_calendar">("users");
+  const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
       const saved = localStorage.getItem(ADMIN_THEME_KEY);
@@ -355,11 +349,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [formPasswordVisible, setFormPasswordVisible] = useState(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formResult, setFormResult] = useState<{ password?: string; emailSent?: boolean } | null>(null);
-  const [batchEntries, setBatchEntries] = useState<{ login: string; password: string; inn?: string; customer?: string }[]>([]);
-  const isInnLike = (s: string) => /^\d{10,12}$/.test(String(s).trim());
-  const [batchError, setBatchError] = useState<string | null>(null);
-  const [batchSuccess, setBatchSuccess] = useState<string | null>(null);
-  const [batchLoading, setBatchLoading] = useState(false);
   const [emailTemplateRegistration, setEmailTemplateRegistration] = useState("");
   const [emailTemplatePasswordReset, setEmailTemplatePasswordReset] = useState("");
   const [templatesLoading, setTemplatesLoading] = useState(false);
@@ -708,6 +697,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (!isSuperAdmin && (tab === "presets" || tab === "payment_calendar")) setTab("users");
   }, [isSuperAdmin, tab]);
 
+  useEffect(() => {
+    if (tab !== "users") setShowAddUserForm(false);
+  }, [tab]);
+
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormSubmitting(true);
@@ -753,7 +746,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setFormPassword("");
       setCustomerPickModalOpen(false);
       fetchUsers();
-      setTab("users");
+      setShowAddUserForm(false);
     } catch (e: unknown) {
       setError((e as Error).message);
     } finally {
@@ -794,111 +787,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setSelectedCustomers((prev) => prev.filter((c) => c.inn !== inn));
   };
 
-  const parseTextEntries = (text: string) => {
-    const lines = text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-    const entries: typeof batchEntries = [];
-    const errors: string[] = [];
-    for (const line of lines) {
-      const parts = line.split(/[/\t,;]/).map((p) => p.trim());
-      if (parts.length < 2) {
-        errors.push(`Строка "${line}" пропущена — формат: login, password [, ИНН или заказчик [, название]]`);
-        continue;
-      }
-      const third = parts[2] || "";
-      const fourth = parts[3] || "";
-      if (isInnLike(third)) {
-        entries.push({ login: parts[0], password: parts[1], inn: third, customer: fourth || undefined });
-      } else {
-        entries.push({ login: parts[0], password: parts[1], customer: third || undefined });
-      }
-    }
-    return { entries, errors };
-  };
-
-  const loadXlsxLibrary = (() => {
-    let promise: Promise<any> | null = null;
-    return () => {
-      if ((window as any).XLSX) return Promise.resolve((window as any).XLSX);
-      if (promise) return promise;
-      promise = new Promise((resolve, reject) => {
-        const script = document.createElement("script");
-        script.src = "https://cdn.sheetjs.com/xlsx-0.22.2/package/xlsx.full.min.js";
-        script.onload = () => resolve((window as any).XLSX);
-        script.onerror = () => reject(new Error("Не удалось загрузить библиотеку для Excel"));
-        document.body.appendChild(script);
-      });
-      return promise;
-    };
-  })();
-
-  const handleDownloadBatchTemplate = async () => {
-    try {
-      const XLSX = await loadXlsxLibrary();
-      const rows = [
-        ["Логин (email)", "Пароль", "ИНН", "Название компании"],
-        ["example@mail.ru", "Пароль123", "7733751177", "ООО Пример"],
-      ];
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Пользователи");
-      XLSX.writeFile(wb, "шаблон_массовая_регистрация.xlsx");
-    } catch (e: unknown) {
-      setError((e as Error)?.message || "Ошибка загрузки шаблона");
-    }
-  };
-
-  const parseExcelEntries = async (file: File) => {
-    const bytes = await file.arrayBuffer();
-    const XLSX = await loadXlsxLibrary();
-    const workbook = XLSX.read(new Uint8Array(bytes), { type: "array" });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const matrix = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "" });
-    const entries: typeof batchEntries = [];
-    const errors: string[] = [];
-    for (const row of matrix) {
-      const cells = row.map((cell) => (typeof cell === "string" ? cell.trim() : String(cell ?? "").trim()));
-      const [login, password, col3, col4] = cells;
-      if (!login || !password) {
-        if (login || password) errors.push(`Пропущена строка — укажите login и password`);
-        continue;
-      }
-      if (isInnLike(col3 || "")) {
-        entries.push({ login, password, inn: col3, customer: col4 || undefined });
-      } else {
-        entries.push({ login, password, customer: col3 || undefined });
-      }
-    }
-    return { entries, errors };
-  };
-
-  const handleBatchFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setBatchError(null);
-    setBatchSuccess(null);
-    try {
-      const isExcel = /\.(xlsx|xls)$/i.test(file.name);
-      const { entries, errors } = isExcel
-        ? await parseExcelEntries(file)
-        : parseTextEntries(await file.text());
-      if (entries.length === 0) {
-        throw new Error("Файл не содержит допустимых записей");
-      }
-      setBatchEntries(entries);
-      if (errors.length) {
-        setBatchError(errors.join("; "));
-      }
-    } catch (e: unknown) {
-      setBatchEntries([]);
-      setBatchError((e as Error)?.message || "Не удалось прочитать файл");
-    } finally {
-      event.target.value = "";
-    }
-  };
-
   const registerEntry = async (entry: { login: string; password: string; inn?: string; customer?: string }) => {
     const payload: any = {
       login: entry.login.trim(),
@@ -932,59 +820,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       throw new Error(data?.error || "Ошибка регистрации");
     }
     return data;
-  };
-
-  const handleBatchRegister = async () => {
-    if (batchEntries.length === 0) {
-      setBatchError("Выберите файл с логинами");
-      return;
-    }
-    setBatchLoading(true);
-    setBatchError(null);
-    try {
-      const res = await fetch("/api/admin-users", { headers: { Authorization: `Bearer ${adminToken}` } });
-      const data = await res.json().catch(() => ({}));
-      const existingLogins = new Set((data.users || []).map((u: User) => (u.login || "").trim().toLowerCase()));
-      const duplicates = batchEntries.filter((e) => existingLogins.has((e.login || "").trim().toLowerCase()));
-      const toRegister = duplicates.length > 0
-        ? batchEntries.filter((e) => !existingLogins.has((e.login || "").trim().toLowerCase()))
-        : batchEntries;
-      if (duplicates.length > 0 && toRegister.length > 0) {
-        const msg = `Уже зарегистрированы (${duplicates.length}): ${duplicates.slice(0, 5).map((d) => d.login).join(", ")}${duplicates.length > 5 ? "…" : ""}. Регистрировать только новых (${toRegister.length})?`;
-        if (!window.confirm(msg)) {
-          setBatchLoading(false);
-          return;
-        }
-      } else if (duplicates.length > 0 && toRegister.length === 0) {
-        setBatchError(`Все ${duplicates.length} логинов уже зарегистрированы.`);
-        setBatchLoading(false);
-        return;
-      }
-      let ok = 0;
-      const failed: { login: string; error: string }[] = [];
-      for (const entry of toRegister) {
-        try {
-          await registerEntry(entry);
-          ok += 1;
-        } catch (e: unknown) {
-          failed.push({ login: entry.login, error: (e as Error)?.message || "Ошибка" });
-        }
-      }
-      setBatchEntries([]);
-      if (failed.length === 0) {
-        setBatchSuccess(`Зарегистрировано пользователей: ${ok}`);
-        setBatchError(null);
-      } else {
-        setBatchSuccess(null);
-        const first = failed.slice(0, 5).map((f) => `${f.login}: ${f.error}`).join("; ");
-        setBatchError(`Зарегистрировано: ${ok}. Не удалось: ${failed.length}. Примеры: ${first}`);
-      }
-      await fetchUsers();
-    } catch (e: unknown) {
-      setBatchError((e as Error)?.message || "Ошибка пакетной регистрации");
-    } finally {
-      setBatchLoading(false);
-    }
   };
 
   const openPermissionsEditor = (user: User) => {
@@ -1200,14 +1035,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         </Button>
         <Button
           className="filter-button"
-          style={{ background: tab === "add" ? "var(--color-primary-blue)" : undefined, color: tab === "add" ? "white" : undefined }}
-          onClick={() => setTab("add")}
-        >
-          <Plus className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          Регистрация
-        </Button>
-        <Button
-          className="filter-button"
           style={{ background: tab === "templates" ? "var(--color-primary-blue)" : undefined, color: tab === "templates" ? "white" : undefined }}
           onClick={() => setTab("templates")}
         >
@@ -1402,7 +1229,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 type="button"
                 className="filter-button"
                 style={{ background: "var(--color-primary-blue)", color: "white", padding: "0.4rem 0.75rem", fontSize: "0.9rem" }}
-                onClick={() => setTab("add")}
+                onClick={() => setShowAddUserForm(true)}
                 aria-label="Добавить пользователя — открыть форму регистрации"
               >
                 <Plus className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
@@ -2163,8 +1990,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         </>
       )}
 
-      {tab === "add" && (
-        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+      {tab === "users" && showAddUserForm && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginBottom: "var(--element-gap, 1rem)" }}>
+          <Flex align="center" justify="space-between" style={{ marginBottom: "1rem" }}>
+            <Typography.Body style={{ fontWeight: 600 }}>Регистрация пользователя</Typography.Body>
+            <Button type="button" className="filter-button" onClick={() => setShowAddUserForm(false)} aria-label="Закрыть форму регистрации">
+              Отмена
+            </Button>
+          </Flex>
           <form onSubmit={handleAddUser}>
             <div style={{ marginBottom: "1rem" }}>
               <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик</Typography.Body>
@@ -2257,11 +2090,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       )}
                     </div>
                   </div>
-                  {batchEntries.length > 0 && (
-                    <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.35rem" }}>
-                      Пароль берётся из загруженного файла.
-                    </Typography.Body>
-                  )}
                 </>
               )}
             </div>
@@ -2342,7 +2170,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     onChange={(e) => setFormPassword(e.target.value)}
                     placeholder="Минимум 8 символов, буквы и цифры"
                     style={{ width: "100%" }}
-                    disabled={batchEntries.length > 0}
                     minLength={8}
                     autoComplete="new-password"
                   />
@@ -2351,7 +2178,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     className="toggle-password-visibility"
                     onClick={() => setFormPasswordVisible((prev) => !prev)}
                     aria-label={formPasswordVisible ? "Скрыть пароль" : "Показать пароль"}
-                    disabled={batchEntries.length > 0}
                   >
                     {formPasswordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -2359,11 +2185,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.25rem" }}>
                   Минимум 8 символов, обязательно буквы и цифры. Простые пароли (123, password и т.п.) запрещены.
                 </Typography.Body>
-                {batchEntries.length > 0 && (
-                  <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.35rem" }}>
-                    Пароль берётся из загруженного файла.
-                  </Typography.Body>
-                )}
               </div>
             )}
             {formResult?.password && (

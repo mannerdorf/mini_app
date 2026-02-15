@@ -6084,25 +6084,6 @@ function CargoPage({
                                         }}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onOpenChat(item.Number);
-                                        }}
-                                        title="Открыть AI чат"
-                                    >
-                                        <MessageCircle className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                                    </Button>
-                                    <Button
-                                        style={{ 
-                                            padding: '0.25rem', 
-                                            minWidth: 'auto', 
-                                            background: 'transparent',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                        }}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
                                             toggleFavorite(item.Number);
                                         }}
                                         title={isFavorite(item.Number) ? "Удалить из избранного" : "Добавить в избранное"}
@@ -6668,24 +6649,6 @@ function CargoDetailsModal({
                         >
                             {downloading === "share" ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
                         </button>
-                        <Button
-                            style={{
-                                padding: '0.25rem',
-                                minWidth: 'auto',
-                                background: 'transparent',
-                                border: 'none',
-                                boxShadow: 'none',
-                                outline: 'none',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                            }}
-                            onClick={() => onOpenChat(item.Number)}
-                            title="Открыть AI чат"
-                        >
-                            <MessageCircle className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                        </Button>
                         <Button
                             style={{
                                 padding: '0.25rem',
@@ -8852,7 +8815,8 @@ export default function App() {
                             ...acc,
                             password,
                             customers,
-                            activeCustomerInn: user.inn ?? acc.activeCustomerInn,
+                            // Не перезаписывать activeCustomerInn, если пользователь уже выбрал компанию
+                            activeCustomerInn: acc.activeCustomerInn ?? user.inn ?? undefined,
                             customer: user.companyName ?? acc.customer,
                             isRegisteredUser: true,
                             permissions: normalizedPermissions,
@@ -8914,7 +8878,7 @@ export default function App() {
                         setAccounts((prev) =>
                             prev.map((acc) =>
                                 acc.id === existingAccount.id
-                                    ? { ...acc, password, customers, activeCustomerInn: u.inn, customer: u.companyName, isRegisteredUser: true, accessAllInns, inCustomerDirectory: !!u.inCustomerDirectory, permissions: u.permissions, financialAccess: u.financialAccess }
+                                    ? { ...acc, password, customers, activeCustomerInn: acc.activeCustomerInn ?? u.inn, customer: u.companyName, isRegisteredUser: true, accessAllInns, inCustomerDirectory: !!u.inCustomerDirectory, permissions: u.permissions, financialAccess: u.financialAccess }
                                     : acc
                             )
                         );
