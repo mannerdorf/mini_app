@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, Flex } from "@maxhub/max-ui";
-import { Home, Truck, FileText, MessageCircle, User } from "lucide-react";
+import { Home, Truck, FileText, User } from "lucide-react";
 import type { Tab } from "../types";
 
 export type TabBarPermissions = {
@@ -12,7 +12,6 @@ export type TabBarPermissions = {
   doc_contracts?: boolean;
   doc_acts_settlement?: boolean;
   doc_tariffs?: boolean;
-  chat?: boolean;
 };
 
 type TabBarProps = {
@@ -75,7 +74,6 @@ export function TabBar({
   const hasDocAccess = permissions
     ? !!(permissions.doc_invoices || permissions.doc_acts || permissions.doc_orders || permissions.doc_claims || permissions.doc_contracts || permissions.doc_acts_settlement || permissions.doc_tariffs)
     : true;
-  const showSupport = permissions ? permissions.chat !== false : true;
 
   if (showAllTabs) {
     return (
@@ -83,7 +81,6 @@ export function TabBar({
         <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
         {showCargo && <TabBtn label="Грузы" icon={<Truck />} active={active === "cargo"} onClick={() => onChange("cargo")} />}
         {hasDocAccess && <TabBtn label="Документы" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />}
-        {showSupport && <TabBtn label="Поддержка" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />}
         <TabBtn label="Профиль" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
       </div>
     );
@@ -105,7 +102,6 @@ export function TabBar({
           onTouchEnd={onCargoPressEnd}
         />
       )}
-      {showSupport && <TabBtn label="Поддержка" icon={<MessageCircle />} active={active === "support"} onClick={() => onChange("support")} />}
       <TabBtn label="Профиль" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
     </div>
   );

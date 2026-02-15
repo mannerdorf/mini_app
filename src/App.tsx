@@ -38,7 +38,6 @@ const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then(m => ({ de
 import { AdminPage } from "./pages/AdminPage";
 import { CMSStandalonePage } from "./pages/CMSStandalonePage";
 import { NotFoundPage, shouldShowNotFound } from "./pages/NotFoundPage";
-import { SupportRedirectPage } from "./pages/SupportRedirectPage";
 import { CompaniesPage } from "./pages/CompaniesPage";
 import { AddCompanyByINNPage } from "./pages/AddCompanyByINNPage";
 import { AddCompanyByLoginPage } from "./pages/AddCompanyByLoginPage";
@@ -46,7 +45,7 @@ import { CompaniesListPage } from "./pages/CompaniesListPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
-import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL, CHAT_PAGE_TAB } from "./constants/config";
+import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
 import { usePerevozki, usePerevozkiMulti, usePerevozkiMultiAccounts, usePrevPeriodPerevozki, useInvoices } from "./hooks/useApi";
 import type {
     Account, ApiError, AuthData, CargoItem, CargoStat, CompanyRow, CustomerOption,
@@ -8243,12 +8242,10 @@ export default function App() {
         };
     }, [activeAccount?.id, activeAccount?.login]);
     const [activeTab, setActiveTab] = useState<Tab>(() => {
-        // "Страница" для поддержки, чтобы можно было ограничить Bitrix по URL: ?tab=support
         if (typeof window === "undefined") return "cargo";
         try {
             const url = new URL(window.location.href);
             const t = (url.searchParams.get("tab") || "").toLowerCase();
-            if (t === "support") return "support";
             if (t === "profile") return "profile";
             if (t === "cargo") return "cargo";
             if (t === "home" || t === "dashboard") return "dashboard";
@@ -8464,7 +8461,7 @@ export default function App() {
                         }
                         // Восстанавливаем последнюю вкладку (без сохранения секретного режима)
                         if (savedTab && !hasUrlTabOverrideRef.current) {
-                            const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs", "support"];
+                            const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs"];
                             const t = savedTab as Tab;
                             if (allowed.includes(t)) {
                                 if (t === "docs") {
@@ -8515,34 +8512,18 @@ export default function App() {
         }
     }, [activeTab]);
 
-    // Синхронизируем URL (для ограничения Bitrix по ссылке). Не трогаем ?tab=cms — это админка.
+    // Синхронизируем URL. Не трогаем ?tab=cms — это админка.
     useEffect(() => {
         if (typeof window === "undefined") return;
         try {
             const url = new URL(window.location.href);
             const tabInUrl = url.searchParams.get("tab");
             if (tabInUrl === "cms") return; // админка — URL не меняем
-            if (activeTab === "support") url.searchParams.set("tab", CHAT_PAGE_TAB);
-            else url.searchParams.delete("tab");
+            url.searchParams.delete("tab");
             window.history.replaceState(null, "", url.toString());
         } catch {
             // ignore
         }
-    }, [activeTab]);
-
-    // Виджет Bitrix24 Открытая линия — подключаем только на странице «Чат» (support)
-    const BITRIX_WIDGET_SCRIPT_ID = "haulz-bitrix24-widget";
-    useEffect(() => {
-        if (typeof window === "undefined" || activeTab !== "support") return;
-        if (document.getElementById(BITRIX_WIDGET_SCRIPT_ID)) return;
-        const d = document;
-        const u = "https://cdn-ru.bitrix24.ru/b33102400/crm/site_button/loader_1_q2c97k.js";
-        const s = d.createElement("script");
-        s.id = BITRIX_WIDGET_SCRIPT_ID;
-        s.async = true;
-        s.src = u + "?" + (Date.now() / 60000 | 0);
-        const h = d.getElementsByTagName("script")[0];
-        if (h?.parentNode) h.parentNode.insertBefore(s, h);
     }, [activeTab]);
     
     // Сохранение аккаунтов и выбранных компаний в localStorage
@@ -8716,59 +8697,6 @@ export default function App() {
         }
     };
 
-    const buildMaxBotLink = (cargoNumber?: string) => {
-        // MAX: передаем параметры в payload через startapp
-        // Формат: haulz_n_[номер]_c_[chatId]
-        const webApp = getWebApp();
-        const chatId = webApp?.initDataUnsafe?.chat?.id || webApp?.initDataUnsafe?.user?.id;
-        
-        if (!cargoNumber) {
-            return MAX_SUPPORT_BOT_URL;
-        }
-
-        let payload = "haulz_support";
-        if (cargoNumber) {
-            const safeNumber = String(cargoNumber).trim().replace(/[^0-9A-Za-zА-Яа-я._-]/g, "");
-            payload = `haulz_n_${safeNumber}`;
-            if (chatId) {
-                payload += `_c_${chatId}`;
-            }
-        } else if (chatId) {
-            payload = `haulz_c_${chatId}`;
-        }
-
-        const url = new URL(MAX_SUPPORT_BOT_URL);
-        url.searchParams.set("startapp", payload);
-        url.searchParams.set("start", payload); // Для совместимости
-        return url.toString();
-    };
-
-    const buildTgBotLink = (cargoNumber?: string) => {
-        // Telegram: передаем параметры в payload через start
-        // Формат: haulz_n_[номер]_u_[userId]
-        const webApp = getWebApp();
-        const userId = webApp?.initDataUnsafe?.user?.id;
-        
-        if (!cargoNumber) {
-            return TG_SUPPORT_BOT_URL;
-        }
-
-        let payload = "haulz_support";
-        if (cargoNumber) {
-            const safeNumber = String(cargoNumber).trim().replace(/[^0-9A-Za-zА-Яа-я._-]/g, "");
-            payload = `haulz_n_${safeNumber}`;
-            if (userId) {
-                payload += `_u_${userId}`;
-            }
-        } else if (userId) {
-            payload = `haulz_u_${userId}`;
-        }
-
-        const url = new URL(TG_SUPPORT_BOT_URL);
-        url.searchParams.set("start", payload);
-        return url.toString();
-    };
-
     const openAiChatDeepLink = (cargoNumber?: string) => {
         if (typeof window !== "undefined" && cargoNumber) {
             window.sessionStorage.setItem(
@@ -8797,7 +8725,7 @@ export default function App() {
                     .catch(() => {});
             }
         }
-        setActiveTab("support");
+        setActiveTab("cargo");
     };
 
     const openCargoFromChat = (cargoNumber: string) => {
@@ -8889,59 +8817,6 @@ export default function App() {
         if (chatId) return String(chatId);
         return null;
     })();
-
-    const openSupportChat = async (cargoNumber?: string) => {
-        setActiveTab("support");
-        return;
-        const webApp = getWebApp();
-
-        // В MAX используем схему с диплинком (startapp)
-        if (isMaxWebApp()) {
-            const botLink = buildMaxBotLink(cargoNumber);
-            console.log("[openSupportChat] Redirecting to MAX bot with payload:", botLink);
-            
-            const chatId = webApp?.initDataUnsafe?.chat?.id || webApp?.initDataUnsafe?.user?.id;
-            if (chatId) {
-                fetch('/api/max-send-message', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        chatId, 
-                        text: cargoNumber 
-                            ? `Перехожу в бота по перевозке ${cargoNumber}...` 
-                            : "Перехожу в поддержку..." 
-                    })
-                }).catch(() => {});
-            }
-
-            openMaxBotLink(botLink);
-            return;
-        }
-
-        // В Telegram также переходим на диплинк бота
-        const isTg = !!(window as any).Telegram?.WebApp;
-        if (isTg) {
-            const botLink = buildTgBotLink(cargoNumber);
-            console.log("[openSupportChat] Redirecting to Telegram bot with payload:", botLink);
-            
-            if (webApp && typeof webApp.openTelegramLink === "function") {
-                webApp.openTelegramLink(botLink);
-            } else {
-                openExternalLink(botLink);
-            }
-            
-            // Закрываем мини-апп
-            setTimeout(() => {
-                if (webApp && typeof webApp.close === "function") {
-                    try { webApp.close(); } catch { /* ignore */ }
-                }
-            }, 500);
-            return;
-        }
-
-        // В обычном браузере показываем заглушку
-        setActiveTab("support");
-    };
 
     const upsertRegisteredAccount = (user: any, loginKey: string, password: string): string => {
         const customers: CustomerOption[] = user.inn ? [{ name: user.companyName || user.inn, inn: user.inn }] : [];
@@ -9874,18 +9749,6 @@ export default function App() {
                             <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} searchText={searchText} onOpenCargo={openCargoFromChat} onOpenChat={undefined} permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined} showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true} />
                         </Suspense>
                     )}
-                    {showDashboard && activeTab === "support" && (
-                        <AiChatProfilePage
-                            onBack={() => setActiveTab("cargo")}
-                            auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password, ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}) } : null}
-                            accountId={activeAccountId}
-                            customer={activeAccount?.customer || null}
-                            onOpenCargo={openCargoFromChat}
-                            chatId={chatIdentity}
-                            onOpenTelegramBot={undefined}
-                            onOpenMaxBot={undefined}
-                        />
-                    )}
                     {showDashboard && activeTab === "profile" && (
                         <ProfilePage 
                             accounts={accounts}
@@ -9958,18 +9821,6 @@ export default function App() {
                             hasAnalytics={activeAccount?.permissions?.analytics === true}
                         />
                     )}
-                    {!showDashboard && activeTab === "support" && auth && (
-                        <AiChatProfilePage
-                            onBack={() => setActiveTab("cargo")}
-                            auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password, ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}) } : null}
-                            accountId={activeAccountId}
-                            customer={activeAccount?.customer || null}
-                            onOpenCargo={openCargoFromChat}
-                            chatId={chatIdentity}
-                            onOpenTelegramBot={undefined}
-                            onOpenMaxBot={undefined}
-                        />
-                    )}
                     {!showDashboard && activeTab === "profile" && (
                         <ProfilePage 
                             accounts={accounts}
@@ -9998,19 +9849,12 @@ export default function App() {
                         } else if (tab === "cargo") {
                             // При клике на "Грузы" переходим на грузы, но остаемся в секретном режиме
                             setActiveTab("cargo");
-                        } else if (tab === "support" && isMaxWebApp()) {
-                            // MAX: поддержка через бота или тестовое сообщение
-                            openSupportChat();
                         } else {
-                            // Для других вкладок просто переключаемся, остаемся в секретном режиме
                             setActiveTab(tab);
                         }
                     } else {
-                        // В обычном режиме "home" ведёт на дашборд
                         if (tab === "home") setActiveTab("dashboard");
-                        else if (tab === "support" && isMaxWebApp()) {
-                            openSupportChat();
-                        } else setActiveTab(tab);
+                        else setActiveTab(tab);
                     }
                 }}
                 // вход в секретный режим теперь через "Уведомления" в профиле
