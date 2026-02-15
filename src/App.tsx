@@ -46,7 +46,7 @@ import { CompaniesListPage } from "./pages/CompaniesListPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
-import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
+import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL, CHAT_PAGE_TAB } from "./constants/config";
 import { usePerevozki, usePerevozkiMulti, usePerevozkiMultiAccounts, usePrevPeriodPerevozki, useInvoices } from "./hooks/useApi";
 import type {
     Account, ApiError, AuthData, CargoItem, CargoStat, CompanyRow, CustomerOption,
@@ -8522,7 +8522,7 @@ export default function App() {
             const url = new URL(window.location.href);
             const tabInUrl = url.searchParams.get("tab");
             if (tabInUrl === "cms") return; // админка — URL не меняем
-            if (activeTab === "support") url.searchParams.set("tab", "support");
+            if (activeTab === "support") url.searchParams.set("tab", CHAT_PAGE_TAB);
             else url.searchParams.delete("tab");
             window.history.replaceState(null, "", url.toString());
         } catch {
