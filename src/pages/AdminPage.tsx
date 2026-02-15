@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -606,6 +606,35 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (tab === "customers") fetchUsers();
   }, [tab, fetchUsers]);
+
+  /** Выгрузка заказчиков в CSV (только для суперадмина). Экспортирует те же данные, что отображаются в таблице (с учётом фильтра и сортировки). */
+  const handleExportCustomers = useCallback(() => {
+    const filtered = customersShowOnlyWithoutEmail
+      ? customersList.filter((c) => !c.email || String(c.email).trim() === "")
+      : customersList;
+    const sorted = [...filtered].sort((a, b) => {
+      const key = customersSortBy;
+      const va = (key === "inn" ? a.inn : key === "customer_name" ? (a.customer_name || "") : (a.email || "")).toLowerCase();
+      const vb = (key === "inn" ? b.inn : key === "customer_name" ? (b.customer_name || "") : (b.email || "")).toLowerCase();
+      const cmp = va.localeCompare(vb, "ru");
+      return customersSortOrder === "asc" ? cmp : -cmp;
+    });
+    const escapeCsv = (s: string) => {
+      const t = String(s ?? "").trim();
+      if (/[",\r\n]/.test(t)) return `"${t.replace(/"/g, '""')}"`;
+      return t;
+    };
+    const header = "ИНН;Наименование;Email";
+    const rows = sorted.map((c) => [c.inn, c.customer_name || "", c.email || ""].map(escapeCsv).join(";"));
+    const csv = "\uFEFF" + header + "\r\n" + rows.join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `заказчики_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [customersList, customersShowOnlyWithoutEmail, customersSortBy, customersSortOrder]);
 
   const fetchPresets = useCallback(() => {
     setPresetsLoading(true);
@@ -2486,6 +2515,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               {customersLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
               Обновить
             </Button>
+            {isSuperAdmin && (
+              <Button
+                type="button"
+                className="filter-button"
+                disabled={customersLoading || customersList.length === 0}
+                onClick={handleExportCustomers}
+                aria-label="Выгрузить заказчиков в CSV"
+              >
+                <Download className="w-4 h-4" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} />
+                Выгрузить
+              </Button>
+            )}
           </Flex>
           {customersLoading ? (
             <Flex align="center" gap="0.5rem">
