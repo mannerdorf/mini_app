@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, FileUp, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -167,7 +167,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "add" | "batch" | "templates" | "customers" | "audit" | "logs" | "presets" | "payment_calendar">("users");
+  const [tab, setTab] = useState<"users" | "add" | "templates" | "customers" | "audit" | "logs" | "presets" | "payment_calendar">("users");
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
       const saved = localStorage.getItem(ADMIN_THEME_KEY);
@@ -1208,14 +1208,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         </Button>
         <Button
           className="filter-button"
-          style={{ background: tab === "batch" ? "var(--color-primary-blue)" : undefined, color: tab === "batch" ? "white" : undefined }}
-          onClick={() => setTab("batch")}
-        >
-          <FileUp className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          Массовая регистрация
-        </Button>
-        <Button
-          className="filter-button"
           style={{ background: tab === "templates" ? "var(--color-primary-blue)" : undefined, color: tab === "templates" ? "white" : undefined }}
           onClick={() => setTab("templates")}
         >
@@ -2169,59 +2161,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             })()}
           </Panel>
         </>
-      )}
-
-      {tab === "batch" && (
-        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
-          <div className="admin-form-section" style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <div className="admin-form-section-header">Массовая регистрация</div>
-            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-              Файл: столбцы <strong>логин (email)</strong>, <strong>пароль</strong>, <strong>ИНН</strong> (10–12 цифр) или название заказчика, при необходимости 4-й столбец — название компании.
-            </Typography.Body>
-            <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-              Если в файле нет ИНН (только названия в 3-м столбце), отметьте «Доступ ко всем заказчикам» ниже.
-            </Typography.Body>
-            <Button type="button" className="filter-button" onClick={handleDownloadBatchTemplate} style={{ alignSelf: "flex-start" }}>
-              Скачать шаблон .xlsx
-            </Button>
-            <Flex align="center" gap="0.5rem" style={{ marginTop: "0.25rem" }}>
-              <input
-                type="checkbox"
-                id="batch-access-all-inns"
-                checked={formAccessAllInns}
-                onChange={(e) => setFormAccessAllInns(e.target.checked)}
-              />
-              <label htmlFor="batch-access-all-inns" style={{ fontSize: "0.9rem", cursor: "pointer" }}>
-                Служебный режим (для всех из файла)
-              </label>
-            </Flex>
-            <div className="admin-file-input-wrap">
-              <label htmlFor="batch-file" className="visually-hidden">Файл с пользователями (TXT, CSV, XLS, XLSX)</label>
-              <Input id="batch-file" className="admin-form-input admin-file-input" type="file" accept=".txt,.csv,.xls,.xlsx" onChange={handleBatchFile} aria-label="Файл с пользователями" />
-            </div>
-            {batchEntries.length > 0 && (
-              <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                Загружено записей: {batchEntries.length}
-              </Typography.Body>
-            )}
-            {batchSuccess && (
-              <Typography.Body style={{ color: "var(--color-success-status, #22c55e)", fontSize: "0.85rem" }}>{batchSuccess}</Typography.Body>
-            )}
-            {batchError && (
-              <>
-                <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem" }}>{batchError}</Typography.Body>
-                {batchError.includes("ИНН обязателен") && (
-                  <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                    Включите «Служебный режим» выше или укажите ИНН (10–12 цифр) в 3-м столбце файла.
-                  </Typography.Body>
-                )}
-              </>
-            )}
-            <Button className="filter-button" type="button" disabled={batchLoading || batchEntries.length === 0} onClick={handleBatchRegister}>
-              {batchLoading ? "Регистрируем…" : "Зарегистрировать из файла"}
-            </Button>
-          </div>
-        </Panel>
       )}
 
       {tab === "add" && (

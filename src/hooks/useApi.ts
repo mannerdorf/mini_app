@@ -105,6 +105,7 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
             dateFrom,
             dateTo,
             useServiceRequest: true,
+            inn: params.inn ?? auth.inn ?? undefined,
         });
         return list.map((i) => ({ ...i, _role: "Customer" as PerevozkiRole }));
     }
