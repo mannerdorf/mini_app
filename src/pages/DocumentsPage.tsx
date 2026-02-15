@@ -125,7 +125,17 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const [selectedAct, setSelectedAct] = useState<any | null>(null);
     const [sortBy, setSortBy] = useState<'date' | null>('date');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [tableModeByCustomer, setTableModeByCustomer] = useState(false);
+    const DOCS_TABLE_MODE_KEY = 'haulz.docs.tableMode';
+    const DOCS_SECTION_KEY = 'haulz.docs.section';
+    const [tableModeByCustomer, setTableModeByCustomer] = useState<boolean>(() => {
+        try {
+            const v = localStorage.getItem(DOCS_TABLE_MODE_KEY);
+            return v === 'true';
+        } catch { return false; }
+    });
+    useEffect(() => {
+        try { localStorage.setItem(DOCS_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
+    }, [tableModeByCustomer]);
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
     const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
     const allowedDocSections = useMemo(() => {
@@ -133,10 +143,21 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         return DOC_SECTIONS.filter(({ key }) => permissions[DOC_SECTION_TO_PERMISSION[key]] !== false);
     }, [permissions]);
     const defaultDocSection = allowedDocSections[0]?.key ?? 'Счета';
-    const [docSection, setDocSection] = useState<DocSectionKey>(() => defaultDocSection);
+    const [docSection, setDocSection] = useState<DocSectionKey>(() => {
+        try {
+            const v = localStorage.getItem(DOCS_SECTION_KEY) as DocSectionKey | null;
+            if (v && DOC_SECTIONS.some(({ key }) => key === v)) return v;
+        } catch { /* ignore */ }
+        return defaultDocSection;
+    });
     useEffect(() => {
         const isAllowed = allowedDocSections.some(({ key }) => key === docSection);
-        if (!isAllowed && allowedDocSections.length > 0) setDocSection(defaultDocSection);
+        if (!isAllowed && allowedDocSections.length > 0) {
+            setDocSection(defaultDocSection);
+            try { localStorage.setItem(DOCS_SECTION_KEY, defaultDocSection); } catch { /* ignore */ }
+        } else {
+            try { localStorage.setItem(DOCS_SECTION_KEY, docSection); } catch { /* ignore */ }
+        }
     }, [allowedDocSections, docSection, defaultDocSection]);
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');

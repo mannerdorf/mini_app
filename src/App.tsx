@@ -867,6 +867,17 @@ function DashboardPage({
         useServiceRequest,
     });
 
+    const calendarYear = new Date().getFullYear();
+    const calendarDateFrom = `${calendarYear - 1}-01-01`;
+    const calendarDateTo = `${calendarYear + 1}-12-31`;
+    const { items: calendarInvoiceItems, mutate: mutateCalendarInvoices } = useInvoices({
+        auth: hasAnalytics ? auth : null,
+        dateFrom: calendarDateFrom,
+        dateTo: calendarDateTo,
+        activeInn: !useServiceRequest ? auth?.inn : undefined,
+        useServiceRequest,
+    });
+
     useEffect(() => {
         if (!useServiceRequest) return;
         const handler = () => void mutatePerevozki(undefined, { revalidate: true });
@@ -963,7 +974,7 @@ function DashboardPage({
         const invInn = (inv: any) => String(inv?.INN ?? inv?.Inn ?? inv?.inn ?? '').trim();
         const invCustomer = (inv: any) => String(inv?.Customer ?? inv?.customer ?? inv?.Контрагент ?? inv?.Contractor ?? inv?.Organization ?? '').trim() || '—';
         const invNumber = (inv: any) => (inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? '').toString();
-        (invoiceItems ?? []).forEach((inv: any) => {
+        (calendarInvoiceItems ?? []).forEach((inv: any) => {
             const dateStr = invDate(inv);
             if (!dateStr) return;
             const sum = invSum(inv);
@@ -987,7 +998,7 @@ function DashboardPage({
             }
         });
         return map;
-    }, [invoiceItems, paymentCalendarByInn]);
+    }, [calendarInvoiceItems, paymentCalendarByInn]);
     
     // Подготовка данных для графиков (группировка по датам)
     const chartData = useMemo(() => {
@@ -2271,54 +2282,99 @@ function DashboardPage({
                                     {['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'][paymentCalendarMonth.month - 1]} {paymentCalendarMonth.year}
                                 </Typography.Body>
                                 <Button className="filter-button" style={{ padding: '0.35rem 0.5rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
+                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem', marginLeft: '0.25rem' }} onClick={() => mutateCalendarInvoices()} title="Обновить счета с начала текущего года" aria-label="Обновить счета">
+                                    <RefreshCw className="w-4 h-4" />
+                                </Button>
                             </Flex>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', fontSize: '0.75rem' }}>
-                                {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((wd) => (
-                                    <div key={wd} style={{ textAlign: 'center', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.25rem' }}>{wd}</div>
-                                ))}
-                                {(() => {
-                                    const { year, month } = paymentCalendarMonth;
-                                    const first = new Date(year, month - 1, 1);
-                                    const lastDay = new Date(year, month, 0).getDate();
-                                    const startOffset = (first.getDay() + 6) % 7;
-                                    const cells: { day: number | null; key: string | null }[] = [];
-                                    for (let i = 0; i < startOffset; i++) cells.push({ day: null, key: null });
-                                    for (let d = 1; d <= lastDay; d++) {
-                                        const key = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                                        cells.push({ day: d, key });
-                                    }
-                                    return cells.map((c, i) => {
-                                        const entry = c.key ? plannedByDate.get(c.key) : undefined;
-                                        const sum = entry?.total;
-                                        const hasSum = sum != null && sum > 0;
-                                        return (
-                                            <div
-                                                key={i}
-                                                role={hasSum ? 'button' : undefined}
-                                                tabIndex={hasSum ? 0 : undefined}
-                                                onClick={hasSum && c.key ? () => setPaymentCalendarSelectedDate(c.key) : undefined}
-                                                onKeyDown={hasSum && c.key ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPaymentCalendarSelectedDate(c.key); } } : undefined}
-                                                style={{
-                                                    padding: '0.35rem',
-                                                    textAlign: 'center',
-                                                    borderRadius: 4,
-                                                    background: hasSum ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
-                                                    color: hasSum ? 'white' : 'var(--color-text-secondary)',
-                                                    minHeight: '2.25rem',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    cursor: hasSum ? 'pointer' : undefined,
-                                                }}
-                                                title={c.key && hasSum ? `${c.key}: ${Math.round(sum!).toLocaleString('ru-RU')} ₽ — нажмите для деталей` : undefined}
-                                            >
-                                                {c.day != null ? c.day : ''}
-                                                {hasSum && <span style={{ fontSize: '0.65rem', lineHeight: 1 }}>{formatCurrency(sum!, true)}</span>}
-                                            </div>
-                                        );
-                                    });
-                                })()}
+                            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(2.5rem, 1fr))', gap: '2px', fontSize: '0.75rem', minWidth: '22rem' }}>
+                                    {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'За неделю'].map((wd) => (
+                                        <div key={wd} style={{ textAlign: 'center', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.25rem' }}>{wd}</div>
+                                    ))}
+                                    {(() => {
+                                        const { year, month } = paymentCalendarMonth;
+                                        const first = new Date(year, month - 1, 1);
+                                        const lastDay = new Date(year, month, 0).getDate();
+                                        const startOffset = (first.getDay() + 6) % 7;
+                                        const cells: { day: number | null; key: string | null; dow: number }[] = [];
+                                        for (let i = 0; i < startOffset; i++) cells.push({ day: null, key: null, dow: i });
+                                        for (let d = 1; d <= lastDay; d++) {
+                                            const key = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                                            const date = new Date(year, month - 1, d);
+                                            const dow = (date.getDay() + 6) % 7;
+                                            cells.push({ day: d, key, dow });
+                                        }
+                                        const weeks: { cells: typeof cells }[] = [];
+                                        for (let i = 0; i < cells.length; i += 7) {
+                                            const chunk = cells.slice(i, i + 7);
+                                            while (chunk.length < 7) chunk.push({ day: null, key: null, dow: chunk.length });
+                                            weeks.push({ cells: chunk });
+                                        }
+                                        return weeks.flatMap(({ cells: weekCells }, wi) => {
+                                            let weekSum = 0;
+                                            for (let i = 0; i < 7; i++) {
+                                                const c = weekCells[i];
+                                                if (c?.key) {
+                                                    const e = plannedByDate.get(c.key);
+                                                    if (e?.total) weekSum += e.total;
+                                                }
+                                            }
+                                            const monFri = weekCells.slice(0, 5);
+                                            const row: React.ReactNode[] = monFri.map((c, i) => {
+                                                const entry = c.key ? plannedByDate.get(c.key) : undefined;
+                                                const sum = entry?.total;
+                                                const hasSum = sum != null && sum > 0;
+                                                return (
+                                                    <div
+                                                        key={`w${wi}-${i}-${c.key ?? ''}`}
+                                                        role={hasSum ? 'button' : undefined}
+                                                        tabIndex={hasSum ? 0 : undefined}
+                                                        onClick={hasSum && c.key ? () => setPaymentCalendarSelectedDate(c.key) : undefined}
+                                                        onKeyDown={hasSum && c.key ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPaymentCalendarSelectedDate(c.key); } } : undefined}
+                                                        style={{
+                                                            padding: '0.35rem',
+                                                            textAlign: 'center',
+                                                            borderRadius: 4,
+                                                            background: hasSum ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
+                                                            color: hasSum ? 'white' : 'var(--color-text-secondary)',
+                                                            minHeight: '2.25rem',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            cursor: hasSum ? 'pointer' : undefined,
+                                                        }}
+                                                        title={c.key && hasSum ? `${c.key}: ${Math.round(sum!).toLocaleString('ru-RU')} ₽` : undefined}
+                                                    >
+                                                        {c.day != null ? c.day : ''}
+                                                        {hasSum && <span style={{ fontSize: '0.65rem', lineHeight: 1 }}>{formatCurrency(sum!, true)}</span>}
+                                                    </div>
+                                                );
+                                            });
+                                            row.push(
+                                                <div
+                                                    key={`week-${wi}`}
+                                                    style={{
+                                                        padding: '0.35rem',
+                                                        textAlign: 'center',
+                                                        borderRadius: 4,
+                                                        background: weekSum > 0 ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
+                                                        color: weekSum > 0 ? 'white' : 'var(--color-text-secondary)',
+                                                        minHeight: '2.25rem',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontWeight: weekSum > 0 ? 600 : undefined,
+                                                    }}
+                                                >
+                                                    {weekSum > 0 ? formatCurrency(weekSum, true) : '—'}
+                                                </div>
+                                            );
+                                            return row;
+                                        });
+                                    })()}
+                                </div>
                             </div>
                             {paymentCalendarSelectedDate && plannedByDate.get(paymentCalendarSelectedDate) && (
                                 <div className="modal-overlay" style={{ zIndex: 10000 }} role="dialog" aria-modal="true" aria-labelledby="payment-calendar-day-title" onClick={() => setPaymentCalendarSelectedDate(null)}>
@@ -4474,8 +4530,8 @@ function ProfilePage({
                 activeAccountId={activeAccountId}
                 onBack={() => setCurrentView('main')}
                 onOpenDeveloper={() => {}}
-                onOpenTelegramBot={onOpenTelegramBot}
-                onOpenMaxBot={onOpenMaxBot}
+                onOpenTelegramBot={undefined}
+                onOpenMaxBot={undefined}
                 onUpdateAccount={onUpdateAccount}
             />
         );
@@ -9748,7 +9804,7 @@ export default function App() {
                         <CargoPage
                             auths={selectedAuths}
                             searchText={searchText}
-                            onOpenChat={openAiChatDeepLink}
+                            onOpenChat={undefined}
                             onCustomerDetected={updateActiveAccountCustomer}
                             contextCargoNumber={contextCargoNumber}
                             onClearContextCargo={() => setContextCargoNumber(null)}
@@ -9792,7 +9848,7 @@ export default function App() {
                     )}
                     {activeTab === "docs" && auth && (
                         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
-                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} searchText={searchText} onOpenCargo={openCargoFromChat} onOpenChat={openAiChatDeepLink} permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined} showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true} />
+                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} searchText={searchText} onOpenCargo={openCargoFromChat} onOpenChat={undefined} permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined} showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true} />
                         </Suspense>
                     )}
                     {showDashboard && activeTab === "support" && (
@@ -9803,8 +9859,8 @@ export default function App() {
                             customer={activeAccount?.customer || null}
                             onOpenCargo={openCargoFromChat}
                             chatId={chatIdentity}
-                            onOpenTelegramBot={openTelegramBotWithAccount}
-                            onOpenMaxBot={openMaxBotWithAccount}
+                            onOpenTelegramBot={undefined}
+                            onOpenMaxBot={undefined}
                         />
                     )}
                     {showDashboard && activeTab === "profile" && (
@@ -9818,8 +9874,8 @@ export default function App() {
                             onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
                             onOpenNotifications={openSecretPinModal}
                             onOpenCargo={openCargoFromChat}
-                            onOpenTelegramBot={openTelegramBotWithAccount}
-                            onOpenMaxBot={openMaxBotWithAccount}
+                            onOpenTelegramBot={undefined}
+                            onOpenMaxBot={undefined}
                             onUpdateAccount={handleUpdateAccount}
                         />
                     )}
@@ -9827,7 +9883,7 @@ export default function App() {
                         <CargoPage
                             auths={selectedAuths}
                             searchText={searchText}
-                            onOpenChat={openAiChatDeepLink}
+                            onOpenChat={undefined}
                             onCustomerDetected={updateActiveAccountCustomer}
                             contextCargoNumber={contextCargoNumber}
                             onClearContextCargo={() => setContextCargoNumber(null)}
@@ -9887,8 +9943,8 @@ export default function App() {
                             customer={activeAccount?.customer || null}
                             onOpenCargo={openCargoFromChat}
                             chatId={chatIdentity}
-                            onOpenTelegramBot={openTelegramBotWithAccount}
-                            onOpenMaxBot={openMaxBotWithAccount}
+                            onOpenTelegramBot={undefined}
+                            onOpenMaxBot={undefined}
                         />
                     )}
                     {!showDashboard && activeTab === "profile" && (
@@ -9902,8 +9958,8 @@ export default function App() {
                             onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
                             onOpenNotifications={openSecretPinModal}
                             onOpenCargo={openCargoFromChat}
-                            onOpenTelegramBot={openTelegramBotWithAccount}
-                            onOpenMaxBot={openMaxBotWithAccount}
+                            onOpenTelegramBot={undefined}
+                            onOpenMaxBot={undefined}
                             onUpdateAccount={handleUpdateAccount}
                         />
                     )}
@@ -10022,7 +10078,7 @@ export default function App() {
                         isOpen={true}
                         onClose={() => { setOverlayCargoNumber(null); setOverlayCargoItem(null); setOverlayCargoInn(null); }}
                         auth={{ login: activeAccount.login, password: activeAccount.password, inn: (overlayCargoInn ?? activeAccount.activeCustomerInn ?? undefined) || undefined, ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}) }}
-                        onOpenChat={openAiChatDeepLink}
+                        onOpenChat={undefined}
                         showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
                         isFavorite={(n) => { try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; return arr.includes(n); } catch { return false; } }}
                         onToggleFavorite={(n) => { if (!n) return; try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; const set = new Set(arr); if (set.has(n)) set.delete(n); else set.add(n); localStorage.setItem('haulz.favorites', JSON.stringify([...set])); setOverlayFavVersion(v => v + 1); } catch {} }}

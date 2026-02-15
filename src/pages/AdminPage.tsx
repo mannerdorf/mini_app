@@ -204,10 +204,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [expandedCustomerLabels, setExpandedCustomerLabels] = useState<Set<string>>(new Set());
   const [usersSortBy, setUsersSortBy] = useState<"email" | "date" | "active">("email");
   const [usersSortOrder, setUsersSortOrder] = useState<"asc" | "desc">("asc");
-  const [usersFilterBy, setUsersFilterBy] = useState<"all" | "cms" | "no_cms" | "service_mode">("all");
+  const [usersFilterBy, setUsersFilterBy] = useState<"all" | "cms" | "no_cms" | "service_mode" | "supervisor" | "no_supervisor" | "analytics" | "no_analytics">("all");
   const [usersFilterLastLogin, setUsersFilterLastLogin] = useState<"all" | "7d" | "30d" | "never" | "old">("all");
-  const [usersFilterSupervisor, setUsersFilterSupervisor] = useState<"all" | "yes" | "no">("all");
-  const [usersFilterAnalytics, setUsersFilterAnalytics] = useState<"all" | "yes" | "no">("all");
   const [usersFilterActive, setUsersFilterActive] = useState<"all" | "active" | "inactive">("all");
   const [usersFilterPresetId, setUsersFilterPresetId] = useState<string>("");
   const [usersVisibleCount, setUsersVisibleCount] = useState(50);
@@ -230,6 +228,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersFetchTrigger, setCustomersFetchTrigger] = useState(0);
   const [customersRefreshCacheLoading, setCustomersRefreshCacheLoading] = useState(false);
+  const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
   const [paymentCalendarItems, setPaymentCalendarItems] = useState<{ inn: string; customer_name: string | null; days_to_pay: number; payment_weekdays: number[] }[]>([]);
   const [paymentCalendarLoading, setPaymentCalendarLoading] = useState(false);
   const [paymentCalendarSearch, setPaymentCalendarSearch] = useState("");
@@ -556,7 +555,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   useEffect(() => {
     setUsersVisibleCount(USERS_PAGE_SIZE);
-  }, [usersSearchQuery, usersFilterBy, usersFilterLastLogin, usersFilterSupervisor, usersFilterAnalytics, usersFilterActive, usersFilterPresetId]);
+  }, [usersSearchQuery, usersFilterBy, usersFilterLastLogin, usersFilterActive, usersFilterPresetId]);
 
   useEffect(() => {
     if (tab !== "audit") return;
@@ -604,6 +603,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       .catch(() => setCustomersList([]))
       .finally(() => setCustomersLoading(false));
   }, [tab, customersSearch, adminToken, customersFetchTrigger]);
+
+  useEffect(() => {
+    if (tab === "customers") fetchUsers();
+  }, [tab, fetchUsers]);
 
   const fetchPresets = useCallback(() => {
     setPresetsLoading(true);
@@ -1426,36 +1429,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <option value="cms">С доступом в CMS ({usersFilterCounts.cms})</option>
                   <option value="no_cms">Без доступа в CMS ({usersFilterCounts.no_cms})</option>
                   <option value="service_mode">Со служебным режимом ({usersFilterCounts.service_mode})</option>
-                </select>
-              </Flex>
-              <Flex align="center" gap="var(--space-2, 0.35rem)">
-                <label htmlFor="users-filter-supervisor" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Руководитель:</label>
-                <select
-                  id="users-filter-supervisor"
-                  value={usersFilterSupervisor}
-                  onChange={(e) => setUsersFilterSupervisor(e.target.value as "all" | "yes" | "no")}
-                  className="admin-form-input"
-                  style={{ padding: "0 0.5rem", fontSize: "0.85rem", minWidth: "10rem" }}
-                  aria-label="Фильтр: право Руководитель"
-                >
-                  <option value="all">Все</option>
-                  <option value="yes">С правом ({usersFilterCounts.supervisor})</option>
-                  <option value="no">Без права ({usersFilterCounts.no_supervisor})</option>
-                </select>
-              </Flex>
-              <Flex align="center" gap="var(--space-2, 0.35rem)">
-                <label htmlFor="users-filter-analytics" style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>Аналитика:</label>
-                <select
-                  id="users-filter-analytics"
-                  value={usersFilterAnalytics}
-                  onChange={(e) => setUsersFilterAnalytics(e.target.value as "all" | "yes" | "no")}
-                  className="admin-form-input"
-                  style={{ padding: "0 0.5rem", fontSize: "0.85rem", minWidth: "10rem" }}
-                  aria-label="Фильтр: право Аналитика"
-                >
-                  <option value="all">Все</option>
-                  <option value="yes">С правом ({usersFilterCounts.analytics})</option>
-                  <option value="no">Без права ({usersFilterCounts.no_analytics})</option>
+                  <option value="supervisor">Руководитель — с правом ({usersFilterCounts.supervisor})</option>
+                  <option value="no_supervisor">Руководитель — без права ({usersFilterCounts.no_supervisor})</option>
+                  <option value="analytics">Аналитика — с правом ({usersFilterCounts.analytics})</option>
+                  <option value="no_analytics">Аналитика — без права ({usersFilterCounts.no_analytics})</option>
                 </select>
               </Flex>
               <Flex align="center" gap="var(--space-2, 0.35rem)">
@@ -1537,10 +1514,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   if (usersFilterBy === "cms") list = list.filter((u) => !!u.permissions?.cms_access);
                   else if (usersFilterBy === "no_cms") list = list.filter((u) => !u.permissions?.cms_access);
                   else if (usersFilterBy === "service_mode") list = list.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
-                  if (usersFilterSupervisor === "yes") list = list.filter((u) => !!u.permissions?.supervisor);
-                  else if (usersFilterSupervisor === "no") list = list.filter((u) => !u.permissions?.supervisor);
-                  if (usersFilterAnalytics === "yes") list = list.filter((u) => !!u.permissions?.analytics);
-                  else if (usersFilterAnalytics === "no") list = list.filter((u) => !u.permissions?.analytics);
+                  else if (usersFilterBy === "supervisor") list = list.filter((u) => !!u.permissions?.supervisor);
+                  else if (usersFilterBy === "no_supervisor") list = list.filter((u) => !u.permissions?.supervisor);
+                  else if (usersFilterBy === "analytics") list = list.filter((u) => !!u.permissions?.analytics);
+                  else if (usersFilterBy === "no_analytics") list = list.filter((u) => !u.permissions?.analytics);
                   if (usersFilterActive === "active") list = list.filter((u) => !!u.active);
                   else if (usersFilterActive === "inactive") list = list.filter((u) => !u.active);
                   if (usersFilterLastLogin === "7d") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
@@ -1582,10 +1559,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               if (usersFilterBy === "cms") filtered = filtered.filter((u) => !!u.permissions?.cms_access);
               else if (usersFilterBy === "no_cms") filtered = filtered.filter((u) => !u.permissions?.cms_access);
               else if (usersFilterBy === "service_mode") filtered = filtered.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
-              if (usersFilterSupervisor === "yes") filtered = filtered.filter((u) => !!u.permissions?.supervisor);
-              else if (usersFilterSupervisor === "no") filtered = filtered.filter((u) => !u.permissions?.supervisor);
-              if (usersFilterAnalytics === "yes") filtered = filtered.filter((u) => !!u.permissions?.analytics);
-              else if (usersFilterAnalytics === "no") filtered = filtered.filter((u) => !u.permissions?.analytics);
+              else if (usersFilterBy === "supervisor") filtered = filtered.filter((u) => !!u.permissions?.supervisor);
+              else if (usersFilterBy === "no_supervisor") filtered = filtered.filter((u) => !u.permissions?.supervisor);
+              else if (usersFilterBy === "analytics") filtered = filtered.filter((u) => !!u.permissions?.analytics);
+              else if (usersFilterBy === "no_analytics") filtered = filtered.filter((u) => !u.permissions?.analytics);
               if (usersFilterActive === "active") filtered = filtered.filter((u) => !!u.active);
               else if (usersFilterActive === "inactive") filtered = filtered.filter((u) => !u.active);
               if (usersFilterLastLogin === "7d") filtered = filtered.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
@@ -2468,7 +2445,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник заказчиков</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-            Данные из кэша (cache_customers). Кэш в БД обновляется по крону каждые 15 минут. На экране — данные загружаются при открытии вкладки и по кнопке «Обновить».
+            Данные из кэша (cache_customers). Кэш в БД обновляется по крону каждые 15 минут. Кнопка «Обновить справочник» — запуск того же процесса вручную. На экране список подгружается при открытии вкладки и по кнопке «Обновить».
           </Typography.Body>
           <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
             <Button
@@ -2555,6 +2532,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             };
             const thStyle: React.CSSProperties = { padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" };
             const thClass = "sortable-th";
+            const customerIsRegistered = (c: { inn: string; email?: string }) => {
+              const email = (c.email || "").trim().toLowerCase();
+              if (!email) return false;
+              return users.some((u) => u.login?.toLowerCase() === email || u.inn === c.inn || (u.companies?.some((comp) => comp.inn === c.inn) ?? false));
+            };
             return (
               <>
                 <div style={{ overflowX: "auto", maxHeight: "60vh", overflowY: "auto" }}>
@@ -2570,16 +2552,61 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <th className={thClass} style={thStyle} onClick={() => toggleSort("email")} role="columnheader" aria-sort={customersSortBy === "email" ? (customersSortOrder === "asc" ? "ascending" : "descending") : undefined}>
                           Email {customersSortBy === "email" && (customersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />)}
                         </th>
+                        <th style={{ ...thStyle, cursor: "default", minWidth: "10rem" }}>Действия</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sorted.map((c) => (
-                        <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                          <td style={{ padding: "0.5rem 0.75rem" }}>{c.inn}</td>
-                          <td style={{ padding: "0.5rem 0.75rem" }}>{c.customer_name || "—"}</td>
-                          <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{c.email || "—"}</td>
-                        </tr>
-                      ))}
+                      {sorted.map((c) => {
+                        const hasEmail = !!(c.email && String(c.email).trim());
+                        const isRegistered = customerIsRegistered(c);
+                        const canRegister = hasEmail && !isRegistered;
+                        const isRegistering = registeringCustomerInn === c.inn;
+                        return (
+                          <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                            <td style={{ padding: "0.5rem 0.75rem" }}>{c.inn}</td>
+                            <td style={{ padding: "0.5rem 0.75rem" }}>{c.customer_name || "—"}</td>
+                            <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{c.email || "—"}</td>
+                            <td style={{ padding: "0.5rem 0.75rem" }}>
+                              {canRegister ? (
+                                <Button
+                                  type="button"
+                                  className="filter-button"
+                                  style={{ padding: "0.35rem 0.6rem", fontSize: "0.8rem" }}
+                                  disabled={isRegistering}
+                                  onClick={async () => {
+                                    setRegisteringCustomerInn(c.inn);
+                                    setError(null);
+                                    try {
+                                      const res = await fetch("/api/admin-register-user", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                        body: JSON.stringify({
+                                          email: c.email?.trim(),
+                                          inn: c.inn,
+                                          company_name: c.customer_name || "",
+                                          send_email: true,
+                                        }),
+                                      });
+                                      const data = await res.json().catch(() => ({}));
+                                      if (!res.ok) throw new Error(data?.error || "Ошибка регистрации");
+                                      await fetchUsers();
+                                    } catch (e: unknown) {
+                                      setError((e as Error)?.message ?? "Ошибка");
+                                    } finally {
+                                      setRegisteringCustomerInn(null);
+                                    }
+                                  }}
+                                >
+                                  {isRegistering ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.25rem" }} /> : null}
+                                  Зарегистрировать
+                                </Button>
+                              ) : isRegistered ? (
+                                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>В списке пользователей</Typography.Body>
+                              ) : null}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
