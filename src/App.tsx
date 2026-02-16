@@ -5193,28 +5193,27 @@ function CargoPage({
         return cargoNumber ? favorites.has(cargoNumber) : false;
     }, [favorites]);
 
-    const apiDateRange = useMemo(() => {
-        if (dateFilter === "период") return { dateFrom: customDateFrom, dateTo: customDateTo };
-        if (dateFilter === "месяц" && selectedMonthForFilter) {
-            const { year, month } = selectedMonthForFilter;
-            const pad = (n: number) => String(n).padStart(2, '0');
-            const lastDay = new Date(year, month, 0).getDate();
-            return {
-                dateFrom: `${year}-${pad(month)}-01`,
-                dateTo: `${year}-${pad(month)}-${pad(lastDay)}`,
-            };
-        }
-        if (dateFilter === "год" && selectedYearForFilter) {
-            const y = selectedYearForFilter;
-            return { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` };
-        }
-        if (dateFilter === "неделя" && selectedWeekForFilter) {
-            return getWeekRange(selectedWeekForFilter);
-        }
-        return getDateRange(dateFilter);
+    // Один useMemo для дат, чтобы при минификации не было TDZ (переменная не читается до объявления)
+    const { apiDateRange, prevRange } = useMemo(() => {
+        const api =
+            dateFilter === "период"
+                ? { dateFrom: customDateFrom, dateTo: customDateTo }
+                : dateFilter === "месяц" && selectedMonthForFilter
+                    ? (() => {
+                        const { year, month } = selectedMonthForFilter;
+                        const pad = (n: number) => String(n).padStart(2, '0');
+                        const lastDay = new Date(year, month, 0).getDate();
+                        return { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
+                    })()
+                    : dateFilter === "год" && selectedYearForFilter
+                        ? { dateFrom: `${selectedYearForFilter}-01-01`, dateTo: `${selectedYearForFilter}-12-31` }
+                        : dateFilter === "неделя" && selectedWeekForFilter
+                            ? getWeekRange(selectedWeekForFilter)
+                            : getDateRange(dateFilter);
+        const prev = getPreviousPeriodRange(dateFilter, api.dateFrom, api.dateTo);
+        return { apiDateRange: api, prevRange: prev };
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
 
-    const prevRange = useMemo(() => getPreviousPeriodRange(dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo), [dateFilter, apiDateRange.dateFrom, apiDateRange.dateTo]);
     const { items, error, loading, mutate: mutatePerevozki } = usePerevozkiMultiAccounts({
         auths,
         dateFrom: apiDateRange.dateFrom,
