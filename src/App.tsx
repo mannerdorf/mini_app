@@ -5320,8 +5320,7 @@ function CargoPage({
         if (statusFilterSet.size > 0) {
             res = res.filter(i => {
                 const key = getFilterKeyByStatus(i.State);
-                const isFav = i.Number && favorites.has(i.Number);
-                return (statusFilterSet.has('favorites') && isFav) || (key !== 'favorites' && key !== 'all' && statusFilterSet.has(key));
+                return key !== 'all' && statusFilterSet.has(key);
             });
         }
         if (searchText) {
@@ -5742,7 +5741,7 @@ function CargoPage({
                     </div>
                     <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen} onClose={() => setIsStatusDropdownOpen(false)}>
                         <div className="dropdown-item" onClick={() => { setStatusFilterSet(new Set()); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'all').map(key => (
+                        {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'all' && k !== 'favorites').map(key => (
                             <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setStatusFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: statusFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
                                 <Typography.Body>{STATUS_MAP[key as StatusFilter]} {statusFilterSet.has(key) ? '✓' : ''}</Typography.Body>
                             </div>
