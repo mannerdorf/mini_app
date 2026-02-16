@@ -145,9 +145,11 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
 
     return createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
-            <Panel className="cargo-card" style={{ minWidth: 'min(95vw, 900px)', maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1rem' }} onClick={e => e.stopPropagation()}>
+            <Panel className="cargo-card" style={{ minWidth: 'min(95vw, 900px)', maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '1rem', color: 'var(--color-text-primary)' }} onClick={e => e.stopPropagation()}>
                 <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem', flexShrink: 0 }}>
-                    <Typography.Headline style={{ fontSize: '1.1rem' }}>Счёт {formatInvoiceNumber(num)}</Typography.Headline>
+                    <Typography.Headline style={{ fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>
+                        Счёт {formatInvoiceNumber(num)}
+                    </Typography.Headline>
                     <Button className="filter-button" onClick={onClose} style={{ padding: '0.35rem' }}><X className="w-5 h-5" /></Button>
                 </Flex>
                 {payTill && (
@@ -178,15 +180,15 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                 )}
                 {list.length > 0 ? (
                     <div style={{ flex: 1, minHeight: 0, overflow: 'auto', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-                        <table className="invoice-detail-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <table className="invoice-detail-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', color: 'var(--color-text-primary)' }}>
                             <thead>
                                 <tr style={{ background: 'var(--color-bg-hover)' }}>
-                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Услуга</th>
-                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус перевозки</th>
-                                    <th className="invoice-detail-table-route" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
-                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
-                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Цена</th>
-                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, color: 'var(--color-text-primary)' }}>Услуга</th>
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, color: 'var(--color-text-primary)' }}>Статус перевозки</th>
+                                    <th className="invoice-detail-table-route" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, color: 'var(--color-text-primary)' }}>Маршрут</th>
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, color: 'var(--color-text-primary)' }}>Кол-во</th>
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, color: 'var(--color-text-primary)' }}>Цена</th>
+                                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, color: 'var(--color-text-primary)' }}>Сумма</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -196,16 +198,16 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                                     const route = cargoNum ? lookupNorm(cargoRouteByNumber, cargoNum) : undefined;
                                     return (
                                     <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                        <td style={{ padding: '0.5rem 0.4rem', maxWidth: 220 }} title={stripOoo(String(row.Operation ?? row.Name ?? ''))}>{renderServiceCell(String(row.Operation ?? row.Name ?? '—'))}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem' }}>
+                                        <td style={{ padding: '0.5rem 0.4rem', maxWidth: 220, color: 'var(--color-text-primary)' }} title={stripOoo(String(row.Operation ?? row.Name ?? ''))}>{renderServiceCell(String(row.Operation ?? row.Name ?? '—'))}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', color: 'var(--color-text-primary)' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
                                         </td>
-                                        <td className="invoice-detail-table-route" style={{ padding: '0.5rem 0.4rem' }}>
+                                        <td className="invoice-detail-table-route" style={{ padding: '0.5rem 0.4rem', color: 'var(--color-text-primary)' }}>
                                             {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : route ? <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>{route}</span> : '—'}
                                         </td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Quantity ?? '—'}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Price != null ? formatCurrency(row.Price) : '—'}</td>
-                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.Sum != null ? formatCurrency(row.Sum) : '—'}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', color: 'var(--color-text-primary)' }}>{row.Quantity ?? '—'}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', color: 'var(--color-text-primary)' }}>{row.Price != null ? formatCurrency(row.Price) : '—'}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', color: 'var(--color-text-primary)' }}>{row.Sum != null ? formatCurrency(row.Sum) : '—'}</td>
                                     </tr>
                                     );
                                 })}

@@ -776,6 +776,7 @@ body {
 }
 .modal-content {
     background-color: var(--color-bg-card);
+    color: var(--color-text-primary);
     width: 90%;
     max-width: 500px;
     border-radius: var(--radius-lg, 18px);
@@ -787,6 +788,16 @@ body {
     overflow-y: auto;
     overflow-x: hidden;
     box-sizing: border-box;
+}
+
+/* Keep table text readable on dark cards/modals. */
+.cargo-card table,
+.cargo-card th,
+.cargo-card td,
+.modal-content table,
+.modal-content th,
+.modal-content td {
+    color: inherit;
 }
 .modal-header { display: flex; justify-content: space-between; margin-bottom: var(--space-5, 20px); align-items: center; min-width: 0; }
 .modal-header-icon-btn { padding: 0.25rem; min-width: auto; background: transparent; border: none; box-shadow: none; outline: none; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm, 8px); }

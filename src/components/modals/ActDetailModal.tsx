@@ -179,11 +179,14 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
                     flexDirection: "column",
                     overflow: "hidden",
                     padding: "1rem",
+                    color: "var(--color-text-primary)",
                 }}
                 onClick={(e) => e.stopPropagation()}
             >
                 <Flex justify="space-between" align="center" style={{ marginBottom: "0.75rem", flexShrink: 0 }}>
-                    <Typography.Headline style={{ fontSize: "1.1rem" }}>УПД {formatInvoiceNumber(String(num))}</Typography.Headline>
+                    <Typography.Headline style={{ fontSize: "1.1rem", color: "var(--color-text-primary)" }}>
+                        УПД {formatInvoiceNumber(String(num))}
+                    </Typography.Headline>
                     <Button className="filter-button" onClick={onClose} style={{ padding: "0.35rem" }}>
                         <X className="w-5 h-5" />
                     </Button>
@@ -196,7 +199,9 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
                     </Flex>
                     <Flex direction="column" gap="0.25rem">
                         <Typography.Label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>Сумма</Typography.Label>
-                        <Typography.Body style={{ fontWeight: 600 }}>{sumDoc != null ? formatCurrency(sumDoc) : "—"}</Typography.Body>
+                        <Typography.Body style={{ fontWeight: 600, color: "var(--color-text-primary)" }}>
+                            {sumDoc != null ? formatCurrency(sumDoc) : "—"}
+                        </Typography.Body>
                     </Flex>
                     {invoiceNum && (
                         <Flex direction="column" gap="0.25rem">
@@ -222,7 +227,9 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
                                     {formatInvoiceNumber(String(invoiceNum))}
                                 </button>
                             ) : (
-                                <Typography.Body>{formatInvoiceNumber(String(invoiceNum))}</Typography.Body>
+                                <Typography.Body style={{ color: "var(--color-text-primary)" }}>
+                                    {formatInvoiceNumber(String(invoiceNum))}
+                                </Typography.Body>
                             )}
                         </Flex>
                     )}
@@ -259,24 +266,24 @@ export function ActDetailModal({ item, isOpen, onClose, onOpenInvoice, invoices 
                             borderRadius: "8px",
                         }}
                     >
-                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem", color: "var(--color-text-primary)" }}>
                             <thead>
                                 <tr style={{ background: "var(--color-bg-hover)" }}>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600 }}>Услуга</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600 }}>Кол-во</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600 }}>Цена</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600 }}>Сумма</th>
+                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, color: "var(--color-text-primary)" }}>Услуга</th>
+                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Кол-во</th>
+                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Цена</th>
+                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Сумма</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {list.map((row, i) => (
                                     <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                        <td style={{ padding: "0.5rem 0.4rem", maxWidth: 320 }} title={stripOoo(String(row.Operation ?? row.Name ?? ""))}>
+                                        <td style={{ padding: "0.5rem 0.4rem", maxWidth: 320, color: "var(--color-text-primary)" }} title={stripOoo(String(row.Operation ?? row.Name ?? ""))}>
                                             {renderServiceCell(String(row.Operation ?? row.Name ?? "—"))}
                                         </td>
-                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.Quantity ?? "—"}</td>
-                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.Price != null ? formatCurrency(row.Price) : "—"}</td>
-                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.Sum != null ? formatCurrency(row.Sum) : "—"}</td>
+                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Quantity ?? "—"}</td>
+                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Price != null ? formatCurrency(row.Price) : "—"}</td>
+                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Sum != null ? formatCurrency(row.Sum) : "—"}</td>
                                     </tr>
                                 ))}
                             </tbody>
