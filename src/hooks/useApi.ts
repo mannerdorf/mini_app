@@ -51,24 +51,29 @@ type PerevozkiParams = {
 };
 
 async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
-    const { auth, dateFrom, dateTo, useServiceRequest, inn } = params;
-    if (!auth?.login || !auth?.password) return [];
-    const body: Record<string, unknown> = {
-        login: auth.login,
-        password: auth.password,
-        dateFrom,
-        dateTo,
-        ...(useServiceRequest ? { serviceMode: true } : {}),
-        ...(inn ? { inn } : auth.inn ? { inn: auth.inn } : {}),
-        ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-    };
-    const data = await apiFetchJson<{ items?: unknown[] } | unknown[]>(PROXY_API_BASE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-    });
-    const list = Array.isArray(data) ? data : (data && typeof data === "object" && "items" in data ? (data as { items: unknown[] }).items : []);
-    return list.map((item: Record<string, unknown>) => mapCargoItem(item, useServiceRequest ? "Customer" : undefined));
+    try {
+        const { auth, dateFrom, dateTo, useServiceRequest, inn } = params;
+        if (!auth?.login || !auth?.password) return [];
+        const body: Record<string, unknown> = {
+            login: auth.login,
+            password: auth.password,
+            dateFrom,
+            dateTo,
+            ...(useServiceRequest ? { serviceMode: true } : {}),
+            ...(inn ? { inn } : auth.inn ? { inn: auth.inn } : {}),
+            ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
+        };
+        const data = await apiFetchJson<{ items?: unknown[] } | unknown[]>(PROXY_API_BASE_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        const rawList = Array.isArray(data) ? data : (data && typeof data === "object" && "items" in data ? (data as { items?: unknown[] }).items : []);
+        const list = Array.isArray(rawList) ? rawList : [];
+        return list.map((item: Record<string, unknown>) => mapCargoItem(item, useServiceRequest ? "Customer" : undefined));
+    } catch {
+        return [];
+    }
 }
 
 export function usePerevozki(params: PerevozkiParams) {
