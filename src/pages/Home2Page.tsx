@@ -31,6 +31,7 @@ import {
 import { usePerevozki, usePrevPeriodPerevozki } from "../hooks/useApi";
 import type { AuthData } from "../types";
 import type { CargoItem } from "../types";
+import { isDateInRange } from "../lib/dateUtils";
 
 const {
   getDateRange,
@@ -241,11 +242,8 @@ export function Home2Page({
         !!auth?.password,
     });
 
-  const safeItems = Array.isArray(items) ? items : [];
-  const safePrevPeriodItems = Array.isArray(prevPeriodItems) ? prevPeriodItems : [];
-
   const filteredItems = useMemo(() => {
-    let res = safeItems.filter((i) => !isReceivedInfoStatus(i.State));
+    let res = items.filter((i) => !isReceivedInfoStatus(i.State));
     if (statusFilter === "favorites") {
       try {
         const favorites = JSON.parse(
@@ -306,7 +304,7 @@ export function Home2Page({
       );
     return res;
   }, [
-    safeItems,
+    items,
     statusFilter,
     senderFilter,
     receiverFilter,
@@ -316,8 +314,8 @@ export function Home2Page({
   ]);
 
   const filteredPrevPeriodItems = useMemo(() => {
-    if (!useServiceRequest || safePrevPeriodItems.length === 0) return [];
-    let res = safePrevPeriodItems.filter((i) => !isReceivedInfoStatus(i.State));
+    if (!useServiceRequest || prevPeriodItems.length === 0) return [];
+    let res = prevPeriodItems.filter((i) => !isReceivedInfoStatus(i.State));
     if (statusFilter === "favorites") {
       try {
         const favorites = JSON.parse(
@@ -378,7 +376,7 @@ export function Home2Page({
       );
     return res;
   }, [
-    safePrevPeriodItems,
+    prevPeriodItems,
     useServiceRequest,
     statusFilter,
     senderFilter,
@@ -476,21 +474,21 @@ export function Home2Page({
     if (uniqueSendersProp !== undefined) return uniqueSendersProp;
     return [
       ...new Set(
-        safeItems.map((i) => (i.Sender ?? "").trim()).filter(Boolean)
+        items.map((i) => (i.Sender ?? "").trim()).filter(Boolean)
       ),
     ].sort();
-  }, [safeItems, uniqueSendersProp]);
+  }, [items, uniqueSendersProp]);
 
   const uniqueReceivers = useMemo(() => {
     if (uniqueReceiversProp !== undefined) return uniqueReceiversProp;
     return [
       ...new Set(
-        safeItems.map((i) =>
+        items.map((i) =>
           (i.Receiver ?? (i as CargoItem & { receiver?: string }).receiver ?? "").trim()
         ).filter(Boolean),
       ),
     ].sort();
-  }, [safeItems, uniqueReceiversProp]);
+  }, [items, uniqueReceiversProp]);
 
   const [chartType, setChartType] = useState<ChartType>("money");
   const [stripExpanded, setStripExpanded] = useState(true);

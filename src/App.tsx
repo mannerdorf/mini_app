@@ -9916,18 +9916,11 @@ export default function App() {
                         </Suspense>
                     )}
                     {activeTab === "home2" && (
-                        <ErrorBoundary fallback={
-                            <div style={{ padding: "1.5rem", textAlign: "center" }}>
-                                <p style={{ marginBottom: "0.5rem" }}>Ошибка на странице Домой 2.</p>
-                                <button type="button" onClick={() => window.location.reload()} style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>Обновить страницу</button>
-                            </div>
-                        }>
-                            <Home2Page
-                                auth={auth}
-                                useServiceRequest={useServiceRequest}
-                                showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : (activeAccount?.roleCustomer ?? true)}
-                            />
-                        </ErrorBoundary>
+                        <Home2Page
+                            auth={auth}
+                            useServiceRequest={useServiceRequest}
+                            showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : (activeAccount?.roleCustomer ?? true)}
+                        />
                     )}
                     {showDashboard && activeTab === "profile" && (
                         <ProfilePage 
