@@ -31,7 +31,7 @@ import { DateText } from "./components/ui/DateText";
 import { DetailItem } from "./components/ui/DetailItem";
 import { FilterDialog } from "./components/shared/FilterDialog";
 import { StatusBadge, StatusBillBadge } from "./components/shared/StatusBadges";
-import { normalizeStatus, getFilterKeyByStatus, getPaymentFilterKey, getSumColorByPaymentStatus, isReceivedInfoStatus, BILL_STATUS_MAP, STATUS_MAP, isValidStatusFilter } from "./lib/statusUtils";
+import { normalizeStatus, getFilterKeyByStatus, getPaymentFilterKey, getSumColorByPaymentStatus, isReceivedInfoStatus, BILL_STATUS_MAP, STATUS_MAP } from "./lib/statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "./lib/slaWorkSchedule";
 import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
@@ -5104,7 +5104,7 @@ function CargoPage({
     const [workScheduleByInn, setWorkScheduleByInn] = useState<Record<string, WorkSchedule>>({});
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
-    const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [statusFilterSet, setStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
     const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<BillStatusFilterKey>>(() => new Set());
     const [typeFilterSet, setTypeFilterSet] = useState<Set<'ferry' | 'auto'>>(() => new Set());
     const [routeFilterSet, setRouteFilterSet] = useState<Set<'MSK-KGD' | 'KGD-MSK'>>(() => new Set());
@@ -5248,7 +5248,7 @@ function CargoPage({
     }, [items, onCustomerDetected]);
 
     useEffect(() => {
-        if (initialStatusFilter && isValidStatusFilter(initialStatusFilter)) setStatusFilter(initialStatusFilter);
+        if (initialStatusFilter) setStatusFilterSet(new Set([initialStatusFilter]));
         setIsStatusDropdownOpen(false);
         if (initialStatusFilter) {
             onClearQuickFilters?.();
@@ -5307,10 +5307,12 @@ function CargoPage({
     // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
         let res = items.filter(i => !isReceivedInfoStatus(i.State));
-        if (statusFilter === 'favorites') {
-            res = res.filter(i => i.Number && favorites.has(i.Number));
-        } else if (statusFilter !== 'all') {
-            res = res.filter(i => getFilterKeyByStatus(i.State) === statusFilter);
+        if (statusFilterSet.size > 0) {
+            res = res.filter(i => {
+                const key = getFilterKeyByStatus(i.State);
+                const isFav = i.Number && favorites.has(i.Number);
+                return (statusFilterSet.has('favorites') && isFav) || (key !== 'favorites' && key !== 'all' && statusFilterSet.has(key));
+            });
         }
         if (searchText) {
             const lower = searchText.toLowerCase();
@@ -5434,7 +5436,7 @@ function CargoPage({
         }
         
         return res;
-    }, [items, statusFilter, searchText, senderFilter, receiverFilter, billStatusFilterSet, useServiceRequest, typeFilterSet, routeFilterSet, sortBy, sortOrder, favorites]);
+    }, [items, statusFilterSet, searchText, senderFilter, receiverFilter, billStatusFilterSet, useServiceRequest, typeFilterSet, routeFilterSet, sortBy, sortOrder, favorites]);
 
     // Подсчет сумм из отфильтрованных элементов
     const summary = useMemo(() => {
@@ -5725,14 +5727,14 @@ function CargoPage({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Статус: {STATUS_MAP[statusFilter] ?? 'Все'} <ChevronDown className="w-4 h-4"/>
+                            Статус: {statusFilterSet.size === 0 ? 'Все' : statusFilterSet.size === 1 ? STATUS_MAP[[...statusFilterSet][0]] : `Выбрано: ${statusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen} onClose={() => setIsStatusDropdownOpen(false)}>
-                        <div className="dropdown-item" onClick={() => { setStatusFilter('all'); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        {(Object.keys(STATUS_MAP) as StatusFilter[]).filter((k): k is StatusFilter => k !== 'all').map(key => (
-                            <div key={key} className="dropdown-item" onClick={() => { setStatusFilter(key); setIsStatusDropdownOpen(false); }}>
-                                <Typography.Body>{STATUS_MAP[key]}</Typography.Body>
+                        <div className="dropdown-item" onClick={() => { setStatusFilterSet(new Set()); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                        {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'all').map(key => (
+                            <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setStatusFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: statusFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
+                                <Typography.Body>{STATUS_MAP[key as StatusFilter]} {statusFilterSet.has(key) ? '✓' : ''}</Typography.Body>
                             </div>
                         ))}
                     </FilterDropdownPortal>
@@ -8029,11 +8031,9 @@ function getInitialAuthState(): typeof EMPTY_AUTH_STATE {
         // Сначала восстанавливаем из haulz.accounts (полные данные, включая компанию сотрудника)
         const savedAccounts = window.localStorage.getItem("haulz.accounts");
         if (savedAccounts) {
-            let parsedAccounts = JSON.parse(savedAccounts) as unknown;
-            if (!Array.isArray(parsedAccounts)) parsedAccounts = [];
-            parsedAccounts = (parsedAccounts as Account[]).filter((acc): acc is Account => acc != null && typeof acc === "object" && typeof (acc as Account).login === "string" && typeof (acc as Account).password === "string");
-            if (parsedAccounts.length > 0) {
-                parsedAccounts = (parsedAccounts as Account[]).map((acc) => {
+            let parsedAccounts = JSON.parse(savedAccounts) as Account[];
+            if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
+                parsedAccounts = parsedAccounts.map((acc) => {
                     const withCustomer = acc.customers?.length && !acc.customer ? { ...acc, customer: acc.customers[0].name } : acc;
                     return { ...withCustomer, inCustomerDirectory: undefined as boolean | undefined };
                 });
