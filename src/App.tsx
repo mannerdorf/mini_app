@@ -8029,9 +8029,11 @@ function getInitialAuthState(): typeof EMPTY_AUTH_STATE {
         // Сначала восстанавливаем из haulz.accounts (полные данные, включая компанию сотрудника)
         const savedAccounts = window.localStorage.getItem("haulz.accounts");
         if (savedAccounts) {
-            let parsedAccounts = JSON.parse(savedAccounts) as Account[];
-            if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
-                parsedAccounts = parsedAccounts.map((acc) => {
+            let parsedAccounts = JSON.parse(savedAccounts) as unknown;
+            if (!Array.isArray(parsedAccounts)) parsedAccounts = [];
+            parsedAccounts = (parsedAccounts as Account[]).filter((acc): acc is Account => acc != null && typeof acc === "object" && typeof (acc as Account).login === "string" && typeof (acc as Account).password === "string");
+            if (parsedAccounts.length > 0) {
+                parsedAccounts = (parsedAccounts as Account[]).map((acc) => {
                     const withCustomer = acc.customers?.length && !acc.customer ? { ...acc, customer: acc.customers[0].name } : acc;
                     return { ...withCustomer, inCustomerDirectory: undefined as boolean | undefined };
                 });
