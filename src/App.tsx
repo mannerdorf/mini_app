@@ -41,7 +41,6 @@ const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then(m => ({ de
 import { AdminPage } from "./pages/AdminPage";
 import { CMSStandalonePage } from "./pages/CMSStandalonePage";
 import { NotFoundPage, shouldShowNotFound } from "./pages/NotFoundPage";
-import { Home2Page } from "./pages/Home2Page";
 import { CompaniesPage } from "./pages/CompaniesPage";
 import { AddCompanyByINNPage } from "./pages/AddCompanyByINNPage";
 import { AddCompanyByLoginPage } from "./pages/AddCompanyByLoginPage";
@@ -7011,7 +7010,6 @@ export default function App() {
             if (t === "profile") return "profile";
             if (t === "cargo") return "cargo";
             if (t === "home" || t === "dashboard") return "dashboard";
-            if (t === "home2") return "home2";
             if (t === "docs") return "docs";
         } catch {
             // ignore
@@ -7226,7 +7224,7 @@ export default function App() {
                         }
                         // Восстанавливаем последнюю вкладку (без сохранения секретного режима)
                         if (savedTab && !hasUrlTabOverrideRef.current) {
-                            const allowed: Tab[] = ["home", "home2", "cargo", "profile", "dashboard", "docs"];
+                            const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs"];
                             const t = savedTab as Tab;
                             if (allowed.includes(t)) {
                                 if (t === "docs") {

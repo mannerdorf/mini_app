@@ -3,7 +3,6 @@ import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Package } from "lucide-react";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { CargoPage } from "../pages/CargoPage";
-import { Home2Page } from "../pages/Home2Page";
 import type { Account, AuthData, Tab } from "../types";
 
 type Props = {
@@ -86,6 +85,23 @@ function EmptyCargoState({
   );
 }
 
+function SectionBoundary({ section, children }: { section: string; children: React.ReactNode }) {
+  return (
+    <ErrorBoundary
+      fallback={
+        <div style={{ padding: "1.5rem", textAlign: "center" }}>
+          <p style={{ marginBottom: "0.5rem" }}>Ошибка в разделе ({section}).</p>
+          <button type="button" onClick={() => window.location.reload()} style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
+            Обновить страницу
+          </button>
+        </div>
+      }
+    >
+      {children}
+    </ErrorBoundary>
+  );
+}
+
 export function AppMainContent({
   showDashboard,
   activeTab,
@@ -120,17 +136,9 @@ export function AppMainContent({
   const DocumentsPage = DocumentsPageComponent;
 
   return (
-    <ErrorBoundary
-      fallback={
-        <div style={{ padding: "1.5rem", textAlign: "center" }}>
-          <p style={{ marginBottom: "0.5rem" }}>Ошибка в разделе (Грузы / Документы / Профиль).</p>
-          <button type="button" onClick={() => window.location.reload()} style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>
-            Обновить страницу
-          </button>
-        </div>
-      }
-    >
+    <>
       {showDashboard && activeTab === "dashboard" && auth && (
+        <SectionBoundary section="Дашборд">
         <DashboardPage
           auth={auth}
           onClose={() => {}}
@@ -139,9 +147,11 @@ export function AppMainContent({
           useServiceRequest={useServiceRequest}
           hasAnalytics={true}
         />
+        </SectionBoundary>
       )}
 
       {activeTab === "docs" && auth && (
+        <SectionBoundary section="Документы">
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <DocumentsPage
             auth={auth}
@@ -151,11 +161,11 @@ export function AppMainContent({
             showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
           />
         </Suspense>
+        </SectionBoundary>
       )}
 
-      {activeTab === "home2" && <Home2Page useServiceRequest={useServiceRequest} />}
-
       {(showDashboard || activeTab === "cargo") && activeTab === "cargo" && selectedAuths.length > 0 && (
+        <SectionBoundary section="Грузы">
         <CargoPage
           auths={selectedAuths}
           onOpenChat={undefined}
@@ -172,9 +182,11 @@ export function AppMainContent({
           showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
           CargoDetailsModal={CargoDetailsModal}
         />
+        </SectionBoundary>
       )}
 
       {activeTab === "cargo" && selectedAuths.length === 0 && (
+        <SectionBoundary section="Грузы">
         <EmptyCargoState
           accounts={accounts}
           activeAccountId={activeAccountId}
@@ -182,9 +194,11 @@ export function AppMainContent({
           setActiveAccountId={setActiveAccountId}
           setActiveTab={setActiveTab}
         />
+        </SectionBoundary>
       )}
 
       {showDashboard && activeTab === "profile" && (
+        <SectionBoundary section="Профиль">
         <ProfilePage
           accounts={accounts}
           activeAccountId={activeAccountId}
@@ -199,9 +213,11 @@ export function AppMainContent({
           onOpenMaxBot={undefined}
           onUpdateAccount={handleUpdateAccount}
         />
+        </SectionBoundary>
       )}
 
       {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (
+        <SectionBoundary section="Дашборд">
         <DashboardPage
           auth={auth}
           onClose={() => {}}
@@ -211,9 +227,11 @@ export function AppMainContent({
           hasAnalytics={activeAccount?.permissions?.analytics === true}
           hasSupervisor={activeAccount?.permissions?.supervisor === true}
         />
+        </SectionBoundary>
       )}
 
       {!showDashboard && activeTab === "profile" && (
+        <SectionBoundary section="Профиль">
         <ProfilePage
           accounts={accounts}
           activeAccountId={activeAccountId}
@@ -228,8 +246,9 @@ export function AppMainContent({
           onOpenMaxBot={undefined}
           onUpdateAccount={handleUpdateAccount}
         />
+        </SectionBoundary>
       )}
-    </ErrorBoundary>
+    </>
   );
 }
 
