@@ -21,6 +21,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    if (typeof console !== "undefined" && console.error) {
+      console.error("[ErrorBoundary]", error.message, "\n", error.stack, "\n", errorInfo.componentStack);
+    }
     if (typeof window !== "undefined" && window.__debugLog) {
       window.__debugLog("ErrorBoundary", { error: error.message, stack: error.stack, componentStack: errorInfo.componentStack });
     }
@@ -29,6 +32,8 @@ export class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
+      const showDebug = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug");
+      const err = this.state.error;
       return (
         <div
           style={{
@@ -50,6 +55,12 @@ export class ErrorBoundary extends Component<Props, State> {
           <p style={{ fontSize: "0.9rem", color: "var(--color-text-secondary, #6b7280)", marginBottom: "1.25rem", textAlign: "center", maxWidth: "20rem" }}>
             Произошла ошибка. Попробуйте обновить страницу.
           </p>
+          {showDebug && err && (
+            <pre style={{ fontSize: "0.75rem", color: "#b91c1c", background: "#fef2f2", padding: "0.75rem", borderRadius: "0.5rem", maxWidth: "100%", overflow: "auto", marginBottom: "1rem", textAlign: "left" }}>
+              {err.message}
+              {err.stack ? `\n\n${err.stack}` : ""}
+            </pre>
+          )}
           <button
             type="button"
             onClick={() => window.location.reload()}

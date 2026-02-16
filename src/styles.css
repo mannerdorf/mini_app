@@ -319,8 +319,8 @@ body {
         overflow-y: auto;
         overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
-        /* Высота хедера + safe-area, чтобы верхняя часть (заголовок, фильтры) была полностью видна */
-        padding-top: calc(80px + env(safe-area-inset-top));
+        /* Высота хедера + отступ + safe-area, чтобы название раздела и фильтры были ниже хедера */
+        padding-top: calc(100px + env(safe-area-inset-top));
         padding-bottom: calc(64px + env(safe-area-inset-bottom));
         padding-left: var(--space-3, 12px);
         padding-right: var(--space-3, 12px);
