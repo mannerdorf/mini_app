@@ -139,38 +139,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const baseUrl = base.endsWith("/") ? base.slice(0, -1) : base;
     const tokenUrl = `${baseUrl}/api/doc/${token}`;
 
-    // Создаем короткую ссылку через TinyURL
+    // Создаем короткую ссылку через clck.ru
     let shortUrl = tokenUrl; // Fallback на прямую ссылку
-    const apiToken = process.env.TINYURL_API_TOKEN;
-
-    if (apiToken) {
-      try {
-        const tinyRes = await fetch("https://api.tinyurl.com/create", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiToken}`,
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-          },
-          body: JSON.stringify({
-            url: tokenUrl,
-            domain: "tinyurl.com",
-          }),
-        });
-
-        if (tinyRes.ok) {
-          const tinyData = await tinyRes.json();
-          shortUrl = tinyData.data?.tiny_url || tinyData.tiny_url;
-          console.log(`[shorten-doc] TinyURL short URL created: ${shortUrl}`);
+    try {
+      const clckUrl = `https://clck.ru/--?url=${encodeURIComponent(tokenUrl)}`;
+      const clckRes = await fetch(clckUrl, { method: "GET" });
+      if (clckRes.ok) {
+        const clckShort = (await clckRes.text()).trim();
+        if (clckShort && /^https?:\/\//i.test(clckShort)) {
+          shortUrl = clckShort;
+          console.log(`[shorten-doc] clck.ru short URL created: ${shortUrl}`);
         } else {
-          const errText = await tinyRes.text();
-          console.warn(`[shorten-doc] TinyURL failed: ${tinyRes.status} ${errText}`);
+          console.warn(`[shorten-doc] clck.ru returned invalid response: ${clckShort}`);
         }
-      } catch (e) {
-        console.warn(`[shorten-doc] TinyURL fetch exception:`, e);
+      } else {
+        const errText = await clckRes.text();
+        console.warn(`[shorten-doc] clck.ru failed: ${clckRes.status} ${errText}`);
       }
-    } else {
-      console.warn(`[shorten-doc] TINYURL_API_TOKEN not configured, using direct token URL`);
+    } catch (e) {
+      console.warn(`[shorten-doc] clck.ru fetch exception:`, e);
     }
 
     return res.status(200).json({
