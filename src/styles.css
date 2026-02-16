@@ -743,7 +743,11 @@ body {
     padding: var(--space-2, 8px) var(--space-3, 12px);
     cursor: pointer;
     font-size: var(--font-size-subhead, 14px);
+    color: var(--color-text-primary);
     transition: background-color 0.15s;
+}
+.dropdown-item * {
+    color: inherit;
 }
 .dropdown-item:hover { background-color: var(--color-bg-hover); }
 

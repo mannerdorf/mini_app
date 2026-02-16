@@ -5481,8 +5481,6 @@ function CargoDetailsModal({
                         </Flex>
                     </Flex>
                 </div>
-                {downloadError && <Typography.Body className="login-error mb-2">{downloadError}</Typography.Body>}
-                
                 {/* Явно отображаемые поля (из API примера) */}
                 <div className="details-grid-modal">
                     <DetailItem label="Номер" value={item.Number || '—'} />
@@ -5599,7 +5597,7 @@ function CargoDetailsModal({
                                             tabIndex={0}
                                             onClick={(e) => { e.stopPropagation(); }}
                                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.preventDefault(); }}
-                                            title="Срок не учитывает время дня получения груза"
+                                            title="Срок не учитывает день получения груза"
                                             style={{ display: 'inline-flex', cursor: 'help', color: 'var(--color-text-secondary)' }}
                                         >
                                             <Info className="w-4 h-4" />
@@ -5709,6 +5707,7 @@ function CargoDetailsModal({
                     );
                 })()}
 
+                {downloadError && <Typography.Body className="login-error mb-2">{downloadError}</Typography.Body>}
                 <Typography.Headline style={{marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600}}>
                     Документы
                 </Typography.Headline>
