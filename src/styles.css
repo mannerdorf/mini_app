@@ -1111,6 +1111,15 @@ body {
 .permission-button.active.active-danger:hover {
     border-color: var(--color-error-border, #dc2626);
 }
+.permission-button.active.active-warning {
+    background: #f59e0b;
+    color: white;
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+}
+.permission-button.active.active-warning:hover {
+    border-color: #f59e0b;
+}
 .light-mode .admin-form-input::placeholder,
 .light-mode .admin-form-input input::placeholder {
     color: #9ca3af !important;

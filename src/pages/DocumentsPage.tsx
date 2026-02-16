@@ -1,19 +1,18 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { Calendar, ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, AlertTriangle, Loader2 } from "lucide-react";
+import { Calendar, ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2 } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { InvoiceDetailModal } from "../components/modals/InvoiceDetailModal";
 import { ActDetailModal } from "../components/modals/ActDetailModal";
 import { DateText } from "../components/ui/DateText";
-import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode, parseCargoNumbersFromText } from "../lib/formatUtils";
-import { normalizeStatus, getFilterKeyByStatus, STATUS_MAP } from "../lib/statusUtils";
+import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
+import { normalizeStatus, STATUS_MAP } from "../lib/statusUtils";
 import { StatusBadge } from "../components/shared/StatusBadges";
 import {
     loadDateFilterState,
     saveDateFilterState,
-    getDateRange,
     getWeekRange,
     getYearsList,
     getWeeksList,
@@ -23,10 +22,23 @@ import {
     getPayTillDate,
 getPayTillDateColor,
 } from "../lib/dateUtils";
-import { useInvoices, usePerevozki, useActs } from "../hooks/useApi";
 import type { AccountPermissions, AuthData, DateFilter, StatusFilter } from "../types";
+import { useDocumentsDateRange } from "./useDocumentsDateRange";
+import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
+import {
+    INVOICE_FAVORITES_VALUE,
+    buildActsSummary,
+    buildCargoRouteByNumber,
+    buildCargoStateByNumber,
+    buildCargoTransportByNumber,
+    buildDocsSummary,
+    buildFilteredActs,
+    buildFilteredInvoices,
+    getEdoStatus,
+    getFirstCargoNumberFromInvoice,
+} from "./documentsPipeline";
+import { DocumentsSummaryCard, DocumentsStateBlocks } from "./documentsViewBlocks";
 
-const INVOICE_FAVORITES_VALUE = '__favorites__';
 const INVOICE_STATUS_OPTIONS = ['Оплачен', 'Не оплачен', 'Оплачен частично'] as const;
 
 type DocSectionKey = 'Счета' | 'УПД' | 'Заявки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
@@ -62,43 +74,6 @@ type DocumentsPageProps = {
     /** Показывать суммы (финансовые показатели) */
     showSums?: boolean;
 };
-
-/** Строка для поиска по счёту: номер, заказчик, дата, сумма, номенклатура */
-function getInvoiceSearchText(inv: any): string {
-    const parts: string[] = [
-        String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? ''),
-        stripOoo(String(inv?.Customer ?? inv?.customer ?? inv?.Контрагент ?? inv?.Contractor ?? inv?.Organization ?? '')),
-        String(inv?.DateDoc ?? inv?.Date ?? inv?.date ?? inv?.Дата ?? ''),
-        String(inv?.SumDoc ?? inv?.Sum ?? inv?.sum ?? inv?.Сумма ?? inv?.Amount ?? ''),
-    ];
-    const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(inv?.List) ? inv.List : [];
-    list.forEach((row) => {
-        parts.push(String(row?.Operation ?? row?.Name ?? ''));
-    });
-    return parts.join(' ').toLowerCase();
-}
-
-/** Строка для поиска по УПД: номер, счёт, заказчик, дата, сумма, номенклатура */
-function getActSearchText(act: any): string {
-    const parts: string[] = [
-        String(act?.Number ?? act?.number ?? ''),
-        String(act?.Invoice ?? act?.invoice ?? act?.Счёт ?? ''),
-        stripOoo(String(act?.Customer ?? act?.customer ?? act?.Контрагент ?? act?.Contractor ?? act?.Organization ?? '')),
-        String(act?.DateDoc ?? act?.Date ?? act?.date ?? ''),
-        String(act?.SumDoc ?? act?.Sum ?? act?.sum ?? ''),
-    ];
-    const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(act?.List) ? act.List : [];
-    list.forEach((row) => {
-        parts.push(String(row?.Operation ?? row?.Name ?? ''));
-    });
-    return parts.join(' ').toLowerCase();
-}
-
-/** Статус ЭДО из документа (счёт/УПД) — поддержка разных полей API */
-function getEdoStatus(item: any): string {
-    const v = item?.EdoStatus ?? item?.edoStatus ?? item?.EdoState ?? item?.EDO ?? item?.StatusEDO ?? item?.ЭДО ?? item?.DocumentStatus ?? item?.documentStatus ?? '';
-    return String(v ?? '').trim() || '';
-}
 
 export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', searchText = '', onOpenCargo, onOpenChat, permissions, showSums = true }: DocumentsPageProps) {
     const initDate = () => loadDateFilterState();
@@ -195,69 +170,31 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
 
-    const apiDateRange = useMemo(() => {
-        if (dateFilter === "период") return { dateFrom: customDateFrom, dateTo: customDateTo };
-        if (dateFilter === "месяц" && selectedMonthForFilter) {
-            const { year, month } = selectedMonthForFilter;
-            const pad = (n: number) => String(n).padStart(2, '0');
-            const lastDay = new Date(year, month, 0).getDate();
-            return { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
-        }
-        if (dateFilter === "год" && selectedYearForFilter) {
-            const y = selectedYearForFilter;
-            return { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` };
-        }
-        if (dateFilter === "неделя" && selectedWeekForFilter) {
-            return getWeekRange(selectedWeekForFilter);
-        }
-        return getDateRange(dateFilter);
-    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
+    const { apiDateRange, perevozkiDateRange } = useDocumentsDateRange({
+        dateFilter,
+        customDateFrom,
+        customDateTo,
+        selectedMonthForFilter,
+        selectedYearForFilter,
+        selectedWeekForFilter,
+    });
 
-    /** Расширенный период для загрузки перевозок: ±1 месяц от фильтра дат, чтобы статус перевозки был доступен для счетов, у которых дата перевозки вне выбранного периода */
-    const perevozkiDateRange = useMemo(() => {
-        const from = new Date(apiDateRange.dateFrom + 'T12:00:00Z');
-        const to = new Date(apiDateRange.dateTo + 'T12:00:00Z');
-        from.setUTCMonth(from.getUTCMonth() - 1);
-        to.setUTCMonth(to.getUTCMonth() + 1);
-        return {
-            dateFrom: from.toISOString().slice(0, 10),
-            dateTo: to.toISOString().slice(0, 10),
-        };
-    }, [apiDateRange.dateFrom, apiDateRange.dateTo]);
-
-    const { items, error, loading, mutate: mutateInvoices } = useInvoices({
+    const {
+        items,
+        error,
+        loading,
+        actsItems,
+        actsError,
+        actsLoading,
+        perevozkiItems,
+        perevozkiLoading,
+    } = useDocumentsDataLoad({
         auth,
-        dateFrom: apiDateRange.dateFrom,
-        dateTo: apiDateRange.dateTo,
-        activeInn: activeInn || undefined,
+        activeInn,
         useServiceRequest,
+        apiDateRange,
+        perevozkiDateRange,
     });
-
-    const { items: actsItems, error: actsError, loading: actsLoading, mutate: mutateActs } = useActs({
-        auth,
-        dateFrom: apiDateRange.dateFrom,
-        dateTo: apiDateRange.dateTo,
-        activeInn: activeInn || undefined,
-        useServiceRequest,
-    });
-
-    const { items: perevozkiItems, loading: perevozkiLoading, mutate: mutatePerevozki } = usePerevozki({
-        auth,
-        dateFrom: perevozkiDateRange.dateFrom,
-        dateTo: perevozkiDateRange.dateTo,
-        useServiceRequest: !!useServiceRequest,
-    });
-
-    useEffect(() => {
-        if (!useServiceRequest) return;
-        const handler = () => {
-            void mutateInvoices(undefined, { revalidate: true });
-            void mutatePerevozki(undefined, { revalidate: true });
-            void mutateActs(undefined, { revalidate: true });
-        };
-        window.addEventListener('haulz-service-refresh', handler);
-        return () => window.removeEventListener('haulz-service-refresh', handler);
-    }, [useServiceRequest, mutateInvoices, mutatePerevozki, mutateActs]);
 
     // При выходе из служебного режима прячем и сбрасываем "компанийные" фильтры.
     useEffect(() => {
@@ -275,61 +212,20 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         return s;
     }, []);
 
-    /** Номер первой перевозки в счёте (из первой строки номенклатуры) */
-    const getFirstCargoNumberFromInvoice = useCallback((inv: any): string | null => {
-        const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(inv?.List) ? inv.List : [];
-        for (let i = 0; i < list.length; i++) {
-            const text = String(list[i]?.Operation ?? list[i]?.Name ?? "").trim();
-            if (!text) continue;
-            const parts = parseCargoNumbersFromText(text);
-            const cargo = parts.find((p) => p.type === "cargo");
-            if (cargo?.value) return cargo.value;
-        }
-        return null;
-    }, []);
+    const cargoStateByNumber = useMemo(
+        () => buildCargoStateByNumber(perevozkiItems || []),
+        [perevozkiItems]
+    );
 
-    const cargoStateByNumber = useMemo(() => {
-        const m = new Map<string, string>();
-        (perevozkiItems || []).forEach((c: any) => {
-            const raw = (c.Number ?? c.number ?? "").toString().replace(/^0000-/, "").trim();
-            if (!raw || c.State == null) return;
-            const key = raw.replace(/^0+/, '') || raw;
-            m.set(key, String(c.State));
-            if (key !== raw) m.set(raw, String(c.State));
-        });
-        return m;
-    }, [perevozkiItems]);
+    const cargoRouteByNumber = useMemo(
+        () => buildCargoRouteByNumber(perevozkiItems || []),
+        [perevozkiItems]
+    );
 
-    const cargoRouteByNumber = useMemo(() => {
-        const m = new Map<string, string>();
-        (perevozkiItems || []).forEach((c: any) => {
-            const raw = (c.Number ?? c.number ?? "").toString().replace(/^0000-/, "").trim();
-            if (!raw) return;
-            const key = raw.replace(/^0+/, '') || raw;
-            const from = cityToCode(c.CitySender ?? c.citySender);
-            const to = cityToCode(c.CityReceiver ?? c.cityReceiver);
-            const route = [from, to].filter(Boolean).join(' – ') || '';
-            if (route) {
-                m.set(key, route);
-                if (key !== raw) m.set(raw, route);
-            }
-        });
-        return m;
-    }, [perevozkiItems]);
-
-    const cargoTransportByNumber = useMemo(() => {
-        const m = new Map<string, string>();
-        (perevozkiItems || []).forEach((c: any) => {
-            const raw = (c.Number ?? c.number ?? "").toString().replace(/^0000-/, "").trim();
-            if (!raw) return;
-            const key = raw.replace(/^0+/, '') || raw;
-            const transport = String(c.AutoReg ?? c.autoReg ?? c.Transport ?? c.transport ?? '').trim();
-            if (!transport) return;
-            m.set(key, transport);
-            if (key !== raw) m.set(raw, transport);
-        });
-        return m;
-    }, [perevozkiItems]);
+    const cargoTransportByNumber = useMemo(
+        () => buildCargoTransportByNumber(perevozkiItems || []),
+        [perevozkiItems]
+    );
 
     const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
 
@@ -375,71 +271,28 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     }, []);
 
     const filteredItems = useMemo(() => {
-        let res = [...items];
-        if (customerFilter) res = res.filter(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim()) === customerFilter);
-        if (statusFilterSet.size > 0) {
-            res = res.filter((i) => {
-                const invStatus = normalizeInvoiceStatus(i.Status ?? i.State ?? i.state ?? i.Статус ?? i.status ?? i.PaymentStatus ?? '');
-                const invNum = String(i.Number ?? i.number ?? i.Номер ?? i.N ?? '');
-                const isFav = isInvoiceFavorite(invNum);
-                return (statusFilterSet.has(INVOICE_FAVORITES_VALUE) && isFav) || statusFilterSet.has(invStatus);
-            });
-        }
-        if (typeFilter === 'ferry') res = res.filter(i => i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1);
-        if (typeFilter === 'auto') res = res.filter(i => !(i?.AK === true || i?.AK === 'true' || i?.AK === '1' || i?.AK === 1));
-        if (routeFilter === 'MSK-KGD') res = res.filter(i => cityToCode(i.CitySender) === 'MSK' && cityToCode(i.CityReceiver) === 'KGD');
-        if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
-        if (deliveryStatusFilterSet.size > 0) {
-            res = res.filter((i) => {
-                const cargoNum = getFirstCargoNumberFromInvoice(i);
-                const state = cargoNum ? cargoStateByNumber.get(normCargoKey(cargoNum)) : undefined;
-                return deliveryStatusFilterSet.has(getFilterKeyByStatus(state));
-            });
-        }
-        if (routeFilterCargo !== 'all') {
-            res = res.filter((i) => {
-                const cargoNum = getFirstCargoNumberFromInvoice(i);
-                const route = cargoNum ? cargoRouteByNumber.get(normCargoKey(cargoNum)) : '';
-                return route === routeFilterCargo;
-            });
-        }
-        if (transportFilter) {
-            res = res.filter((i) => {
-                const cargoNum = getFirstCargoNumberFromInvoice(i);
-                const transport = cargoNum ? cargoTransportByNumber.get(normCargoKey(cargoNum)) : '';
-                return transport === transportFilter;
-            });
-        }
-        if (searchText.trim()) {
-            const lower = searchText.trim().toLowerCase();
-            res = res.filter((i) => getInvoiceSearchText(i).includes(lower));
-        }
-        if (edoStatusFilterSet.size > 0) {
-            res = res.filter((i) => {
-                const edo = getEdoStatus(i);
-                return edo && edoStatusFilterSet.has(edo);
-            });
-        }
-        const getDate = (r: any) => (r.Date ?? r.date ?? r.Дата ?? r.DateDoc ?? '').toString();
-        if (sortBy === 'date') {
-            res.sort((a, b) => {
-                const da = getDate(a);
-                const db = getDate(b);
-                const cmp = da.localeCompare(db);
-                return sortOrder === 'desc' ? -cmp : cmp;
-            });
-        }
-        return res;
+        return buildFilteredInvoices({
+            items,
+            customerFilter,
+            statusFilterSet,
+            typeFilter,
+            routeFilter,
+            deliveryStatusFilterSet,
+            routeFilterCargo,
+            transportFilter,
+            searchText,
+            edoStatusFilterSet,
+            sortBy,
+            sortOrder,
+            isInvoiceFavorite,
+            getFirstCargoNumberFromInvoice,
+            cargoStateByNumber,
+            cargoRouteByNumber,
+            cargoTransportByNumber,
+        });
     }, [items, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, routeFilterCargo, transportFilter, searchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
 
-    const documentsSummary = useMemo(() => {
-        let sum = 0;
-        filteredItems.forEach(i => {
-            const v = i.SumDoc ?? i.Sum ?? i.sum ?? i.Сумма ?? i.Amount ?? 0;
-            sum += typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
-        });
-        return { sum, count: filteredItems.length };
-    }, [filteredItems]);
+    const documentsSummary = useMemo(() => buildDocsSummary(filteredItems), [filteredItems]);
 
     const sortedActs = useMemo(() => {
         const list = [...(actsItems || [])];
@@ -452,38 +305,18 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     }, [actsItems, sortOrder]);
 
     const filteredActs = useMemo(() => {
-        let res = sortedActs;
-        if (actCustomerFilter) {
-            res = res.filter((a: any) => ((a.Customer ?? a.customer ?? a.Контрагент ?? a.Contractor ?? a.Organization ?? '').trim()) === actCustomerFilter);
-        }
-        if (searchText.trim()) {
-            const lower = searchText.trim().toLowerCase();
-            res = res.filter((a) => getActSearchText(a).includes(lower));
-        }
-        if (edoStatusFilterSet.size > 0) {
-            res = res.filter((a) => {
-                const edo = getEdoStatus(a);
-                return edo && edoStatusFilterSet.has(edo);
-            });
-        }
-        if (transportFilter) {
-            res = res.filter((a) => {
-                const cargoNum = getFirstCargoNumberFromInvoice(a);
-                const transport = cargoNum ? cargoTransportByNumber.get(normCargoKey(cargoNum)) : '';
-                return transport === transportFilter;
-            });
-        }
-        return res;
+        return buildFilteredActs({
+            sortedActs,
+            actCustomerFilter,
+            searchText,
+            edoStatusFilterSet,
+            transportFilter,
+            getFirstCargoNumberFromInvoice,
+            cargoTransportByNumber,
+        });
     }, [sortedActs, actCustomerFilter, searchText, edoStatusFilterSet, transportFilter, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey]);
 
-    const actsSummary = useMemo(() => {
-        let sum = 0;
-        filteredActs.forEach(a => {
-            const v = a.SumDoc ?? a.Sum ?? a.sum ?? 0;
-            sum += typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
-        });
-        return { sum, count: filteredActs.length };
-    }, [filteredActs]);
+    const actsSummary = useMemo(() => buildActsSummary(filteredActs), [filteredActs]);
 
     const groupedByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
@@ -857,32 +690,13 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             {docSection === 'Счета' && (
             <>
             {!loading && !error && filteredItems.length > 0 && (
-                <div className="cargo-card mb-4" style={{ padding: '0.75rem', marginBottom: '1rem' }}>
-                    <div className="summary-metrics">
-                        {showSums && (
-                        <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCurrency(documentsSummary.sum)}</Typography.Body>
-                        </Flex>
-                        )}
-                        <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', visibility: 'hidden' }}>—</Typography.Label>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{documentsSummary.count}</Typography.Body>
-                        </Flex>
-                    </div>
-                </div>
+                <DocumentsSummaryCard
+                    sum={documentsSummary.sum}
+                    count={documentsSummary.count}
+                    showSums={showSums}
+                />
             )}
-            {loading && (
-                <Flex justify="center" className="py-8">
-                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--color-primary-blue)' }} />
-                </Flex>
-            )}
-            {error && (
-                <Flex align="center" className="mt-4" style={{ color: 'var(--color-error)' }}>
-                    <AlertTriangle className="w-5 h-5 mr-2" />
-                    <Typography.Body>{error}</Typography.Body>
-                </Flex>
-            )}
+            {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
             {!loading && !error && tableModeByCustomer && sortedGroupedByCustomer.length > 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
@@ -1025,32 +839,13 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             {docSection === 'УПД' && (
             <>
             {!actsLoading && !actsError && filteredActs.length > 0 && (
-                <div className="cargo-card mb-4" style={{ padding: '0.75rem', marginBottom: '1rem' }}>
-                    <div className="summary-metrics">
-                        {showSums && (
-                        <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Сумма</Typography.Label>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{formatCurrency(actsSummary.sum)}</Typography.Body>
-                        </Flex>
-                        )}
-                        <Flex direction="column" align="center">
-                            <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', visibility: 'hidden' }}>—</Typography.Label>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{actsSummary.count}</Typography.Body>
-                        </Flex>
-                    </div>
-                </div>
+                <DocumentsSummaryCard
+                    sum={actsSummary.sum}
+                    count={actsSummary.count}
+                    showSums={showSums}
+                />
             )}
-            {actsLoading && (
-                <Flex justify="center" className="py-8">
-                    <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--color-primary-blue)' }} />
-                </Flex>
-            )}
-            {actsError && (
-                <Flex align="center" className="mt-4" style={{ color: 'var(--color-error)' }}>
-                    <AlertTriangle className="w-5 h-5 mr-2" />
-                    <Typography.Body>{actsError}</Typography.Body>
-                </Flex>
-            )}
+            {(actsLoading || !!actsError) && <DocumentsStateBlocks loading={actsLoading} error={actsError} emptyText="" />}
             {!actsLoading && !actsError && tableModeByCustomer && sortedGroupedActsByCustomer.length > 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>

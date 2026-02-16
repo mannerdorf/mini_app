@@ -15,7 +15,6 @@ const PERMISSION_KEYS = [
   { key: "doc_contracts", label: "Договоры" },
   { key: "doc_acts_settlement", label: "Акты сверок" },
   { key: "doc_tariffs", label: "Тарифы" },
-  { key: "chat", label: "Чат" },
   { key: "service_mode", label: "Служебный режим" },
   { key: "analytics", label: "Аналитика" },
   { key: "supervisor", label: "Руководитель" },
@@ -40,7 +39,6 @@ const PERMISSION_ROW2 = [
   { key: "doc_contracts", label: "Договоры" },
   { key: "doc_acts_settlement", label: "Акты сверок" },
   { key: "doc_tariffs", label: "Тарифы" },
-  { key: "chat", label: "Чат" },
 ] as const;
 
 export type PermissionPreset = { id: string; label: string; permissions: Record<string, boolean>; financial: boolean; serviceMode: boolean };
@@ -203,6 +201,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [lastLoginAvailable, setLastLoginAvailable] = useState(true);
   const [topActiveExpanded, setTopActiveExpanded] = useState(false);
+  const [topActiveMode, setTopActiveMode] = useState<"users" | "customers">("users");
   const [usersSearchQuery, setUsersSearchQuery] = useState("");
   const [usersViewMode, setUsersViewMode] = useState<"login" | "customer">("login");
   /** В режиме «По заказчикам» — какие группы развёрнуты (показаны логины) */
@@ -218,7 +217,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [bulkDeactivateConfirmOpen, setBulkDeactivateConfirmOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false, analytics: false, supervisor: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, service_mode: false, analytics: false, supervisor: false,
   });
   const [bulkFinancial, setBulkFinancial] = useState(false);
   const [bulkAccessAllInns, setBulkAccessAllInns] = useState(false);
@@ -334,7 +333,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
   const [presetFormLabel, setPresetFormLabel] = useState("");
   const [presetFormPermissions, setPresetFormPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false, analytics: false, supervisor: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, service_mode: false, analytics: false, supervisor: false,
   });
   const [presetFormFinancial, setPresetFormFinancial] = useState(false);
   const [presetFormServiceMode, setPresetFormServiceMode] = useState(false);
@@ -371,7 +370,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     doc_contracts: true,
     doc_acts_settlement: true,
     doc_tariffs: true,
-    chat: true,
     service_mode: false,
     analytics: false,
     supervisor: true,
@@ -573,6 +571,50 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       })
       .slice(0, 15)
       .map((u) => ({ id: u.id, login: u.login, company_name: u.company_name ?? "", last_login_at: u.last_login_at ?? null }));
+  }, [users]);
+
+  const topActiveCustomers = useMemo(() => {
+    const map = new Map<string, { customer: string; last_login_at: string | null; users_count: number }>();
+
+    users
+      .filter((u) => u.active)
+      .forEach((u) => {
+        const names = new Set<string>();
+        const companyName = (u.company_name ?? "").trim();
+        if (companyName) names.add(companyName);
+        if (Array.isArray(u.companies)) {
+          u.companies.forEach((c) => {
+            const n = (c?.name ?? "").trim();
+            if (n) names.add(n);
+          });
+        }
+        if (names.size === 0) names.add("Без заказчика");
+
+        names.forEach((name) => {
+          const existing = map.get(name);
+          if (!existing) {
+            map.set(name, {
+              customer: name,
+              last_login_at: u.last_login_at ?? null,
+              users_count: 1,
+            });
+            return;
+          }
+          const prevMs = existing.last_login_at ? new Date(existing.last_login_at).getTime() : 0;
+          const curMs = u.last_login_at ? new Date(u.last_login_at).getTime() : 0;
+          existing.users_count += 1;
+          if (curMs > prevMs) existing.last_login_at = u.last_login_at ?? null;
+        });
+      });
+
+    return Array.from(map.values())
+      .sort((a, b) => {
+        const at = a.last_login_at ? new Date(a.last_login_at).getTime() : 0;
+        const bt = b.last_login_at ? new Date(b.last_login_at).getTime() : 0;
+        if (bt !== at) return bt - at;
+        return a.customer.localeCompare(b.customer, "ru");
+      })
+      .slice(0, 15);
   }, [users]);
 
   useEffect(() => {
@@ -1254,14 +1296,47 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
                   По последнему входу в приложение
                 </Typography.Body>
+                <Flex align="center" gap="0.35rem" style={{ marginBottom: "0.5rem" }}>
+                  <Button
+                    type="button"
+                    className="filter-button"
+                    style={{
+                      padding: "0 0.6rem",
+                      fontSize: "0.85rem",
+                      background: topActiveMode === "users" ? "var(--color-primary-blue)" : undefined,
+                      color: topActiveMode === "users" ? "white" : undefined,
+                    }}
+                    onClick={() => setTopActiveMode("users")}
+                  >
+                    Пользователи
+                  </Button>
+                  <Button
+                    type="button"
+                    className="filter-button"
+                    style={{
+                      padding: "0 0.6rem",
+                      fontSize: "0.85rem",
+                      background: topActiveMode === "customers" ? "var(--color-primary-blue)" : undefined,
+                      color: topActiveMode === "customers" ? "white" : undefined,
+                    }}
+                    onClick={() => setTopActiveMode("customers")}
+                  >
+                    Заказчики
+                  </Button>
+                </Flex>
                 {!lastLoginAvailable && (
                   <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-error)", marginBottom: "0.5rem" }}>
                     Колонка last_login_at отсутствует в БД. Выполните миграцию 015 (migrations/015_registered_users_last_login.sql) — тогда время входа будет сохраняться при входе по email/пароль.
                   </Typography.Body>
                 )}
-                {lastLoginAvailable && topActiveUsers.length > 0 && topActiveUsers.every((u) => !u.last_login_at) && (
+                {lastLoginAvailable && topActiveMode === "users" && topActiveUsers.length > 0 && topActiveUsers.every((u) => !u.last_login_at) && (
                   <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
                     Даты появятся после того, как пользователи войдут в приложение по email и паролю.
+                  </Typography.Body>
+                )}
+                {lastLoginAvailable && topActiveMode === "customers" && topActiveCustomers.length > 0 && topActiveCustomers.every((c) => !c.last_login_at) && (
+                  <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
+                    Даты появятся после того, как пользователи компаний войдут в приложение по email и паролю.
                   </Typography.Body>
                 )}
                 {loading ? (
@@ -1269,11 +1344,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <Typography.Body style={{ fontSize: "0.9rem" }}>Загрузка...</Typography.Body>
                   </Flex>
-                ) : topActiveUsers.length === 0 ? (
-                  <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Нет активных пользователей. Данные о входах появятся после входа через CMS.</Typography.Body>
+                ) : (topActiveMode === "users" ? topActiveUsers.length === 0 : topActiveCustomers.length === 0) ? (
+                  <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+                    {topActiveMode === "users"
+                      ? "Нет активных пользователей. Данные о входах появятся после входа через CMS."
+                      : "Нет активных заказчиков. Данные о входах появятся после входа через CMS."}
+                  </Typography.Body>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                    {topActiveUsers.map((u, i) => {
+                    {(topActiveMode === "users" ? topActiveUsers : topActiveCustomers).map((u, i) => {
                       const now = Date.now();
                       const lastMs = u.last_login_at ? new Date(u.last_login_at).getTime() : 0;
                       const diffMs = lastMs ? now - lastMs : Infinity;
@@ -1284,7 +1363,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       const bg = `hsl(${h}, ${s}%, 94%)`;
                       return (
                       <div
-                        key={u.id}
+                        key={"id" in u ? u.id : `customer-${u.customer}`}
                         style={{
                           display: "flex",
                           justifyContent: "space-between",
@@ -1296,7 +1375,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           gap: "0.75rem",
                         }}
                       >
-                        <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>{i + 1}. {u.login}</span>
+                        <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                          {i + 1}. {"login" in u ? u.login : u.customer}
+                          {"users_count" in u ? ` (${u.users_count})` : ""}
+                        </span>
                         <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginLeft: "0.5rem" }}>
                           {u.last_login_at
                             ? (() => {
@@ -1721,8 +1803,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         if (key === "analytics" && !isSuperAdmin) return null;
                         const isActive = key === "__financial__" ? editorFinancial : key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : key === "analytics" ? !!editorPermissions.analytics : !!editorPermissions[key];
                         const onClick = key === "__financial__" ? () => { setEditorSelectedPresetId(""); setEditorFinancial(!editorFinancial); } : key === "service_mode" ? () => { setEditorSelectedPresetId(""); const v = !(!!editorPermissions.service_mode || editorAccessAllInns); setEditorPermissions((p) => ({ ...p, service_mode: v })); setEditorAccessAllInns(v); } : () => handlePermissionsToggle(key);
+                        const activeClass = isActive
+                          ? (key === "service_mode" || key === "analytics" ? "active active-warning" : "active active-danger")
+                          : "";
                         return (
-                          <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>
+                          <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>
                         );
                       })}
                     </div>
@@ -1904,7 +1989,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       if (key === "analytics" && !isSuperAdmin) return null;
                       const isActive = key === "__financial__" ? bulkFinancial : key === "service_mode" ? (!!bulkPermissions.service_mode || bulkAccessAllInns) : !!bulkPermissions[key];
                       const onClick = key === "__financial__" ? () => { setBulkSelectedPresetId(""); setBulkFinancial(!bulkFinancial); } : key === "service_mode" ? () => { setBulkSelectedPresetId(""); const v = !(!!bulkPermissions.service_mode || bulkAccessAllInns); setBulkPermissions((p) => ({ ...p, service_mode: v })); setBulkAccessAllInns(v); } : () => { setBulkSelectedPresetId(""); setBulkPermissions((p) => ({ ...p, [key]: !p[key] })); };
-                      return <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>;
+                      const activeClass = isActive
+                        ? (key === "service_mode" || key === "analytics" ? "active active-warning" : "active active-danger")
+                        : "";
+                      return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>;
                     })}
                   </div>
                   <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
@@ -2228,8 +2316,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   if (key === "analytics" && !isSuperAdmin) return null;
                   const isActive = key === "__financial__" ? formFinancial : key === "service_mode" ? (!!formPermissions.service_mode || formAccessAllInns) : !!formPermissions[key];
                   const onClick = key === "__financial__" ? () => { setFormSelectedPresetId(""); setFormFinancial(!formFinancial); } : key === "service_mode" ? () => { setFormSelectedPresetId(""); const v = !(!!formPermissions.service_mode || formAccessAllInns); setFormPermissions((p) => ({ ...p, service_mode: v })); setFormAccessAllInns(v); if (v) clearCustomerSelection(); } : () => togglePerm(key);
+                  const activeClass = isActive
+                    ? (key === "service_mode" || key === "analytics" ? "active active-warning" : "active active-danger")
+                    : "";
                   return (
-                    <button type="button" key={key} className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>
+                    <button type="button" key={key} className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>
                   );
                 })}
               </div>
@@ -3575,7 +3666,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           const data = await res.json().catch(() => ({}));
                           if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка сохранения");
                           setPresetFormLabel("");
-                          setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, chat: true, service_mode: false, analytics: false });
+                          setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, service_mode: false, analytics: false });
                           setPresetFormFinancial(false);
                           setPresetFormServiceMode(false);
                           setPresetEditingId(null);
