@@ -11,6 +11,7 @@ type FilterDropdownPortalProps = {
 export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children }: FilterDropdownPortalProps) {
     const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const ignoreNextOutsideRef = useRef(false);
 
     useLayoutEffect(() => {
         if (!isOpen || !triggerRef.current) {
@@ -24,26 +25,26 @@ export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children }: 
 
     useEffect(() => {
         if (!isOpen || !onClose) return;
-        const handleMouseDown = (e: MouseEvent) => {
-            const target = e.target as Node;
+        const handleOutside = (target: Node) => {
             if (triggerRef.current?.contains(target)) return;
             if (containerRef.current?.contains(target)) return;
+            if (ignoreNextOutsideRef.current) {
+                ignoreNextOutsideRef.current = false;
+                return;
+            }
             onClose();
         };
-        const handlePointerDown = (e: PointerEvent) => {
-            const target = e.target as Node;
-            if (triggerRef.current?.contains(target)) return;
-            if (containerRef.current?.contains(target)) return;
-            onClose();
-        };
+        const handleMouseDown = (e: MouseEvent) => handleOutside(e.target as Node);
+        const handlePointerDown = (e: PointerEvent) => handleOutside(e.target as Node);
         const t = setTimeout(() => {
-            document.addEventListener("mousedown", handleMouseDown);
-            document.addEventListener("pointerdown", handlePointerDown);
-        }, 80);
+            ignoreNextOutsideRef.current = true;
+            document.addEventListener("mousedown", handleMouseDown, true);
+            document.addEventListener("pointerdown", handlePointerDown, true);
+        }, 150);
         return () => {
             clearTimeout(t);
-            document.removeEventListener("mousedown", handleMouseDown);
-            document.removeEventListener("pointerdown", handlePointerDown);
+            document.removeEventListener("mousedown", handleMouseDown, true);
+            document.removeEventListener("pointerdown", handlePointerDown, true);
         };
     }, [isOpen, onClose, triggerRef]);
 

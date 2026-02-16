@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import { useFocusTrap } from "../hooks/useFocusTrap";
@@ -68,6 +68,17 @@ const PAYMENT_WEEKDAY_LABELS: { value: number; label: string }[] = [
   { value: 3, label: "Ср" },
   { value: 4, label: "Чт" },
   { value: 5, label: "Пт" },
+];
+
+/** Рабочие дни недели (1=пн … 7=вс) для графика работы */
+const WORK_SCHEDULE_WEEKDAY_LABELS: { value: number; label: string }[] = [
+  { value: 1, label: "Пн" },
+  { value: 2, label: "Вт" },
+  { value: 3, label: "Ср" },
+  { value: 4, label: "Чт" },
+  { value: 5, label: "Пт" },
+  { value: 6, label: "Сб" },
+  { value: 7, label: "Вс" },
 ];
 
 const WEAK_PASSWORDS = new Set(["123", "1234", "12345", "123456", "1234567", "12345678", "password", "qwerty", "admin", "letmein"]);
@@ -160,7 +171,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "audit" | "logs" | "presets" | "payment_calendar">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "audit" | "logs" | "presets" | "payment_calendar" | "work_schedule">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
@@ -234,6 +245,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [paymentCalendarBulkWeekdays, setPaymentCalendarBulkWeekdays] = useState<number[]>([]);
   const [paymentCalendarSortColumn, setPaymentCalendarSortColumn] = useState<"inn" | "customer_name" | "days_to_pay" | null>(null);
   const [paymentCalendarSortDir, setPaymentCalendarSortDir] = useState<"asc" | "desc">("asc");
+  const [workScheduleItems, setWorkScheduleItems] = useState<{ inn: string; customer_name: string | null; days_of_week: number[]; work_start: string; work_end: string }[]>([]);
+  const [workScheduleLoading, setWorkScheduleLoading] = useState(false);
+  const [workScheduleSearch, setWorkScheduleSearch] = useState("");
+  const [workScheduleCustomerList, setWorkScheduleCustomerList] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
+  const [workScheduleCustomerLoading, setWorkScheduleCustomerLoading] = useState(false);
+  const [workScheduleSelectedInns, setWorkScheduleSelectedInns] = useState<Set<string>>(new Set());
+  const [workScheduleBulkWeekdays, setWorkScheduleBulkWeekdays] = useState<number[]>([]);
+  const [workScheduleBulkStart, setWorkScheduleBulkStart] = useState<string>("09:00");
+  const [workScheduleBulkEnd, setWorkScheduleBulkEnd] = useState<string>("18:00");
+  const [workScheduleSaving, setWorkScheduleSaving] = useState(false);
+  const [workScheduleSavingInn, setWorkScheduleSavingInn] = useState<string | null>(null);
   const paymentCalendarCustomerListSorted = useMemo(() => {
     const withDays = paymentCalendarCustomerList.map((c) => {
       const item = paymentCalendarItems.find((x) => x.inn === c.inn);
@@ -280,6 +302,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       return paymentCalendarSortDir === "asc" ? cmp : -cmp;
     });
   }, [paymentCalendarItems, paymentCalendarSortColumn, paymentCalendarSortDir]);
+  const workScheduleCustomerListSorted = useMemo(() => {
+    const withSchedule = workScheduleCustomerList.map((c) => {
+      const item = workScheduleItems.find((x) => x.inn === c.inn);
+      return {
+        ...c,
+        days_of_week: item?.days_of_week ?? [1, 2, 3, 4, 5],
+        work_start: item?.work_start ?? "09:00",
+        work_end: item?.work_end ?? "18:00",
+      };
+    });
+    return withSchedule;
+  }, [workScheduleCustomerList, workScheduleItems]);
   const [auditEntries, setAuditEntries] = useState<{ id: number; action: string; target_type: string; target_id: string | null; details: Record<string, unknown> | null; created_at: string }[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditSearch, setAuditSearch] = useState("");
@@ -685,6 +719,52 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
   }, [tab, adminToken, fetchPaymentCalendarCustomers]);
 
+  const fetchWorkSchedule = useCallback(() => {
+    if (!adminToken) return;
+    setWorkScheduleLoading(true);
+    fetch("/api/admin-work-schedule", { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((res) => res.json())
+      .then((data: { items?: { inn: string; customer_name: string | null; days_of_week: number[]; work_start: string; work_end: string }[] }) => {
+        setWorkScheduleItems((data.items || []).map((r) => ({
+          inn: r.inn,
+          customer_name: r.customer_name,
+          days_of_week: Array.isArray(r.days_of_week) ? r.days_of_week.filter((d) => d >= 1 && d <= 7) : [1, 2, 3, 4, 5],
+          work_start: String(r.work_start || "09:00").slice(0, 5),
+          work_end: String(r.work_end || "18:00").slice(0, 5),
+        })));
+      })
+      .catch(() => setWorkScheduleItems([]))
+      .finally(() => setWorkScheduleLoading(false));
+  }, [adminToken]);
+
+  const fetchWorkScheduleCustomers = useCallback(() => {
+    if (!adminToken) return;
+    setWorkScheduleCustomerLoading(true);
+    const q = workScheduleSearch.trim();
+    const url = q.length >= 2
+      ? `/api/admin-customers-search?q=${encodeURIComponent(q)}&limit=500`
+      : `/api/admin-customers-search?q=&limit=500`;
+    fetch(url, { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((res) => res.json())
+      .then((data: { customers?: { inn: string; customer_name: string; email: string }[] }) => {
+        setWorkScheduleCustomerList(data.customers || []);
+      })
+      .catch(() => setWorkScheduleCustomerList([]))
+      .finally(() => setWorkScheduleCustomerLoading(false));
+  }, [adminToken, workScheduleSearch]);
+
+  useEffect(() => {
+    if (tab === "work_schedule" && isSuperAdmin) {
+      fetchWorkSchedule();
+    }
+  }, [tab, isSuperAdmin, fetchWorkSchedule]);
+
+  useEffect(() => {
+    if (tab === "work_schedule" && adminToken) {
+      fetchWorkScheduleCustomers();
+    }
+  }, [tab, adminToken, fetchWorkScheduleCustomers]);
+
   useEffect(() => {
     if (!adminToken) return;
     fetch("/api/admin-me", { headers: { Authorization: `Bearer ${adminToken}` } })
@@ -694,7 +774,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!isSuperAdmin && (tab === "presets" || tab === "payment_calendar")) setTab("users");
+    if (!isSuperAdmin && (tab === "presets" || tab === "payment_calendar" || tab === "work_schedule")) setTab("users");
   }, [isSuperAdmin, tab]);
 
   useEffect(() => {
@@ -1083,6 +1163,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <Calendar className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Платёжный календарь
+          </Button>
+        )}
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={{ background: tab === "work_schedule" ? "var(--color-primary-blue)" : undefined, color: tab === "work_schedule" ? "white" : undefined }}
+            onClick={() => setTab("work_schedule")}
+          >
+            <Clock className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            График работы
           </Button>
         )}
       </Flex>
@@ -2812,6 +2902,313 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           <td style={{ padding: "0.4rem 0.5rem" }}>{c.customer_name || "—"}</td>
                           <td style={{ padding: "0.4rem 0.5rem", textAlign: "right", color: "var(--color-text-secondary)" }}>{c.days_to_pay}</td>
                           <td style={{ padding: "0.4rem 0.5rem", color: "var(--color-text-secondary)", fontSize: "0.85rem" }}>{weekdaysLabel}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </Panel>
+      )}
+
+      {tab === "work_schedule" && isSuperAdmin && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>График работы</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+            Рабочие дни и часы заказчика для расчёта SLA. По умолчанию Пн–Пт 09:00–18:00.
+          </Typography.Body>
+          <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+            <Input
+              type="text"
+              placeholder="Поиск по ИНН или наименованию..."
+              value={workScheduleSearch}
+              onChange={(e) => setWorkScheduleSearch(e.target.value)}
+              className="admin-form-input"
+              style={{ maxWidth: "22rem" }}
+              aria-label="Поиск заказчиков"
+            />
+            <Button type="button" className="filter-button" onClick={() => fetchWorkScheduleCustomers()} disabled={workScheduleCustomerLoading}>
+              {workScheduleCustomerLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Найти"}
+            </Button>
+          </Flex>
+          {workScheduleLoading ? (
+            <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.75rem" }}>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка графиков...</Typography.Body>
+            </Flex>
+          ) : null}
+          <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.5rem" }}>
+            <Button
+              type="button"
+              className="filter-button"
+              onClick={() => {
+                const inns = workScheduleCustomerList.map((c) => c.inn);
+                const allSelected = inns.length > 0 && inns.every((inn) => workScheduleSelectedInns.has(inn));
+                if (allSelected) {
+                  setWorkScheduleSelectedInns((prev) => {
+                    const next = new Set(prev);
+                    inns.forEach((inn) => next.delete(inn));
+                    return next;
+                  });
+                } else {
+                  setWorkScheduleSelectedInns((prev) => new Set([...prev, ...inns]));
+                }
+              }}
+              disabled={workScheduleCustomerList.length === 0}
+            >
+              {workScheduleCustomerList.length > 0 && workScheduleCustomerList.every((c) => workScheduleSelectedInns.has(c.inn))
+                ? "Снять выделение"
+                : "Выделить все"}
+            </Button>
+          </Flex>
+          <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+            <Typography.Body style={{ fontSize: "0.9rem" }}>Рабочие дни:</Typography.Body>
+            {WORK_SCHEDULE_WEEKDAY_LABELS.map(({ value, label }) => (
+              <label key={value} style={{ display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={workScheduleBulkWeekdays.includes(value)}
+                  onChange={() => {
+                    setWorkScheduleBulkWeekdays((prev) =>
+                      prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value].sort((a, b) => a - b)
+                    );
+                  }}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+            <label htmlFor="work-schedule-bulk-start" style={{ fontSize: "0.9rem", whiteSpace: "nowrap" }}>С:</label>
+            <input
+              id="work-schedule-bulk-start"
+              type="time"
+              value={workScheduleBulkStart}
+              onChange={(e) => setWorkScheduleBulkStart(e.target.value)}
+              className="admin-form-input"
+              style={{ padding: "0.35rem 0.5rem" }}
+            />
+            <label htmlFor="work-schedule-bulk-end" style={{ fontSize: "0.9rem", whiteSpace: "nowrap" }}>До:</label>
+            <input
+              id="work-schedule-bulk-end"
+              type="time"
+              value={workScheduleBulkEnd}
+              onChange={(e) => setWorkScheduleBulkEnd(e.target.value)}
+              className="admin-form-input"
+              style={{ padding: "0.35rem 0.5rem" }}
+            />
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={workScheduleSaving || workScheduleSelectedInns.size === 0}
+              onClick={async () => {
+                if (workScheduleSelectedInns.size === 0) return;
+                setWorkScheduleSaving(true);
+                setError(null);
+                try {
+                  const body: { inns: string[]; days_of_week?: number[]; work_start?: string; work_end?: string } = {
+                    inns: Array.from(workScheduleSelectedInns),
+                  };
+                  if (workScheduleBulkWeekdays.length > 0) body.days_of_week = workScheduleBulkWeekdays;
+                  if (workScheduleBulkStart) body.work_start = workScheduleBulkStart;
+                  if (workScheduleBulkEnd) body.work_end = workScheduleBulkEnd;
+                  if (!body.days_of_week && !body.work_start && !body.work_end) {
+                    setError("Выберите дни недели и/или укажите часы работы");
+                    return;
+                  }
+                  const res = await fetch("/api/admin-work-schedule", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                    body: JSON.stringify(body),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                  fetchWorkSchedule();
+                  setWorkScheduleSelectedInns(new Set());
+                } catch (e: unknown) {
+                  setError((e as Error)?.message || "Ошибка");
+                } finally {
+                  setWorkScheduleSaving(false);
+                }
+              }}
+            >
+              {workScheduleSaving ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} /> : null}
+              Применить к выбранным ({workScheduleSelectedInns.size})
+            </Button>
+          </Flex>
+          <div style={{ overflowX: "auto", maxHeight: "50vh", overflowY: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+              <thead>
+                <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                  <th style={{ padding: "0.4rem 0.5rem", width: 40, textAlign: "left" }} />
+                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
+                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
+                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Рабочие дни</th>
+                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>С</th>
+                  <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>До</th>
+                </tr>
+              </thead>
+              <tbody>
+                {workScheduleCustomerListSorted.map((c) => {
+                  const currentWeekdays = c.days_of_week ?? [1, 2, 3, 4, 5];
+                  const currentStart = c.work_start ?? "09:00";
+                  const currentEnd = c.work_end ?? "18:00";
+                  const selected = workScheduleSelectedInns.has(c.inn);
+                  const saving = workScheduleSavingInn === c.inn;
+                  return (
+                    <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "0.4rem 0.5rem" }}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => {
+                            setWorkScheduleSelectedInns((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(c.inn)) next.delete(c.inn);
+                              else next.add(c.inn);
+                              return next;
+                            });
+                          }}
+                          aria-label={`Выбрать ${c.customer_name || c.inn}`}
+                        />
+                      </td>
+                      <td style={{ padding: "0.4rem 0.5rem" }}>{c.inn}</td>
+                      <td style={{ padding: "0.4rem 0.5rem" }}>{c.customer_name || "—"}</td>
+                      <td style={{ padding: "0.4rem 0.5rem" }}>
+                        {saving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" style={{ display: "inline-block", verticalAlign: "middle" }} />
+                        ) : (
+                          <Flex gap="0.2rem" wrap="wrap">
+                            {WORK_SCHEDULE_WEEKDAY_LABELS.map(({ value, label }) => (
+                              <label key={value} style={{ display: "inline-flex", alignItems: "center", cursor: "pointer", fontSize: "0.8rem" }} title={label}>
+                                <input
+                                  type="checkbox"
+                                  checked={currentWeekdays.includes(value)}
+                                  onChange={async () => {
+                                    const next = currentWeekdays.includes(value)
+                                      ? currentWeekdays.filter((d) => d !== value)
+                                      : [...currentWeekdays, value].sort((a, b) => a - b);
+                                    setWorkScheduleSavingInn(c.inn);
+                                    setError(null);
+                                    try {
+                                      const res = await fetch("/api/admin-work-schedule", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                        body: JSON.stringify({ inn: c.inn, days_of_week: next }),
+                                      });
+                                      const data = await res.json().catch(() => ({}));
+                                      if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                                      fetchWorkSchedule();
+                                    } catch (err: unknown) {
+                                      setError((err as Error)?.message || "Ошибка");
+                                    } finally {
+                                      setWorkScheduleSavingInn(null);
+                                    }
+                                  }}
+                                />
+                                <span>{label}</span>
+                              </label>
+                            ))}
+                          </Flex>
+                        )}
+                      </td>
+                      <td style={{ padding: "0.4rem 0.5rem" }}>
+                        {saving ? null : (
+                          <input
+                            type="time"
+                            value={currentStart}
+                            onChange={async (e) => {
+                              const val = e.target.value;
+                              setWorkScheduleSavingInn(c.inn);
+                              setError(null);
+                              try {
+                                const res = await fetch("/api/admin-work-schedule", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                  body: JSON.stringify({ inn: c.inn, work_start: val }),
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                                fetchWorkSchedule();
+                              } catch (err: unknown) {
+                                setError((err as Error)?.message || "Ошибка");
+                              } finally {
+                                setWorkScheduleSavingInn(null);
+                              }
+                            }}
+                            className="admin-form-input"
+                            style={{ padding: "0.25rem 0.35rem", fontSize: "0.9rem" }}
+                          />
+                        )}
+                      </td>
+                      <td style={{ padding: "0.4rem 0.5rem" }}>
+                        {saving ? null : (
+                          <input
+                            type="time"
+                            value={currentEnd}
+                            onChange={async (e) => {
+                              const val = e.target.value;
+                              setWorkScheduleSavingInn(c.inn);
+                              setError(null);
+                              try {
+                                const res = await fetch("/api/admin-work-schedule", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                  body: JSON.stringify({ inn: c.inn, work_end: val }),
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok) throw new Error(data.error || "Ошибка сохранения");
+                                fetchWorkSchedule();
+                              } catch (err: unknown) {
+                                setError((err as Error)?.message || "Ошибка");
+                              } finally {
+                                setWorkScheduleSavingInn(null);
+                              }
+                            }}
+                            className="admin-form-input"
+                            style={{ padding: "0.25rem 0.35rem", fontSize: "0.9rem" }}
+                          />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {workScheduleCustomerList.length === 0 && !workScheduleCustomerLoading && (
+            <Typography.Body style={{ color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
+              Введите поиск и нажмите «Найти» или загрузится список заказчиков из справочника.
+            </Typography.Body>
+          )}
+          {workScheduleItems.length > 0 && (
+            <>
+              <Typography.Body style={{ fontWeight: 600, marginTop: "1.5rem", marginBottom: "0.5rem" }}>Заданные графики работы</Typography.Body>
+              <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.5rem" }}>
+                Список заказчиков с настроенным графиком.
+              </Typography.Body>
+              <div style={{ overflowX: "auto", maxHeight: "40vh", overflowY: "auto", marginTop: "0.5rem" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                  <thead>
+                    <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                      <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
+                      <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
+                      <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Рабочие дни</th>
+                      <th style={{ padding: "0.4rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Часы</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {workScheduleItems.map((c) => {
+                      const weekdays = (c.days_of_week ?? []).filter((d) => d >= 1 && d <= 7);
+                      const weekdaysLabel = weekdays.length > 0
+                        ? weekdays.sort((a, b) => a - b).map((d) => WORK_SCHEDULE_WEEKDAY_LABELS.find((w) => w.value === d)?.label ?? d).join(", ")
+                        : "—";
+                      return (
+                        <tr key={c.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                          <td style={{ padding: "0.4rem 0.5rem" }}>{c.inn}</td>
+                          <td style={{ padding: "0.4rem 0.5rem" }}>{c.customer_name || "—"}</td>
+                          <td style={{ padding: "0.4rem 0.5rem", color: "var(--color-text-secondary)" }}>{weekdaysLabel}</td>
+                          <td style={{ padding: "0.4rem 0.5rem", color: "var(--color-text-secondary)" }}>{c.work_start || "09:00"}–{c.work_end || "18:00"}</td>
                         </tr>
                       );
                     })}
