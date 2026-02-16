@@ -5363,45 +5363,6 @@ function CargoDetailsModal({
                                 if (!item.Number) return;
                                 setDownloading("share");
                                 try {
-                                    const baseOrigin = typeof window !== "undefined" ? window.location.origin : "";
-                                    const docsForRole = item._role === 'Customer'
-                                        ? [{ label: "ЭР" as const, metod: DOCUMENT_METHODS["ЭР"] }, { label: "СЧЕТ" as const, metod: DOCUMENT_METHODS["СЧЕТ"] }, { label: "УПД" as const, metod: DOCUMENT_METHODS["УПД"] }, { label: "АПП" as const, metod: DOCUMENT_METHODS["АПП"] }]
-                                        : [{ label: "АПП" as const, metod: DOCUMENT_METHODS["АПП"] }];
-                                    const shortUrls: Record<string, string> = {};
-                                    const longUrls: Record<string, string> = {};
-                                    const shortenPromises = docsForRole.map(async ({ label, metod }) => {
-                                        const params = new URLSearchParams({
-                                            login: auth.login,
-                                            password: auth.password,
-                                            metod,
-                                            number: item.Number!,
-                                            ...(auth.isRegisteredUser ? { isRegisteredUser: "true" } : {}),
-                                        });
-                                        const longUrl = `${baseOrigin}${PROXY_API_DOWNLOAD_URL}?${params.toString()}`;
-                                        longUrls[label] = longUrl;
-                                        try {
-                                            const res = await fetch('/api/shorten-doc', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({
-                                                    login: auth.login,
-                                                    password: auth.password,
-                                                    metod,
-                                                    number: item.Number,
-                                                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                                                }),
-                                            });
-                                            if (res.ok) {
-                                                const data = await res.json();
-                                                shortUrls[label] = data.shortUrl || data.short_url;
-                                            } else {
-                                                shortUrls[label] = longUrl;
-                                            }
-                                        } catch {
-                                            shortUrls[label] = longUrl;
-                                        }
-                                    });
-                                    await Promise.all(shortenPromises);
                                     const lines: string[] = [];
                                     lines.push(`Перевозка: ${item.Number}`);
                                     if (item.State) lines.push(`Статус: ${normalizeStatus(item.State)}`);
@@ -5421,14 +5382,6 @@ function CargoDetailsModal({
                                         if (item.Sum !== undefined) lines.push(`Стоимость: ${formatCurrency(item.Sum as any)}`);
                                         if (item.StateBill) lines.push(`Статус счета: ${item.StateBill}`);
                                     }
-                                    lines.push("");
-                                    lines.push("Документы:");
-                                    if (item._role === 'Customer') {
-                                        lines.push(`ЭР: ${shortUrls["ЭР"]}`);
-                                        lines.push(`Счет: ${shortUrls["СЧЕТ"]}`);
-                                        lines.push(`УПД: ${shortUrls["УПД"]}`);
-                                    }
-                                    lines.push(`АПП: ${shortUrls["АПП"]}`);
                                     const text = lines.join("\n");
                                     if (typeof navigator !== "undefined" && (navigator as any).share) {
                                         await (navigator as any).share({
