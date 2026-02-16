@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, Flex } from "@maxhub/max-ui";
-import { Home, Truck, FileText, User } from "lucide-react";
+import { Home, Truck, FileText, User, LayoutGrid } from "lucide-react";
 import type { Tab } from "../types";
 
 export type TabBarPermissions = {
@@ -79,6 +79,7 @@ export function TabBar({
     return (
       <div className="tabbar-container">
         <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
+        <TabBtn label="Домой 2" icon={<LayoutGrid />} active={active === "home2"} onClick={() => onChange("home2")} />
         {showCargo && <TabBtn label="Грузы" icon={<Truck />} active={active === "cargo"} onClick={() => onChange("cargo")} />}
         {hasDocAccess && <TabBtn label="Документы" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />}
         <TabBtn label="Профиль" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
@@ -89,6 +90,7 @@ export function TabBar({
   return (
     <div className="tabbar-container">
       <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
+      <TabBtn label="Домой 2" icon={<LayoutGrid />} active={active === "home2"} onClick={() => onChange("home2")} />
       {showCargo && (
         <TabBtn
           label="Грузы"
