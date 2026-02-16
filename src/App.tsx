@@ -5147,9 +5147,6 @@ function CargoDetailsModal({
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
     const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string; docType: string; blob?: Blob; downloadFileName?: string } | null>(null);
-    const [testingMethod, setTestingMethod] = useState<string | null>(null);
-    const [testFrameUrl, setTestFrameUrl] = useState<string | null>(null);
-    const [testFrameMode, setTestFrameMode] = useState<'iframe' | 'object' | null>(null);
     const [perevozkaTimeline, setPerevozkaTimeline] = useState<PerevozkaTimelineStep[] | null>(null);
     const [perevozkaNomenclature, setPerevozkaNomenclature] = useState<Record<string, unknown>[]>([]);
     const [nomenclatureOpen, setNomenclatureOpen] = useState(false);
@@ -5265,13 +5262,6 @@ function CargoDetailsModal({
         URL.revokeObjectURL(url);
     };
 
-    const getDirectGetFileUrl = (docType: string) => {
-        const number = item.Number || '';
-        const origin = typeof window !== "undefined" ? window.location.origin : "";
-        // Проксируем через /api/download и принудительно используем креды суперадмина на Vercel.
-        return `${origin}${PROXY_API_DOWNLOAD_URL}?metod=${encodeURIComponent(docType)}&number=${encodeURIComponent(number)}&useSuperAdminCredentials=true`;
-    };
-    
     const handleDownload = async (docType: string) => {
         if (!item.Number) return alert("Нет номера перевозки");
         const metod = DOCUMENT_METHODS[docType] ?? docType;
@@ -5334,88 +5324,6 @@ function CargoDetailsModal({
                 downloadFile(blob, fileNameTranslit);
             }, 350);
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
-    };
-
-    // Тестовые способы открытия документа напрямую через DeliveryWebService/GetFile.
-    const testMethod1_WindowOpen = async (docType: string) => {
-        if (!item.Number) return alert("Нет номера перевозки");
-        setTestingMethod(`window.open-${docType}`);
-        setDownloadError(null);
-        try {
-            const url = getDirectGetFileUrl(docType);
-            window.open(url, '_blank', 'noopener,noreferrer');
-        } catch (e: any) {
-            setDownloadError(e?.message || 'Ошибка открытия документа');
-        } finally {
-            setTestingMethod(null);
-        }
-    };
-
-    const testMethod2_WebAppOpenLink = async (docType: string) => {
-        if (!item.Number) return alert("Нет номера перевозки");
-        setTestingMethod(`openLink-${docType}`);
-        setDownloadError(null);
-        try {
-            const url = getDirectGetFileUrl(docType);
-            const webApp = getWebApp();
-            if (webApp && typeof webApp.openLink === "function") {
-                webApp.openLink(url, { try_instant_view: false } as any);
-            } else {
-                window.open(url, '_blank', 'noopener,noreferrer');
-            }
-        } catch (e: any) {
-            setDownloadError(e?.message || 'Ошибка открытия документа');
-        } finally {
-            setTestingMethod(null);
-        }
-    };
-
-    const testMethod3_EmbeddedIframe = async (docType: string) => {
-        if (!item.Number) return alert("Нет номера перевозки");
-        setTestingMethod(`iframe-${docType}`);
-        setDownloadError(null);
-        try {
-            setTestFrameUrl(getDirectGetFileUrl(docType));
-            setTestFrameMode('iframe');
-        } catch (e: any) {
-            setDownloadError(e?.message || 'Ошибка открытия документа');
-        } finally {
-            setTestingMethod(null);
-        }
-    };
-
-    const testMethod4_ObjectTag = async (docType: string) => {
-        if (!item.Number) return alert("Нет номера перевозки");
-        setTestingMethod(`object-${docType}`);
-        setDownloadError(null);
-        try {
-            setTestFrameUrl(getDirectGetFileUrl(docType));
-            setTestFrameMode('object');
-        } catch (e: any) {
-            setDownloadError(e?.message || 'Ошибка открытия документа');
-        } finally {
-            setTestingMethod(null);
-        }
-    };
-
-    const testMethod5_DirectDownload = async (docType: string) => {
-        if (!item.Number) return alert("Нет номера перевозки");
-        setTestingMethod(`download-${docType}`);
-        setDownloadError(null);
-        try {
-            const url = getDirectGetFileUrl(docType);
-            const a = document.createElement('a');
-            a.href = url;
-            a.target = '_blank';
-            a.rel = 'noopener noreferrer';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        } catch (e: any) {
-            setDownloadError(e?.message || 'Ошибка открытия документа');
-        } finally {
-            setTestingMethod(null);
-        }
     };
 
 
@@ -5840,89 +5748,6 @@ function CargoDetailsModal({
                         </>
                     );
                 })()}
-
-                <Typography.Headline style={{ marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                    Способы открытия фрейма (тест)
-                </Typography.Headline>
-                <div className="document-buttons" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <Button
-                        className="doc-button"
-                        onClick={() => testMethod1_WindowOpen('ЭР')}
-                        disabled={testingMethod === 'window.open-ЭР'}
-                        style={{ fontSize: '0.75rem', padding: '0.5rem' }}
-                    >
-                        {testingMethod === 'window.open-ЭР' ? <Loader2 className="w-3 h-3 animate-spin" /> : '1️⃣ window.open()'}
-                    </Button>
-                    <Button
-                        className="doc-button"
-                        onClick={() => testMethod2_WebAppOpenLink('ЭР')}
-                        disabled={testingMethod === 'openLink-ЭР'}
-                        style={{ fontSize: '0.75rem', padding: '0.5rem' }}
-                    >
-                        {testingMethod === 'openLink-ЭР' ? <Loader2 className="w-3 h-3 animate-spin" /> : '2️⃣ WebApp.openLink()'}
-                    </Button>
-                    <Button
-                        className="doc-button"
-                        onClick={() => testMethod3_EmbeddedIframe('ЭР')}
-                        disabled={testingMethod === 'iframe-ЭР'}
-                        style={{ fontSize: '0.75rem', padding: '0.5rem' }}
-                    >
-                        {testingMethod === 'iframe-ЭР' ? <Loader2 className="w-3 h-3 animate-spin" /> : '3️⃣ iframe (встроенный)'}
-                    </Button>
-                    <Button
-                        className="doc-button"
-                        onClick={() => testMethod4_ObjectTag('ЭР')}
-                        disabled={testingMethod === 'object-ЭР'}
-                        style={{ fontSize: '0.75rem', padding: '0.5rem' }}
-                    >
-                        {testingMethod === 'object-ЭР' ? <Loader2 className="w-3 h-3 animate-spin" /> : '4️⃣ object/embed'}
-                    </Button>
-                    <Button
-                        className="doc-button"
-                        onClick={() => testMethod5_DirectDownload('ЭР')}
-                        disabled={testingMethod === 'download-ЭР'}
-                        style={{ fontSize: '0.75rem', padding: '0.5rem' }}
-                    >
-                        {testingMethod === 'download-ЭР' ? <Loader2 className="w-3 h-3 animate-spin" /> : '5️⃣ Прямое открытие'}
-                    </Button>
-                </div>
-
-                {testFrameUrl && testFrameMode === 'iframe' && (
-                    <div style={{ marginTop: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-                        <div style={{ padding: '0.5rem', background: 'var(--color-bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                            <Typography.Label style={{ fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Просмотр через iframe (GetFile)</Typography.Label>
-                            <Button size="small" onClick={() => { setTestFrameMode(null); setTestFrameUrl(null); }}>
-                                <X size={16} />
-                            </Button>
-                        </div>
-                        <iframe
-                            src={testFrameUrl}
-                            style={{ width: '100%', height: '500px', border: 'none' }}
-                            title="PDF Viewer iframe"
-                        />
-                    </div>
-                )}
-
-                {testFrameUrl && testFrameMode === 'object' && (
-                    <div style={{ marginTop: '1rem', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden' }}>
-                        <div style={{ padding: '0.5rem', background: 'var(--color-bg-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                            <Typography.Label style={{ fontSize: '0.8rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Просмотр через object/embed (GetFile)</Typography.Label>
-                            <Button size="small" onClick={() => { setTestFrameMode(null); setTestFrameUrl(null); }}>
-                                <X size={16} />
-                            </Button>
-                        </div>
-                        <object
-                            data={testFrameUrl}
-                            type="application/pdf"
-                            style={{ width: '100%', height: '500px' }}
-                        >
-                            <Typography.Body style={{ padding: '1rem', textAlign: 'center' }}>
-                                Ваш браузер не поддерживает просмотр PDF.
-                            </Typography.Body>
-                        </object>
-                    </div>
-                )}
-
 
                 {/* Встроенный просмотрщик PDF (метод 4: object/embed) */}
                 {pdfViewer && (

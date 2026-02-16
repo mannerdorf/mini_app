@@ -19,6 +19,8 @@ export default async function handler(
   let password: string | undefined;
   let number: string | undefined;
   let inn: string | undefined;
+  const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN;
+  const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD;
 
   let isRegisteredUser = false;
   if (req.method === "GET") {
@@ -41,9 +43,20 @@ export default async function handler(
     ({ login, password, number, inn, isRegisteredUser } = body ?? {});
   }
 
-  if (!login || !password || !number) {
+  if (!number) {
     return res.status(400).json({
-      error: "Required: login, password, number",
+      error: "Required: number",
+    });
+  }
+  if (!serviceLogin || !servicePassword) {
+    return res.status(503).json({
+      error: "Service credentials are not configured",
+      message: "Set PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD in Vercel.",
+    });
+  }
+  if (isRegisteredUser && (!login || !password)) {
+    return res.status(400).json({
+      error: "Required for registered user: login, password, number",
     });
   }
 
@@ -78,30 +91,26 @@ export default async function handler(
         return res.status(404).json({ error: "Перевозка не найдена" });
       }
       // Запрос деталей перевозки (статусы, номенклатура) в 1С сервисным аккаунтом
-      const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN || process.env.HAULZ_1C_SERVICE_LOGIN;
-      const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD || process.env.HAULZ_1C_SERVICE_PASSWORD;
-      if (serviceLogin && servicePassword) {
-        const itemInn = String(item?.INN ?? item?.Inn ?? item?.inn ?? "").trim();
-        const url = new URL(GETAPI_BASE);
-        url.searchParams.set("metod", "Getperevozka");
-        url.searchParams.set("Number", norm);
-        if (itemInn) url.searchParams.set("INN", itemInn);
-        const upstream = await fetch(url.toString(), {
-          method: "GET",
-          headers: {
-            Auth: `Basic ${serviceLogin}:${servicePassword}`,
-            Authorization: SERVICE_AUTH,
-            Accept: "application/json",
-          },
-        });
-        if (upstream.ok) {
-          const text = await upstream.text();
-          try {
-            const json = JSON.parse(text);
-            return res.status(200).json(json);
-          } catch {
-            return res.status(200).send(text);
-          }
+      const itemInn = String(item?.INN ?? item?.Inn ?? item?.inn ?? "").trim();
+      const url = new URL(GETAPI_BASE);
+      url.searchParams.set("metod", "Getperevozka");
+      url.searchParams.set("Number", norm);
+      if (itemInn) url.searchParams.set("INN", itemInn);
+      const upstream = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          Auth: `Basic ${serviceLogin}:${servicePassword}`,
+          Authorization: SERVICE_AUTH,
+          Accept: "application/json",
+        },
+      });
+      if (upstream.ok) {
+        const text = await upstream.text();
+        try {
+          const json = JSON.parse(text);
+          return res.status(200).json(json);
+        } catch {
+          return res.status(200).send(text);
         }
       }
       // Нет сервисного аккаунта или 1С недоступен — отдаём только строку из кэша (без статусов/номенклатуры)
@@ -123,7 +132,7 @@ export default async function handler(
     const upstream = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        Auth: `Basic ${login}:${password}`,
+        Auth: `Basic ${serviceLogin}:${servicePassword}`,
         Authorization: SERVICE_AUTH,
         Accept: "application/json",
       },

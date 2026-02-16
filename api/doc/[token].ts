@@ -149,6 +149,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log(`[doc/[token]] Processing document: ${docData.metod} for ${docData.number}`);
 
+    const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN;
+    const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD;
+    if (!serviceLogin || !servicePassword) {
+      return res.status(503).json({
+        error: "Service credentials are not configured",
+        message: "Set PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD in Vercel.",
+      });
+    }
+
     let { login, password, metod, number } = docData;
     // CMS-пользователи: проверяем доступ, затем запрашиваем файл сервисным аккаунтом
     if (docData.isRegisteredUser) {
@@ -174,17 +183,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(404).json({ error: "Перевозка не найдена или нет доступа" });
           }
         }
-        const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN || process.env.HAULZ_1C_SERVICE_LOGIN;
-        const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD || process.env.HAULZ_1C_SERVICE_PASSWORD;
-        if (serviceLogin && servicePassword) {
-          login = serviceLogin;
-          password = servicePassword;
-        }
       } catch (e: any) {
         console.error("[doc/[token]] registered user error:", e?.message || e);
         return res.status(500).json({ error: "Ошибка запроса", message: e?.message });
       }
     }
+    login = serviceLogin;
+    password = servicePassword;
     const fullUrl = new URL(EXTERNAL_API_BASE_URL);
     fullUrl.searchParams.set("metod", metod);
     fullUrl.searchParams.set("Number", number);

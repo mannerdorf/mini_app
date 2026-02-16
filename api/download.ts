@@ -41,7 +41,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let metod: string | undefined;
     let number: string | undefined;
     let isRegisteredUser = false;
-    let useSuperAdminCredentials = false;
 
     if (req.method === "GET") {
       login = typeof req.query.login === "string" ? req.query.login : undefined;
@@ -51,7 +50,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       number =
         typeof req.query.number === "string" ? req.query.number : undefined;
       isRegisteredUser = req.query.isRegisteredUser === "true";
-      useSuperAdminCredentials = req.query.useSuperAdminCredentials === "true";
     } else {
       // Vercel иногда даёт body строкой
       let body: any = req.body;
@@ -69,22 +67,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         metod,
         number,
         isRegisteredUser,
-        useSuperAdminCredentials,
       } = {
         ...body,
         isRegisteredUser: !!body?.isRegisteredUser,
-        useSuperAdminCredentials: !!body?.useSuperAdminCredentials,
       });
     }
 
-    if ((!login || !password) && !useSuperAdminCredentials && !isRegisteredUser) {
-      return res.status(400).json({
-        error: "Required fields: login, password (or useSuperAdminCredentials), metod, number",
-      });
-    }
     if (!metod || !number) {
       return res.status(400).json({
         error: "Required fields: metod, number",
+      });
+    }
+    if (isRegisteredUser && (!login || !password)) {
+      return res.status(400).json({
+        error: "Required fields for registered user: login, password, metod, number",
       });
     }
 
@@ -122,8 +118,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(404).json({ error: "Перевозка не найдена или нет доступа" });
           }
         }
-        const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN || process.env.HAULZ_1C_SERVICE_LOGIN;
-        const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD || process.env.HAULZ_1C_SERVICE_PASSWORD;
+        const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN;
+        const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD;
         if (serviceLogin && servicePassword) {
           login = serviceLogin;
           password = servicePassword;
@@ -134,24 +130,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Явный режим: использовать сервисные креды из Vercel для GetFile.
-    if (useSuperAdminCredentials) {
-      const serviceLogin =
-        process.env.PEREVOZKI_SERVICE_LOGIN ||
-        process.env.HAULZ_1C_SERVICE_LOGIN;
-      const servicePassword =
-        process.env.PEREVOZKI_SERVICE_PASSWORD ||
-        process.env.HAULZ_1C_SERVICE_PASSWORD;
-      if (!serviceLogin || !servicePassword) {
-        return res.status(503).json({
-          error: "Service credentials are not configured",
-          message:
-            "Set PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD (or HAULZ_1C_SERVICE_LOGIN/HAULZ_1C_SERVICE_PASSWORD) in Vercel.",
-        });
-      }
-      login = serviceLogin;
-      password = servicePassword;
+    // Для запроса GetFile всегда используем сервисные креды из Vercel.
+    const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN;
+    const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD;
+    if (!serviceLogin || !servicePassword) {
+      return res.status(503).json({
+        error: "Service credentials are not configured",
+        message:
+          "Set PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD in Vercel.",
+      });
     }
+    login = serviceLogin;
+    password = servicePassword;
 
     // Формируем URL ровно как в Postman/curl:
     // https://.../GetFile?metod=ЭР&Number=000107984

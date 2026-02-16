@@ -65,11 +65,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Нет доступа</title></head><body style="font-family:sans-serif;padding:2rem;"><h1 style="color:#c00;">Нет доступа</h1><p>Неверный или отсутствующий секрет (<code>?secret=...</code>).</p></body></html>');
   }
 
-  const login = process.env.PEREVOZKI_SERVICE_LOGIN || process.env.HAULZ_1C_SERVICE_LOGIN;
-  const password = process.env.PEREVOZKI_SERVICE_PASSWORD || process.env.HAULZ_1C_SERVICE_PASSWORD;
+  const login = process.env.PEREVOZKI_SERVICE_LOGIN;
+  const password = process.env.PEREVOZKI_SERVICE_PASSWORD;
   if (!login || !password) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(500).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ошибка</title></head><body style="font-family:sans-serif;padding:2rem;"><h1 style="color:#c00;">Ошибка</h1><p>В Vercel не заданы PEREVOZKI_SERVICE_LOGIN и PEREVOZKI_SERVICE_PASSWORD.</p></body></html>');
+    return res.status(503).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ошибка конфигурации</title></head><body style="font-family:sans-serif;padding:2rem;"><h1 style="color:#c00;">Ошибка конфигурации</h1><p>В Vercel не заданы PEREVOZKI_SERVICE_LOGIN и PEREVOZKI_SERVICE_PASSWORD.</p></body></html>');
   }
 
   const now = new Date();
