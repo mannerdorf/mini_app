@@ -52,13 +52,17 @@ export class ErrorBoundary extends Component<Props, State> {
           <p style={{ fontSize: "1.125rem", fontWeight: 600, marginBottom: "0.5rem", textAlign: "center" }}>
             Что-то пошло не так
           </p>
-          <p style={{ fontSize: "0.9rem", color: "var(--color-text-secondary, #6b7280)", marginBottom: "1.25rem", textAlign: "center", maxWidth: "20rem" }}>
+          <p style={{ fontSize: "0.9rem", color: "var(--color-text-secondary, #6b7280)", marginBottom: "0.5rem", textAlign: "center", maxWidth: "20rem" }}>
             Произошла ошибка. Попробуйте обновить страницу. Если ошибка повторяется — нажмите «Очистить данные и обновить» (придётся войти заново).
           </p>
-          {showDebug && err && (
-            <pre style={{ fontSize: "0.75rem", color: "#b91c1c", background: "#fef2f2", padding: "0.75rem", borderRadius: "0.5rem", maxWidth: "100%", overflow: "auto", marginBottom: "1rem", textAlign: "left" }}>
+          {err?.message && (
+            <p style={{ fontSize: "0.8rem", color: "#b91c1c", background: "#fef2f2", padding: "0.5rem 0.75rem", borderRadius: "0.5rem", maxWidth: "22rem", marginBottom: "1rem", textAlign: "left", wordBreak: "break-word" }}>
               {err.message}
-              {err.stack ? `\n\n${err.stack}` : ""}
+            </p>
+          )}
+          {showDebug && err?.stack && (
+            <pre style={{ fontSize: "0.7rem", color: "#b91c1c", background: "#fef2f2", padding: "0.75rem", borderRadius: "0.5rem", maxWidth: "100%", overflow: "auto", marginBottom: "1rem", textAlign: "left" }}>
+              {err.stack}
             </pre>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>
