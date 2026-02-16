@@ -672,7 +672,13 @@ function DashboardPage({
 }) {
     const showPaymentCalendar = hasAnalytics || hasSupervisor;
     const [debugInfo, setDebugInfo] = useState<string>("");
-    
+    // Включение виджетов главной по одному (для отладки): раскомментируйте нужный
+    const WIDGET_1_FILTERS = false;
+    const WIDGET_2_STRIP = false;
+    const WIDGET_3_CHART = false;
+    const WIDGET_4_SLA = false;
+    const WIDGET_5_PAYMENT_CALENDAR = false;
+
     // Filters State (такие же как на странице грузов); при переключении вкладок восстанавливаем из localStorage
     const initDate = () => loadDateFilterState();
     const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
@@ -1534,7 +1540,8 @@ function DashboardPage({
 
     return (
         <div className="w-full">
-            {/* Закреплённый блок: фильтры над дашбордом */}
+            {/* === ВИДЖЕТ 1: Фильтры (включить: WIDGET_1_FILTERS = true) === */}
+            {WIDGET_1_FILTERS && (
             <div className="cargo-page-sticky-header" style={{ marginBottom: '1rem' }}>
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ flexShrink: 0 }}>
@@ -1727,8 +1734,10 @@ function DashboardPage({
                 </div>
             </div>
             </div>
+            )}
 
-            {showSums && (
+            {/* === ВИДЖЕТ 2: Полоска с периодом и типом графика (включить: WIDGET_2_STRIP = true) === */}
+            {WIDGET_2_STRIP && showSums && (
             <>
             {useServiceRequest && (
                 <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>Приемка</Typography.Body>
@@ -2056,7 +2065,8 @@ function DashboardPage({
                 </Flex>
             )}
             
-            {!loading && !error && showSums && (
+            {/* === ВИДЖЕТ 3: График динамики (включить: WIDGET_3_CHART = true) === */}
+            {WIDGET_3_CHART && !loading && !error && showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
                     {(() => {
                         let chartDataForType: { date: string; value: number }[];
@@ -2102,8 +2112,8 @@ function DashboardPage({
                 </Panel>
             )}
 
-            {/* Монитор SLA: плановые сроки авто 7 дн., паром 20 дн. (MSK-KGD); KGD-MSK 60 дн. */}
-            {!loading && !error && slaStats.total > 0 && (
+            {/* === ВИДЖЕТ 4: Монитор SLA (включить: WIDGET_4_SLA = true) === */}
+            {WIDGET_4_SLA && !loading && !error && slaStats.total > 0 && (
                 <Panel className="cargo-card sla-monitor-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
                     <Flex align="center" justify="space-between" className="sla-monitor-header" style={{ marginBottom: '0.75rem' }}>
                         <Typography.Headline style={{ fontSize: '0.95rem', fontWeight: 600 }}>
@@ -2325,8 +2335,8 @@ function DashboardPage({
                 </Panel>
             )}
 
-            {/* Платёжный календарь: дата создания счёта + дни на оплату из админки (права «Аналитика» или «Руководитель») */}
-            {showPaymentCalendar && !loading && !error && (
+            {/* === ВИДЖЕТ 5: Платёжный календарь (включить: WIDGET_5_PAYMENT_CALENDAR = true) === */}
+            {WIDGET_5_PAYMENT_CALENDAR && showPaymentCalendar && !loading && !error && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>Платёжный календарь</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
@@ -8406,6 +8416,8 @@ export default function App() {
     const [pendingLogin, setPendingLogin] = useState<{ login: string; loginKey: string; password: string; customer?: string | null; customers?: CustomerOption[]; perevozkiInn?: string } | null>(null);
     
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+    const [debugMenuOpen, setDebugMenuOpen] = useState(false);
+    const debugMenuRef = useRef<HTMLDivElement>(null);
     const [searchText, setSearchText] = useState('');
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
@@ -8426,6 +8438,15 @@ export default function App() {
             }
         }
     }, [theme]);
+
+    useEffect(() => {
+        if (!debugMenuOpen) return;
+        const onOutside = (e: MouseEvent) => {
+            if (debugMenuRef.current && !debugMenuRef.current.contains(e.target as Node)) setDebugMenuOpen(false);
+        };
+        document.addEventListener("click", onOutside);
+        return () => document.removeEventListener("click", onOutside);
+    }, [debugMenuOpen]);
 
     // Обработка start_param для контекстного запуска
     useEffect(() => {
@@ -9733,6 +9754,79 @@ export default function App() {
                         )}
                     </Flex>
                     <Flex align="center" className="space-x-3">
+                        {typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug") && (
+                            <div ref={debugMenuRef} style={{ position: "relative" }}>
+                                <Button
+                                    type="button"
+                                    className="search-toggle-button"
+                                    onClick={(e) => { e.stopPropagation(); setDebugMenuOpen((v) => !v); }}
+                                    title="Меню отладки"
+                                    aria-label="Меню отладки"
+                                    aria-expanded={debugMenuOpen}
+                                >
+                                    <Settings className="w-5 h-5" />
+                                </Button>
+                                {debugMenuOpen && (
+                                    <div
+                                        className="filter-dropdown"
+                                        role="menu"
+                                        style={{
+                                            position: "absolute",
+                                            right: 0,
+                                            top: "100%",
+                                            marginTop: "0.25rem",
+                                            minWidth: "200px",
+                                            padding: "0.5rem 0",
+                                            background: "var(--color-bg-elevated, #fff)",
+                                            border: "1px solid var(--color-border, #e5e7eb)",
+                                            borderRadius: "0.5rem",
+                                            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                                            zIndex: 1000,
+                                        }}
+                                    >
+                                        <button
+                                            type="button"
+                                            role="menuitem"
+                                            style={{ display: "block", width: "100%", padding: "0.5rem 0.75rem", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}
+                                            onClick={() => { window.location.reload(); }}
+                                        >
+                                            Обновить страницу
+                                        </button>
+                                        <button
+                                            type="button"
+                                            role="menuitem"
+                                            style={{ display: "block", width: "100%", padding: "0.5rem 0.75rem", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}
+                                            onClick={() => {
+                                                try {
+                                                    ["haulz.accounts", "haulz.activeAccountId", "haulz.selectedAccountIds", "haulz.auth", "haulz.dateFilterState", "haulz.theme", "haulz.favorites", "haulz.cargo.tableMode", "haulz.docs.tableMode", "haulz.docs.section"].forEach((k) => window.localStorage.removeItem(k));
+                                                } catch { /* ignore */ }
+                                                window.location.reload();
+                                            }}
+                                        >
+                                            Очистить данные и обновить
+                                        </button>
+                                        <button
+                                            type="button"
+                                            role="menuitem"
+                                            style={{ display: "block", width: "100%", padding: "0.5rem 0.75rem", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}
+                                            onClick={async () => {
+                                                const info = {
+                                                    url: window.location.href,
+                                                    userAgent: navigator.userAgent,
+                                                    localStorageKeys: Object.keys(window.localStorage).filter((k) => k.startsWith("haulz.")),
+                                                };
+                                                try {
+                                                    await navigator.clipboard.writeText(JSON.stringify(info, null, 2));
+                                                    setDebugMenuOpen(false);
+                                                } catch { /* ignore */ }
+                                            }}
+                                        >
+                                            Копировать инфо для отладки
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         <Button className="search-toggle-button" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'} aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}>
                             {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                         </Button>
