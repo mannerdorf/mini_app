@@ -513,10 +513,54 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (!q) return true;
     const ql = q.trim().toLowerCase();
     if (!ql) return true;
+
+    const normalize = (v: string) =>
+      v
+        .toLowerCase()
+        .replace(/[.,;:()"'`]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const companies = u.companies ?? [];
+    const names = [
+      ...companies.map((c) => String(c?.name ?? "").trim()).filter(Boolean),
+      String(u.company_name ?? "").trim(),
+    ];
+    const inns = [
+      ...companies.map((c) => String(c?.inn ?? "").trim()).filter(Boolean),
+      String(u.inn ?? "").trim(),
+    ];
+
+    // In "by customers" mode search must match customer fields strictly.
+    if (usersViewMode === "customer") {
+      const qNorm = normalize(ql);
+      const qDigits = qNorm.replace(/\D/g, "");
+      const qTokens = qNorm.split(" ").filter(Boolean);
+
+      // Numeric query: match by INN only (strict for full INN).
+      if (qDigits.length > 0 && qDigits.length === qNorm.replace(/\s/g, "").length) {
+        return inns.some((inn) => {
+          const cleanInn = inn.replace(/\D/g, "");
+          if (!cleanInn) return false;
+          if (qDigits.length >= 10) return cleanInn === qDigits;
+          return cleanInn.startsWith(qDigits);
+        });
+      }
+
+      return names.some((name) => {
+        const n = normalize(name);
+        if (!n) return false;
+        if (n === qNorm || n.startsWith(qNorm)) return true;
+        const words = n.split(" ").filter(Boolean);
+        return qTokens.every((t) => words.some((w) => w.startsWith(t)));
+      });
+    }
+
+    // In "by logins" mode keep broad search in login + customer fields.
     if (u.login && String(u.login).toLowerCase().includes(ql)) return true;
-    const searchIn = [...(u.companies ?? []).flatMap((c) => [c.inn, c.name].filter(Boolean)), u.inn, u.company_name].map((s) => String(s).toLowerCase());
+    const searchIn = [...companies.flatMap((c) => [c.inn, c.name].filter(Boolean)), u.inn, u.company_name].map((s) => String(s).toLowerCase());
     return searchIn.some((s) => s.includes(ql));
-  }, []);
+  }, [usersViewMode]);
 
   const userMatchesPreset = useCallback((u: User, preset: PermissionPreset) => {
     const perms = u.permissions ?? {};
