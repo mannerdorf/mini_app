@@ -9916,11 +9916,7 @@ export default function App() {
                         </Suspense>
                     )}
                     {activeTab === "home2" && (
-                        <Home2Page
-                            auth={auth}
-                            useServiceRequest={useServiceRequest}
-                            showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : (activeAccount?.roleCustomer ?? true)}
-                        />
+                        <Home2Page useServiceRequest={useServiceRequest} />
                     )}
                     {showDashboard && activeTab === "profile" && (
                         <ProfilePage 
