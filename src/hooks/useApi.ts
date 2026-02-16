@@ -121,7 +121,7 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
         password: auth.password,
         dateFrom,
         dateTo,
-        ...(auth.inn ? { inn: auth.inn } : {}),
+        ...((params.inn ?? auth.inn) ? { inn: params.inn ?? auth.inn ?? undefined } : {}),
         ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
     };
 

@@ -73,9 +73,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       if (cacheRow.rows.length > 0) {
         const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
-        // В служебном режиме — все заказчики (без фильтра по ИНН)
         const isServiceMode = !!serviceMode;
-        const filterInns = isServiceMode ? null : (verified.accessAllInns ? null : new Set([verified.inn!]));
+        // accessAllInns — без ограничений; иначе — allowed INNs из account_companies + registered_users.inn
+        let filterInns: Set<string> | null = null;
+        if (!isServiceMode && !verified.accessAllInns) {
+          const acRows = await pool.query<{ inn: string }>(
+            "SELECT inn FROM account_companies WHERE login = $1",
+            [String(login).trim().toLowerCase()]
+          );
+          const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+          if (verified.inn?.trim()) allowed.add(verified.inn.trim());
+          filterInns = allowed.size > 0 ? allowed : (verified.inn ? new Set([verified.inn]) : null);
+        }
         const finalInns = isServiceMode ? null : (filterInns === null
           ? (requestedInn ? new Set([requestedInn]) : null)
           : requestedInn && filterInns.has(requestedInn)

@@ -71,7 +71,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [CACHE_FRESH_MINUTES]
       );
       if (cacheRow.rows.length > 0) {
-        const filterInns = verified.accessAllInns ? null : new Set([verified.inn!]);
+        let filterInns: Set<string> | null = null;
+        if (!verified.accessAllInns) {
+          const acRows = await pool.query<{ inn: string }>(
+            "SELECT inn FROM account_companies WHERE login = $1",
+            [String(login).trim().toLowerCase()]
+          );
+          const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
+          if (verified.inn?.trim()) allowed.add(verified.inn.trim());
+          filterInns = allowed.size > 0 ? allowed : (verified.inn ? new Set([verified.inn]) : null);
+        }
         const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
         const finalInns = filterInns === null
           ? null
