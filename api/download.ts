@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import https from "https";
 import { URL } from "url";
 import { getPool } from "./_db.js";
-import { verifyRegisteredUser } from "./lib/verifyRegisteredUser.js";
+import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 
 const EXTERNAL_API_BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
