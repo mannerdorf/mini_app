@@ -23,5 +23,6 @@ export default defineConfig({
   build: {
     assetsInlineLimit: 100000000,
     cssCodeSplit: false,
+    sourcemap: true,
   },
 });
