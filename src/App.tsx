@@ -5322,18 +5322,7 @@ function CargoDetailsModal({
             });
             setTimeout(() => {
                 downloadFile(blob, fileNameTranslit);
-            }, 120);
-            
-            // Если скачали УПД в MAX - закрываем мини-апп после скачивания
-            if (docType === 'УПД' && isMaxWebApp()) {
-                const webApp = getWebApp();
-                if (webApp && typeof webApp.close === "function") {
-                    // Даём время на скачивание, затем закрываем
-                    setTimeout(() => {
-                        webApp.close();
-                    }, 1000);
-                }
-            }
+            }, 350);
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
