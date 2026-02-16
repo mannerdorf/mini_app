@@ -48,7 +48,6 @@ import { AddCompanyByLoginPage } from "./pages/AddCompanyByLoginPage";
 import { CompaniesListPage } from "./pages/CompaniesListPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { CargoPage } from "./pages/CargoPage";
-import { useCargoDateRange } from "./pages/useCargoDateRange";
 import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry } from "./lib/cargoUtils";
 import * as dateUtils from "./lib/dateUtils";
@@ -808,14 +807,26 @@ function DashboardPage({
         console.log("[testMaxMessage]", logs);
     };
 
-    const { apiDateRange, prevRange } = useCargoDateRange({
-        dateFilter,
-        customDateFrom,
-        customDateTo,
-        selectedMonthForFilter,
-        selectedYearForFilter,
-        selectedWeekForFilter,
-    });
+    // Один useMemo для дат (как в CargoPage), чтобы при минификации не было TDZ
+    const { apiDateRange, prevRange } = useMemo(() => {
+        const api =
+            dateFilter === "период"
+                ? { dateFrom: customDateFrom, dateTo: customDateTo }
+                : dateFilter === "месяц" && selectedMonthForFilter
+                    ? (() => {
+                        const { year, month } = selectedMonthForFilter;
+                        const pad = (n: number) => String(n).padStart(2, '0');
+                        const lastDay = new Date(year, month, 0).getDate();
+                        return { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
+                    })()
+                    : dateFilter === "год" && selectedYearForFilter
+                        ? { dateFrom: `${selectedYearForFilter}-01-01`, dateTo: `${selectedYearForFilter}-12-31` }
+                        : dateFilter === "неделя" && selectedWeekForFilter
+                            ? getWeekRange(selectedWeekForFilter)
+                            : getDateRange(dateFilter);
+        const prev = getPreviousPeriodRange(dateFilter, api.dateFrom, api.dateTo);
+        return { apiDateRange: api, prevRange: prev };
+    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
 
     const { items, error, loading, mutate: mutatePerevozki } = usePerevozki({
         auth,
