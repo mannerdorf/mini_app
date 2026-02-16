@@ -5267,7 +5267,9 @@ function CargoDetailsModal({
 
     const getDirectGetFileUrl = (docType: string) => {
         const number = item.Number || '';
-        return `https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile?metod=${encodeURIComponent(docType)}&Number=${encodeURIComponent(number)}`;
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        // Проксируем через /api/download и принудительно используем креды суперадмина на Vercel.
+        return `${origin}${PROXY_API_DOWNLOAD_URL}?metod=${encodeURIComponent(docType)}&number=${encodeURIComponent(number)}&useSuperAdminCredentials=true`;
     };
     
     const handleDownload = async (docType: string) => {
