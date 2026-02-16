@@ -23,6 +23,7 @@ import { TabBar } from "./components/TabBar";
 import { AccountSwitcher } from "./components/AccountSwitcher";
 import { CustomerSwitcher } from "./components/CustomerSwitcher";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { AppMainContent } from "./components/AppMainContent";
 import { getWebApp, isMaxWebApp, isMaxDocsEnabled } from "./webApp";
 import { DOCUMENT_METHODS } from "./documentMethods";
 // import { NotificationsPage } from "./pages/NotificationsPage"; // temporarily disabled
@@ -47,6 +48,8 @@ import { AddCompanyByLoginPage } from "./pages/AddCompanyByLoginPage";
 import { CompaniesListPage } from "./pages/CompaniesListPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { CargoPage } from "./pages/CargoPage";
+import { useCargoDateRange } from "./pages/useCargoDateRange";
+import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry } from "./lib/cargoUtils";
 import * as dateUtils from "./lib/dateUtils";
 import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterateFilename, normalizeInvoiceStatus, parseCargoNumbersFromText } from "./lib/formatUtils";
@@ -805,26 +808,14 @@ function DashboardPage({
         console.log("[testMaxMessage]", logs);
     };
 
-    // Один useMemo для дат (как в CargoPage), чтобы при минификации не было TDZ
-    const { apiDateRange, prevRange } = useMemo(() => {
-        const api =
-            dateFilter === "период"
-                ? { dateFrom: customDateFrom, dateTo: customDateTo }
-                : dateFilter === "месяц" && selectedMonthForFilter
-                    ? (() => {
-                        const { year, month } = selectedMonthForFilter;
-                        const pad = (n: number) => String(n).padStart(2, '0');
-                        const lastDay = new Date(year, month, 0).getDate();
-                        return { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
-                    })()
-                    : dateFilter === "год" && selectedYearForFilter
-                        ? { dateFrom: `${selectedYearForFilter}-01-01`, dateTo: `${selectedYearForFilter}-12-31` }
-                        : dateFilter === "неделя" && selectedWeekForFilter
-                            ? getWeekRange(selectedWeekForFilter)
-                            : getDateRange(dateFilter);
-        const prev = getPreviousPeriodRange(dateFilter, api.dateFrom, api.dateTo);
-        return { apiDateRange: api, prevRange: prev };
-    }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
+    const { apiDateRange, prevRange } = useCargoDateRange({
+        dateFilter,
+        customDateFrom,
+        customDateTo,
+        selectedMonthForFilter,
+        selectedYearForFilter,
+        selectedWeekForFilter,
+    });
 
     const { items, error, loading, mutate: mutatePerevozki } = usePerevozki({
         auth,
@@ -8525,164 +8516,43 @@ export default function App() {
             </header>
             <div className="app-main">
                 <div className="w-full max-w-4xl">
-                    <ErrorBoundary fallback={
-                        <div style={{ padding: "1.5rem", textAlign: "center" }}>
-                            <p style={{ marginBottom: "0.5rem" }}>Ошибка в разделе (Грузы / Документы / Профиль).</p>
-                            <button type="button" onClick={() => window.location.reload()} style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>Обновить страницу</button>
-                        </div>
-                    }>
-                    {showDashboard && activeTab === "dashboard" && auth && (
-                        <DashboardPage
+                    <AppRuntimeProvider
+                        value={{
+                            useServiceRequest,
+                            searchText,
+                            activeInn: activeAccount?.activeCustomerInn ?? auth?.inn ?? "",
+                        }}
+                    >
+                        <AppMainContent
+                            showDashboard={showDashboard}
+                            activeTab={activeTab}
                             auth={auth}
-                            onClose={() => {}}
-                            onOpenCargoFilters={openCargoWithFilters}
-                            showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : (activeAccount?.roleCustomer ?? true)}
-                            useServiceRequest={useServiceRequest}
-                            hasAnalytics={true}
-                        />
-                    )}
-                    {showDashboard && activeTab === "cargo" && selectedAuths.length > 0 && (
-                        <CargoPage
-                            auths={selectedAuths}
-                            searchText={searchText}
-                            onOpenChat={undefined}
-                            onCustomerDetected={updateActiveAccountCustomer}
-                            contextCargoNumber={contextCargoNumber}
-                            onClearContextCargo={() => setContextCargoNumber(null)}
-                            roleCustomer={activeAccount?.isRegisteredUser ? true : (activeAccount?.roleCustomer ?? true)}
-                            roleSender={activeAccount?.roleSender ?? true}
-                            roleReceiver={activeAccount?.roleReceiver ?? true}
-                            useServiceRequest={useServiceRequest}
-                            showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
-                            CargoDetailsModal={CargoDetailsModal}
-                        />
-                    )}
-                    {showDashboard && activeTab === "cargo" && selectedAuths.length === 0 && (
-                        <Flex direction="column" align="center" justify="center" style={{ minHeight: "40vh", padding: "2rem", textAlign: "center" }}>
-                            {accounts.length === 0 ? (
-                                <>
-                                    <Package className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }} />
-                                    <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>Добавьте аккаунт, чтобы видеть перевозки</Typography.Body>
-                                    <Button className="filter-button" type="button" onClick={() => setActiveTab("profile")}>Перейти в Профиль</Button>
-                                </>
-                            ) : (
-                                <>
-                                    <Package className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }} />
-                                    <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>Выберите компанию для просмотра перевозок</Typography.Body>
-                                    <Button
-                                        className="filter-button"
-                                        type="button"
-                                        onClick={() => {
-                                            const id = (activeAccountId && accounts.some((a) => a.id === activeAccountId)) ? activeAccountId : accounts[0]?.id;
-                                            if (id) {
-                                                setSelectedAccountIds([id]);
-                                                setActiveAccountId(id);
-                                            }
-                                        }}
-                                    >
-                                        Показать перевозки
-                                    </Button>
-                                </>
-                            )}
-                        </Flex>
-                    )}
-                    {activeTab === "docs" && auth && (
-                        <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
-                            <DocumentsPage auth={auth} useServiceRequest={useServiceRequest} activeInn={activeAccount?.activeCustomerInn ?? auth?.inn ?? ''} searchText={searchText} onOpenCargo={openCargoFromChat} onOpenChat={undefined} permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined} showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true} />
-                        </Suspense>
-                    )}
-                    {activeTab === "home2" && (
-                        <Home2Page useServiceRequest={useServiceRequest} />
-                    )}
-                    {showDashboard && activeTab === "profile" && (
-                        <ProfilePage 
+                            selectedAuths={selectedAuths}
                             accounts={accounts}
                             activeAccountId={activeAccountId}
-                            onSwitchAccount={handleSwitchAccount}
-                            onAddAccount={handleAddAccount}
-                            onRemoveAccount={handleRemoveAccount}
-                            onOpenOffer={() => setIsOfferOpen(true)}
-                            onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
-                            onOpenNotifications={openSecretPinModal}
-                            onOpenCargo={openCargoFromChat}
-                            onOpenTelegramBot={undefined}
-                            onOpenMaxBot={undefined}
-                            onUpdateAccount={handleUpdateAccount}
-                        />
-                    )}
-                    {!showDashboard && activeTab === "cargo" && selectedAuths.length > 0 && (
-                        <CargoPage
-                            auths={selectedAuths}
-                            searchText={searchText}
-                            onOpenChat={undefined}
-                            onCustomerDetected={updateActiveAccountCustomer}
+                            activeAccount={activeAccount}
                             contextCargoNumber={contextCargoNumber}
-                            onClearContextCargo={() => setContextCargoNumber(null)}
-                            roleCustomer={activeAccount?.roleCustomer ?? true}
-                            roleSender={activeAccount?.roleSender ?? true}
-                            roleReceiver={activeAccount?.roleReceiver ?? true}
                             useServiceRequest={useServiceRequest}
-                            showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
+                            setContextCargoNumber={setContextCargoNumber}
+                            setActiveTab={setActiveTab}
+                            setSelectedAccountIds={setSelectedAccountIds}
+                            setActiveAccountId={setActiveAccountId}
+                            updateActiveAccountCustomer={updateActiveAccountCustomer}
+                            openCargoWithFilters={openCargoWithFilters}
+                            openCargoFromChat={openCargoFromChat}
+                            handleSwitchAccount={handleSwitchAccount}
+                            handleAddAccount={handleAddAccount}
+                            handleRemoveAccount={handleRemoveAccount}
+                            handleUpdateAccount={handleUpdateAccount}
+                            setIsOfferOpen={setIsOfferOpen}
+                            setIsPersonalConsentOpen={setIsPersonalConsentOpen}
+                            openSecretPinModal={openSecretPinModal}
                             CargoDetailsModal={CargoDetailsModal}
+                            DashboardPageComponent={DashboardPage}
+                            ProfilePageComponent={ProfilePage}
+                            DocumentsPageComponent={DocumentsPage}
                         />
-                    )}
-                    {!showDashboard && activeTab === "cargo" && selectedAuths.length === 0 && (
-                        <Flex direction="column" align="center" justify="center" style={{ minHeight: "40vh", padding: "2rem", textAlign: "center" }}>
-                            {accounts.length === 0 ? (
-                                <>
-                                    <Package className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }} />
-                                    <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>Добавьте аккаунт, чтобы видеть перевозки</Typography.Body>
-                                    <Button className="filter-button" type="button" onClick={() => setActiveTab("profile")}>Перейти в Профиль</Button>
-                                </>
-                            ) : (
-                                <>
-                                    <Package className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--color-text-secondary)", opacity: 0.5 }} />
-                                    <Typography.Body style={{ color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>Выберите компанию для просмотра перевозок</Typography.Body>
-                                    <Button
-                                        className="filter-button"
-                                        type="button"
-                                        onClick={() => {
-                                            const id = (activeAccountId && accounts.some((a) => a.id === activeAccountId)) ? activeAccountId : accounts[0]?.id;
-                                            if (id) {
-                                                setSelectedAccountIds([id]);
-                                                setActiveAccountId(id);
-                                            }
-                                        }}
-                                    >
-                                        Показать перевозки
-                                    </Button>
-                                </>
-                            )}
-                        </Flex>
-                    )}
-                    {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (
-                        <DashboardPage
-                            auth={auth}
-                            onClose={() => {}}
-                            onOpenCargoFilters={openCargoWithFilters}
-                            showSums={activeAccount?.roleCustomer ?? true}
-                            useServiceRequest={useServiceRequest}
-                            hasAnalytics={activeAccount?.permissions?.analytics === true}
-                            hasSupervisor={activeAccount?.permissions?.supervisor === true}
-                        />
-                    )}
-                    {!showDashboard && activeTab === "profile" && (
-                        <ProfilePage 
-                            accounts={accounts}
-                            activeAccountId={activeAccountId}
-                            onSwitchAccount={handleSwitchAccount}
-                            onAddAccount={handleAddAccount}
-                            onRemoveAccount={handleRemoveAccount}
-                            onOpenOffer={() => setIsOfferOpen(true)}
-                            onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
-                            onOpenNotifications={openSecretPinModal}
-                            onOpenCargo={openCargoFromChat}
-                            onOpenTelegramBot={undefined}
-                            onOpenMaxBot={undefined}
-                            onUpdateAccount={handleUpdateAccount}
-                        />
-                    )}
-                    </ErrorBoundary>
+                    </AppRuntimeProvider>
             </div>
             </div>
             <TabBar 

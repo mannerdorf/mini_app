@@ -20,6 +20,7 @@ import {
 } from "./cargoPipeline";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
+import { useAppRuntime } from "../contexts/AppRuntimeContext";
 
 const { loadDateFilterState, saveDateFilterState, getDateRange, getWeekRange, getWeeksList, getYearsList, MONTH_NAMES, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, formatDate } = dateUtils;
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
@@ -40,7 +41,7 @@ export type CargoDetailsModalProps = {
 export type CargoPageProps = {
     /** Один или несколько аккаунтов — перевозки объединяются */
     auths: AuthData[];
-    searchText: string;
+    searchText?: string;
     onOpenChat: (cargoNumber?: string) => void | Promise<void>;
     onCustomerDetected?: (customer: string) => void;
     contextCargoNumber?: string | null;
@@ -65,10 +66,13 @@ export function CargoPage({
     roleCustomer = true,
     roleSender = true,
     roleReceiver = true,
-    useServiceRequest = false,
+    useServiceRequest,
     showSums = true,
     CargoDetailsModal,
 }: CargoPageProps) {
+    const runtime = useAppRuntime();
+    const effectiveSearchText = searchText ?? runtime.searchText;
+    const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
 
     // Filters State; при переключении вкладок восстанавливаем из localStorage
@@ -206,7 +210,7 @@ export function CargoPage({
         auths,
         apiDateRange,
         prevRange,
-        useServiceRequest,
+        useServiceRequest: effectiveServiceMode,
         roleCustomer,
         roleSender,
         roleReceiver,
@@ -214,7 +218,7 @@ export function CargoPage({
     });
 
     useEffect(() => {
-        if (!useServiceRequest || !primaryAuth?.login || !primaryAuth?.password) return;
+        if (!effectiveServiceMode || !primaryAuth?.login || !primaryAuth?.password) return;
         const inns = [...new Set(items.map((i) => {
             const inn = (i?.INN ?? i?.Inn ?? i?.inn ?? "").toString().trim();
             return inn.length > 0 ? inn : null;
@@ -237,7 +241,7 @@ export function CargoPage({
             })
             .catch(() => { /* ignore */ });
         return () => { cancelled = true; };
-    }, [useServiceRequest, primaryAuth?.login, primaryAuth?.password, items]);
+    }, [effectiveServiceMode, primaryAuth?.login, primaryAuth?.password, items]);
 
     useEffect(() => {
         if (!contextCargoNumber) return;
@@ -263,10 +267,10 @@ export function CargoPage({
     }, [contextCargoNumber, items, loading, onClearContextCargo]);
 
     useEffect(() => {
-        if (useServiceRequest) return;
+        if (effectiveServiceMode) return;
         setTransportFilter('');
         setIsTransportDropdownOpen(false);
-    }, [useServiceRequest]);
+    }, [effectiveServiceMode]);
 
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
@@ -279,19 +283,19 @@ export function CargoPage({
     const filteredItems = useMemo(() => {
         return buildFilteredCargoItems({
             items,
-            searchText,
+            searchText: effectiveSearchText,
             statusFilterSet,
             senderFilter,
             receiverFilter,
             transportFilter,
-            useServiceRequest,
+            useServiceRequest: effectiveServiceMode,
             billStatusFilterSet,
             typeFilterSet,
             routeFilterSet,
             sortBy,
             sortOrder,
         });
-    }, [items, searchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, billStatusFilterSet, useServiceRequest, typeFilterSet, routeFilterSet, sortBy, sortOrder]);
+    }, [items, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, sortBy, sortOrder]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 
@@ -363,7 +367,7 @@ export function CargoPage({
         if (item.Value !== undefined) lines.push(`Объем: ${item.Value} м³`);
         Object.entries(item).forEach(([k, v]) => {
             if (["Number", "State", "DatePrih", "DateVr", "Sender", "Customer", "Mest", "PW", "W", "Value", "Sum", "StateBill", "_role"].includes(k)) return;
-            if (k === "AutoReg" && !useServiceRequest) return;
+            if (k === "AutoReg" && !effectiveServiceMode) return;
             if (v === undefined || v === null || v === "" || (typeof v === "string" && v.trim() === "")) return;
             const label = k === "AutoReg" ? "Транспортное средство" : k;
             lines.push(`${label}: ${String(v)}`);
@@ -383,7 +387,7 @@ export function CargoPage({
             }
         } catch { /* ignore */ }
         alert(text);
-    }, [primaryAuth, useServiceRequest]);
+    }, [primaryAuth, effectiveServiceMode]);
 
     return (
         <div className="w-full">
@@ -582,7 +586,7 @@ export function CargoPage({
                         ))}
                     </FilterDropdownPortal>
                 </div>
-                {useServiceRequest && (
+                {effectiveServiceMode && (
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={billStatusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsBillStatusDropdownOpen(!isBillStatusDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
@@ -599,7 +603,7 @@ export function CargoPage({
                         </FilterDropdownPortal>
                     </div>
                 )}
-                {useServiceRequest && (
+                {effectiveServiceMode && (
                     <div className="filter-group" style={{ flexShrink: 0 }}>
                         <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
@@ -640,7 +644,7 @@ export function CargoPage({
                 </div>
             </div>
 
-            <CargoSummaryCard summary={summary} showSums={showSums} useServiceRequest={useServiceRequest} />
+            <CargoSummaryCard summary={summary} showSums={showSums} useServiceRequest={effectiveServiceMode} />
             </div>
 
             <CargoStateBlocks
@@ -673,7 +677,7 @@ export function CargoPage({
                 <CargoCardsList
                     filteredItems={filteredItems}
                     workScheduleByInn={workScheduleByInn}
-                    useServiceRequest={useServiceRequest}
+                    useServiceRequest={effectiveServiceMode}
                     showSums={showSums}
                     isFavorite={isFavorite}
                     onToggleFavorite={toggleFavorite}
@@ -692,7 +696,7 @@ export function CargoPage({
                     isFavorite={isFavorite}
                     onToggleFavorite={toggleFavorite}
                     showSums={showSums}
-                    useServiceRequest={useServiceRequest}
+                    useServiceRequest={effectiveServiceMode}
                 />
             )}
             <FilterDialog isOpen={isCustomModalOpen} onClose={() => setIsCustomModalOpen(false)} dateFrom={customDateFrom} dateTo={customDateTo} onApply={(f, t) => { setCustomDateFrom(f); setCustomDateTo(t); }} />

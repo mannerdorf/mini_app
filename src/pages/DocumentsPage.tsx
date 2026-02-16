@@ -25,6 +25,7 @@ getPayTillDateColor,
 import type { AccountPermissions, AuthData, DateFilter, StatusFilter } from "../types";
 import { useDocumentsDateRange } from "./useDocumentsDateRange";
 import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
+import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import {
     INVOICE_FAVORITES_VALUE,
     buildActsSummary,
@@ -75,7 +76,11 @@ type DocumentsPageProps = {
     showSums?: boolean;
 };
 
-export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '', searchText = '', onOpenCargo, onOpenChat, permissions, showSums = true }: DocumentsPageProps) {
+export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, onOpenCargo, onOpenChat, permissions, showSums = true }: DocumentsPageProps) {
+    const runtime = useAppRuntime();
+    const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
+    const effectiveActiveInn = activeInn ?? runtime.activeInn;
+    const effectiveSearchText = searchText ?? runtime.searchText;
     const initDate = () => loadDateFilterState();
     const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
     const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
@@ -190,22 +195,22 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         perevozkiLoading,
     } = useDocumentsDataLoad({
         auth,
-        activeInn,
-        useServiceRequest,
+        activeInn: effectiveActiveInn,
+        useServiceRequest: effectiveServiceMode,
         apiDateRange,
         perevozkiDateRange,
     });
 
     // При выходе из служебного режима прячем и сбрасываем "компанийные" фильтры.
     useEffect(() => {
-        if (useServiceRequest) return;
+        if (effectiveServiceMode) return;
         setCustomerFilter('');
         setActCustomerFilter('');
         setTransportFilter('');
         setIsCustomerDropdownOpen(false);
         setIsActCustomerDropdownOpen(false);
         setIsTransportDropdownOpen(false);
-    }, [useServiceRequest]);
+    }, [effectiveServiceMode]);
 
     /** Канонический ключ для сопоставления номера перевозки (с/без ведущих нулей) */
     const normCargoKey = useCallback((num: string | null | undefined): string => {
@@ -275,8 +280,8 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const filteredItems = useMemo(() => {
         return buildFilteredInvoices({
             items,
-            activeInn,
-            useServiceRequest,
+            activeInn: effectiveActiveInn,
+            useServiceRequest: effectiveServiceMode,
             customerFilter,
             statusFilterSet,
             typeFilter,
@@ -284,7 +289,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             deliveryStatusFilterSet,
             routeFilterCargo,
             transportFilter,
-            searchText,
+            searchText: effectiveSearchText,
             edoStatusFilterSet,
             sortBy,
             sortOrder,
@@ -294,7 +299,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
             cargoRouteByNumber,
             cargoTransportByNumber,
         });
-    }, [items, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, routeFilterCargo, transportFilter, searchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
+    }, [items, effectiveActiveInn, effectiveServiceMode, customerFilter, statusFilterSet, typeFilter, routeFilter, sortBy, sortOrder, favVersion, isInvoiceFavorite, deliveryStatusFilterSet, routeFilterCargo, transportFilter, effectiveSearchText, edoStatusFilterSet, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, cargoTransportByNumber, normCargoKey]);
 
     const documentsSummary = useMemo(() => buildDocsSummary(filteredItems), [filteredItems]);
 
@@ -311,16 +316,16 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const filteredActs = useMemo(() => {
         return buildFilteredActs({
             sortedActs,
-            activeInn,
-            useServiceRequest,
+            activeInn: effectiveActiveInn,
+            useServiceRequest: effectiveServiceMode,
             actCustomerFilter,
-            searchText,
+            searchText: effectiveSearchText,
             edoStatusFilterSet,
             transportFilter,
             getFirstCargoNumberFromInvoice,
             cargoTransportByNumber,
         });
-    }, [sortedActs, actCustomerFilter, searchText, edoStatusFilterSet, transportFilter, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey]);
+    }, [sortedActs, effectiveActiveInn, effectiveServiceMode, actCustomerFilter, effectiveSearchText, edoStatusFilterSet, transportFilter, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey]);
 
     const actsSummary = useMemo(() => buildActsSummary(filteredActs), [filteredActs]);
 
@@ -585,7 +590,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 })
                             )}
                         </FilterDropdownPortal>
-                        {docSection === 'Счета' && useServiceRequest && (
+                        {docSection === 'Счета' && effectiveServiceMode && (
                             <>
                                 <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
                                     <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
@@ -600,7 +605,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 </FilterDropdownPortal>
                             </>
                         )}
-                        {docSection === 'УПД' && useServiceRequest && (
+                        {docSection === 'УПД' && effectiveServiceMode && (
                             <>
                                 <div ref={actCustomerButtonRef} style={{ display: 'inline-flex' }}>
                                     <Button className="filter-button" onClick={() => { setIsActCustomerDropdownOpen(!isActCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
@@ -628,7 +633,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 </div>
                             ))}
                         </FilterDropdownPortal>
-                        {useServiceRequest && (
+                        {effectiveServiceMode && (
                         <>
                         <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
