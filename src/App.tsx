@@ -8031,9 +8031,13 @@ function getInitialAuthState(): typeof EMPTY_AUTH_STATE {
         // Сначала восстанавливаем из haulz.accounts (полные данные, включая компанию сотрудника)
         const savedAccounts = window.localStorage.getItem("haulz.accounts");
         if (savedAccounts) {
-            let parsedAccounts = JSON.parse(savedAccounts) as Account[];
-            if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
-                parsedAccounts = parsedAccounts.map((acc) => {
+            let parsedAccounts = JSON.parse(savedAccounts) as unknown;
+            if (!Array.isArray(parsedAccounts)) parsedAccounts = [];
+            parsedAccounts = (parsedAccounts as Account[]).filter(
+                (acc): acc is Account => acc != null && typeof acc === "object" && typeof (acc as Account).login === "string" && typeof (acc as Account).password === "string"
+            );
+            if (parsedAccounts.length > 0) {
+                parsedAccounts = (parsedAccounts as Account[]).map((acc) => {
                     const withCustomer = acc.customers?.length && !acc.customer ? { ...acc, customer: acc.customers[0].name } : acc;
                     return { ...withCustomer, inCustomerDirectory: undefined as boolean | undefined };
                 });
@@ -8174,7 +8178,7 @@ export default function App() {
     const auth = useMemo(() => {
         if (!activeAccountId) return null;
         const account = accounts.find(acc => acc.id === activeAccountId);
-        if (!account) return null;
+        if (!account || typeof account.login !== "string" || typeof account.password !== "string") return null;
         const inn = account.activeCustomerInn ?? account.customers?.[0]?.inn ?? "";
         const forceInn = !!account.isRegisteredUser && !account.accessAllInns && !!inn;
         return {
@@ -9016,7 +9020,7 @@ export default function App() {
                         .filter((c: CustomerOption) => c.inn.length > 0)
                 );
                 if (customers.length === 0) return false;
-                const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
+                const existingInns = await getExistingInns(accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean));
                 const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
                 if (alreadyAdded) {
                     setError("Компания уже в списке");
@@ -9094,7 +9098,7 @@ export default function App() {
                 const payload = await readJsonOrText(res);
                 const detectedCustomer = extractCustomerFromPerevozki(payload);
                 const detectedInn = extractInnFromPerevozki(payload);
-                const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
+                const existingInns = await getExistingInns(accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean));
                 if (detectedInn && existingInns.has(detectedInn)) {
                     setError("Компания уже в списке");
                     return true;
@@ -9368,7 +9372,7 @@ export default function App() {
                 })).filter((c: CustomerOption) => c.inn.length > 0)
             );
             if (customers.length > 0) {
-                const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
+                const existingInns = await getExistingInns(accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean));
                 const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
                 if (alreadyAdded) {
                     throw new Error("Компания уже в списке");
@@ -9408,7 +9412,7 @@ export default function App() {
         const payload = await readJsonOrText(res);
         const detectedCustomer = extractCustomerFromPerevozki(payload);
         const detectedInn = extractInnFromPerevozki(payload);
-        const existingInns = await getExistingInns(accounts.map((a) => a.login.trim().toLowerCase()));
+        const existingInns = await getExistingInns(accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean));
         if (detectedInn && existingInns.has(detectedInn)) {
             throw new Error("Компания уже в списке");
         }

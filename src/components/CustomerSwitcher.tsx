@@ -36,8 +36,9 @@ export function CustomerSwitcher({ accounts, activeAccountId, onSwitchAccount, o
 
   useEffect(() => {
     if (!isOpen || accounts.length === 0) return;
-    const logins = [...new Set(accounts.map((a) => a.login.trim().toLowerCase()))];
-    const accessAllLogins = [...new Set(accounts.filter((a) => a.accessAllInns).map((a) => a.login.trim().toLowerCase()))];
+    const safeLogin = (a: Account) => (a.login != null && typeof a.login === "string" ? a.login.trim().toLowerCase() : "");
+    const logins = [...new Set(accounts.map(safeLogin).filter(Boolean))];
+    const accessAllLogins = [...new Set(accounts.filter((a) => a.accessAllInns).map(safeLogin).filter(Boolean))];
     const query =
       logins.map((l) => `login=${encodeURIComponent(l)}`).join("&") +
       (accessAllLogins.length ? "&" + accessAllLogins.map((l) => `access_all=${encodeURIComponent(l)}`).join("&") : "");
@@ -50,13 +51,13 @@ export function CustomerSwitcher({ accounts, activeAccountId, onSwitchAccount, o
       })
       .catch(() => setCompanies([]))
       .finally(() => setLoading(false));
-  }, [isOpen, accounts.map((a) => `${a.login}:${!!a.accessAllInns}`).join(",")]);
+  }, [isOpen, accounts.map((a) => `${a.login ?? ""}:${!!a.accessAllInns}`).join(",")]);
 
   const activeCompany = companies.find((c) => c.login === activeLogin && (c.inn === "" || c.inn === activeInn));
   const displayName = activeCompany ? stripOoo(activeCompany.name) : stripOoo(activeAccount?.customer || activeAccount?.customers?.[0]?.name || "Компания");
 
   const handleSelect = (c: HeaderCompanyRow) => {
-    const acc = accounts.find((a) => a.login.trim().toLowerCase() === c.login);
+    const acc = accounts.find((a) => (a.login != null ? String(a.login).trim().toLowerCase() : "") === c.login);
     if (!acc) return;
     onSwitchAccount(acc.id);
     if (c.inn !== undefined && c.inn !== null) {
