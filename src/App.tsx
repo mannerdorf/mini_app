@@ -901,29 +901,6 @@ function DashboardPage({
         return () => { cancelled = true; };
     }, [showPaymentCalendar, auth?.login, auth?.password]);
 
-    useEffect(() => {
-        if (!useServiceRequest || !auth?.login || !auth?.password || filteredItems.length === 0) return;
-        const inns = [...new Set(filteredItems.map((i) => getInnFromCargo(i)).filter((x): x is string => !!x))];
-        if (inns.length === 0) return;
-        let cancelled = false;
-        fetch('/api/customer-work-schedules', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ login: auth.login, password: auth.password, inns }),
-        })
-            .then((r) => r.json())
-            .then((data: { items?: { inn: string; days_of_week: number[]; work_start: string; work_end: string }[] }) => {
-                if (cancelled) return;
-                const ws: Record<string, WorkSchedule> = {};
-                (data?.items ?? []).forEach((r) => {
-                    if (r?.inn) ws[r.inn.trim()] = { days_of_week: r.days_of_week ?? [1, 2, 3, 4, 5], work_start: r.work_start || '09:00', work_end: r.work_end || '18:00' };
-                });
-                if (!cancelled) setWorkScheduleByInn((prev) => ({ ...prev, ...ws }));
-            })
-            .catch(() => { /* ignore */ });
-        return () => { cancelled = true; };
-    }, [useServiceRequest, auth?.login, auth?.password, filteredItems]);
-
     const unpaidCount = useMemo(() => {
         return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
     }, [items]);
@@ -954,6 +931,29 @@ function DashboardPage({
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
         return res;
     }, [items, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter]);
+
+    useEffect(() => {
+        if (!useServiceRequest || !auth?.login || !auth?.password || filteredItems.length === 0) return;
+        const inns = [...new Set(filteredItems.map((i) => getInnFromCargo(i)).filter((x): x is string => !!x))];
+        if (inns.length === 0) return;
+        let cancelled = false;
+        fetch('/api/customer-work-schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: auth.login, password: auth.password, inns }),
+        })
+            .then((r) => r.json())
+            .then((data: { items?: { inn: string; days_of_week: number[]; work_start: string; work_end: string }[] }) => {
+                if (cancelled) return;
+                const ws: Record<string, WorkSchedule> = {};
+                (data?.items ?? []).forEach((r) => {
+                    if (r?.inn) ws[r.inn.trim()] = { days_of_week: r.days_of_week ?? [1, 2, 3, 4, 5], work_start: r.work_start || '09:00', work_end: r.work_end || '18:00' };
+                });
+                if (!cancelled) setWorkScheduleByInn((prev) => ({ ...prev, ...ws }));
+            })
+            .catch(() => { /* ignore */ });
+        return () => { cancelled = true; };
+    }, [useServiceRequest, auth?.login, auth?.password, filteredItems]);
 
     /** Фильтрация данных предыдущего периода (те же фильтры, что и для текущего) */
     const filteredPrevPeriodItems = useMemo(() => {
