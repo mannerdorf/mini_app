@@ -5468,7 +5468,13 @@ function CargoDetailsModal({
                     {Object.entries(item)
                         .filter(([key]) => !EXCLUDED_KEYS.includes(key))
                         .sort(([a], [b]) => {
-                            const pos = (k: string) => k === 'Order' ? 999 : k === 'CitySender' ? 1 : k === 'CityReceiver' ? 2 : 0;
+                            const pos = (k: string) => {
+                                if (k === 'CitySender') return 1;
+                                if (k === 'CityReceiver') return 2;
+                                if (k === 'Order') return 999;
+                                if (k === 'AutoReg') return 1000; // Транспортное средство всегда последним
+                                return 0;
+                            };
                             return pos(a) - pos(b);
                         })
                         .map(([key, val]) => {

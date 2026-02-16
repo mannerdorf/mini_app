@@ -326,7 +326,7 @@ body {
         padding-right: var(--space-3, 12px);
     }
     .cargo-page-sticky-header {
-        padding-top: 0.5rem;
+        padding-top: 1rem;
         padding-bottom: 0.75rem;
         margin-bottom: 0.5rem;
     }
@@ -337,6 +337,17 @@ body {
     }
     .cargo-page-sticky-header .doc-sections-row {
         padding-right: 1rem;
+    }
+    /* Карточка перевозки: показываем окно ниже фиксированного хедера */
+    .modal-overlay {
+        z-index: 49;
+        align-items: flex-start;
+        padding-top: calc(104px + env(safe-area-inset-top));
+        padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    }
+    .modal-content {
+        margin-bottom: 0;
+        max-height: calc(100dvh - 104px - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     }
     .tabbar-container {
         transform: translateX(-50%) translateZ(0);
