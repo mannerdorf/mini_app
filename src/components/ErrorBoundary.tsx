@@ -8,19 +8,21 @@ type Props = {
 type State = {
   hasError: boolean;
   error: Error | null;
+  componentStack: string | null;
 };
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, componentStack: null };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    this.setState({ componentStack: errorInfo.componentStack ?? null });
     if (typeof console !== "undefined" && console.error) {
       console.error("[ErrorBoundary]", error.message, "\n", error.stack, "\n", errorInfo.componentStack);
     }
@@ -32,8 +34,8 @@ export class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
-      const showDebug = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug");
       const err = this.state.error;
+      const componentStack = this.state.componentStack;
       return (
         <div
           style={{
@@ -60,12 +62,19 @@ export class ErrorBoundary extends Component<Props, State> {
               {err.message}
             </p>
           )}
-          {err?.stack && (
-            <details style={{ marginBottom: "1rem", maxWidth: "100%" }}>
-              <summary style={{ fontSize: "0.8rem", cursor: "pointer", color: "#b91c1c" }}>Подробности (stack trace)</summary>
-              <pre style={{ fontSize: "0.7rem", color: "#b91c1c", background: "#fef2f2", padding: "0.75rem", borderRadius: "0.5rem", maxWidth: "100%", overflow: "auto", marginTop: "0.5rem", textAlign: "left" }}>
-                {err.stack}
-              </pre>
+          {(err?.stack || componentStack) && (
+            <details style={{ marginBottom: "1rem", maxWidth: "100%" }} open>
+              <summary style={{ fontSize: "0.8rem", cursor: "pointer", color: "#b91c1c" }}>Подробности (stack trace и компоненты)</summary>
+              {err?.stack && (
+                <pre style={{ fontSize: "0.7rem", color: "#b91c1c", background: "#fef2f2", padding: "0.75rem", borderRadius: "0.5rem", maxWidth: "100%", overflow: "auto", marginTop: "0.5rem", textAlign: "left" }}>
+                  {err.stack}
+                </pre>
+              )}
+              {componentStack && (
+                <pre style={{ fontSize: "0.7rem", color: "#1e40af", background: "#eff6ff", padding: "0.75rem", borderRadius: "0.5rem", maxWidth: "100%", overflow: "auto", marginTop: "0.5rem", textAlign: "left" }}>
+                  {componentStack}
+                </pre>
+              )}
             </details>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>
