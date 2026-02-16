@@ -1,11 +1,19 @@
 import type { CargoItem } from "../types";
-import { isReceivedInfoStatus, getPaymentFilterKey } from "../lib/statusUtils";
+import type { StatusFilter } from "../types";
+import {
+  isReceivedInfoStatus,
+  getPaymentFilterKey,
+  getFilterKeyByStatus,
+} from "../lib/statusUtils";
 import { cityToCode, formatCurrency } from "../lib/formatUtils";
 import { formatDate } from "../lib/dateUtils";
+
+type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 
 export type CargoFilterPipelineParams = {
   items: CargoItem[];
   searchText: string;
+  statusFilterSet: Set<CargoStatusFilterKey>;
   senderFilter: string;
   receiverFilter: string;
   useServiceRequest: boolean;
@@ -74,6 +82,7 @@ export function buildFilteredCargoItems(
   const {
     items,
     searchText,
+    statusFilterSet,
     senderFilter,
     receiverFilter,
     useServiceRequest,
@@ -105,6 +114,12 @@ export function buildFilteredCargoItems(
         i.StateBill,
       ].join(" ");
     res = res.filter((i) => searchable(i).toLowerCase().includes(lower));
+  }
+
+  if (statusFilterSet.size > 0) {
+    res = res.filter((i) =>
+      statusFilterSet.has(getFilterKeyByStatus(i.State) as CargoStatusFilterKey)
+    );
   }
 
   if (senderFilter) {

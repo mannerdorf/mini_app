@@ -2213,7 +2213,7 @@ function DashboardPage({
                                                                                     const dateColor = outOfSlaFromThisStep ? '#ef4444' : (planEndMs > 0 && stepMs > 0 ? '#22c55e' : 'var(--color-text-secondary)');
                                                                                     return (
                                                                                     <tr key={i} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{step.label}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', color: outOfSlaFromThisStep ? '#ef4444' : undefined }}>{step.label}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', color: dateColor }}>{formatTimelineDate(step.date)}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', color: dateColor }}>{formatTimelineTime(step.date)}</td>
                                                                                     </tr>
@@ -5132,6 +5132,7 @@ function CargoDetailsModal({
     isFavorite,
     onToggleFavorite,
     showSums = true,
+    useServiceRequest = false,
 }: {
     item: CargoItem;
     isOpen: boolean;
@@ -5141,12 +5142,14 @@ function CargoDetailsModal({
     isFavorite: (cargoNumber: string | undefined) => boolean;
     onToggleFavorite: (cargoNumber: string | undefined) => void;
     showSums?: boolean;
+    useServiceRequest?: boolean;
 }) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
     const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string; docType: string; blob?: Blob; downloadFileName?: string } | null>(null);
     const [perevozkaTimeline, setPerevozkaTimeline] = useState<PerevozkaTimelineStep[] | null>(null);
     const [perevozkaNomenclature, setPerevozkaNomenclature] = useState<Record<string, unknown>[]>([]);
+    const [nomenclatureOpen, setNomenclatureOpen] = useState(false);
     const [perevozkaLoading, setPerevozkaLoading] = useState(false);
     const [perevozkaError, setPerevozkaError] = useState<string | null>(null);
 
@@ -5172,6 +5175,11 @@ function CargoDetailsModal({
             .finally(() => { if (!cancelled) setPerevozkaLoading(false); });
         return () => { cancelled = true; };
     }, [isOpen, item?.Number, auth?.login, auth?.password]);
+
+    // По умолчанию номенклатура свернута при каждом открытии карточки/смене перевозки.
+    useEffect(() => {
+        if (isOpen) setNomenclatureOpen(false);
+    }, [isOpen, item?.Number]);
 
     // Очистка blob URL при закрытии
     useEffect(() => {
@@ -5224,6 +5232,15 @@ function CargoDetailsModal({
     const fromCity = cityToCode(item.CitySender) || '—';
     const receivedAtSender = perevozkaTimeline?.find(s => s.label === `Получена в ${fromCity}`);
     const deliveredStep = perevozkaTimeline?.find(s => s.label === 'Доставлена');
+    const slaPlanEndMs = receivedAtSender?.date
+        ? new Date(receivedAtSender.date).getTime() + getPlanDays(item) * 24 * 60 * 60 * 1000
+        : null;
+    const isTimelineStepOutOfSla = (stepDate?: string) => {
+        if (!slaPlanEndMs || !stepDate) return false;
+        const stepMs = new Date(stepDate).getTime();
+        if (!Number.isFinite(stepMs)) return false;
+        return stepMs > slaPlanEndMs;
+    };
     const slaFromTimeline = (receivedAtSender?.date && deliveredStep?.date)
         ? (() => {
             const startMs = new Date(receivedAtSender.date).getTime();
@@ -5327,7 +5344,7 @@ function CargoDetailsModal({
         
         try {
             const webApp = getWebApp();
-            const metod = DOCUMENT_METHODS[docType];
+            const metod = DOCUMENT_METHODS[docType] ?? docType;
             const origin = typeof window !== "undefined" ? window.location.origin : "";
             const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}${auth.isRegisteredUser ? "&isRegisteredUser=true" : ""}`;
 
@@ -5365,6 +5382,7 @@ function CargoDetailsModal({
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
         Order: 'Номер заявки заказчика',
+        AutoReg: 'Транспортное средство',
     };
 
     return (
@@ -5555,6 +5573,8 @@ function CargoDetailsModal({
                             if (val === undefined || val === null || val === "" || (typeof val === 'string' && val.trim() === "") || (typeof val === 'object' && val !== null && Object.keys(val).length === 0)) return null; 
                             // Пропускаем, если значение - 0
                             if (val === 0 && key.toLowerCase().includes('date') === false) return null;
+                            // AutoReg показываем только в служебном режиме
+                            if (key === 'AutoReg' && !useServiceRequest) return null;
                             const isFerry =
                                 item?.AK === true ||
                                 item?.AK === "true" ||
@@ -5601,13 +5621,14 @@ function CargoDetailsModal({
                                     />
                                     {perevozkaTimeline.map((step, index) => {
                                         const colorKey = getTimelineStepColor(step.label);
+                                        const outOfSlaFromThisStep = isTimelineStepOutOfSla(step.date);
                                         return (
                                             <div key={index} className="perevozka-timeline-item">
                                                 <div className={`perevozka-timeline-dot perevozka-timeline-dot-${colorKey}`} />
                                                 <div className="perevozka-timeline-content" style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                                    <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem' }}>{step.label}</Typography.Body>
+                                                    <Typography.Body style={{ fontWeight: 600, fontSize: '0.9rem', color: outOfSlaFromThisStep ? '#ef4444' : undefined }}>{step.label}</Typography.Body>
                                                     {step.date && (
-                                                        <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                        <Typography.Body style={{ fontSize: '0.8rem', color: outOfSlaFromThisStep ? '#ef4444' : 'var(--color-text-secondary)' }}>
                                                             <DateText value={step.date} />
                                                         </Typography.Body>
                                                     )}
@@ -5642,65 +5663,81 @@ function CargoDetailsModal({
                 {/* Табличная часть номенклатуры принятого груза */}
                 {!perevozkaLoading && perevozkaNomenclature.length > 0 && (
                     <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
-                        <Typography.Headline style={{ marginBottom: '0.75rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                            Номенклатура принятого груза
-                        </Typography.Headline>
-                        <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--color-border)' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                                <thead>
-                                    <tr style={{ backgroundColor: 'var(--color-bg-hover)' }}>
-                                        {Object.keys(perevozkaNomenclature[0]).map((col) => (
-                                            <th
-                                                key={col}
-                                                style={{
-                                                    padding: '0.5rem 0.75rem',
-                                                    textAlign: 'left',
-                                                    fontWeight: 600,
-                                                    borderBottom: '1px solid var(--color-border)',
-                                                }}
-                                            >
-                                                {col === 'Package' ? 'Штрихкод' : col === 'SKUs' ? 'Номенклатура' : col}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {perevozkaNomenclature.map((row, idx) => (
-                                        <tr key={idx} style={{ borderBottom: idx < perevozkaNomenclature.length - 1 ? '1px solid var(--color-border)' : undefined }}>
+                        <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setNomenclatureOpen((v) => !v)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setNomenclatureOpen((v) => !v);
+                                }
+                            }}
+                            style={{ cursor: 'pointer', userSelect: 'none', marginBottom: nomenclatureOpen ? '0.75rem' : 0 }}
+                            title={nomenclatureOpen ? 'Свернуть номенклатуру' : 'Показать номенклатуру'}
+                        >
+                            <Typography.Headline style={{ marginBottom: 0, fontSize: '0.9rem', fontWeight: 600 }}>
+                                {nomenclatureOpen ? '▼' : '▶'} Номенклатура принятого груза
+                            </Typography.Headline>
+                        </div>
+                        {nomenclatureOpen && (
+                            <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                    <thead>
+                                        <tr style={{ backgroundColor: 'var(--color-bg-hover)' }}>
                                             {Object.keys(perevozkaNomenclature[0]).map((col) => (
-                                                <td
+                                                <th
                                                     key={col}
-                                                    style={{ padding: '0.5rem 0.75rem', verticalAlign: 'top' }}
+                                                    style={{
+                                                        padding: '0.5rem 0.75rem',
+                                                        textAlign: 'left',
+                                                        fontWeight: 600,
+                                                        borderBottom: '1px solid var(--color-border)',
+                                                    }}
                                                 >
-                                                    {(() => {
-                                                        const val = row[col];
-                                                        if (val === undefined || val === null) return '—';
-                                                        if (Array.isArray(val)) {
-                                                            if (val.length === 0) return '—';
-                                                            const first = val[0];
-                                                            if (typeof first === 'object' && first !== null && ('SKU' in first || 'sku' in first)) {
-                                                                const list = val.map((it: any) => it?.SKU ?? it?.sku ?? '').filter((s: string) => String(s).trim());
-                                                                return list.length === 0 ? '—' : (
-                                                                    <span style={{ display: 'block', maxHeight: '12em', overflowY: 'auto' }}>
-                                                                        {list.map((sku: string, i: number) => (
-                                                                            <span key={i} style={{ display: 'block', marginBottom: i < list.length - 1 ? '0.25rem' : 0 }}>{sku}</span>
-                                                                        ))}
-                                                                    </span>
-                                                                );
-                                                            }
-                                                            return val.map((v: any) => String(v)).join(', ');
-                                                        }
-                                                        if (typeof val === 'object') return JSON.stringify(val);
-                                                        const s = String(val).trim();
-                                                        return s !== '' ? s : '—';
-                                                    })()}
-                                                </td>
+                                                    {col === 'Package' ? 'Штрихкод' : col === 'SKUs' ? 'Номенклатура' : col}
+                                                </th>
                                             ))}
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        {perevozkaNomenclature.map((row, idx) => (
+                                            <tr key={idx} style={{ borderBottom: idx < perevozkaNomenclature.length - 1 ? '1px solid var(--color-border)' : undefined }}>
+                                                {Object.keys(perevozkaNomenclature[0]).map((col) => (
+                                                    <td
+                                                        key={col}
+                                                        style={{ padding: '0.5rem 0.75rem', verticalAlign: 'top' }}
+                                                    >
+                                                        {(() => {
+                                                            const val = row[col];
+                                                            if (val === undefined || val === null) return '—';
+                                                            if (Array.isArray(val)) {
+                                                                if (val.length === 0) return '—';
+                                                                const first = val[0];
+                                                                if (typeof first === 'object' && first !== null && ('SKU' in first || 'sku' in first)) {
+                                                                    const list = val.map((it: any) => it?.SKU ?? it?.sku ?? '').filter((s: string) => String(s).trim());
+                                                                    return list.length === 0 ? '—' : (
+                                                                        <span style={{ display: 'block', maxHeight: '12em', overflowY: 'auto' }}>
+                                                                            {list.map((sku: string, i: number) => (
+                                                                                <span key={i} style={{ display: 'block', marginBottom: i < list.length - 1 ? '0.25rem' : 0 }}>{sku}</span>
+                                                                            ))}
+                                                                        </span>
+                                                                    );
+                                                                }
+                                                                return val.map((v: any) => String(v)).join(', ');
+                                                            }
+                                                            if (typeof val === 'object') return JSON.stringify(val);
+                                                            const s = String(val).trim();
+                                                            return s !== '' ? s : '—';
+                                                        })()}
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -5744,7 +5781,7 @@ function CargoDetailsModal({
                                         <Button 
                                             key={doc} 
                                             className={`doc-button ${isHighlighted ? 'doc-button-highlighted' : ''}`}
-                                            onClick={() => handleDownload(doc)} 
+                                            onClick={() => handleDownloadMax(doc)} 
                                             disabled={downloading === doc}
                                             style={isHighlighted ? {
                                                 border: '2px solid var(--color-primary-blue)',
@@ -8847,6 +8884,7 @@ export default function App() {
                         auth={{ login: activeAccount.login, password: activeAccount.password, inn: (overlayCargoInn ?? activeAccount.activeCustomerInn ?? undefined) || undefined, ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}) }}
                         onOpenChat={undefined}
                         showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
+                        useServiceRequest={useServiceRequest}
                         isFavorite={(n) => { try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; return arr.includes(n); } catch { return false; } }}
                         onToggleFavorite={(n) => { if (!n) return; try { const raw = localStorage.getItem('haulz.favorites'); const arr = raw ? JSON.parse(raw) : []; const set = new Set(arr); if (set.has(n)) set.delete(n); else set.add(n); localStorage.setItem('haulz.favorites', JSON.stringify([...set])); setOverlayFavVersion(v => v + 1); } catch {} }}
                     />
