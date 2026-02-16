@@ -201,8 +201,10 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         if (useServiceRequest) return;
         setCustomerFilter('');
         setActCustomerFilter('');
+        setTransportFilter('');
         setIsCustomerDropdownOpen(false);
         setIsActCustomerDropdownOpen(false);
+        setIsTransportDropdownOpen(false);
     }, [useServiceRequest]);
 
     /** Канонический ключ для сопоставления номера перевозки (с/без ведущих нулей) */
@@ -626,6 +628,8 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 </div>
                             ))}
                         </FilterDropdownPortal>
+                        {useServiceRequest && (
+                        <>
                         <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
                                 Транспортное средство: {transportFilter || 'Все'} <ChevronDown className="w-4 h-4"/>
@@ -637,6 +641,8 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 <div key={v} className="dropdown-item" onClick={() => { setTransportFilter(v); setIsTransportDropdownOpen(false); }}><Typography.Body>{v}</Typography.Body></div>
                             ))}
                         </FilterDropdownPortal>
+                        </>
+                        )}
                         {docSection === 'Счета' && (
                         <>
                         <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
