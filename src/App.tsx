@@ -5311,7 +5311,7 @@ function CargoDetailsModal({
             const fileName = data.name || `${docType}_${item.Number}.pdf`;
             const fileNameTranslit = transliterateFilename(fileName);
 
-            // Показываем встроенным просмотрщиком и сразу предлагаем скачать файл
+            // Сначала открываем встроенный просмотр (метод 4), затем запускаем скачивание.
             const url = URL.createObjectURL(blob);
             setPdfViewer({
                 url,
@@ -5320,8 +5320,9 @@ function CargoDetailsModal({
                 blob, // Сохраняем blob для скачивания
                 downloadFileName: fileNameTranslit
             });
-            // Немедленное скачивание файла (как раньше)
-            downloadFile(blob, fileNameTranslit);
+            setTimeout(() => {
+                downloadFile(blob, fileNameTranslit);
+            }, 120);
             
             // Если скачали УПД в MAX - закрываем мини-апп после скачивания
             if (docType === 'УПД' && isMaxWebApp()) {
@@ -5336,44 +5337,6 @@ function CargoDetailsModal({
         } catch (e: any) { setDownloadError(e.message); } finally { setDownloading(null); }
     };
 
-
-    const handleDownloadMax = async (docType: string) => {
-        if (!item.Number) return alert("Нет номера перевозки");
-        setDownloading(docType); 
-        setDownloadError(null);
-        
-        try {
-            const webApp = getWebApp();
-            const metod = DOCUMENT_METHODS[docType] ?? docType;
-            const origin = typeof window !== "undefined" ? window.location.origin : "";
-            const directUrl = `${origin}${PROXY_API_DOWNLOAD_URL}?login=${encodeURIComponent(auth.login)}&password=${encodeURIComponent(auth.password)}&metod=${encodeURIComponent(metod)}&number=${encodeURIComponent(item.Number)}${auth.isRegisteredUser ? "&isRegisteredUser=true" : ""}`;
-
-            // Сокращаем ссылку через наш прокси (TinyURL)
-            const shortenRes = await fetch('/api/shorten', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: directUrl })
-            });
-
-            if (!shortenRes.ok) {
-                throw new Error("Ошибка сокращения ссылки");
-            }
-
-            const { short_url } = await shortenRes.json();
-
-            if (webApp && typeof webApp.openLink === "function") {
-                webApp.openLink(short_url, { try_instant_view: false } as any);
-            } else {
-                window.open(short_url, "_blank", "noopener,noreferrer");
-            }
-            
-        } catch (e: any) {
-            setDownloadError(e.message || "Ошибка");
-            console.error("Download error:", e);
-        } finally {
-            setDownloading(null);
-        }
-    };
 
     // Список явно отображаемых полей (из API примера). INN скрыт — используется для БД и проверки дублей, не показываем в карточке.
     const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role'];
@@ -5781,7 +5744,7 @@ function CargoDetailsModal({
                                         <Button 
                                             key={doc} 
                                             className={`doc-button ${isHighlighted ? 'doc-button-highlighted' : ''}`}
-                                            onClick={() => handleDownloadMax(doc)} 
+                                            onClick={() => handleDownload(doc)} 
                                             disabled={downloading === doc}
                                             style={isHighlighted ? {
                                                 border: '2px solid var(--color-primary-blue)',
