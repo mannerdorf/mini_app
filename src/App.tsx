@@ -8079,6 +8079,13 @@ function getInitialAuthState(): typeof EMPTY_AUTH_STATE {
 }
 
 export default function App() {
+    // Тема и состояние — объявляем первыми, т.к. используются в первом useEffect (избегаем TDZ при минификации)
+    const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+        if (typeof window === 'undefined') return 'dark';
+        const saved = window.localStorage.getItem('haulz.theme');
+        return (saved === 'dark' || saved === 'light') ? saved : 'dark';
+    });
+
     // --- Telegram Init ---
     useEffect(() => {
         let mounted = true;
@@ -8321,11 +8328,6 @@ export default function App() {
         status?: StatusFilter;
         search?: string;
     } | null>(null);
-    const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-        if (typeof window === 'undefined') return 'dark';
-        const saved = window.localStorage.getItem('haulz.theme');
-        return (saved === 'dark' || saved === 'light') ? saved : 'dark';
-    }); 
     const [showDashboard, setShowDashboard] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
     const [pinCode, setPinCode] = useState('');

@@ -60,10 +60,13 @@ export class ErrorBoundary extends Component<Props, State> {
               {err.message}
             </p>
           )}
-          {showDebug && err?.stack && (
-            <pre style={{ fontSize: "0.7rem", color: "#b91c1c", background: "#fef2f2", padding: "0.75rem", borderRadius: "0.5rem", maxWidth: "100%", overflow: "auto", marginBottom: "1rem", textAlign: "left" }}>
-              {err.stack}
-            </pre>
+          {err?.stack && (
+            <details style={{ marginBottom: "1rem", maxWidth: "100%" }}>
+              <summary style={{ fontSize: "0.8rem", cursor: "pointer", color: "#b91c1c" }}>Подробности (stack trace)</summary>
+              <pre style={{ fontSize: "0.7rem", color: "#b91c1c", background: "#fef2f2", padding: "0.75rem", borderRadius: "0.5rem", maxWidth: "100%", overflow: "auto", marginTop: "0.5rem", textAlign: "left" }}>
+                {err.stack}
+              </pre>
+            </details>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>
             <button
