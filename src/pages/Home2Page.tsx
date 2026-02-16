@@ -22,7 +22,16 @@ import { STATUS_MAP, BILL_STATUS_MAP } from "../lib/statusUtils";
 import type { DateFilter } from "../types";
 import type { StatusFilter } from "../types";
 import type { BillStatusFilterKey } from "../lib/statusUtils";
-import { stripOoo, formatCurrency } from "../lib/formatUtils";
+import { stripOoo, formatCurrency, cityToCode } from "../lib/formatUtils";
+import {
+  getFilterKeyByStatus,
+  getPaymentFilterKey,
+  isReceivedInfoStatus,
+} from "../lib/statusUtils";
+import { usePerevozki, usePrevPeriodPerevozki } from "../hooks/useApi";
+import type { AuthData } from "../types";
+import type { CargoItem } from "../types";
+import { isDateInRange } from "../lib/dateUtils";
 
 const {
   getDateRange,
@@ -55,29 +64,32 @@ export type PeriodToPeriodTrend = {
 } | null;
 
 type Home2PageProps = {
+  /** Текущий авторизованный аккаунт — при переданном auth загружаются перевозки и считаются свод/тренд */
+  auth?: AuthData | null;
   /** Служебный режим: показывать фильтр «Статус счёта» и динамику к прошлому периоду в полоске */
   useServiceRequest?: boolean;
-  /** Список отправителей для выпадающего списка (если не передан — только «Все») */
+  /** Список отправителей для выпадающего списка (если не передан — строится из загруженных перевозок) */
   uniqueSenders?: string[];
-  /** Список получателей для выпадающего списка */
+  /** Список получателей для выпадающего списка (если не передан — строится из загруженных перевозок) */
   uniqueReceivers?: string[];
-  /** Свод за период для полоски (если не передан — показываем «—») */
+  /** Свод за период для полоски (если не передан — считается из загруженных перевозок по фильтрам) */
   stripSummary?: StripSummary | null;
-  /** Динамика к прошлому периоду (только в служебном режиме) */
+  /** Динамика к прошлому периоду (если не передан — считается при useServiceRequest и наличии данных) */
   periodToPeriodTrend?: PeriodToPeriodTrend;
-  /** Идёт загрузка данных прошлого периода (показываем спиннер в полоске) */
+  /** Идёт загрузка данных прошлого периода (если не передан — берётся из usePrevPeriodPerevozki) */
   prevPeriodLoading?: boolean;
   /** Показывать рубли в переключателях полоски (как на дашборде при showSums) */
   showSums?: boolean;
 };
 
 export function Home2Page({
+  auth = null,
   useServiceRequest = false,
-  uniqueSenders = [],
-  uniqueReceivers = [],
-  stripSummary = null,
-  periodToPeriodTrend = null,
-  prevPeriodLoading = false,
+  uniqueSenders: uniqueSendersProp,
+  uniqueReceivers: uniqueReceiversProp,
+  stripSummary: stripSummaryProp,
+  periodToPeriodTrend: periodToPeriodTrendProp,
+  prevPeriodLoading: prevPeriodLoadingProp,
   showSums = true,
 }: Home2PageProps) {
   const initDate = () => loadDateFilterState();
@@ -170,7 +182,7 @@ export function Home2Page({
               })()
             : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1);
 
-  const { apiDateRange } = useMemo(() => {
+  const { apiDateRange, prevRange } = useMemo(() => {
     const api =
       dateFilter === "период"
         ? { dateFrom: customDateFrom, dateTo: customDateTo }
@@ -207,8 +219,292 @@ export function Home2Page({
     selectedWeekForFilter,
   ]);
 
+  const { items } = usePerevozki({
+    auth: auth ?? null,
+    dateFrom: apiDateRange.dateFrom,
+    dateTo: apiDateRange.dateTo,
+    useServiceRequest,
+    inn: !useServiceRequest && auth ? auth.inn : undefined,
+  });
+
+  const { items: prevPeriodItems, loading: prevPeriodLoadingFromHook } =
+    usePrevPeriodPerevozki({
+      auth: auth ?? null,
+      dateFrom: apiDateRange.dateFrom,
+      dateTo: apiDateRange.dateTo,
+      dateFromPrev: prevRange?.dateFrom ?? "",
+      dateToPrev: prevRange?.dateTo ?? "",
+      useServiceRequest,
+      enabled:
+        !!useServiceRequest &&
+        !!prevRange &&
+        !!auth?.login &&
+        !!auth?.password,
+    });
+
+  const filteredItems = useMemo(() => {
+    let res = items.filter((i) => !isReceivedInfoStatus(i.State));
+    if (statusFilter === "favorites") {
+      try {
+        const favorites = JSON.parse(
+          localStorage.getItem("haulz.favorites") ?? "[]"
+        ) as string[];
+        res = res.filter((i) => i.Number && favorites.includes(i.Number));
+      } catch {
+        // ignore
+      }
+    } else if (statusFilter !== "all") {
+      res = res.filter(
+        (i) => getFilterKeyByStatus(i.State) === statusFilter
+      );
+    }
+    if (senderFilter)
+      res = res.filter(
+        (i) => (i.Sender ?? "").trim() === senderFilter
+      );
+    if (receiverFilter)
+      res = res.filter(
+        (i) =>
+          (i.Receiver ?? (i as CargoItem & { receiver?: string }).receiver ?? "").trim() ===
+          receiverFilter
+      );
+    if (billStatusFilter !== "all")
+      res = res.filter(
+        (i) => getPaymentFilterKey(i.StateBill) === billStatusFilter
+      );
+    if (typeFilter === "ferry")
+      res = res.filter(
+        (i) =>
+          i?.AK === true ||
+          i?.AK === "true" ||
+          i?.AK === "1" ||
+          i?.AK === 1
+      );
+    if (typeFilter === "auto")
+      res = res.filter(
+        (i) =>
+          !(
+            i?.AK === true ||
+            i?.AK === "true" ||
+            i?.AK === "1" ||
+            i?.AK === 1
+          )
+      );
+    if (routeFilter === "MSK-KGD")
+      res = res.filter(
+        (i) =>
+          cityToCode(i.CitySender) === "MSK" &&
+          cityToCode(i.CityReceiver) === "KGD"
+      );
+    if (routeFilter === "KGD-MSK")
+      res = res.filter(
+        (i) =>
+          cityToCode(i.CitySender) === "KGD" &&
+          cityToCode(i.CityReceiver) === "MSK"
+      );
+    return res;
+  }, [
+    items,
+    statusFilter,
+    senderFilter,
+    receiverFilter,
+    billStatusFilter,
+    typeFilter,
+    routeFilter,
+  ]);
+
+  const filteredPrevPeriodItems = useMemo(() => {
+    if (!useServiceRequest || prevPeriodItems.length === 0) return [];
+    let res = prevPeriodItems.filter((i) => !isReceivedInfoStatus(i.State));
+    if (statusFilter === "favorites") {
+      try {
+        const favorites = JSON.parse(
+          localStorage.getItem("haulz.favorites") ?? "[]"
+        ) as string[];
+        res = res.filter((i) => i.Number && favorites.includes(i.Number));
+      } catch {
+        // ignore
+      }
+    } else if (statusFilter !== "all") {
+      res = res.filter(
+        (i) => getFilterKeyByStatus(i.State) === statusFilter
+      );
+    }
+    if (senderFilter)
+      res = res.filter(
+        (i) => (i.Sender ?? "").trim() === senderFilter
+      );
+    if (receiverFilter)
+      res = res.filter(
+        (i) =>
+          (i.Receiver ?? (i as CargoItem & { receiver?: string }).receiver ?? "").trim() ===
+          receiverFilter
+      );
+    if (billStatusFilter !== "all")
+      res = res.filter(
+        (i) => getPaymentFilterKey(i.StateBill) === billStatusFilter
+      );
+    if (typeFilter === "ferry")
+      res = res.filter(
+        (i) =>
+          i?.AK === true ||
+          i?.AK === "true" ||
+          i?.AK === "1" ||
+          i?.AK === 1
+      );
+    if (typeFilter === "auto")
+      res = res.filter(
+        (i) =>
+          !(
+            i?.AK === true ||
+            i?.AK === "true" ||
+            i?.AK === "1" ||
+            i?.AK === 1
+          )
+      );
+    if (routeFilter === "MSK-KGD")
+      res = res.filter(
+        (i) =>
+          cityToCode(i.CitySender) === "MSK" &&
+          cityToCode(i.CityReceiver) === "KGD"
+      );
+    if (routeFilter === "KGD-MSK")
+      res = res.filter(
+        (i) =>
+          cityToCode(i.CitySender) === "KGD" &&
+          cityToCode(i.CityReceiver) === "MSK"
+      );
+    return res;
+  }, [
+    prevPeriodItems,
+    useServiceRequest,
+    statusFilter,
+    senderFilter,
+    receiverFilter,
+    billStatusFilter,
+    typeFilter,
+    routeFilter,
+  ]);
+
+  const stripSummaryComputed = useMemo((): StripSummary | null => {
+    if (filteredItems.length === 0) return null;
+    let sum = 0,
+      paidWeight = 0,
+      weight = 0,
+      volume = 0,
+      pieces = 0;
+    filteredItems.forEach((item) => {
+      sum +=
+        typeof item.Sum === "string"
+          ? parseFloat(item.Sum) || 0
+          : (item.Sum || 0);
+      paidWeight +=
+        typeof item.PW === "string"
+          ? parseFloat(item.PW) || 0
+          : (item.PW || 0);
+      weight +=
+        typeof item.W === "string"
+          ? parseFloat(item.W) || 0
+          : (item.W || 0);
+      volume +=
+        typeof item.Value === "string"
+          ? parseFloat(item.Value) || 0
+          : (item.Value || 0);
+      pieces +=
+        typeof item.Mest === "string"
+          ? parseFloat(item.Mest) || 0
+          : (item.Mest || 0);
+    });
+    return { sum, paidWeight, weight, volume, pieces };
+  }, [filteredItems]);
+
+  const periodToPeriodTrendComputed = useMemo((): PeriodToPeriodTrend => {
+    if (
+      !useServiceRequest ||
+      filteredPrevPeriodItems.length === 0
+    )
+      return null;
+    const getVal = (item: CargoItem) => {
+      if (chartType === "money")
+        return typeof item.Sum === "string"
+          ? parseFloat(item.Sum) || 0
+          : (item.Sum || 0);
+      if (chartType === "paidWeight")
+        return typeof item.PW === "string"
+          ? parseFloat(item.PW) || 0
+          : (item.PW || 0);
+      if (chartType === "weight")
+        return typeof item.W === "string"
+          ? parseFloat(item.W) || 0
+          : (item.W || 0);
+      if (chartType === "pieces")
+        return typeof item.Mest === "string"
+          ? parseFloat(item.Mest) || 0
+          : (item.Mest || 0);
+      return typeof item.Value === "string"
+        ? parseFloat(item.Value) || 0
+        : (item.Value || 0);
+    };
+    const currentVal = filteredItems.reduce(
+      (acc, item) => acc + getVal(item),
+      0
+    );
+    const prevVal = filteredPrevPeriodItems.reduce(
+      (acc, item) => acc + getVal(item),
+      0
+    );
+    if (prevVal === 0)
+      return currentVal > 0 ? { direction: "up", percent: 100 } : null;
+    const percent = Math.round(
+      ((currentVal - prevVal) / prevVal) * 100
+    );
+    return {
+      direction:
+        currentVal > prevVal ? "up" : currentVal < prevVal ? "down" : null,
+      percent: Math.abs(percent),
+    };
+  }, [
+    useServiceRequest,
+    filteredItems,
+    filteredPrevPeriodItems,
+    chartType,
+  ]);
+
+  const uniqueSenders = useMemo(() => {
+    if (uniqueSendersProp !== undefined) return uniqueSendersProp;
+    return [
+      ...new Set(
+        items.map((i) => (i.Sender ?? "").trim()).filter(Boolean)
+      ),
+    ].sort();
+  }, [items, uniqueSendersProp]);
+
+  const uniqueReceivers = useMemo(() => {
+    if (uniqueReceiversProp !== undefined) return uniqueReceiversProp;
+    return [
+      ...new Set(
+        items.map((i) =>
+          (i.Receiver ?? (i as CargoItem & { receiver?: string }).receiver ?? "").trim()
+        ).filter(Boolean),
+      ),
+    ].sort();
+  }, [items, uniqueReceiversProp]);
+
   const [chartType, setChartType] = useState<ChartType>("money");
   const [stripExpanded, setStripExpanded] = useState(true);
+
+  const stripSummary =
+    stripSummaryProp !== undefined && stripSummaryProp !== null
+      ? stripSummaryProp
+      : stripSummaryComputed;
+  const periodToPeriodTrend =
+    periodToPeriodTrendProp !== undefined && periodToPeriodTrendProp !== null
+      ? periodToPeriodTrendProp
+      : periodToPeriodTrendComputed;
+  const prevPeriodLoading =
+    prevPeriodLoadingProp !== undefined
+      ? prevPeriodLoadingProp
+      : prevPeriodLoadingFromHook;
 
   const formatStripValue = (): string => {
     if (!stripSummary) return "—";
