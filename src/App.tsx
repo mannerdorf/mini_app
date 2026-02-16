@@ -5499,7 +5499,7 @@ function CargoPage({
                         style={{ cursor: 'pointer', border: 'none', background: 'transparent', padding: 2 }}
                         aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}
                     >
-                        <TapSwitch checked={tableModeByCustomer} onToggle={() => {}} />
+                        <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
                     </button>
                 </Flex>
             </Flex>
