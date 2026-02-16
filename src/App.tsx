@@ -4056,6 +4056,7 @@ function ProfilePage({
                                                         const presetId = e.target.value;
                                                         if (!presetId || !activeAccount?.login || !activeAccount?.password) return;
                                                         setEmployeePresetLoadingId(emp.id);
+                                                        setEmployeesError(null);
                                                         try {
                                                             const res = await fetch(`/api/my-employees?id=${emp.id}`, {
                                                                 method: 'PATCH',
@@ -4066,6 +4067,8 @@ function ProfilePage({
                                                             if (!res.ok) throw new Error(data.error || 'Ошибка');
                                                             const newLabel = rolePresets.find((p) => p.id === presetId)?.label ?? emp.presetLabel;
                                                             setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, presetLabel: newLabel } : e));
+                                                        } catch (e) {
+                                                            setEmployeesError((e as Error)?.message || 'Не удалось изменить роль');
                                                         } finally {
                                                             setEmployeePresetLoadingId(null);
                                                         }
@@ -4080,15 +4083,18 @@ function ProfilePage({
                                                 <TapSwitch
                                                     checked={emp.active}
                                                     onToggle={async () => {
+                                                        setEmployeesError(null);
                                                         try {
                                                             const res = await fetch(`/api/my-employees?id=${emp.id}`, {
                                                                 method: 'PATCH',
                                                                 headers: { 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, active: !emp.active }),
                                                             });
-                                                            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error);
+                                                            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Не удалось изменить доступ');
                                                             setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, active: !e.active } : e));
-                                                        } catch {}
+                                                        } catch (e) {
+                                                            setEmployeesError((e as Error)?.message || 'Не удалось изменить доступ');
+                                                        }
                                                     }}
                                                 />
                                                 <Button
@@ -4237,6 +4243,7 @@ function ProfilePage({
                                                         const presetId = e.target.value;
                                                         if (!presetId || !activeAccount?.login || !activeAccount?.password) return;
                                                         setEmployeePresetLoadingId(emp.id);
+                                                        setEmployeesError(null);
                                                         try {
                                                             const res = await fetch(`/api/my-employees?id=${emp.id}`, {
                                                                 method: 'PATCH',
@@ -4247,6 +4254,8 @@ function ProfilePage({
                                                             if (!res.ok) throw new Error(data.error || 'Ошибка');
                                                             const newLabel = rolePresets.find((p) => p.id === presetId)?.label ?? emp.presetLabel;
                                                             setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, presetLabel: newLabel } : e));
+                                                        } catch (e) {
+                                                            setEmployeesError((e as Error)?.message || 'Не удалось изменить роль');
                                                         } finally {
                                                             setEmployeePresetLoadingId(null);
                                                         }
@@ -4261,15 +4270,18 @@ function ProfilePage({
                                                 <TapSwitch
                                                     checked={emp.active}
                                                     onToggle={async () => {
+                                                        setEmployeesError(null);
                                                         try {
                                                             const res = await fetch(`/api/my-employees?id=${emp.id}`, {
                                                                 method: 'PATCH',
                                                                 headers: { 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, active: !emp.active }),
                                                             });
-                                                            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error);
+                                                            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Не удалось изменить доступ');
                                                             setEmployeesList((prev) => prev.map((e) => e.id === emp.id ? { ...e, active: !e.active } : e));
-                                                        } catch {}
+                                                        } catch (e) {
+                                                            setEmployeesError((e as Error)?.message || 'Не удалось изменить доступ');
+                                                        }
                                                     }}
                                                 />
                                                 <Button

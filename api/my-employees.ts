@@ -213,10 +213,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       values.push(id, inviterId);
-      const { rowCount } = await pool.query(
-        `UPDATE registered_users SET ${setParts.join(", ")} WHERE id = $${++paramIndex} AND invited_by_user_id = $${++paramIndex}`,
-        values
-      );
+      let rowCount = 0;
+      try {
+        const result = await pool.query(
+          `UPDATE registered_users SET ${setParts.join(", ")} WHERE id = $${++paramIndex} AND invited_by_user_id = $${++paramIndex}`,
+          values
+        );
+        rowCount = result.rowCount ?? 0;
+      } catch (e: unknown) {
+        const err = e as { code?: string; message?: string };
+        // Backward compatibility for DBs without registered_users.updated_at column.
+        if (err?.code === "42703" || err?.message?.includes("updated_at")) {
+          const fallbackSetParts = setParts.filter((p) => p !== "updated_at = now()");
+          if (fallbackSetParts.length === 0) {
+            return res.status(500).json({ error: "Ошибка обновления" });
+          }
+          const fallbackResult = await pool.query(
+            `UPDATE registered_users SET ${fallbackSetParts.join(", ")} WHERE id = $${paramIndex - 1} AND invited_by_user_id = $${paramIndex}`,
+            values
+          );
+          rowCount = fallbackResult.rowCount ?? 0;
+        } else {
+          throw e;
+        }
+      }
       if (rowCount === 0) {
         return res.status(404).json({ error: "Сотрудник не найден или доступ запрещён" });
       }
