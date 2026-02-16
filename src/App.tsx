@@ -31,7 +31,7 @@ import { DateText } from "./components/ui/DateText";
 import { DetailItem } from "./components/ui/DetailItem";
 import { FilterDialog } from "./components/shared/FilterDialog";
 import { StatusBadge, StatusBillBadge } from "./components/shared/StatusBadges";
-import { normalizeStatus, getFilterKeyByStatus, getPaymentFilterKey, getSumColorByPaymentStatus, isReceivedInfoStatus, BILL_STATUS_MAP, STATUS_MAP } from "./lib/statusUtils";
+import { normalizeStatus, getFilterKeyByStatus, getPaymentFilterKey, getSumColorByPaymentStatus, isReceivedInfoStatus, BILL_STATUS_MAP, STATUS_MAP, isValidStatusFilter } from "./lib/statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "./lib/slaWorkSchedule";
 import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
@@ -1648,7 +1648,7 @@ function DashboardPage({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false);  setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
+                            Статус: {STATUS_MAP[statusFilter] ?? 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen} onClose={() => setIsStatusDropdownOpen(false)}>
@@ -5248,7 +5248,7 @@ function CargoPage({
     }, [items, onCustomerDetected]);
 
     useEffect(() => {
-        if (initialStatusFilter) setStatusFilter(initialStatusFilter);
+        if (initialStatusFilter && isValidStatusFilter(initialStatusFilter)) setStatusFilter(initialStatusFilter);
         setIsStatusDropdownOpen(false);
         if (initialStatusFilter) {
             onClearQuickFilters?.();
@@ -5725,12 +5725,12 @@ function CargoPage({
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={statusButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsStatusDropdownOpen(!isStatusDropdownOpen); setIsDateDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); }}>
-                            Статус: {STATUS_MAP[statusFilter]} <ChevronDown className="w-4 h-4"/>
+                            Статус: {STATUS_MAP[statusFilter] ?? 'Все'} <ChevronDown className="w-4 h-4"/>
                         </Button>
                     </div>
                     <FilterDropdownPortal triggerRef={statusButtonRef} isOpen={isStatusDropdownOpen} onClose={() => setIsStatusDropdownOpen(false)}>
                         <div className="dropdown-item" onClick={() => { setStatusFilter('all'); setIsStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                        {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'all').map(key => (
+                        {(Object.keys(STATUS_MAP) as StatusFilter[]).filter((k): k is StatusFilter => k !== 'all').map(key => (
                             <div key={key} className="dropdown-item" onClick={() => { setStatusFilter(key); setIsStatusDropdownOpen(false); }}>
                                 <Typography.Body>{STATUS_MAP[key]}</Typography.Body>
                             </div>

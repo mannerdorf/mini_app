@@ -48,6 +48,11 @@ export const getFilterKeyByStatus = (s: string | undefined): StatusFilter => {
 
 export const STATUS_MAP: Record<StatusFilter, string> = { "all": "Все", "in_transit": "В пути", "ready": "Готов к выдаче", "delivering": "На доставке", "delivered": "Доставлено", "favorites": "Избранные" };
 
+const STATUS_KEYS = Object.keys(STATUS_MAP) as StatusFilter[];
+export function isValidStatusFilter(value: unknown): value is StatusFilter {
+    return typeof value === "string" && STATUS_KEYS.includes(value as StatusFilter);
+}
+
 export const getStatusClass = (status: string | undefined) => {
     const normalized = normalizeStatus(status);
     const lower = (normalized || '').toLowerCase();
