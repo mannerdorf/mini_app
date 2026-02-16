@@ -30,8 +30,21 @@ export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children }: 
             if (containerRef.current?.contains(target)) return;
             onClose();
         };
-        document.addEventListener("mousedown", handleMouseDown);
-        return () => document.removeEventListener("mousedown", handleMouseDown);
+        const handlePointerDown = (e: PointerEvent) => {
+            const target = e.target as Node;
+            if (triggerRef.current?.contains(target)) return;
+            if (containerRef.current?.contains(target)) return;
+            onClose();
+        };
+        const t = setTimeout(() => {
+            document.addEventListener("mousedown", handleMouseDown);
+            document.addEventListener("pointerdown", handlePointerDown);
+        }, 80);
+        return () => {
+            clearTimeout(t);
+            document.removeEventListener("mousedown", handleMouseDown);
+            document.removeEventListener("pointerdown", handlePointerDown);
+        };
     }, [isOpen, onClose, triggerRef]);
 
     if (!isOpen || !rect || typeof document === "undefined") return null;

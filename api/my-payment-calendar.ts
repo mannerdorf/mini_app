@@ -74,7 +74,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       days_to_pay: r.days_to_pay,
       payment_weekdays: Array.isArray(r.payment_weekdays) ? r.payment_weekdays.filter((d) => d >= 1 && d <= 5) : [],
     }));
-    return res.status(200).json({ items });
+
+    let workSchedules: { inn: string; days_of_week: number[]; work_start: string; work_end: string }[] = [];
+    try {
+      const wsResult = await pool.query<{ inn: string; days_of_week: number[]; work_start: string; work_end: string }>(
+        "SELECT inn, COALESCE(days_of_week, ARRAY[1,2,3,4,5]::smallint[])::integer[] AS days_of_week, work_start::text, work_end::text FROM customer_work_schedule WHERE inn = ANY($1)",
+        [inns]
+      );
+      workSchedules = wsResult.rows.map((r) => {
+        const ws = String(r.work_start || "09:00").slice(0, 5);
+        const we = String(r.work_end || "18:00").slice(0, 5);
+        return {
+          inn: r.inn,
+          days_of_week: Array.isArray(r.days_of_week) ? r.days_of_week.filter((d) => d >= 1 && d <= 7) : [1, 2, 3, 4, 5],
+          work_start: /^\d{1,2}:\d{2}$/.test(ws) ? ws : "09:00",
+          work_end: /^\d{1,2}:\d{2}$/.test(we) ? we : "18:00",
+        };
+      });
+    } catch {
+      // customer_work_schedule может отсутствовать до миграции 024
+    }
+    return res.status(200).json({ items, work_schedules: workSchedules });
   } catch (e: unknown) {
     const err = e as Error;
     console.error("my-payment-calendar error:", err);

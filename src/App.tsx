@@ -32,6 +32,7 @@ import { DetailItem } from "./components/ui/DetailItem";
 import { FilterDialog } from "./components/shared/FilterDialog";
 import { StatusBadge, StatusBillBadge } from "./components/shared/StatusBadges";
 import { normalizeStatus, getFilterKeyByStatus, getPaymentFilterKey, getSumColorByPaymentStatus, isReceivedInfoStatus, BILL_STATUS_MAP, STATUS_MAP } from "./lib/statusUtils";
+import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "./lib/slaWorkSchedule";
 import type { BillStatusFilterKey } from "./lib/statusUtils";
 import { CustomPeriodModal } from "./components/modals/CustomPeriodModal";
 const DocumentsPage = lazy(() => import("./pages/DocumentsPage").then(m => ({ default: m.DocumentsPage })));
@@ -79,18 +80,43 @@ function getPlanDays(item: CargoItem): number {
     return isFerry(item) ? FERRY_PLAN_DAYS : AUTO_PLAN_DAYS;
 }
 
-/** SLA: начало расчёта — дата приёмки + 1 день (не с даты приёмки). */
-function getSlaInfo(item: CargoItem): { planDays: number; actualDays: number; onTime: boolean; delayDays: number } | null {
+function getInnFromCargo(item: CargoItem): string | null {
+    const inn = (item?.INN ?? item?.Inn ?? item?.inn ?? "").toString().trim();
+    return inn.length > 0 ? inn : null;
+}
+
+/** SLA: начало расчёта — дата приёмки + 1 день (не с даты приёмки).
+ * Для статусов «Готов к выдаче» и «На доставке» при наличии рабочего графика заказчика
+ * считаются только рабочие дни и часы (нерабочее время не входит в SLA).
+ */
+function getSlaInfo(
+    item: CargoItem,
+    workScheduleByInn?: Record<string, WorkSchedule>
+): { planDays: number; actualDays: number; onTime: boolean; delayDays: number } | null {
     const fromDate = item?.DatePrih ? new Date(item.DatePrih) : null;
-    const to = item?.DateVr ? new Date(item.DateVr).getTime() : NaN;
-    if (!fromDate || isNaN(fromDate.getTime()) || isNaN(to)) return null;
+    const toDate = item?.DateVr ? new Date(item.DateVr) : null;
+    if (!fromDate || isNaN(fromDate.getTime()) || !toDate || isNaN(toDate.getTime())) return null;
     fromDate.setDate(fromDate.getDate() + 1);
-    const from = fromDate.getTime();
-    const actualDays = Math.round((to - from) / (24 * 60 * 60 * 1000));
     const planDays = getPlanDays(item);
-    const onTime = actualDays <= planDays;
-    const delayDays = Math.max(0, actualDays - planDays);
-    return { planDays, actualDays, onTime, delayDays };
+    const statusKey = getFilterKeyByStatus(item.State);
+    const useWorkSchedule = (statusKey === "ready" || statusKey === "delivering") && workScheduleByInn;
+    const inn = getInnFromCargo(item);
+    const schedule = useWorkSchedule && inn ? workScheduleByInn[inn] : undefined;
+
+    let actualDays: number;
+    let planWorkingDays: number;
+    if (schedule) {
+        actualDays = Math.round(workingDaysBetween(fromDate, toDate, schedule) * 10) / 10;
+        planWorkingDays = Math.round(workingDaysInPlan(fromDate, planDays, schedule) * 10) / 10;
+    } else {
+        const from = fromDate.getTime();
+        const to = toDate.getTime();
+        actualDays = Math.round((to - from) / (24 * 60 * 60 * 1000));
+        planWorkingDays = planDays;
+    }
+    const onTime = actualDays <= planWorkingDays;
+    const delayDays = Math.max(0, Math.round((actualDays - planWorkingDays) * 10) / 10);
+    return { planDays: planWorkingDays, actualDays, onTime, delayDays };
 }
 
 // Статистика (заглушка) - оставлено, так как компонент HomePage остается, но не используется
@@ -705,6 +731,8 @@ function DashboardPage({
     const [slaTableSortOrder, setSlaTableSortOrder] = useState<'asc' | 'desc'>('asc');
     /** Платёжный календарь: дни на оплату по ИНН (для hasAnalytics) */
     const [paymentCalendarByInn, setPaymentCalendarByInn] = useState<Record<string, { days_to_pay: number; payment_weekdays: number[] }>>({});
+    /** Рабочие графики заказчиков (для SLA при статусах «Готов к выдаче» / «На доставке») */
+    const [workScheduleByInn, setWorkScheduleByInn] = useState<Record<string, WorkSchedule>>({});
     const [paymentCalendarLoading, setPaymentCalendarLoading] = useState(false);
     const [paymentCalendarMonth, setPaymentCalendarMonth] = useState<{ year: number; month: number }>(() => {
         const n = new Date();
@@ -898,7 +926,7 @@ function DashboardPage({
             body: JSON.stringify({ login: auth.login, password: auth.password }),
         })
             .then((r) => r.json())
-            .then((data: { items?: { inn: string; days_to_pay: number; payment_weekdays?: number[] }[] }) => {
+            .then((data: { items?: { inn: string; days_to_pay: number; payment_weekdays?: number[] }[]; work_schedules?: { inn: string; days_of_week: number[]; work_start: string; work_end: string }[] }) => {
                 if (cancelled) return;
                 const map: Record<string, { days_to_pay: number; payment_weekdays: number[] }> = {};
                 (data?.items ?? []).forEach((row) => {
@@ -909,11 +937,39 @@ function DashboardPage({
                     map[inn] = { days_to_pay: days, payment_weekdays: weekdays };
                 });
                 setPaymentCalendarByInn(map);
+                const ws: Record<string, WorkSchedule> = {};
+                (data?.work_schedules ?? []).forEach((r) => {
+                    if (r?.inn) ws[r.inn.trim()] = { days_of_week: r.days_of_week ?? [1, 2, 3, 4, 5], work_start: r.work_start || '09:00', work_end: r.work_end || '18:00' };
+                });
+                if (!cancelled) setWorkScheduleByInn((prev) => ({ ...prev, ...ws }));
             })
             .catch(() => { if (!cancelled) setPaymentCalendarByInn({}); })
             .finally(() => { if (!cancelled) setPaymentCalendarLoading(false); });
         return () => { cancelled = true; };
     }, [showPaymentCalendar, auth?.login, auth?.password]);
+
+    useEffect(() => {
+        if (!useServiceRequest || !auth?.login || !auth?.password || filteredItems.length === 0) return;
+        const inns = [...new Set(filteredItems.map((i) => getInnFromCargo(i)).filter((x): x is string => !!x))];
+        if (inns.length === 0) return;
+        let cancelled = false;
+        fetch('/api/customer-work-schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: auth.login, password: auth.password, inns }),
+        })
+            .then((r) => r.json())
+            .then((data: { items?: { inn: string; days_of_week: number[]; work_start: string; work_end: string }[] }) => {
+                if (cancelled) return;
+                const ws: Record<string, WorkSchedule> = {};
+                (data?.items ?? []).forEach((r) => {
+                    if (r?.inn) ws[r.inn.trim()] = { days_of_week: r.days_of_week ?? [1, 2, 3, 4, 5], work_start: r.work_start || '09:00', work_end: r.work_end || '18:00' };
+                });
+                if (!cancelled) setWorkScheduleByInn((prev) => ({ ...prev, ...ws }));
+            })
+            .catch(() => { /* ignore */ });
+        return () => { cancelled = true; };
+    }, [useServiceRequest, auth?.login, auth?.password, filteredItems]);
 
     const unpaidCount = useMemo(() => {
         return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
@@ -1135,7 +1191,7 @@ function DashboardPage({
         ];
     }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
     const slaStats = useMemo(() => {
-        const withSla = filteredItems.map(i => getSlaInfo(i)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
+        const withSla = filteredItems.map(i => getSlaInfo(i, workScheduleByInn)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
         const total = withSla.length;
         const onTime = withSla.filter(s => s.onTime).length;
         const delayed = withSla.filter(s => !s.onTime);
@@ -1148,13 +1204,13 @@ function DashboardPage({
         const maxDays = actualDaysValid.length ? Math.max(...actualDaysValid) : 0;
         const avgDays = actualDaysValid.length ? Math.round(actualDaysValid.reduce((a, b) => a + b, 0) / actualDaysValid.length) : 0;
         return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay, minDays, maxDays, avgDays };
-    }, [filteredItems]);
+    }, [filteredItems, workScheduleByInn]);
 
     const slaStatsByType = useMemo(() => {
         const autoItems = filteredItems.filter(i => !isFerry(i));
         const ferryItems = filteredItems.filter(i => isFerry(i));
         const calc = (arr: CargoItem[]) => {
-            const withSla = arr.map(i => getSlaInfo(i)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
+            const withSla = arr.map(i => getSlaInfo(i, workScheduleByInn)).filter((s): s is NonNullable<ReturnType<typeof getSlaInfo>> => s != null);
             const total = withSla.length;
             const onTime = withSla.filter(s => s.onTime).length;
             const delayed = withSla.filter(s => !s.onTime);
@@ -1162,25 +1218,25 @@ function DashboardPage({
             return { total, onTime, percentOnTime: total ? Math.round((onTime / total) * 100) : 0, avgDelay };
         };
         return { auto: calc(autoItems), ferry: calc(ferryItems) };
-    }, [filteredItems]);
+    }, [filteredItems, workScheduleByInn]);
 
     /** Перевозки вне SLA по типу (для таблицы в подробностях, только в служебном режиме) */
     const outOfSlaByType = useMemo(() => {
         const withSla = filteredItems
-            .map(i => ({ item: i, sla: getSlaInfo(i) }))
+            .map(i => ({ item: i, sla: getSlaInfo(i, workScheduleByInn) }))
             .filter((x): x is { item: CargoItem; sla: NonNullable<ReturnType<typeof getSlaInfo>> } => x.sla != null && !x.sla.onTime);
         return {
             auto: withSla.filter(x => !isFerry(x.item)),
             ferry: withSla.filter(x => isFerry(x.item)),
         };
-    }, [filteredItems]);
+    }, [filteredItems, workScheduleByInn]);
 
     const sortedOutOfSlaAuto = useMemo(() => sortOutOfSlaRows(outOfSlaByType.auto), [outOfSlaByType.auto, slaTableSortColumn, slaTableSortOrder]);
     const sortedOutOfSlaFerry = useMemo(() => sortOutOfSlaRows(outOfSlaByType.ferry), [outOfSlaByType.ferry, slaTableSortColumn, slaTableSortOrder]);
 
     const slaTrend = useMemo(() => {
         const withSla = filteredItems
-            .map(i => ({ item: i, sla: getSlaInfo(i) }))
+            .map(i => ({ item: i, sla: getSlaInfo(i, workScheduleByInn) }))
             .filter((x): x is { item: CargoItem; sla: NonNullable<ReturnType<typeof getSlaInfo>> } => x.sla != null);
         if (withSla.length < 4) return null;
         const sorted = [...withSla].sort((a, b) => (new Date(a.item.DateVr || 0).getTime()) - (new Date(b.item.DateVr || 0).getTime()));
@@ -1192,7 +1248,7 @@ function DashboardPage({
         if (p2 > p1) return 'up';
         if (p2 < p1) return 'down';
         return null;
-    }, [filteredItems]);
+    }, [filteredItems, workScheduleByInn]);
 
     const stripDiagramBySender = useMemo(() => {
         const map = new Map<string, number>();
@@ -5045,6 +5101,7 @@ function CargoPage({
     const weekLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const weekWasLongPressRef = useRef(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    const [workScheduleByInn, setWorkScheduleByInn] = useState<Record<string, WorkSchedule>>({});
     const [senderFilter, setSenderFilter] = useState<string>('');
     const [receiverFilter, setReceiverFilter] = useState<string>('');
     const [statusFilterSet, setStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
@@ -5197,6 +5254,29 @@ function CargoPage({
             onClearQuickFilters?.();
         }
     }, [initialStatusFilter, onClearQuickFilters]);
+
+    useEffect(() => {
+        if (!useServiceRequest || !primaryAuth?.login || !primaryAuth?.password) return;
+        const inns = [...new Set(items.map((i) => getInnFromCargo(i)).filter((x): x is string => !!x))];
+        if (inns.length === 0) return;
+        let cancelled = false;
+        fetch('/api/customer-work-schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ login: primaryAuth.login, password: primaryAuth.password, inns }),
+        })
+            .then((r) => r.json())
+            .then((data: { items?: { inn: string; days_of_week: number[]; work_start: string; work_end: string }[] }) => {
+                if (cancelled) return;
+                const ws: Record<string, WorkSchedule> = {};
+                (data?.items ?? []).forEach((r) => {
+                    if (r?.inn) ws[r.inn.trim()] = { days_of_week: r.days_of_week ?? [1, 2, 3, 4, 5], work_start: r.work_start || '09:00', work_end: r.work_end || '18:00' };
+                });
+                if (!cancelled) setWorkScheduleByInn((prev) => ({ ...prev, ...ws }));
+            })
+            .catch(() => { /* ignore */ });
+        return () => { cancelled = true; };
+    }, [useServiceRequest, primaryAuth?.login, primaryAuth?.password, items]);
 
     useEffect(() => {
         if (!contextCargoNumber) return;
@@ -5884,7 +5964,7 @@ function CargoPage({
                                                                     title="Открыть карточку перевозки"
                                                                 >
                                                                     <td style={{ padding: '0.35rem 0.3rem' }}>
-                                                                        <span style={{ color: (() => { const s = getSlaInfo(item); return s ? (s.onTime ? '#22c55e' : '#ef4444') : undefined; })() }}>
+                                                                        <span style={{ color: (() => { const s = getSlaInfo(item, workScheduleByInn); return s ? (s.onTime ? '#22c55e' : '#ef4444') : undefined; })() }}>
                                                                             {item.Number || '—'}
                                                                         </span>
                                                                     </td>
@@ -5915,7 +5995,7 @@ function CargoPage({
             {filteredItems.length > 0 && !tableModeByCustomer && (
             <div className="cargo-list">
                 {filteredItems.map((item: CargoItem, idx: number) => {
-                    const sla = getSlaInfo(item);
+                    const sla = getSlaInfo(item, workScheduleByInn);
                     const numberColor = sla ? (sla.onTime ? '#22c55e' : '#ef4444') : undefined;
                     return (
                         <Panel 

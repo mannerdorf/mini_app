@@ -305,6 +305,13 @@ body {
         margin-bottom: 0;
         z-index: 50;
         flex-shrink: 0;
+        padding-top: max(var(--space-4, 16px), env(safe-area-inset-top));
+        padding-bottom: var(--space-2, 8px);
+        padding-left: var(--space-3, 12px);
+        padding-right: var(--space-3, 12px);
+    }
+    .header-top-row {
+        margin-bottom: var(--space-1, 4px);
     }
     .app-main {
         flex: 1;
@@ -312,8 +319,24 @@ body {
         overflow-y: auto;
         overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
-        padding-top: 72px;
+        /* Высота хедера + safe-area, чтобы верхняя часть (заголовок, фильтры) была полностью видна */
+        padding-top: calc(80px + env(safe-area-inset-top));
         padding-bottom: calc(64px + env(safe-area-inset-bottom));
+        padding-left: var(--space-3, 12px);
+        padding-right: var(--space-3, 12px);
+    }
+    .cargo-page-sticky-header {
+        padding-top: 0;
+        padding-bottom: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+    .cargo-page-sticky-header .filters-container,
+    .cargo-page-sticky-header .filters-row-scroll {
+        padding-right: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    .cargo-page-sticky-header .doc-sections-row {
+        padding-right: 1rem;
     }
     .tabbar-container {
         transform: translateX(-50%) translateZ(0);
