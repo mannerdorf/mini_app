@@ -653,8 +653,8 @@ body {
 /* --- CARGO PAGE STICKY HEADER --- */
 .cargo-page-sticky-header {
     position: sticky;
-    /* Высота app-header (padding 32px + контент ~40px) — секция фиксируется под шапкой */
-    top: 72px;
+    /* Без зазора под app-header на desktop */
+    top: 64px;
     z-index: 40;
     background-color: var(--color-bg-primary);
     padding-bottom: 0.5rem;
