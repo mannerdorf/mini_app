@@ -1,14 +1,28 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
-import { Home, ChevronDown } from "lucide-react";
+import {
+  Home,
+  ChevronDown,
+  ChevronUp,
+  RussianRuble,
+  Scale,
+  Weight,
+  List,
+  Package,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Loader2,
+} from "lucide-react";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { FilterDialog } from "../components/shared/FilterDialog";
+import { DateText } from "../components/ui/DateText";
 import * as dateUtils from "../lib/dateUtils";
 import { STATUS_MAP, BILL_STATUS_MAP } from "../lib/statusUtils";
 import type { DateFilter } from "../types";
 import type { StatusFilter } from "../types";
 import type { BillStatusFilterKey } from "../lib/statusUtils";
-import { stripOoo } from "../lib/formatUtils";
+import { stripOoo, formatCurrency } from "../lib/formatUtils";
 
 const {
   getDateRange,
@@ -20,21 +34,51 @@ const {
   saveDateFilterState,
   DEFAULT_DATE_FROM,
   DEFAULT_DATE_TO,
+  getPreviousPeriodRange,
 } = dateUtils;
 
+export type ChartType = "money" | "paidWeight" | "weight" | "volume" | "pieces";
+
+/** Свод за период для полоски (опционально — если не передано, показываем «—») */
+export type StripSummary = {
+  sum?: number;
+  paidWeight?: number;
+  weight?: number;
+  volume?: number;
+  pieces?: number;
+};
+
+/** Динамика к прошлому периоду (опционально — для служебного режима) */
+export type PeriodToPeriodTrend = {
+  direction: "up" | "down" | null;
+  percent: number;
+} | null;
+
 type Home2PageProps = {
-  /** Служебный режим: показывать фильтр «Статус счёта» */
+  /** Служебный режим: показывать фильтр «Статус счёта» и динамику к прошлому периоду в полоске */
   useServiceRequest?: boolean;
   /** Список отправителей для выпадающего списка (если не передан — только «Все») */
   uniqueSenders?: string[];
   /** Список получателей для выпадающего списка */
   uniqueReceivers?: string[];
+  /** Свод за период для полоски (если не передан — показываем «—») */
+  stripSummary?: StripSummary | null;
+  /** Динамика к прошлому периоду (только в служебном режиме) */
+  periodToPeriodTrend?: PeriodToPeriodTrend;
+  /** Идёт загрузка данных прошлого периода (показываем спиннер в полоске) */
+  prevPeriodLoading?: boolean;
+  /** Показывать рубли в переключателях полоски (как на дашборде при showSums) */
+  showSums?: boolean;
 };
 
 export function Home2Page({
   useServiceRequest = false,
   uniqueSenders = [],
   uniqueReceivers = [],
+  stripSummary = null,
+  periodToPeriodTrend = null,
+  prevPeriodLoading = false,
+  showSums = true,
 }: Home2PageProps) {
   const initDate = () => loadDateFilterState();
   const [dateFilter, setDateFilter] = useState<DateFilter>(
@@ -125,6 +169,65 @@ export function Home2Page({
                 return `${r.dateFrom.slice(8, 10)}.${r.dateFrom.slice(5, 7)} – ${r.dateTo.slice(8, 10)}.${r.dateTo.slice(5, 7)}`;
               })()
             : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1);
+
+  const { apiDateRange } = useMemo(() => {
+    const api =
+      dateFilter === "период"
+        ? { dateFrom: customDateFrom, dateTo: customDateTo }
+        : dateFilter === "месяц" && selectedMonthForFilter
+          ? (() => {
+              const { year, month } = selectedMonthForFilter;
+              const pad = (n: number) => String(n).padStart(2, "0");
+              const lastDay = new Date(year, month, 0).getDate();
+              return {
+                dateFrom: `${year}-${pad(month)}-01`,
+                dateTo: `${year}-${pad(month)}-${pad(lastDay)}`,
+              };
+            })()
+          : dateFilter === "год" && selectedYearForFilter
+            ? {
+                dateFrom: `${selectedYearForFilter}-01-01`,
+                dateTo: `${selectedYearForFilter}-12-31`,
+              }
+            : dateFilter === "неделя" && selectedWeekForFilter
+              ? getWeekRange(selectedWeekForFilter)
+              : getDateRange(dateFilter as DateFilter);
+    const prev = getPreviousPeriodRange(
+      dateFilter as DateFilter,
+      api.dateFrom,
+      api.dateTo
+    );
+    return { apiDateRange: api, prevRange: prev };
+  }, [
+    dateFilter,
+    customDateFrom,
+    customDateTo,
+    selectedMonthForFilter,
+    selectedYearForFilter,
+    selectedWeekForFilter,
+  ]);
+
+  const [chartType, setChartType] = useState<ChartType>("money");
+  const [stripExpanded, setStripExpanded] = useState(true);
+
+  const formatStripValue = (): string => {
+    if (!stripSummary) return "—";
+    if (chartType === "money")
+      return stripSummary.sum != null
+        ? formatCurrency(stripSummary.sum, true)
+        : "—";
+    if (chartType === "paidWeight" || chartType === "weight") {
+      const v = chartType === "paidWeight" ? stripSummary.paidWeight : stripSummary.weight;
+      return v != null ? `${Math.round(v).toLocaleString("ru-RU")} кг` : "—";
+    }
+    if (chartType === "volume")
+      return stripSummary.volume != null
+        ? `${(stripSummary.volume).toFixed(2).replace(".", ",")} м³`
+        : "—";
+    return stripSummary.pieces != null
+      ? `${Math.round(stripSummary.pieces).toLocaleString("ru-RU")} шт`
+      : "—";
+  };
 
   return (
     <div
@@ -697,6 +800,316 @@ export function Home2Page({
             </FilterDropdownPortal>
           </div>
         </div>
+      </div>
+
+      {/* Полоска с периодом и типом графика (раскрывающийся блок) */}
+      {useServiceRequest && (
+        <Typography.Body
+          style={{
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            color: "var(--color-text-secondary)",
+            marginBottom: "0.35rem",
+          }}
+        >
+          Приемка
+        </Typography.Body>
+      )}
+      <div
+        className="home-strip"
+        style={{
+          background: "var(--color-bg-card)",
+          border: "1px solid var(--color-border)",
+          borderRadius: "12px",
+          marginBottom: "1rem",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setStripExpanded((e) => !e)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setStripExpanded((e) => !e);
+            }
+          }}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "0.5rem",
+            padding: "0.75rem 1rem",
+            minWidth: 0,
+            cursor: "pointer",
+          }}
+        >
+          <span
+            style={{
+              flexShrink: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Typography.Body
+              style={{
+                color: "var(--color-primary-blue)",
+                fontWeight: 600,
+                fontSize: "0.6rem",
+              }}
+            >
+              <DateText value={apiDateRange.dateFrom} /> –{" "}
+              <DateText value={apiDateRange.dateTo} />
+            </Typography.Body>
+          </span>
+          <Flex gap="0.25rem" align="center" style={{ flexShrink: 0 }}>
+            {showSums && (
+              <Button
+                type="button"
+                className="filter-button"
+                style={{
+                  padding: "0.35rem",
+                  minWidth: "auto",
+                  background:
+                    chartType === "money"
+                      ? "var(--color-primary-blue)"
+                      : "transparent",
+                  border: "none",
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setChartType("money");
+                }}
+                title="Рубли"
+              >
+                <RussianRuble
+                  className="w-4 h-4"
+                  style={{
+                    color:
+                      chartType === "money"
+                        ? "white"
+                        : "var(--color-text-secondary)",
+                  }}
+                />
+              </Button>
+            )}
+            <Button
+              type="button"
+              className="filter-button"
+              style={{
+                padding: "0.35rem",
+                minWidth: "auto",
+                background:
+                  chartType === "paidWeight" ? "#10b981" : "transparent",
+                border: "none",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setChartType("paidWeight");
+              }}
+              title="Платный вес"
+            >
+              <Scale
+                className="w-4 h-4"
+                style={{
+                  color:
+                    chartType === "paidWeight"
+                      ? "white"
+                      : "var(--color-text-secondary)",
+                }}
+              />
+            </Button>
+            <Button
+              type="button"
+              className="filter-button"
+              style={{
+                padding: "0.35rem",
+                minWidth: "auto",
+                background: chartType === "weight" ? "#0d9488" : "transparent",
+                border: "none",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setChartType("weight");
+              }}
+              title="Вес"
+            >
+              <Weight
+                className="w-4 h-4"
+                style={{
+                  color:
+                    chartType === "weight"
+                      ? "white"
+                      : "var(--color-text-secondary)",
+                }}
+              />
+            </Button>
+            <Button
+              type="button"
+              className="filter-button"
+              style={{
+                padding: "0.35rem",
+                minWidth: "auto",
+                background: chartType === "volume" ? "#f59e0b" : "transparent",
+                border: "none",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setChartType("volume");
+              }}
+              title="Объём"
+            >
+              <List
+                className="w-4 h-4"
+                style={{
+                  color:
+                    chartType === "volume"
+                      ? "white"
+                      : "var(--color-text-secondary)",
+                }}
+              />
+            </Button>
+            <Button
+              type="button"
+              className="filter-button"
+              style={{
+                padding: "0.35rem",
+                minWidth: "auto",
+                background: chartType === "pieces" ? "#8b5cf6" : "transparent",
+                border: "none",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setChartType("pieces");
+              }}
+              title="Шт"
+            >
+              <Package
+                className="w-4 h-4"
+                style={{
+                  color:
+                    chartType === "pieces"
+                      ? "white"
+                      : "var(--color-text-secondary)",
+                }}
+              />
+            </Button>
+            {stripExpanded ? (
+              <ChevronUp className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+            ) : (
+              <ChevronDown className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+            )}
+          </Flex>
+        </div>
+        {stripExpanded && (
+          <div
+            style={{
+              padding: "1.25rem 1rem 1rem",
+              borderTop: "1px solid var(--color-border)",
+            }}
+          >
+            <Flex align="center" gap="0.5rem" style={{ flexWrap: "wrap" }}>
+              {dateFilter === "неделя" && (
+                <Typography.Body
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "0.6rem",
+                    color: "var(--color-text-secondary)",
+                    marginRight: "0.5rem",
+                  }}
+                >
+                  За неделю:
+                </Typography.Body>
+              )}
+              <Typography.Body style={{ fontWeight: 600, fontSize: "0.6rem" }}>
+                {formatStripValue()}
+              </Typography.Body>
+              {useServiceRequest && prevPeriodLoading && (
+                <Flex
+                  align="center"
+                  gap="0.35rem"
+                  style={{ flexShrink: 0 }}
+                  title="Расчёт динамики"
+                >
+                  <Loader2
+                    className="w-5 h-5 animate-spin"
+                    style={{ color: "var(--color-primary-blue)" }}
+                  />
+                </Flex>
+              )}
+              {useServiceRequest && !prevPeriodLoading && periodToPeriodTrend && (
+                <>
+                  {periodToPeriodTrend.direction === "up" && (
+                    <Flex
+                      align="center"
+                      gap="0.25rem"
+                      style={{ flexShrink: 0 }}
+                    >
+                      <TrendingUp
+                        className="w-5 h-5"
+                        style={{ color: "var(--color-success-status)" }}
+                      />
+                      <Typography.Body
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "var(--color-success-status)",
+                          fontWeight: 600,
+                        }}
+                      >
+                        +{periodToPeriodTrend.percent}%
+                      </Typography.Body>
+                    </Flex>
+                  )}
+                  {periodToPeriodTrend.direction === "down" && (
+                    <Flex
+                      align="center"
+                      gap="0.25rem"
+                      style={{ flexShrink: 0 }}
+                    >
+                      <TrendingDown
+                        className="w-5 h-5"
+                        style={{ color: "#ef4444" }}
+                      />
+                      <Typography.Body
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "#ef4444",
+                          fontWeight: 600,
+                        }}
+                      >
+                        -{periodToPeriodTrend.percent}%
+                      </Typography.Body>
+                    </Flex>
+                  )}
+                  {periodToPeriodTrend.direction === null &&
+                    periodToPeriodTrend.percent === 0 && (
+                      <Flex
+                        align="center"
+                        gap="0.25rem"
+                        style={{ flexShrink: 0 }}
+                      >
+                        <Minus
+                          className="w-5 h-5"
+                          style={{ color: "var(--color-text-secondary)" }}
+                        />
+                        <Typography.Body
+                          style={{
+                            fontSize: "0.85rem",
+                            color: "var(--color-text-secondary)",
+                          }}
+                        >
+                          0%
+                        </Typography.Body>
+                      </Flex>
+                    )}
+                </>
+              )}
+            </Flex>
+          </div>
+        )}
       </div>
 
       <main
