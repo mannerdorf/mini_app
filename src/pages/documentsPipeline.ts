@@ -4,6 +4,14 @@ import type { StatusFilter } from "../types";
 
 export const INVOICE_FAVORITES_VALUE = "__favorites__";
 
+function normalizeInn(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function getItemInn(item: any): string {
+  return normalizeInn(item?.INN ?? item?.Inn ?? item?.inn ?? item?.CustomerINN ?? item?.customerInn);
+}
+
 export function getInvoiceSearchText(inv: any): string {
   const parts: string[] = [
     String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? ""),
@@ -96,6 +104,8 @@ export function buildCargoTransportByNumber(perevozkiItems: any[]) {
 
 type FilterInvoicesParams = {
   items: any[];
+  activeInn?: string;
+  useServiceRequest: boolean;
   customerFilter: string;
   statusFilterSet: Set<string>;
   typeFilter: "all" | "ferry" | "auto";
@@ -117,6 +127,8 @@ type FilterInvoicesParams = {
 export function buildFilteredInvoices(params: FilterInvoicesParams) {
   const {
     items,
+    activeInn,
+    useServiceRequest,
     customerFilter,
     statusFilterSet,
     typeFilter,
@@ -136,6 +148,11 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   } = params;
 
   let res = [...items];
+  const normalizedActiveInn = normalizeInn(activeInn);
+  if (!useServiceRequest && normalizedActiveInn) {
+    // Safety filter: in regular mode always pin documents to selected header company.
+    res = res.filter((i) => getItemInn(i) === normalizedActiveInn);
+  }
   if (customerFilter) {
     res = res.filter((i) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);
   }
@@ -196,6 +213,8 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
 
 type FilterActsParams = {
   sortedActs: any[];
+  activeInn?: string;
+  useServiceRequest: boolean;
   actCustomerFilter: string;
   searchText: string;
   edoStatusFilterSet: Set<string>;
@@ -207,6 +226,8 @@ type FilterActsParams = {
 export function buildFilteredActs(params: FilterActsParams) {
   const {
     sortedActs,
+    activeInn,
+    useServiceRequest,
     actCustomerFilter,
     searchText,
     edoStatusFilterSet,
@@ -216,6 +237,11 @@ export function buildFilteredActs(params: FilterActsParams) {
   } = params;
 
   let res = sortedActs;
+  const normalizedActiveInn = normalizeInn(activeInn);
+  if (!useServiceRequest && normalizedActiveInn) {
+    // Safety filter: in regular mode always pin documents to selected header company.
+    res = res.filter((a) => getItemInn(a) === normalizedActiveInn);
+  }
   if (actCustomerFilter) {
     res = res.filter((a: any) => ((a.Customer ?? a.customer ?? a.Контрагент ?? a.Contractor ?? a.Organization ?? "").trim()) === actCustomerFilter);
   }

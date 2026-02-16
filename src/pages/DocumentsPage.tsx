@@ -273,6 +273,8 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const filteredItems = useMemo(() => {
         return buildFilteredInvoices({
             items,
+            activeInn,
+            useServiceRequest,
             customerFilter,
             statusFilterSet,
             typeFilter,
@@ -307,6 +309,8 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
     const filteredActs = useMemo(() => {
         return buildFilteredActs({
             sortedActs,
+            activeInn,
+            useServiceRequest,
             actCustomerFilter,
             searchText,
             edoStatusFilterSet,
