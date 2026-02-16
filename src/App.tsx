@@ -619,12 +619,12 @@ function DashboardPage({
 }) {
     const showPaymentCalendar = hasAnalytics || hasSupervisor;
     const [debugInfo, setDebugInfo] = useState<string>("");
-    // Включение виджетов главной по одному (для отладки): раскомментируйте нужный
-    const WIDGET_1_FILTERS = false;
-    const WIDGET_2_STRIP = false;
-    const WIDGET_3_CHART = false;
-    const WIDGET_4_SLA = false;
-    const WIDGET_5_PAYMENT_CALENDAR = false;
+    // Виджеты дашборда включены по умолчанию.
+    const WIDGET_1_FILTERS = true;
+    const WIDGET_2_STRIP = true;
+    const WIDGET_3_CHART = true;
+    const WIDGET_4_SLA = true;
+    const WIDGET_5_PAYMENT_CALENDAR = true;
 
     // Filters State (такие же как на странице грузов); при переключении вкладок восстанавливаем из localStorage
     const initDate = () => loadDateFilterState();
