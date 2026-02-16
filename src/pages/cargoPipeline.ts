@@ -16,6 +16,7 @@ export type CargoFilterPipelineParams = {
   statusFilterSet: Set<CargoStatusFilterKey>;
   senderFilter: string;
   receiverFilter: string;
+  transportFilter: string;
   useServiceRequest: boolean;
   billStatusFilterSet: Set<
     "paid" | "unpaid" | "partial" | "cancelled" | "unknown"
@@ -85,6 +86,7 @@ export function buildFilteredCargoItems(
     statusFilterSet,
     senderFilter,
     receiverFilter,
+    transportFilter,
     useServiceRequest,
     billStatusFilterSet,
     typeFilterSet,
@@ -131,6 +133,9 @@ export function buildFilteredCargoItems(
         (i.Receiver ?? (i as { receiver?: string }).receiver ?? "").trim() ===
         receiverFilter
     );
+  }
+  if (useServiceRequest && transportFilter) {
+    res = res.filter((i) => String(i.AutoReg ?? "").trim() === transportFilter);
   }
   if (useServiceRequest && billStatusFilterSet.size > 0) {
     res = res.filter((i) => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
