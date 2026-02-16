@@ -1,15 +1,17 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createAdminToken } from "../lib/adminAuth.js";
 import { getClientIp, isRateLimited, ADMIN_LOGIN_LIMIT } from "../lib/rateLimit.js";
+import { getPool } from "./_db.js";
+import { verifyPassword } from "../lib/passwordUtils.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 
 /**
  * POST /api/verify-admin-access
  * Body: { login: string, password: string }
  *
- * Вход в админку только для суперадмина из Vercel:
- * ADMIN_LOGIN и ADMIN_PASSWORD (Environment Variables в настройках проекта).
- * Пользователи из БД с правом cms_access больше не могут входить в админку.
+ * Вход в админку:
+ * 1) суперадмин из Vercel (ADMIN_LOGIN/ADMIN_PASSWORD) -> superAdmin token
+ * 2) пользователь из БД с permissions.cms_access=true и верным паролем -> обычный admin token
  */
 async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -41,24 +43,57 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   const adminLogin = process.env.ADMIN_LOGIN?.trim() ?? "";
   const adminPassword = process.env.ADMIN_PASSWORD ?? "";
-
-  if (!adminLogin || !adminPassword) {
-    console.error("verify-admin-access: ADMIN_LOGIN or ADMIN_PASSWORD not set in Vercel");
-    return res.status(503).json({ error: "Админка не настроена (нет ADMIN_LOGIN/ADMIN_PASSWORD в Vercel)" });
-  }
-
   const loginLower = login.toLowerCase();
-  if (loginLower === adminLogin.toLowerCase() && password === adminPassword) {
+  const isEnvSuperAdmin =
+    !!adminLogin &&
+    !!adminPassword &&
+    loginLower === adminLogin.toLowerCase() &&
+    password === adminPassword;
+
+  if (isEnvSuperAdmin) {
     try {
-      const { getPool } = await import("./_db.js");
       const { writeAuditLog } = await import("../lib/adminAuditLog.js");
       const pool = getPool();
-      await writeAuditLog(pool, { action: "admin_login", target_type: "session", details: {} });
+      await writeAuditLog(pool, { action: "admin_login", target_type: "session", details: { role: "super_admin" } });
     } catch (e) {
       console.error("verify-admin-access: audit log error", e);
     }
     const adminToken = createAdminToken(true);
     return res.status(200).json({ ok: true, adminToken });
+  }
+
+  try {
+    const pool = getPool();
+    const { rows } = await pool.query<{
+      id: number;
+      login: string;
+      password_hash: string;
+      permissions: Record<string, boolean> | null;
+    }>(
+      `SELECT id, login, password_hash, permissions
+       FROM registered_users
+       WHERE LOWER(TRIM(login)) = $1
+         AND active = true
+       LIMIT 1`,
+      [loginLower]
+    );
+
+    const user = rows[0];
+    const hasCmsAccess = !!user?.permissions?.cms_access;
+    const validPassword = !!user && verifyPassword(password, user.password_hash);
+    if (user && hasCmsAccess && validPassword) {
+      try {
+        const { writeAuditLog } = await import("../lib/adminAuditLog.js");
+        await writeAuditLog(pool, { action: "admin_login", target_type: "session", details: { role: "cms_user", login: user.login } });
+      } catch (e) {
+        console.error("verify-admin-access: audit log error", e);
+      }
+      const adminToken = createAdminToken(false);
+      return res.status(200).json({ ok: true, adminToken });
+    }
+  } catch (e) {
+    console.error("verify-admin-access: db check error", e);
+    return res.status(500).json({ error: "Ошибка проверки доступа" });
   }
 
   return res.status(403).json({ error: "Доступ запрещён" });
