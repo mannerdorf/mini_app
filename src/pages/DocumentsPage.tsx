@@ -259,6 +259,15 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
         return () => window.removeEventListener('haulz-service-refresh', handler);
     }, [useServiceRequest, mutateInvoices, mutatePerevozki, mutateActs]);
 
+    // При выходе из служебного режима прячем и сбрасываем "компанийные" фильтры.
+    useEffect(() => {
+        if (useServiceRequest) return;
+        setCustomerFilter('');
+        setActCustomerFilter('');
+        setIsCustomerDropdownOpen(false);
+        setIsActCustomerDropdownOpen(false);
+    }, [useServiceRequest]);
+
     /** Канонический ключ для сопоставления номера перевозки (с/без ведущих нулей) */
     const normCargoKey = useCallback((num: string | null | undefined): string => {
         if (num == null) return '';
@@ -752,7 +761,7 @@ export function DocumentsPage({ auth, useServiceRequest = false, activeInn = '',
                                 </FilterDropdownPortal>
                             </>
                         )}
-                        {docSection === 'УПД' && (
+                        {docSection === 'УПД' && useServiceRequest && (
                             <>
                                 <div ref={actCustomerButtonRef} style={{ display: 'inline-flex' }}>
                                     <Button className="filter-button" onClick={() => { setIsActCustomerDropdownOpen(!isActCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
