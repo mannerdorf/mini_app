@@ -22,6 +22,7 @@ import {
 import { TabBar } from "./components/TabBar";
 import { AccountSwitcher } from "./components/AccountSwitcher";
 import { CustomerSwitcher } from "./components/CustomerSwitcher";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getWebApp, isMaxWebApp, isMaxDocsEnabled } from "./webApp";
 import { DOCUMENT_METHODS } from "./documentMethods";
 // import { NotificationsPage } from "./pages/NotificationsPage"; // temporarily disabled
@@ -9753,6 +9754,12 @@ export default function App() {
             </header>
             <div className="app-main">
                 <div className="w-full max-w-4xl">
+                    <ErrorBoundary fallback={
+                        <div style={{ padding: "1.5rem", textAlign: "center" }}>
+                            <p style={{ marginBottom: "0.5rem" }}>Ошибка в разделе (Грузы / Документы / Профиль).</p>
+                            <button type="button" onClick={() => window.location.reload()} style={{ padding: "0.5rem 1rem", cursor: "pointer" }}>Обновить страницу</button>
+                        </div>
+                    }>
                     {showDashboard && activeTab === "dashboard" && auth && (
                         <DashboardPage
                             auth={auth}
@@ -9903,6 +9910,7 @@ export default function App() {
                             onUpdateAccount={handleUpdateAccount}
                         />
                     )}
+                    </ErrorBoundary>
             </div>
             </div>
             <TabBar 
