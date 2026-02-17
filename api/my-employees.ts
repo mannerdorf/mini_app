@@ -180,9 +180,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     try {
       const pool = getPool();
-      let setParts: string[] = ["updated_at = now()"];
+      const colsRes = await pool.query<{ column_name: string }>(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'registered_users'`
+      );
+      const columns = new Set(colsRes.rows.map((r) => r.column_name));
+
+      let setParts: string[] = [];
+      if (columns.has("updated_at")) setParts.push("updated_at = now()");
       const values: unknown[] = [];
-      let paramIndex = 1;
+      let paramIndex = 0;
+      const addParam = (value: unknown) => {
+        values.push(value);
+        paramIndex += 1;
+        return `$${paramIndex}`;
+      };
 
       if (presetIdParam) {
         const presetRow = await pool.query<{ label: string; permissions: unknown; financial_access: boolean; service_mode: boolean }>(
@@ -195,48 +208,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         const permissions = preset.permissions && typeof preset.permissions === "object" ? (preset.permissions as Record<string, boolean>) : {};
         const accessAllInns = !!preset.service_mode;
-        setParts.push(`permissions = $${++paramIndex}`, `financial_access = $${++paramIndex}`, `access_all_inns = $${++paramIndex}`, `invited_with_preset_label = $${++paramIndex}`);
-        values.push(JSON.stringify(permissions), !!preset.financial_access, accessAllInns, preset.label);
+        if (!columns.has("permissions")) {
+          return res.status(500).json({ error: "Конфигурация БД: отсутствует колонка permissions" });
+        }
+        setParts.push(`permissions = ${addParam(JSON.stringify(permissions))}`);
+        if (columns.has("financial_access")) {
+          setParts.push(`financial_access = ${addParam(!!preset.financial_access)}`);
+        }
+        if (columns.has("access_all_inns")) {
+          setParts.push(`access_all_inns = ${addParam(accessAllInns)}`);
+        }
+        if (columns.has("invited_with_preset_label")) {
+          setParts.push(`invited_with_preset_label = ${addParam(preset.label)}`);
+        }
         if (!accessAllInns) {
           const inviterRow = await pool.query<{ inn: string }>("SELECT inn FROM registered_users WHERE id = $1", [inviterId]);
           const inviterInn = inviterRow.rows[0]?.inn ?? "";
           const companies = await pool.query<{ inn: string }>("SELECT inn FROM account_companies WHERE login = (SELECT login FROM registered_users WHERE id = $1) ORDER BY inn LIMIT 1", [inviterId]);
           const firstInn = companies.rows[0]?.inn ?? inviterInn;
-          setParts.push(`inn = $${++paramIndex}`);
-          values.push(firstInn);
+          if (columns.has("inn")) {
+            setParts.push(`inn = ${addParam(firstInn)}`);
+          }
         }
       }
 
       if (active !== undefined) {
-        setParts.push(`active = $${++paramIndex}`);
-        values.push(active);
+        if (!columns.has("active")) {
+          return res.status(500).json({ error: "Конфигурация БД: отсутствует колонка active" });
+        }
+        setParts.push(`active = ${addParam(active)}`);
       }
 
-      values.push(id, inviterId);
-      let rowCount = 0;
-      try {
-        const result = await pool.query(
-          `UPDATE registered_users SET ${setParts.join(", ")} WHERE id = $${++paramIndex} AND invited_by_user_id = $${++paramIndex}`,
-          values
-        );
-        rowCount = result.rowCount ?? 0;
-      } catch (e: unknown) {
-        const err = e as { code?: string; message?: string };
-        // Backward compatibility for DBs without registered_users.updated_at column.
-        if (err?.code === "42703" || err?.message?.includes("updated_at")) {
-          const fallbackSetParts = setParts.filter((p) => p !== "updated_at = now()");
-          if (fallbackSetParts.length === 0) {
-            return res.status(500).json({ error: "Ошибка обновления" });
-          }
-          const fallbackResult = await pool.query(
-            `UPDATE registered_users SET ${fallbackSetParts.join(", ")} WHERE id = $${paramIndex - 1} AND invited_by_user_id = $${paramIndex}`,
-            values
-          );
-          rowCount = fallbackResult.rowCount ?? 0;
-        } else {
-          throw e;
-        }
+      if (setParts.length === 0) {
+        return res.status(500).json({ error: "Нет доступных полей для обновления" });
       }
+
+      const whereId = addParam(id);
+      const whereInviter = addParam(inviterId);
+      const result = await pool.query(
+        `UPDATE registered_users SET ${setParts.join(", ")} WHERE id = ${whereId} AND invited_by_user_id = ${whereInviter}`,
+        values
+      );
+      const rowCount = result.rowCount ?? 0;
       if (rowCount === 0) {
         return res.status(404).json({ error: "Сотрудник не найден или доступ запрещён" });
       }

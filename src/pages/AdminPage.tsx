@@ -526,26 +526,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       ...companies.map((c) => String(c?.name ?? "").trim()).filter(Boolean),
       String(u.company_name ?? "").trim(),
     ];
-    const inns = [
-      ...companies.map((c) => String(c?.inn ?? "").trim()).filter(Boolean),
-      String(u.inn ?? "").trim(),
-    ];
-
     // In "by customers" mode search must match customer fields strictly.
     if (usersViewMode === "customer") {
       const qNorm = normalize(ql);
-      const qDigits = qNorm.replace(/\D/g, "");
       const qTokens = qNorm.split(" ").filter(Boolean);
-
-      // Numeric query: match by INN only (strict for full INN).
-      if (qDigits.length > 0 && qDigits.length === qNorm.replace(/\s/g, "").length) {
-        return inns.some((inn) => {
-          const cleanInn = inn.replace(/\D/g, "");
-          if (!cleanInn) return false;
-          if (qDigits.length >= 10) return cleanInn === qDigits;
-          return cleanInn.startsWith(qDigits);
-        });
-      }
 
       return names.some((name) => {
         const n = normalize(name);
