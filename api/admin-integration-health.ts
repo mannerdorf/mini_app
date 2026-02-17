@@ -45,6 +45,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       telegramStatusRes,
       telegramLifetimeRes,
       emailDeliveryRes,
+      emailDeliveryDailyRes,
       requestErrorRes,
       activeUsersRes,
     ] = await Promise.all([
@@ -85,6 +86,22 @@ async function handler(req: VercelRequest, res: VercelResponse) {
          group by action`,
         [String(days)]
       ),
+      pool.query<{ day: string; action: string; cnt: string }>(
+        `select to_char(date_trunc('day', created_at), 'YYYY-MM-DD') as day, action, count(*)::text as cnt
+         from admin_audit_log
+         where created_at >= now() - ($1::text || ' days')::interval
+           and action in (
+             'email_delivery_registration_sent',
+             'email_delivery_registration_failed',
+             'email_delivery_password_reset_sent',
+             'email_delivery_password_reset_failed',
+             'email_delivery_telegram_pin_sent',
+             'email_delivery_telegram_pin_failed'
+           )
+         group by 1, 2
+         order by 1 desc`,
+        [String(days)]
+      ),
       pool.query<{ path: string; cnt: string }>(
         `select path, count(*)::text as cnt
          from request_error_log
@@ -113,6 +130,43 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const errorMap = new Map<string, number>();
     for (const row of requestErrorRes.rows) {
       errorMap.set(row.path, Number(row.cnt) || 0);
+    }
+
+    const emailDailyMap = new Map<string, {
+      day: string;
+      registration_sent: number;
+      registration_failed: number;
+      password_reset_sent: number;
+      password_reset_failed: number;
+      telegram_pin_sent: number;
+      telegram_pin_failed: number;
+      total_sent: number;
+      total_failed: number;
+    }>();
+    for (const row of emailDeliveryDailyRes.rows) {
+      const day = String(row.day || "");
+      if (!day) continue;
+      const current = emailDailyMap.get(day) || {
+        day,
+        registration_sent: 0,
+        registration_failed: 0,
+        password_reset_sent: 0,
+        password_reset_failed: 0,
+        telegram_pin_sent: 0,
+        telegram_pin_failed: 0,
+        total_sent: 0,
+        total_failed: 0,
+      };
+      const value = Number(row.cnt) || 0;
+      if (row.action === "email_delivery_registration_sent") current.registration_sent += value;
+      if (row.action === "email_delivery_registration_failed") current.registration_failed += value;
+      if (row.action === "email_delivery_password_reset_sent") current.password_reset_sent += value;
+      if (row.action === "email_delivery_password_reset_failed") current.password_reset_failed += value;
+      if (row.action === "email_delivery_telegram_pin_sent") current.telegram_pin_sent += value;
+      if (row.action === "email_delivery_telegram_pin_failed") current.telegram_pin_failed += value;
+      current.total_sent = current.registration_sent + current.password_reset_sent + current.telegram_pin_sent;
+      current.total_failed = current.registration_failed + current.password_reset_failed + current.telegram_pin_failed;
+      emailDailyMap.set(day, current);
     }
 
     const activeLogins = activeUsersRes.rows
@@ -175,6 +229,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           reset: errorMap.get("/api/admin-user-update") || 0,
           tg_webhook: errorMap.get("/api/tg-webhook") || 0,
         },
+        daily: Array.from(emailDailyMap.values())
+          .sort((a, b) => String(b.day).localeCompare(String(a.day)))
+          .slice(0, 14),
       },
       voice_assistant: {
         linked_logins: voiceLinkedLogins,

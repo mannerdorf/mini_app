@@ -238,6 +238,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [autoRegisterApplying, setAutoRegisterApplying] = useState(false);
   const [autoRegisterAutoModeEnabled, setAutoRegisterAutoModeEnabled] = useState(false);
   const [autoRegisterFetchTrigger, setAutoRegisterFetchTrigger] = useState(0);
+  const [autoRegisterBatchSize, setAutoRegisterBatchSize] = useState<number>(20);
+  const [autoRegisterResult, setAutoRegisterResult] = useState<{
+    processed: number;
+    created: number;
+    skipped_existing: number;
+    email_sent: number;
+    email_failed: number;
+    remaining_candidates?: number;
+    run_limit?: number;
+    email_delay_ms?: number;
+    email_jitter_ms?: number;
+  } | null>(null);
   const [paymentCalendarItems, setPaymentCalendarItems] = useState<{ inn: string; customer_name: string | null; days_to_pay: number; payment_weekdays: number[] }[]>([]);
   const [paymentCalendarLoading, setPaymentCalendarLoading] = useState(false);
   const [paymentCalendarSearch, setPaymentCalendarSearch] = useState("");
@@ -354,6 +366,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       password_reset: { sent: number; failed: number };
       telegram_pin: { sent: number; failed: number };
       api_errors: { register: number; reset: number; tg_webhook: number };
+      daily: Array<{
+        day: string;
+        registration_sent: number;
+        registration_failed: number;
+        password_reset_sent: number;
+        password_reset_failed: number;
+        telegram_pin_sent: number;
+        telegram_pin_failed: number;
+        total_sent: number;
+        total_failed: number;
+      }>;
     };
     voice_assistant: {
       linked_logins: number;
@@ -758,6 +781,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               reset: Number(data?.email_delivery?.api_errors?.reset || 0),
               tg_webhook: Number(data?.email_delivery?.api_errors?.tg_webhook || 0),
             },
+            daily: Array.isArray(data?.email_delivery?.daily)
+              ? data.email_delivery.daily.map((d: any) => ({
+                  day: String(d?.day || ""),
+                  registration_sent: Number(d?.registration_sent || 0),
+                  registration_failed: Number(d?.registration_failed || 0),
+                  password_reset_sent: Number(d?.password_reset_sent || 0),
+                  password_reset_failed: Number(d?.password_reset_failed || 0),
+                  telegram_pin_sent: Number(d?.telegram_pin_sent || 0),
+                  telegram_pin_failed: Number(d?.telegram_pin_failed || 0),
+                  total_sent: Number(d?.total_sent || 0),
+                  total_failed: Number(d?.total_failed || 0),
+                }))
+              : [],
           },
           voice_assistant: {
             linked_logins: Number(data?.voice_assistant?.linked_logins || 0),
@@ -802,6 +838,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         setAutoRegisterCandidates(Array.isArray(data?.candidates) ? data.candidates : []);
         setAutoRegisterStats(data?.stats || null);
         setAutoRegisterAutoModeEnabled(Boolean(data?.auto_mode_enabled));
+        setAutoRegisterResult(null);
       })
       .catch((e: unknown) => {
         setAutoRegisterCandidates([]);
@@ -2853,34 +2890,60 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   Обновить dry-run
                 </Button>
                 {isSuperAdmin && autoRegisterAutoModeEnabled && autoRegisterCandidates.length > 0 && (
-                  <Button
-                    type="button"
-                    className="button-primary"
-                    onClick={async () => {
-                      setAutoRegisterApplying(true);
-                      setError(null);
-                      try {
-                        const res = await fetch("/api/admin-auto-register-candidates", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                          body: JSON.stringify({ limit: autoRegisterCandidates.length }),
-                        });
-                        const data = await res.json().catch(() => ({}));
-                        if (!res.ok) throw new Error(data?.error || "Ошибка запуска авто-регистрации");
-                        await fetchUsers();
-                        setAutoRegisterFetchTrigger((n) => n + 1);
-                      } catch (e: unknown) {
-                        setError((e as Error)?.message || "Ошибка авто-регистрации");
-                      } finally {
-                        setAutoRegisterApplying(false);
-                      }
-                    }}
-                    disabled={autoRegisterApplying}
-                    style={{ padding: "0.35rem 0.6rem", fontSize: "0.8rem" }}
-                  >
-                    {autoRegisterApplying ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.25rem" }} /> : null}
-                    Авто-режим: создать всех кандидатов ({autoRegisterCandidates.length})
-                  </Button>
+                  <>
+                    <select
+                      className="admin-form-input"
+                      value={String(autoRegisterBatchSize)}
+                      onChange={(e) => setAutoRegisterBatchSize(Math.max(1, Math.min(200, parseInt(e.target.value, 10) || 20)))}
+                      style={{ padding: "0.25rem 0.5rem", fontSize: "0.8rem" }}
+                      aria-label="Размер партии авто-регистрации"
+                    >
+                      <option value="10">Партия: 10</option>
+                      <option value="20">Партия: 20</option>
+                      <option value="50">Партия: 50</option>
+                      <option value="100">Партия: 100</option>
+                    </select>
+                    <Button
+                      type="button"
+                      className="button-primary"
+                      onClick={async () => {
+                        setAutoRegisterApplying(true);
+                        setError(null);
+                        setAutoRegisterResult(null);
+                        try {
+                          const res = await fetch("/api/admin-auto-register-candidates", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                            body: JSON.stringify({ limit: autoRegisterBatchSize }),
+                          });
+                          const data = await res.json().catch(() => ({}));
+                          if (!res.ok) throw new Error(data?.error || "Ошибка запуска авто-регистрации");
+                          setAutoRegisterResult({
+                            processed: Number(data?.processed || 0),
+                            created: Number(data?.created || 0),
+                            skipped_existing: Number(data?.skipped_existing || 0),
+                            email_sent: Number(data?.email_sent || 0),
+                            email_failed: Number(data?.email_failed || 0),
+                            remaining_candidates: Number(data?.remaining_candidates || 0),
+                            run_limit: Number(data?.run_limit || 0),
+                            email_delay_ms: Number(data?.email_delay_ms || 0),
+                            email_jitter_ms: Number(data?.email_jitter_ms || 0),
+                          });
+                          await fetchUsers();
+                          setAutoRegisterFetchTrigger((n) => n + 1);
+                        } catch (e: unknown) {
+                          setError((e as Error)?.message || "Ошибка авто-регистрации");
+                        } finally {
+                          setAutoRegisterApplying(false);
+                        }
+                      }}
+                      disabled={autoRegisterApplying}
+                      style={{ padding: "0.35rem 0.6rem", fontSize: "0.8rem" }}
+                    >
+                      {autoRegisterApplying ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.25rem" }} /> : null}
+                      Авто-режим: запустить партию
+                    </Button>
+                  </>
                 )}
               </Flex>
             </Flex>
@@ -2890,6 +2953,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             {autoRegisterStats && (
               <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}>
                 Всего в справочнике: {autoRegisterStats.total}; с email: {autoRegisterStats.withEmail}; валидных email: {autoRegisterStats.validEmail}; уже зарегистрированы: {autoRegisterStats.alreadyRegistered}; кандидаты: {autoRegisterCandidates.length}
+              </Typography.Body>
+            )}
+            {autoRegisterResult && (
+              <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}>
+                Результат партии: обработано {autoRegisterResult.processed}, создано {autoRegisterResult.created}, пропущено {autoRegisterResult.skipped_existing}, email отправлено {autoRegisterResult.email_sent}, ошибок email {autoRegisterResult.email_failed}, осталось кандидатов {autoRegisterResult.remaining_candidates ?? 0}. Пауза между письмами: {autoRegisterResult.email_delay_ms ?? 0}ms + jitter {autoRegisterResult.email_jitter_ms ?? 0}ms.
               </Typography.Body>
             )}
             {autoRegisterLoading ? (
@@ -4055,6 +4123,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               onChange={(e) => setIntegrationDays(Math.max(1, Math.min(365, parseInt(e.target.value, 10) || 30)))}
               style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
             >
+              <option value="1">1 день</option>
               <option value="7">7 дней</option>
               <option value="30">30 дней</option>
               <option value="60">60 дней</option>
@@ -4133,6 +4202,41 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </Typography.Body>
               </Panel>
             </div>
+            <Panel className="cargo-card" style={{ padding: "0.75rem", border: "1px solid var(--color-border)", marginTop: "0.75rem" }}>
+              <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Email доставка по дням</Typography.Body>
+              {integrationHealth.email_delivery.daily.length === 0 ? (
+                <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+                  За выбранный период записей нет.
+                </Typography.Body>
+              ) : (
+                <div style={{ overflowX: "auto", maxHeight: "16rem", overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                    <thead>
+                      <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                        <th style={{ padding: "0.35rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Дата</th>
+                        <th style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontWeight: 600 }}>Отправлено</th>
+                        <th style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontWeight: 600 }}>Ошибок</th>
+                        <th style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontWeight: 600 }}>Регистрация</th>
+                        <th style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontWeight: 600 }}>Сброс</th>
+                        <th style={{ padding: "0.35rem 0.5rem", textAlign: "right", fontWeight: 600 }}>Telegram PIN</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {integrationHealth.email_delivery.daily.map((d) => (
+                        <tr key={d.day} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                          <td style={{ padding: "0.35rem 0.5rem" }}>{d.day}</td>
+                          <td style={{ padding: "0.35rem 0.5rem", textAlign: "right" }}>{d.total_sent}</td>
+                          <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", color: d.total_failed > 0 ? "var(--color-error, #dc2626)" : "var(--color-text-secondary)" }}>{d.total_failed}</td>
+                          <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", color: "var(--color-text-secondary)" }}>{d.registration_sent} / {d.registration_failed}</td>
+                          <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", color: "var(--color-text-secondary)" }}>{d.password_reset_sent} / {d.password_reset_failed}</td>
+                          <td style={{ padding: "0.35rem 0.5rem", textAlign: "right", color: "var(--color-text-secondary)" }}>{d.telegram_pin_sent} / {d.telegram_pin_failed}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
           )}
         </Panel>
       )}

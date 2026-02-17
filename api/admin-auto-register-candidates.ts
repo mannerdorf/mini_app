@@ -28,6 +28,21 @@ type Candidate = {
   email: string;
 };
 
+function parseEnvInt(name: string, fallback: number, min: number, max: number): number {
+  const raw = Number.parseInt(String(process.env[name] || ""), 10);
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.max(min, Math.min(max, raw));
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function randomInt(min: number, max: number): number {
+  if (max <= min) return min;
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 function normalizeEmail(v: string): string {
   return String(v || "").trim().toLowerCase();
 }
@@ -139,10 +154,17 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const q = typeof req.query.q === "string" ? req.query.q : "";
     const { candidates } = await collectCandidates(q);
     const innFilter = new Set((Array.isArray(body?.inns) ? body.inns : []).map((x) => String(x || "").trim()).filter(Boolean));
-    const limit = Math.max(1, Math.min(1000, Number(body?.limit) || candidates.length));
-    const target = candidates
+    const requestedLimit = Math.max(1, Math.min(1000, Number(body?.limit) || candidates.length));
+    const maxPerRun = parseEnvInt("AUTO_REGISTER_MAX_PER_RUN", 20, 1, 200);
+    const limit = Math.min(requestedLimit, maxPerRun);
+    const targetAll = candidates
       .filter((c) => (innFilter.size ? innFilter.has(c.inn) : true))
-      .slice(0, limit);
+      .slice(0, requestedLimit);
+    const target = targetAll.slice(0, limit);
+
+    // Антиспам: регулируем скорость отправки welcome-писем партиями.
+    const emailDelayMs = parseEnvInt("AUTO_REGISTER_EMAIL_DELAY_MS", 2000, 0, 30000);
+    const emailJitterMs = parseEnvInt("AUTO_REGISTER_EMAIL_JITTER_MS", 800, 0, 10000);
 
     const pool = getPool();
     let created = 0;
@@ -150,6 +172,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     let emailSent = 0;
     let emailFailed = 0;
     const errors: string[] = [];
+    let emailAttempts = 0;
 
     for (const c of target) {
       const login = normalizeEmail(c.email);
@@ -192,6 +215,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           details: { login, inn: c.inn, customer_name: c.customer_name },
         });
 
+        if (emailAttempts > 0 && emailDelayMs > 0) {
+          const pause = emailDelayMs + randomInt(0, emailJitterMs);
+          await sleep(pause);
+        }
+        emailAttempts += 1;
         const sendResult = await sendRegistrationEmail(pool, login, login, password, c.customer_name || "");
         if (sendResult.ok) {
           emailSent += 1;
@@ -223,10 +251,14 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       ok: true,
       auto_mode_enabled: autoModeEnabled,
       processed: target.length,
+      remaining_candidates: Math.max(0, targetAll.length - target.length),
+      run_limit: limit,
       created,
       skipped_existing: skipped,
       email_sent: emailSent,
       email_failed: emailFailed,
+      email_delay_ms: emailDelayMs,
+      email_jitter_ms: emailJitterMs,
       errors: errors.slice(0, 20),
     });
   } catch (e: unknown) {
