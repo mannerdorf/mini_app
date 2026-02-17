@@ -104,8 +104,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         const finalInns = isServiceMode ? null : (filterInns === null
           ? (requestedInn ? new Set([requestedInn]) : null)
-          : requestedInn && filterInns.has(requestedInn)
-            ? new Set([requestedInn])
+          : requestedInn
+            ? (filterInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
             : filterInns);
         const data = cacheRow.rows[0].data as any[];
         const list = Array.isArray(data) ? data : [];
@@ -148,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
         // Если выбран конкретный заказчик (inn) — отдаём только его перевозки; иначе — все доступные по логину
         const filterInns = requestedInn
-          ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : allowedInns)
+          ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
           : allowedInns;
         if (filterInns.size > 0) {
           const data = cacheRow.rows[0].data as any[];

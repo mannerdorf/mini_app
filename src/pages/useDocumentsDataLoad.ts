@@ -47,6 +47,7 @@ export function useDocumentsDataLoad(params: Params) {
     auth,
     dateFrom: perevozkiDateRange.dateFrom,
     dateTo: perevozkiDateRange.dateTo,
+    inn: activeInn || undefined,
     useServiceRequest: !!useServiceRequest,
   });
 

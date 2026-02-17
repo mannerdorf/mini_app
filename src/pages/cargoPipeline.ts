@@ -12,6 +12,7 @@ type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 
 export type CargoFilterPipelineParams = {
   items: CargoItem[];
+  activeInn?: string;
   searchText: string;
   statusFilterSet: Set<CargoStatusFilterKey>;
   senderFilter: string;
@@ -26,6 +27,25 @@ export type CargoFilterPipelineParams = {
   sortBy: "datePrih" | "dateVr" | null;
   sortOrder: "asc" | "desc";
 };
+
+const normalizeInn = (value: unknown): string => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "");
+  return digits || raw;
+};
+
+const getCargoItemInn = (item: CargoItem): string =>
+  normalizeInn(
+    (item as any)?.INN ??
+      (item as any)?.Inn ??
+      (item as any)?.inn ??
+      (item as any)?.CustomerINN ??
+      (item as any)?.CustomerInn ??
+      (item as any)?.INNCustomer ??
+      (item as any)?.InnCustomer ??
+      (item as any)?.КонтрагентИНН
+  );
 
 const parseDateSafe = (dateString: string | undefined): number | null => {
   if (!dateString) return null;
@@ -82,6 +102,7 @@ export function buildFilteredCargoItems(
 ): CargoItem[] {
   const {
     items,
+    activeInn,
     searchText,
     statusFilterSet,
     senderFilter,
@@ -96,6 +117,11 @@ export function buildFilteredCargoItems(
   } = params;
 
   let res = items.filter((i) => !isReceivedInfoStatus(i.State));
+  const normalizedActiveInn = normalizeInn(activeInn);
+  if (!useServiceRequest && normalizedActiveInn) {
+    // Safety filter: in regular mode always pin cargo to selected header company.
+    res = res.filter((i) => getCargoItemInn(i) === normalizedActiveInn);
+  }
 
   if (searchText) {
     const lower = searchText.toLowerCase();

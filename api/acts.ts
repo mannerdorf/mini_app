@@ -101,8 +101,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
         const finalInns = filterInns === null
           ? null
-          : requestedInn && filterInns.has(requestedInn)
-            ? new Set([requestedInn])
+          : requestedInn
+            ? (filterInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
             : filterInns;
         const data = cacheRow.rows[0].data as any[];
         const list = Array.isArray(data) ? data : [];
@@ -144,7 +144,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
         const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
         const filterInns = requestedInn
-          ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : allowedInns)
+          ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
           : allowedInns;
         if (filterInns.size > 0) {
           const data = cacheRow.rows[0].data as any[];

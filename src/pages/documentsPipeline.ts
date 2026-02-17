@@ -5,11 +5,24 @@ import type { StatusFilter } from "../types";
 export const INVOICE_FAVORITES_VALUE = "__favorites__";
 
 function normalizeInn(value: unknown): string {
-  return String(value ?? "").trim();
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "");
+  return digits || raw;
 }
 
 function getItemInn(item: any): string {
-  return normalizeInn(item?.INN ?? item?.Inn ?? item?.inn ?? item?.CustomerINN ?? item?.customerInn);
+  return normalizeInn(
+    item?.INN ??
+      item?.Inn ??
+      item?.inn ??
+      item?.CustomerINN ??
+      item?.CustomerInn ??
+      item?.customerInn ??
+      item?.INNCustomer ??
+      item?.InnCustomer ??
+      item?.КонтрагентИНН
+  );
 }
 
 export function getInvoiceSearchText(inv: any): string {

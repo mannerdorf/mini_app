@@ -73,6 +73,7 @@ export function CargoPage({
     const runtime = useAppRuntime();
     const effectiveSearchText = searchText ?? runtime.searchText;
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
+    const effectiveActiveInn = runtime.activeInn ?? "";
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
 
     // Filters State; при переключении вкладок восстанавливаем из localStorage
@@ -283,6 +284,7 @@ export function CargoPage({
     const filteredItems = useMemo(() => {
         return buildFilteredCargoItems({
             items,
+            activeInn: effectiveActiveInn,
             searchText: effectiveSearchText,
             statusFilterSet,
             senderFilter,
@@ -295,7 +297,7 @@ export function CargoPage({
             sortBy,
             sortOrder,
         });
-    }, [items, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, sortBy, sortOrder]);
+    }, [items, effectiveActiveInn, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, sortBy, sortOrder]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 
