@@ -4149,6 +4149,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               Нет данных по интеграциям. Проверьте, что есть доступ к БД/Redis и повторите обновление.
             </Typography.Body>
           ) : (
+            <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(18rem, 1fr))", gap: "0.75rem" }}>
               <Panel className="cargo-card" style={{ padding: "0.75rem", border: "1px solid var(--color-border)" }}>
                 <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>2FA / Telegram</Typography.Body>
@@ -4237,6 +4238,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </div>
               )}
             </Panel>
+            </>
           )}
         </Panel>
       )}
