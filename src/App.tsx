@@ -1008,9 +1008,15 @@ function DashboardPage({
                 .trim();
         const invCustomer = (inv: any) => String(inv?.Customer ?? inv?.customer ?? inv?.Контрагент ?? inv?.Contractor ?? inv?.Organization ?? '').trim() || '—';
         const invNumber = (inv: any) => (inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? '').toString();
+        const invStatus = (inv: any) => normalizeInvoiceStatus(inv?.Status ?? inv?.State ?? inv?.state ?? inv?.Статус ?? inv?.status ?? inv?.PaymentStatus ?? '');
         (calendarInvoiceItems ?? []).forEach((inv: any) => {
             const dateStr = invDate(inv);
             if (!dateStr) return;
+            // Календарь строим по счетам, выставленным в выбранном периоде (Date filter).
+            if (dateStr < apiDateRange.dateFrom || dateStr > apiDateRange.dateTo) return;
+            // Учитываем только не оплаченные/частично оплаченные счета.
+            const status = invStatus(inv);
+            if (status === 'Оплачен') return;
             const sum = invSum(inv);
             if (sum <= 0) return;
             const inn = invInn(inv) || String(auth?.inn ?? '').replace(/\D/g, '').trim();
@@ -1033,7 +1039,7 @@ function DashboardPage({
             }
         });
         return map;
-    }, [calendarInvoiceItems, paymentCalendarByInn]);
+    }, [calendarInvoiceItems, paymentCalendarByInn, apiDateRange.dateFrom, apiDateRange.dateTo, auth?.inn]);
     
     // Подготовка данных для графиков (группировка по датам)
     const chartData = useMemo(() => {
