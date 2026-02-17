@@ -90,6 +90,7 @@ type TgActivationCandidate = {
   inn: string | null;
   customerName: string | null;
   email: string | null;
+  active: boolean;
 };
 
 function random6(): string {
@@ -107,8 +108,16 @@ function looksLikeInn(s: string): boolean {
   return v.length === 10 || v.length === 12;
 }
 
+function normalizeLoginInput(s: string): string {
+  return String(s || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim()
+    .replace(/^@/, "")
+    .toLowerCase();
+}
+
 async function findActivationCandidateByLogin(loginRaw: string): Promise<TgActivationCandidate | null> {
-  const login = String(loginRaw || "").trim().toLowerCase();
+  const login = normalizeLoginInput(loginRaw);
   if (!login) return null;
   const pool = getPool();
   const { rows } = await pool.query<{
@@ -116,12 +125,14 @@ async function findActivationCandidateByLogin(loginRaw: string): Promise<TgActiv
     inn: string | null;
     customer_name: string | null;
     email: string | null;
+    active: boolean | null;
   }>(
     `select
        ru.login,
        ac.inn,
        coalesce(cc.customer_name, ru.company_name, '') as customer_name,
-       cc.email
+       coalesce(cc.email, ru.login) as email,
+       ru.active
      from registered_users ru
      left join lateral (
        select inn
@@ -131,7 +142,8 @@ async function findActivationCandidateByLogin(loginRaw: string): Promise<TgActiv
        limit 1
      ) ac on true
      left join cache_customers cc on cc.inn = ac.inn
-     where lower(trim(ru.login)) = $1 and ru.active = true
+     where lower(trim(ru.login)) = $1
+     order by ru.active desc nulls last
      limit 1`,
     [login]
   );
@@ -142,6 +154,7 @@ async function findActivationCandidateByLogin(loginRaw: string): Promise<TgActiv
     inn: row.inn ?? null,
     customerName: row.customer_name ?? null,
     email: row.email ?? null,
+    active: row.active !== false,
   };
 }
 
@@ -175,6 +188,7 @@ async function findActivationCandidateByInn(innRaw: string): Promise<TgActivatio
     inn: row.inn,
     customerName: row.customer_name ?? null,
     email: row.email ?? null,
+    active: true,
   };
 }
 
@@ -420,13 +434,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ ok: true });
       }
       if (!candidate) {
-        await sendTgMessageChunked(chatId, "Заказчик не найден. Проверьте логин или ИНН и попробуйте снова.");
+        await sendTgMessageChunked(
+          chatId,
+          "Пользователь не найден в списке зарегистрированных пользователей. Проверьте логин или ИНН и попробуйте снова."
+        );
+        return res.status(200).json({ ok: true });
+      }
+      if (!candidate.active) {
+        await sendTgMessageChunked(chatId, "Пользователь найден, но деактивирован. Обратитесь к администратору.");
         return res.status(200).json({ ok: true });
       }
 
       const email = String(candidate.email || "").trim();
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        await sendTgMessageChunked(chatId, "Для этого заказчика не найден email в справочнике. Обратитесь в поддержку.");
+        await sendTgMessageChunked(chatId, "Для этого пользователя не найден email для отправки PIN. Обратитесь в поддержку.");
         return res.status(200).json({ ok: true });
       }
 
