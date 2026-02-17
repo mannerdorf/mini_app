@@ -19,7 +19,19 @@ function invoiceInn(item: any): string {
 
 function invoiceDate(item: any): string {
   const d = item?.DateDoc ?? item?.Date ?? item?.dateDoc ?? item?.date ?? "";
-  return String(d).split("T")[0];
+  return normalizeDateOnly(d);
+}
+
+function normalizeDateOnly(raw: unknown): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  const ruMatch = s.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (ruMatch) return `${ruMatch[3]}-${ruMatch[2]}-${ruMatch[1]}`;
+  const parsed = new Date(s);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().split("T")[0];
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -66,10 +78,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!verified) {
         return res.status(401).json({ error: "Неверный email или пароль" });
       }
-      const cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+      let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
         "SELECT data, fetched_at FROM cache_invoices WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
         [CACHE_FRESH_MINUTES]
       );
+      if (cacheRow.rows.length === 0) {
+        cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+          "SELECT data, fetched_at FROM cache_invoices WHERE id = 1"
+        );
+      }
       if (cacheRow.rows.length > 0) {
         let filterInns: Set<string> | null = null;
         if (!verified.accessAllInns) {
@@ -110,10 +127,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!serviceMode) {
     try {
       const pool = getPool();
-      const cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+      let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
         "SELECT data, fetched_at FROM cache_invoices WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
         [CACHE_FRESH_MINUTES]
       );
+      if (cacheRow.rows.length === 0) {
+        cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+          "SELECT data, fetched_at FROM cache_invoices WHERE id = 1"
+        );
+      }
       if (cacheRow.rows.length > 0) {
         const userInnsRow = await pool.query<{ inn: string }>(
           "SELECT inn FROM account_companies WHERE login = $1",
