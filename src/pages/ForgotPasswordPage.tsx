@@ -5,10 +5,12 @@ import { ArrowLeft, Loader2, Mail } from "lucide-react";
 type ForgotPasswordPageProps = {
   /** Вернуться к форме входа */
   onBackToLogin: () => void;
+  /** Предзаполненный email из формы входа */
+  initialEmail?: string;
 };
 
-export function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPageProps) {
-  const [login, setLogin] = useState("");
+export function ForgotPasswordPage({ onBackToLogin, initialEmail }: ForgotPasswordPageProps) {
+  const [login, setLogin] = useState((initialEmail || "").trim());
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success?: boolean; error?: string } | null>(null);
 

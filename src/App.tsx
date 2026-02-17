@@ -992,7 +992,20 @@ function DashboardPage({
             const v = inv?.SumDoc ?? inv?.Sum ?? inv?.sum ?? inv?.Сумма ?? inv?.Amount ?? 0;
             return typeof v === 'string' ? parseFloat(v) || 0 : Number(v) || 0;
         };
-        const invInn = (inv: any) => String(inv?.INN ?? inv?.Inn ?? inv?.inn ?? '').trim();
+        const invInn = (inv: any) =>
+            String(
+                inv?.INN ??
+                inv?.Inn ??
+                inv?.inn ??
+                inv?.CustomerINN ??
+                inv?.CustomerInn ??
+                inv?.INNCustomer ??
+                inv?.InnCustomer ??
+                inv?.КонтрагентИНН ??
+                ''
+            )
+                .replace(/\D/g, '')
+                .trim();
         const invCustomer = (inv: any) => String(inv?.Customer ?? inv?.customer ?? inv?.Контрагент ?? inv?.Contractor ?? inv?.Organization ?? '').trim() || '—';
         const invNumber = (inv: any) => (inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? '').toString();
         (calendarInvoiceItems ?? []).forEach((inv: any) => {
@@ -1000,7 +1013,7 @@ function DashboardPage({
             if (!dateStr) return;
             const sum = invSum(inv);
             if (sum <= 0) return;
-            const inn = invInn(inv);
+            const inn = invInn(inv) || String(auth?.inn ?? '').replace(/\D/g, '').trim();
             const cal = paymentCalendarByInn[inn] ?? { days_to_pay: 0, payment_weekdays: [] };
             const days = cal.days_to_pay ?? 0;
             const weekdays = cal.payment_weekdays ?? [];
@@ -6925,10 +6938,16 @@ export default function App() {
         }
     }, [accounts.length, activeAccountId, selectedAccountIds.length]);
 
-    // Служебный режим: доступен зарегистрированным пользователям с правом service_mode (галочка в CMS)
+    // Режим сквозной выборки без жёсткой привязки к ИНН:
+    // доступен только аккаунтам с правом analytics.
     const serviceModeUnlocked = useMemo(() => {
-        return !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
-    }, [activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
+        return !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.analytics === true;
+    }, [activeAccount?.isRegisteredUser, activeAccount?.permissions?.analytics]);
+    useEffect(() => {
+        if (!serviceModeUnlocked && useServiceRequest) {
+            setUseServiceRequest(false);
+        }
+    }, [serviceModeUnlocked, useServiceRequest]);
     const [authMethods, setAuthMethods] = useState<AuthMethodsConfig>({
         api_v1: true,
         api_v2: true,
@@ -8138,6 +8157,7 @@ export default function App() {
     if (!auth && showForgotPage) {
         return (
             <ForgotPasswordPage
+                initialEmail={login}
                 onBackToLogin={() => {
                     setShowForgotPage(false);
                     try {
