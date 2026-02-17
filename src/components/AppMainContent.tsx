@@ -22,6 +22,7 @@ type Props = {
   updateActiveAccountCustomer: (customer: string) => void;
   openCargoWithFilters: (filters: { statuses?: string[]; customer?: string }) => void;
   openCargoFromChat: (cargoNumber: string) => void;
+  openTelegramBotWithAccount: () => Promise<void>;
   handleSwitchAccount: (accountId: string) => void;
   handleAddAccount: (account: Account) => Promise<void>;
   handleRemoveAccount: (accountId: string) => void;
@@ -119,6 +120,7 @@ export function AppMainContent({
   updateActiveAccountCustomer,
   openCargoWithFilters,
   openCargoFromChat,
+  openTelegramBotWithAccount,
   handleSwitchAccount,
   handleAddAccount,
   handleRemoveAccount,
@@ -209,7 +211,7 @@ export function AppMainContent({
           onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
           onOpenNotifications={openSecretPinModal}
           onOpenCargo={openCargoFromChat}
-          onOpenTelegramBot={undefined}
+          onOpenTelegramBot={openTelegramBotWithAccount}
           onOpenMaxBot={undefined}
           onUpdateAccount={handleUpdateAccount}
         />
@@ -242,7 +244,7 @@ export function AppMainContent({
           onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
           onOpenNotifications={openSecretPinModal}
           onOpenCargo={openCargoFromChat}
-          onOpenTelegramBot={undefined}
+          onOpenTelegramBot={openTelegramBotWithAccount}
           onOpenMaxBot={undefined}
           onUpdateAccount={handleUpdateAccount}
         />

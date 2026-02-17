@@ -4545,7 +4545,7 @@ function ProfilePage({
                 activeAccountId={activeAccountId}
                 onBack={() => setCurrentView('main')}
                 onOpenDeveloper={() => {}}
-                onOpenTelegramBot={openTelegramBotWithAccount}
+                onOpenTelegramBot={onOpenTelegramBot}
                 onOpenMaxBot={undefined}
                 onUpdateAccount={onUpdateAccount}
             />
@@ -8524,6 +8524,7 @@ export default function App() {
                             updateActiveAccountCustomer={updateActiveAccountCustomer}
                             openCargoWithFilters={openCargoWithFilters}
                             openCargoFromChat={openCargoFromChat}
+                            openTelegramBotWithAccount={openTelegramBotWithAccount}
                             handleSwitchAccount={handleSwitchAccount}
                             handleAddAccount={handleAddAccount}
                             handleRemoveAccount={handleRemoveAccount}
