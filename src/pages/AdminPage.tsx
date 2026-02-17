@@ -232,6 +232,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersFetchTrigger, setCustomersFetchTrigger] = useState(0);
   const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
+  const [autoRegisterCandidates, setAutoRegisterCandidates] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
+  const [autoRegisterStats, setAutoRegisterStats] = useState<{ total: number; withEmail: number; validEmail: number; alreadyRegistered: number } | null>(null);
+  const [autoRegisterLoading, setAutoRegisterLoading] = useState(false);
+  const [autoRegisterApplying, setAutoRegisterApplying] = useState(false);
+  const [autoRegisterAutoModeEnabled, setAutoRegisterAutoModeEnabled] = useState(false);
+  const [autoRegisterFetchTrigger, setAutoRegisterFetchTrigger] = useState(0);
   const [paymentCalendarItems, setPaymentCalendarItems] = useState<{ inn: string; customer_name: string | null; days_to_pay: number; payment_weekdays: number[] }[]>([]);
   const [paymentCalendarLoading, setPaymentCalendarLoading] = useState(false);
   const [paymentCalendarSearch, setPaymentCalendarSearch] = useState("");
@@ -781,6 +787,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       .catch(() => setCustomersList([]))
       .finally(() => setCustomersLoading(false));
   }, [tab, customersSearch, adminToken, customersFetchTrigger]);
+
+  useEffect(() => {
+    if (tab !== "customers") return;
+    setAutoRegisterLoading(true);
+    const params = new URLSearchParams();
+    if (customersSearch.trim().length >= 2) params.set("q", customersSearch.trim());
+    fetch(`/api/admin-auto-register-candidates?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => {
+        if (data?.error) throw new Error(String(data.error));
+        setAutoRegisterCandidates(Array.isArray(data?.candidates) ? data.candidates : []);
+        setAutoRegisterStats(data?.stats || null);
+        setAutoRegisterAutoModeEnabled(Boolean(data?.auto_mode_enabled));
+      })
+      .catch((e: unknown) => {
+        setAutoRegisterCandidates([]);
+        setAutoRegisterStats(null);
+        setError((e as Error)?.message || "Ошибка загрузки кандидатов");
+      })
+      .finally(() => setAutoRegisterLoading(false));
+  }, [tab, customersSearch, adminToken, autoRegisterFetchTrigger]);
 
   useEffect(() => {
     if (tab === "customers") fetchUsers();
@@ -2806,6 +2835,90 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </Button>
             )}
           </Flex>
+          <Panel className="cargo-card" style={{ padding: "0.75rem", marginBottom: "0.75rem", border: "1px dashed var(--color-border)" }}>
+            <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
+              <Typography.Body style={{ fontWeight: 600 }}>Dry-run: кандидаты на автосоздание</Typography.Body>
+              <Flex align="center" gap="0.5rem" wrap="wrap">
+                <Typography.Body style={{ fontSize: "0.8rem", color: autoRegisterAutoModeEnabled ? "var(--color-success-status)" : "var(--color-text-secondary)" }}>
+                  Auto-mode: {autoRegisterAutoModeEnabled ? "включен" : "выключен (AUTO_REGISTER_FROM_CUSTOMERS=false)"}
+                </Typography.Body>
+                <Button
+                  type="button"
+                  className="filter-button"
+                  onClick={() => setAutoRegisterFetchTrigger((n) => n + 1)}
+                  disabled={autoRegisterLoading}
+                  style={{ padding: "0.35rem 0.6rem", fontSize: "0.8rem" }}
+                >
+                  {autoRegisterLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.25rem" }} /> : null}
+                  Обновить dry-run
+                </Button>
+                {isSuperAdmin && autoRegisterAutoModeEnabled && autoRegisterCandidates.length > 0 && (
+                  <Button
+                    type="button"
+                    className="button-primary"
+                    onClick={async () => {
+                      setAutoRegisterApplying(true);
+                      setError(null);
+                      try {
+                        const res = await fetch("/api/admin-auto-register-candidates", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                          body: JSON.stringify({ limit: autoRegisterCandidates.length }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(data?.error || "Ошибка запуска авто-регистрации");
+                        await fetchUsers();
+                        setAutoRegisterFetchTrigger((n) => n + 1);
+                      } catch (e: unknown) {
+                        setError((e as Error)?.message || "Ошибка авто-регистрации");
+                      } finally {
+                        setAutoRegisterApplying(false);
+                      }
+                    }}
+                    disabled={autoRegisterApplying}
+                    style={{ padding: "0.35rem 0.6rem", fontSize: "0.8rem" }}
+                  >
+                    {autoRegisterApplying ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.25rem" }} /> : null}
+                    Авто-режим: создать всех кандидатов ({autoRegisterCandidates.length})
+                  </Button>
+                )}
+              </Flex>
+            </Flex>
+            <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}>
+              Кандидат: валидный email из справочника и отсутствие пользователя с таким login/email.
+            </Typography.Body>
+            {autoRegisterStats && (
+              <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}>
+                Всего в справочнике: {autoRegisterStats.total}; с email: {autoRegisterStats.withEmail}; валидных email: {autoRegisterStats.validEmail}; уже зарегистрированы: {autoRegisterStats.alreadyRegistered}; кандидаты: {autoRegisterCandidates.length}
+              </Typography.Body>
+            )}
+            {autoRegisterLoading ? (
+              <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Загрузка кандидатов…</Typography.Body>
+            ) : autoRegisterCandidates.length === 0 ? (
+              <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Кандидатов нет.</Typography.Body>
+            ) : (
+              <div style={{ overflowX: "auto", maxHeight: "12rem", overflowY: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                  <thead>
+                    <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                      <th style={{ padding: "0.35rem 0.5rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
+                      <th style={{ padding: "0.35rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
+                      <th style={{ padding: "0.35rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Email</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {autoRegisterCandidates.slice(0, 200).map((c) => (
+                      <tr key={`${c.inn}-${c.email}`} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                        <td style={{ padding: "0.35rem 0.5rem" }}>{c.inn || "—"}</td>
+                        <td style={{ padding: "0.35rem 0.5rem" }}>{c.customer_name || "—"}</td>
+                        <td style={{ padding: "0.35rem 0.5rem", color: "var(--color-text-secondary)" }}>{c.email || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
           {customersLoading ? (
             <Flex align="center" gap="0.5rem">
               <Loader2 className="w-4 h-4 animate-spin" />
