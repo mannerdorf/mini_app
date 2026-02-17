@@ -904,6 +904,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
   };
 
+  const openAddUserForm = useCallback(() => {
+    const raw = usersSearchQuery.trim();
+    const emailCandidate = raw.toLowerCase();
+    const hasMatches = users.some((u) => matchesUserSearch(u, raw));
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailCandidate);
+    if (raw && !hasMatches && isEmail) {
+      setFormEmail(emailCandidate);
+    }
+    setShowAddUserForm(true);
+  }, [usersSearchQuery, users, matchesUserSearch]);
+
   const togglePerm = (key: string) => {
     setFormSelectedPresetId("");
     setFormPermissions((p) => ({ ...p, [key]: !p[key] }));
@@ -1438,7 +1449,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 type="button"
                 className="filter-button"
                 style={{ background: "var(--color-primary-blue)", color: "white", padding: "0.4rem 0.75rem", fontSize: "0.9rem" }}
-                onClick={() => setShowAddUserForm(true)}
+                onClick={openAddUserForm}
                 aria-label="Добавить пользователя — открыть форму регистрации"
               >
                 <Plus className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
@@ -2101,6 +2112,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               }
               const CUSTOMER_ALL = "Доступ ко всем заказчикам";
               const groups = new Map<string, User[]>();
+              const normalizeCustomerName = (v: string) =>
+                String(v || "")
+                  .toLowerCase()
+                  .replace(/[.,;:()"'`]/g, " ")
+                  .replace(/\s+/g, " ")
+                  .trim();
+              const qNorm = normalizeCustomerName(q);
+              const qTokens = qNorm.split(" ").filter(Boolean);
+              const customerNameMatchesQuery = (name: string) => {
+                if (!qNorm) return true;
+                const n = normalizeCustomerName(name);
+                if (!n) return false;
+                if (n === qNorm || n.startsWith(qNorm)) return true;
+                const words = n.split(" ").filter(Boolean);
+                return qTokens.every((t) => words.some((w) => w.startsWith(t)));
+              };
               const addToGroup = (label: string, user: User) => {
                 const list = groups.get(label) ?? [];
                 if (!list.some((x) => x.id === user.id)) list.push(user);
@@ -2108,19 +2135,21 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               };
               for (const u of visibleSorted) {
                 if (u.access_all_inns && (!u.companies || u.companies.length === 0)) {
-                  addToGroup(CUSTOMER_ALL, u);
+                  if (!qNorm || customerNameMatchesQuery(CUSTOMER_ALL)) addToGroup(CUSTOMER_ALL, u);
                   continue;
                 }
                 if (u.companies && u.companies.length > 0) {
                   for (const c of u.companies) {
+                    if (!customerNameMatchesQuery(c.name || "")) continue;
                     const label = c.name?.trim() ? `${c.name} (${c.inn})` : c.inn;
                     addToGroup(label, u);
                   }
                 } else if (u.inn) {
+                  if (!customerNameMatchesQuery(u.company_name || "")) continue;
                   const label = u.company_name?.trim() ? `${u.company_name} (${u.inn})` : u.inn;
                   addToGroup(label, u);
                 } else {
-                  addToGroup(CUSTOMER_ALL, u);
+                  if (!qNorm || customerNameMatchesQuery(CUSTOMER_ALL)) addToGroup(CUSTOMER_ALL, u);
                 }
               }
               const sortedLabels = Array.from(groups.keys()).sort((a, b) => (a === CUSTOMER_ALL ? 1 : b === CUSTOMER_ALL ? -1 : a.localeCompare(b)));
