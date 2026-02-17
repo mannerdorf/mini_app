@@ -978,7 +978,16 @@ function DashboardPage({
     /** Плановое поступление по счетам: срок в календарных днях; при наступлении срока — первый платёжный день недели (если заданы) или первый рабочий день. */
     const plannedByDate = useMemo(() => {
         const map = new Map<string, { total: number; items: { customer: string; sum: number; number?: string }[] }>();
-        const invDate = (inv: any) => String(inv?.DateDoc ?? inv?.Date ?? inv?.date ?? inv?.dateDoc ?? inv?.Дата ?? '').split('T')[0];
+        const invDate = (inv: any): string => {
+            const raw = String(inv?.DateDoc ?? inv?.Date ?? inv?.date ?? inv?.dateDoc ?? inv?.Дата ?? '').trim();
+            if (!raw) return '';
+            const parsed = dateUtils.parseDateOnly(raw);
+            if (!parsed) return '';
+            const y = parsed.getFullYear();
+            const m = String(parsed.getMonth() + 1).padStart(2, '0');
+            const d = String(parsed.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
         const invSum = (inv: any) => {
             const v = inv?.SumDoc ?? inv?.Sum ?? inv?.sum ?? inv?.Сумма ?? inv?.Amount ?? 0;
             return typeof v === 'string' ? parseFloat(v) || 0 : Number(v) || 0;
@@ -995,10 +1004,11 @@ function DashboardPage({
             const cal = paymentCalendarByInn[inn] ?? { days_to_pay: 0, payment_weekdays: [] };
             const days = cal.days_to_pay ?? 0;
             const weekdays = cal.payment_weekdays ?? [];
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return;
+            const parsedDate = dateUtils.parseDateOnly(dateStr);
+            if (!parsedDate) return;
+            const d = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
             d.setDate(d.getDate() + days);
-            const deadline = d.toISOString().split('T')[0];
+            const deadline = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             const key = weekdays.length > 0 ? getFirstPaymentWeekdayOnOrAfter(deadline, weekdays) : getFirstWorkingDayOnOrAfter(deadline);
             const customer = invCustomer(inv);
             const entry = map.get(key);
