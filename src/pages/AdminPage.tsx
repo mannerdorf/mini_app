@@ -401,6 +401,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [editorCustomerPickOpen, setEditorCustomerPickOpen] = useState(false);
   const [editorSelectedPresetId, setEditorSelectedPresetId] = useState<string>("");
   const [customerDirectoryMap, setCustomerDirectoryMap] = useState<Record<string, string>>({});
+  const [userChangeEntries, setUserChangeEntries] = useState<{ id: number; action: string; details: Record<string, unknown> | null; created_at: string }[]>([]);
+  const [userChangeLoading, setUserChangeLoading] = useState(false);
+  const [userChangeQuery, setUserChangeQuery] = useState("");
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -856,6 +859,17 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setFormSubmitting(true);
     setFormResult(null);
     setError(null);
+    const normalizedEmail = formEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError("Введите корректный email");
+      setFormSubmitting(false);
+      return;
+    }
+    if (users.some((u) => String(u.login || "").trim().toLowerCase() === normalizedEmail)) {
+      setError("Пользователь с таким email уже существует");
+      setFormSubmitting(false);
+      return;
+    }
     if (!formAccessAllInns && !formPermissions.service_mode && selectedCustomers.length === 0) {
       setError("Выберите заказчика из справочника или включите служебный режим");
       setFormSubmitting(false);
@@ -876,7 +890,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
 
     const entry = {
-      login: formEmail.trim(),
+      login: normalizedEmail,
       password: formPassword,
       customer: selectedCustomers[0]?.customer_name,
     };
@@ -983,6 +997,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     return data;
   };
 
+  const formEmailError = useMemo(() => {
+    const value = formEmail.trim();
+    if (!value) return null;
+    const normalized = value.toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) return "Некорректный формат email";
+    const duplicate = users.some((u) => String(u.login || "").trim().toLowerCase() === normalized);
+    if (duplicate) return "Пользователь с таким email уже существует";
+    return null;
+  }, [formEmail, users]);
+
   const openPermissionsEditor = (user: User) => {
     setSelectedUser(user);
     setEditorSelectedPresetId("");
@@ -1040,7 +1064,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     } else {
       setSelectedUserIds([]);
     }
-  }, [selectedUserIds, bulkPermissions, bulkFinancial, bulkAccessAllInns, adminToken]);
+  }, [selectedUserIds, bulkPermissions, bulkFinancial, bulkAccessAllInns, adminToken, fetchUsers]);
 
   const handleBulkDeactivate = useCallback(async () => {
     if (selectedUserIds.length === 0) return;
@@ -1073,6 +1097,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   const handleSaveUserPermissions = async () => {
     if (!selectedUser) return;
+    if (!editorAccessAllInns && !editorPermissions.service_mode && editorCustomers.length === 0) {
+      setEditorError("Конфликт: нет заказчиков и выключен служебный режим. Назначьте заказчика или включите служебный режим.");
+      return;
+    }
     setEditorLoading(true);
     setEditorError(null);
     try {
@@ -1155,6 +1183,60 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (!selectedUser) setResetPasswordInfo(null);
   }, [selectedUser]);
+
+  useEffect(() => {
+    if (!selectedUser) {
+      setUserChangeEntries([]);
+      setUserChangeQuery("");
+      return;
+    }
+    const login = String(selectedUser.login || "").trim();
+    setUserChangeQuery(login);
+    setUserChangeLoading(true);
+    fetch(`/api/admin-audit-log?q=${encodeURIComponent(login)}&limit=30`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => {
+        const entries = Array.isArray(data?.entries) ? data.entries : [];
+        setUserChangeEntries(entries);
+      })
+      .catch(() => setUserChangeEntries([]))
+      .finally(() => setUserChangeLoading(false));
+  }, [selectedUser, adminToken]);
+
+  const editorDiffItems = useMemo(() => {
+    if (!selectedUser) return [] as string[];
+    const items: string[] = [];
+    const originalPermissions = selectedUser.permissions || {};
+    const changedPerms: string[] = [];
+    for (const p of PERMISSION_KEYS) {
+      const before = !!originalPermissions[p.key];
+      const after = !!editorPermissions[p.key];
+      if (before !== after) changedPerms.push(`${p.label}: ${before ? "вкл" : "выкл"} -> ${after ? "вкл" : "выкл"}`);
+    }
+    if (changedPerms.length) items.push(`Права: ${changedPerms.join("; ")}`);
+    if (Boolean(selectedUser.financial_access) !== Boolean(editorFinancial)) {
+      items.push(`Фин. показатели: ${selectedUser.financial_access ? "вкл" : "выкл"} -> ${editorFinancial ? "вкл" : "выкл"}`);
+    }
+    const beforeService = Boolean(selectedUser.permissions?.service_mode ?? selectedUser.access_all_inns);
+    const afterService = Boolean(editorPermissions.service_mode || editorAccessAllInns);
+    if (beforeService !== afterService) {
+      items.push(`Служебный режим: ${beforeService ? "вкл" : "выкл"} -> ${afterService ? "вкл" : "выкл"}`);
+    }
+    const originalCustomers = (selectedUser.companies?.length
+      ? selectedUser.companies.map((c) => c.inn)
+      : selectedUser.inn
+        ? [selectedUser.inn]
+        : []).filter(Boolean).sort();
+    const editedCustomers = editorCustomers.map((c) => c.inn).filter(Boolean).sort();
+    if (JSON.stringify(originalCustomers) !== JSON.stringify(editedCustomers)) {
+      items.push(
+        `Заказчики: ${originalCustomers.length ? originalCustomers.join(", ") : "не назначены"} -> ${editedCustomers.length ? editedCustomers.join(", ") : "не назначены"}`
+      );
+    }
+    return items;
+  }, [selectedUser, editorPermissions, editorFinancial, editorAccessAllInns, editorCustomers]);
 
   return (
     <div className={theme === "light" ? "light-mode w-full" : "w-full"}>
@@ -1390,16 +1472,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       : "Нет активных заказчиков. Данные о входах появятся после входа через CMS."}
                   </Typography.Body>
                 ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                     {(topActiveMode === "users" ? topActiveUsers : topActiveCustomers).map((u, i) => {
                       const now = Date.now();
                       const lastMs = u.last_login_at ? new Date(u.last_login_at).getTime() : 0;
                       const diffMs = lastMs ? now - lastMs : Infinity;
                       const ms30d = 30 * 24 * 3600 * 1000;
-                      const intensity = diffMs >= ms30d ? 0 : Math.max(0, 1 - diffMs / ms30d);
-                      const h = 140 * (1 - intensity);
-                      const s = 35 + 25 * intensity;
-                      const bg = `hsl(${h}, ${s}%, 94%)`;
+                      const freshness = diffMs >= ms30d ? 0 : Math.max(0, 1 - diffMs / ms30d);
+                      const accentOpacity = Math.min(0.5, 0.12 + freshness * 0.38);
+                      const timeLabel = u.last_login_at
+                        ? (() => {
+                            const d = new Date(u.last_login_at);
+                            const nowDate = new Date();
+                            const dMs = nowDate.getTime() - d.getTime();
+                            const diffM = Math.floor(dMs / 60000);
+                            const diffH = Math.floor(dMs / 3600000);
+                            const diffD = Math.floor(dMs / 86400000);
+                            if (diffM < 1) return "только что";
+                            if (diffM < 60) return `${diffM} мин назад`;
+                            if (diffH < 24) return `${diffH} ч назад`;
+                            if (diffD < 7) return `${diffD} дн назад`;
+                            return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+                          })()
+                        : "никогда";
                       return (
                       <div
                         key={"id" in u ? u.id : `customer-${u.customer}`}
@@ -1407,33 +1502,48 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "center",
-                          padding: "0.4rem 0.5rem",
-                          background: bg,
-                          borderRadius: 6,
+                          padding: "0.55rem 0.65rem",
+                          background: "var(--color-bg-hover)",
+                          border: "1px solid var(--color-border)",
+                          borderLeft: `4px solid rgba(0, 113, 227, ${accentOpacity})`,
+                          borderRadius: 8,
                           flexWrap: "wrap",
                           gap: "0.75rem",
                         }}
                       >
-                        <span style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                          {i + 1}. {"login" in u ? u.login : u.customer}
+                        <span style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--color-text-primary)" }}>
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              minWidth: 22,
+                              height: 22,
+                              marginRight: 8,
+                              borderRadius: 999,
+                              fontSize: "0.75rem",
+                              background: "var(--color-bg-card)",
+                              border: "1px solid var(--color-border)",
+                              color: "var(--color-text-secondary)",
+                            }}
+                          >
+                            {i + 1}
+                          </span>
+                          {"login" in u ? u.login : u.customer}
                           {"users_count" in u ? ` (${u.users_count})` : ""}
                         </span>
-                        <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginLeft: "0.5rem" }}>
-                          {u.last_login_at
-                            ? (() => {
-                                const d = new Date(u.last_login_at);
-                                const now = new Date();
-                                const diffMs = now.getTime() - d.getTime();
-                                const diffM = Math.floor(diffMs / 60000);
-                                const diffH = Math.floor(diffMs / 3600000);
-                                const diffD = Math.floor(diffMs / 86400000);
-                                if (diffM < 1) return "только что";
-                                if (diffM < 60) return `${diffM} мин назад`;
-                                if (diffH < 24) return `${diffH} ч назад`;
-                                if (diffD < 7) return `${diffD} дн назад`;
-                                return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
-                              })()
-                            : "никогда"}
+                        <Typography.Body
+                          style={{
+                            fontSize: "0.78rem",
+                            color: "var(--color-text-secondary)",
+                            marginLeft: "0.5rem",
+                            padding: "0.15rem 0.45rem",
+                            borderRadius: 999,
+                            background: "var(--color-bg-card)",
+                            border: "1px solid var(--color-border)",
+                          }}
+                        >
+                          {timeLabel}
                         </Typography.Body>
                       </div>
                     ); })}
@@ -1572,46 +1682,48 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <option value="active-asc">Сначала неактивные</option>
                 </select>
               </Flex>
-              <Button
-                type="button"
-                className="filter-button"
-                onClick={() => {
-                  const q = usersSearchQuery.trim();
-                  let list = users.filter((u) => matchesUserSearch(u, q));
-                  if (usersFilterBy === "cms") list = list.filter((u) => !!u.permissions?.cms_access);
-                  else if (usersFilterBy === "no_cms") list = list.filter((u) => !u.permissions?.cms_access);
-                  else if (usersFilterBy === "service_mode") list = list.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
-                  else if (usersFilterBy === "supervisor") list = list.filter((u) => !!u.permissions?.supervisor);
-                  else if (usersFilterBy === "no_supervisor") list = list.filter((u) => !u.permissions?.supervisor);
-                  else if (usersFilterBy === "analytics") list = list.filter((u) => !!u.permissions?.analytics);
-                  else if (usersFilterBy === "no_analytics") list = list.filter((u) => !u.permissions?.analytics);
-                  if (usersFilterActive === "active") list = list.filter((u) => !!u.active);
-                  else if (usersFilterActive === "inactive") list = list.filter((u) => !u.active);
-                  if (usersFilterLastLogin === "7d") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
-                  else if (usersFilterLastLogin === "30d") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms30d);
-                  else if (usersFilterLastLogin === "never") list = list.filter((u) => u.last_login_at == null);
-                  else if (usersFilterLastLogin === "old") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() > ms30d);
-                  if (usersFilterPresetId) {
-                    const preset = permissionPresets.find((p) => p.id === usersFilterPresetId);
-                    if (preset) list = list.filter((u) => userMatchesPreset(u, preset));
-                  }
-                  const rows = list.map((u) => {
-                    const customers = u.companies?.length ? u.companies.map((c) => `${c.name || ""} (${c.inn})`).join("; ") : (u.inn ? `${u.company_name || ""} (${u.inn})` : "");
-                    const perms = u.permissions && typeof u.permissions === "object" ? Object.entries(u.permissions).filter(([, v]) => v).map(([k]) => k).join("; ") : "";
-                    return [u.login, customers, perms, u.active ? "да" : "нет", u.created_at ? new Date(u.created_at).toLocaleDateString("ru-RU") : ""];
-                  });
-                  const header = ["Логин", "Заказчики", "Права", "Активен", "Дата регистрации"];
-                  const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
-                  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
-                  const a = document.createElement("a");
-                  a.href = URL.createObjectURL(blob);
-                  a.download = `пользователи_${new Date().toISOString().slice(0, 10)}.csv`;
-                  a.click();
-                  URL.revokeObjectURL(a.href);
-                }}
-              >
-                Выгрузить в CSV
-              </Button>
+              {isSuperAdmin && (
+                <Button
+                  type="button"
+                  className="filter-button"
+                  onClick={() => {
+                    const q = usersSearchQuery.trim();
+                    let list = users.filter((u) => matchesUserSearch(u, q));
+                    if (usersFilterBy === "cms") list = list.filter((u) => !!u.permissions?.cms_access);
+                    else if (usersFilterBy === "no_cms") list = list.filter((u) => !u.permissions?.cms_access);
+                    else if (usersFilterBy === "service_mode") list = list.filter((u) => !!u.permissions?.service_mode || !!u.access_all_inns);
+                    else if (usersFilterBy === "supervisor") list = list.filter((u) => !!u.permissions?.supervisor);
+                    else if (usersFilterBy === "no_supervisor") list = list.filter((u) => !u.permissions?.supervisor);
+                    else if (usersFilterBy === "analytics") list = list.filter((u) => !!u.permissions?.analytics);
+                    else if (usersFilterBy === "no_analytics") list = list.filter((u) => !u.permissions?.analytics);
+                    if (usersFilterActive === "active") list = list.filter((u) => !!u.active);
+                    else if (usersFilterActive === "inactive") list = list.filter((u) => !u.active);
+                    if (usersFilterLastLogin === "7d") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
+                    else if (usersFilterLastLogin === "30d") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms30d);
+                    else if (usersFilterLastLogin === "never") list = list.filter((u) => u.last_login_at == null);
+                    else if (usersFilterLastLogin === "old") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() > ms30d);
+                    if (usersFilterPresetId) {
+                      const preset = permissionPresets.find((p) => p.id === usersFilterPresetId);
+                      if (preset) list = list.filter((u) => userMatchesPreset(u, preset));
+                    }
+                    const rows = list.map((u) => {
+                      const customers = u.companies?.length ? u.companies.map((c) => `${c.name || ""} (${c.inn})`).join("; ") : (u.inn ? `${u.company_name || ""} (${u.inn})` : "");
+                      const perms = u.permissions && typeof u.permissions === "object" ? Object.entries(u.permissions).filter(([, v]) => v).map(([k]) => k).join("; ") : "";
+                      return [u.login, customers, perms, u.active ? "да" : "нет", u.created_at ? new Date(u.created_at).toLocaleDateString("ru-RU") : ""];
+                    });
+                    const header = ["Логин", "Заказчики", "Права", "Активен", "Дата регистрации"];
+                    const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+                    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `пользователи_${new Date().toISOString().slice(0, 10)}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                  }}
+                >
+                  Выгрузить в CSV
+                </Button>
+              )}
             </Flex>
             {loading ? (
               <Flex align="center" gap="0.5rem">
@@ -1692,7 +1804,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         style={{ padding: "0.25rem 0.75rem", color: "var(--color-error)" }}
                         onClick={() => setDeleteProfileConfirmOpen(true)}
                       >
-                        Удалить профиль
+                        В архив
                       </Button>
                     )}
                   </Flex>
@@ -1747,9 +1859,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   {deleteProfileConfirmOpen && selectedUser && (
                     <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => !deleteProfileLoading && setDeleteProfileConfirmOpen(false)} role="dialog" aria-modal="true" aria-labelledby="delete-profile-title">
                       <div className="modal-content" style={{ maxWidth: "22rem", padding: "1.25rem" }} onClick={(e) => e.stopPropagation()}>
-                        <Typography.Body id="delete-profile-title" style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Удалить профиль?</Typography.Body>
+                        <Typography.Body id="delete-profile-title" style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Архивировать профиль?</Typography.Body>
                         <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-                          Пользователь {selectedUser.login} будет удалён из системы без возможности восстановления. Запись в registered_users и привязки заказчиков удалятся.
+                          Пользователь {selectedUser.login} будет деактивирован и перемещён в архив. Профиль можно восстановить повторной активацией.
                         </Typography.Body>
                         <Flex gap="0.5rem" wrap="wrap">
                           <Button
@@ -1778,7 +1890,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               }
                             }}
                           >
-                            {deleteProfileLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Удалить"}
+                            {deleteProfileLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Архивировать"}
                           </Button>
                           <Button type="button" className="filter-button" disabled={deleteProfileLoading} onClick={() => setDeleteProfileConfirmOpen(false)}>
                             Отмена
@@ -1838,8 +1950,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     </Flex>
                     <div className="admin-form-section-header">Разделы</div>
                     <div className="admin-permissions-toolbar">
-                      {PERMISSION_ROW1.map(({ key, label }) => {
-                        if (key === "analytics" && !isSuperAdmin) return null;
+                    {PERMISSION_ROW1.map(({ key, label }) => {
+                        if (!isSuperAdmin && (key === "cms_access" || key === "service_mode" || key === "analytics")) return null;
                         const isActive = key === "__financial__" ? editorFinancial : key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : key === "analytics" ? !!editorPermissions.analytics : !!editorPermissions[key];
                         const onClick = key === "__financial__" ? () => { setEditorSelectedPresetId(""); setEditorFinancial(!editorFinancial); } : key === "service_mode" ? () => { setEditorSelectedPresetId(""); const v = !(!!editorPermissions.service_mode || editorAccessAllInns); setEditorPermissions((p) => ({ ...p, service_mode: v })); setEditorAccessAllInns(v); } : () => handlePermissionsToggle(key);
                         const activeClass = isActive
@@ -1938,6 +2050,60 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </div>
                     </div>
                   )}
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <Typography.Body style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
+                      Дифф перед сохранением
+                    </Typography.Body>
+                    {editorDiffItems.length === 0 ? (
+                      <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                        Изменений нет
+                      </Typography.Body>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                        {editorDiffItems.map((line, idx) => (
+                          <Typography.Body key={`diff-${idx}`} style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                            • {line}
+                          </Typography.Body>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <Typography.Body style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.35rem" }}>
+                      Журнал изменений пользователя
+                    </Typography.Body>
+                    <Input
+                      type="text"
+                      className="admin-form-input"
+                      value={userChangeQuery}
+                      onChange={(e) => setUserChangeQuery(e.target.value)}
+                      placeholder="Фильтр по логину"
+                      style={{ width: "100%", marginBottom: "0.4rem" }}
+                    />
+                    {userChangeLoading ? (
+                      <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>Загрузка…</Typography.Body>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", maxHeight: 140, overflowY: "auto" }}>
+                        {userChangeEntries
+                          .filter((e) => {
+                            const q = userChangeQuery.trim().toLowerCase();
+                            if (!q) return true;
+                            const login = String((e.details as Record<string, unknown> | null)?.login || "").toLowerCase();
+                            return login.includes(q);
+                          })
+                          .map((e) => (
+                            <Typography.Body key={`change-${e.id}`} style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+                              {new Date(e.created_at).toLocaleString("ru-RU")} · {e.action}
+                            </Typography.Body>
+                          ))}
+                        {userChangeEntries.length === 0 && (
+                          <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+                            Пока нет записей
+                          </Typography.Body>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   {editorError && (
                     <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
                       {editorError}
@@ -1968,6 +2134,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 }
               };
               const selectAllOnPage = () => setSelectedUserIds((prev) => { const s = new Set(prev); visibleSorted.forEach((u) => s.add(u.id)); return [...s]; });
+              const selectAllByFilter = () => setSelectedUserIds((prev) => {
+                const s = new Set(prev);
+                sorted.forEach((u) => s.add(u.id));
+                return [...s];
+              });
               const renderUserBlock = (u: User) => (
                 <div key={u.id} style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
                   <input
@@ -2025,7 +2196,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <div className="admin-form-section-header" style={{ marginBottom: "0.35rem" }}>Разделы</div>
                   <div className="admin-permissions-toolbar">
                     {PERMISSION_ROW1.map(({ key, label }) => {
-                      if (key === "analytics" && !isSuperAdmin) return null;
+                      if (!isSuperAdmin && (key === "cms_access" || key === "service_mode" || key === "analytics")) return null;
                       const isActive = key === "__financial__" ? bulkFinancial : key === "service_mode" ? (!!bulkPermissions.service_mode || bulkAccessAllInns) : !!bulkPermissions[key];
                       const onClick = key === "__financial__" ? () => { setBulkSelectedPresetId(""); setBulkFinancial(!bulkFinancial); } : key === "service_mode" ? () => { setBulkSelectedPresetId(""); const v = !(!!bulkPermissions.service_mode || bulkAccessAllInns); setBulkPermissions((p) => ({ ...p, service_mode: v })); setBulkAccessAllInns(v); } : () => { setBulkSelectedPresetId(""); setBulkPermissions((p) => ({ ...p, [key]: !p[key] })); };
                       const activeClass = isActive
@@ -2088,6 +2259,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <Flex gap="0.5rem" align="center" style={{ flexWrap: "wrap", marginBottom: "0.25rem" }}>
                       <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Выбрать:</Typography.Body>
                       <Button type="button" className="filter-button" onClick={selectAllOnPage} style={{ padding: "0.35rem 0.6rem" }}>Все на странице</Button>
+                      <Button type="button" className="filter-button" onClick={selectAllByFilter} style={{ padding: "0.35rem 0.6rem" }}>Все по фильтру</Button>
                       <Button type="button" className="filter-button" onClick={clearSelection} style={{ padding: "0.35rem 0.6rem" }}>Снять выделение</Button>
                       {selectedUserIds.length > 0 && <Typography.Body style={{ fontSize: "0.85rem" }}>Выбрано: {selectedUserIds.length}</Typography.Body>}
                     </Flex>
@@ -2167,6 +2339,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <Flex gap="0.5rem" align="center" style={{ flexWrap: "wrap", marginBottom: "0.25rem" }}>
                     <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Выбрать:</Typography.Body>
                     <Button type="button" className="filter-button" onClick={selectAllOnPage} style={{ padding: "0.35rem 0.6rem" }}>Все на странице</Button>
+                    <Button type="button" className="filter-button" onClick={selectAllByFilter} style={{ padding: "0.35rem 0.6rem" }}>Все по фильтру</Button>
                     <Button type="button" className="filter-button" onClick={clearSelection} style={{ padding: "0.35rem 0.6rem" }}>Снять выделение</Button>
                     {selectedUserIds.length > 0 && <Typography.Body style={{ fontSize: "0.85rem" }}>Выбрано: {selectedUserIds.length}</Typography.Body>}
                   </Flex>
@@ -2342,6 +2515,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <div style={{ marginBottom: "var(--element-gap, 1rem)" }}>
               <label htmlFor="form-email" style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Email</label>
               <Input id="form-email" className="admin-form-input" type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="user@example.com" required style={{ width: "100%" }} />
+              {formEmailError && (
+                <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.78rem", marginTop: "0.25rem" }}>
+                  {formEmailError}
+                </Typography.Body>
+              )}
             </div>
             <div className="admin-form-section">
               <Flex align="center" gap="var(--element-gap, 0.5rem)" style={{ marginBottom: "var(--space-2, 0.5rem)", flexWrap: "wrap" }}>
@@ -2372,7 +2550,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <div className="admin-form-section-header">Разделы</div>
               <div className="admin-permissions-toolbar">
                 {PERMISSION_ROW1.map(({ key, label }) => {
-                  if (key === "analytics" && !isSuperAdmin) return null;
+                  if (!isSuperAdmin && (key === "cms_access" || key === "service_mode" || key === "analytics")) return null;
                   const isActive = key === "__financial__" ? formFinancial : key === "service_mode" ? (!!formPermissions.service_mode || formAccessAllInns) : !!formPermissions[key];
                   const onClick = key === "__financial__" ? () => { setFormSelectedPresetId(""); setFormFinancial(!formFinancial); } : key === "service_mode" ? () => { setFormSelectedPresetId(""); const v = !(!!formPermissions.service_mode || formAccessAllInns); setFormPermissions((p) => ({ ...p, service_mode: v })); setFormAccessAllInns(v); if (v) clearCustomerSelection(); } : () => togglePerm(key);
                   const activeClass = isActive
@@ -2442,7 +2620,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 {formResult.emailSent ? " (отправлен на email)" : " — сохраните, email не отправлен"}
               </Typography.Body>
             )}
-            <Button type="submit" className="filter-button" disabled={formSubmitting}>
+            <Button type="submit" className="filter-button" disabled={formSubmitting || !!formEmailError}>
               {formSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Зарегистрировать"}
             </Button>
           </form>
@@ -3691,6 +3869,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <div className="admin-form-section-header">Разделы</div>
                   <div className="admin-permissions-toolbar">
                     {PERMISSION_ROW1.map(({ key, label }) => {
+                      if (!isSuperAdmin && (key === "cms_access" || key === "service_mode" || key === "analytics")) return null;
                       const isActive = key === "__financial__" ? presetFormFinancial : key === "service_mode" ? (!!presetFormPermissions.service_mode || presetFormServiceMode) : !!presetFormPermissions[key];
                       const onClick = key === "__financial__" ? () => setPresetFormFinancial(!presetFormFinancial) : key === "service_mode" ? () => { const v = !(!!presetFormPermissions.service_mode || presetFormServiceMode); setPresetFormPermissions((p) => ({ ...p, service_mode: v })); setPresetFormServiceMode(v); } : () => setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }));
                       return <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>;

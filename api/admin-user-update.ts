@@ -49,8 +49,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
-    const { rows: existing } = await pool.query<{ login: string; inn: string; company_name: string }>(
-      "SELECT login, inn, company_name FROM registered_users WHERE id = $1",
+    const { rows: existing } = await pool.query<{ login: string; inn: string; company_name: string; active: boolean }>(
+      "SELECT login, inn, company_name, active FROM registered_users WHERE id = $1",
       [id]
     );
     if (existing.length === 0) {
@@ -63,16 +63,16 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       if (payload?.superAdmin !== true) {
         return res.status(403).json({ error: "Удаление профиля доступно только суперадминистратору" });
       }
-      await pool.query("DELETE FROM account_companies WHERE login = $1", [login]);
-      const { rowCount } = await pool.query("DELETE FROM registered_users WHERE id = $1", [id]);
+      // Мягкое удаление: деактивируем профиль, чтобы можно было восстановить.
+      const { rowCount } = await pool.query("UPDATE registered_users SET active = false, updated_at = now() WHERE id = $1", [id]);
       if ((rowCount ?? 0) > 0) {
         await writeAuditLog(pool, {
-          action: "user_deleted",
+          action: "user_archived",
           target_type: "user",
           target_id: id,
-          details: { login },
+          details: { login, was_active: existing[0]?.active === true },
         });
-        return res.status(200).json({ ok: true, deleted: true });
+        return res.status(200).json({ ok: true, archived: true, deleted: false });
       }
       return res.status(404).json({ error: "Пользователь не найден" });
     }
