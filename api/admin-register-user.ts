@@ -138,6 +138,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     if (sendEmail) {
       const sendResult = await sendRegistrationEmail(pool, email, login, password, companyName);
       if (!sendResult.ok) {
+        await writeAuditLog(pool, {
+          action: "email_delivery_registration_failed",
+          target_type: "user",
+          target_id: newId,
+          details: { login, email, error: sendResult.error || "unknown_error" },
+        });
         return res.status(200).json({
           ok: true,
           userId: (await pool.query("SELECT id FROM registered_users WHERE login = $1", [login])).rows[0]?.id,
@@ -147,6 +153,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           emailError: sendResult.error,
         });
       }
+      await writeAuditLog(pool, {
+        action: "email_delivery_registration_sent",
+        target_type: "user",
+        target_id: newId,
+        details: { login, email },
+      });
     }
 
     const { rows } = await pool.query("SELECT id FROM registered_users WHERE login = $1", [login]);

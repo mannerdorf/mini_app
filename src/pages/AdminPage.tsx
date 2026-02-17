@@ -169,7 +169,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "audit" | "logs" | "presets" | "payment_calendar" | "work_schedule">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "audit" | "logs" | "integrations" | "presets" | "payment_calendar" | "work_schedule">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
@@ -328,6 +328,35 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [errorLogFromDate, setErrorLogFromDate] = useState("");
   const [errorLogToDate, setErrorLogToDate] = useState("");
   const [errorLogFetchTrigger, setErrorLogFetchTrigger] = useState(0);
+  const [integrationDays, setIntegrationDays] = useState<number>(30);
+  const [integrationLoading, setIntegrationLoading] = useState(false);
+  const [integrationFetchTrigger, setIntegrationFetchTrigger] = useState(0);
+  const [integrationHealth, setIntegrationHealth] = useState<{
+    telegram: {
+      linked_total: number;
+      active: number;
+      pending: number;
+      disabled: number;
+      avg_lifetime_hours_active: number | null;
+      avg_pending_hours: number | null;
+      pin_email_sent: number;
+      pin_email_failed: number;
+      webhook_errors: number;
+    };
+    email_delivery: {
+      registration: { sent: number; failed: number };
+      password_reset: { sent: number; failed: number };
+      telegram_pin: { sent: number; failed: number };
+      api_errors: { register: number; reset: number; tg_webhook: number };
+    };
+    voice_assistant: {
+      linked_logins: number;
+      linked_chats_unique: number;
+      link_errors: number;
+      max_link_errors: number;
+      max_webhook_errors: number;
+    };
+  } | null>(null);
   const [permissionPresets, setPermissionPresets] = useState<PermissionPreset[]>([]);
   const [presetsLoading, setPresetsLoading] = useState(false);
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
@@ -682,6 +711,60 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       .catch(() => setErrorLogEntries([]))
       .finally(() => setErrorLogLoading(false));
   }, [tab, adminToken, errorLogFetchTrigger]);
+
+  useEffect(() => {
+    if (tab !== "integrations") return;
+    setIntegrationLoading(true);
+    fetch(`/api/admin-integration-health?days=${integrationDays}`, { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data || data.error) {
+          setIntegrationHealth(null);
+          return;
+        }
+        setIntegrationHealth({
+          telegram: {
+            linked_total: Number(data?.telegram?.linked_total || 0),
+            active: Number(data?.telegram?.active || 0),
+            pending: Number(data?.telegram?.pending || 0),
+            disabled: Number(data?.telegram?.disabled || 0),
+            avg_lifetime_hours_active: data?.telegram?.avg_lifetime_hours_active == null ? null : Number(data.telegram.avg_lifetime_hours_active),
+            avg_pending_hours: data?.telegram?.avg_pending_hours == null ? null : Number(data.telegram.avg_pending_hours),
+            pin_email_sent: Number(data?.telegram?.pin_email_sent || 0),
+            pin_email_failed: Number(data?.telegram?.pin_email_failed || 0),
+            webhook_errors: Number(data?.telegram?.webhook_errors || 0),
+          },
+          email_delivery: {
+            registration: {
+              sent: Number(data?.email_delivery?.registration?.sent || 0),
+              failed: Number(data?.email_delivery?.registration?.failed || 0),
+            },
+            password_reset: {
+              sent: Number(data?.email_delivery?.password_reset?.sent || 0),
+              failed: Number(data?.email_delivery?.password_reset?.failed || 0),
+            },
+            telegram_pin: {
+              sent: Number(data?.email_delivery?.telegram_pin?.sent || 0),
+              failed: Number(data?.email_delivery?.telegram_pin?.failed || 0),
+            },
+            api_errors: {
+              register: Number(data?.email_delivery?.api_errors?.register || 0),
+              reset: Number(data?.email_delivery?.api_errors?.reset || 0),
+              tg_webhook: Number(data?.email_delivery?.api_errors?.tg_webhook || 0),
+            },
+          },
+          voice_assistant: {
+            linked_logins: Number(data?.voice_assistant?.linked_logins || 0),
+            linked_chats_unique: Number(data?.voice_assistant?.linked_chats_unique || 0),
+            link_errors: Number(data?.voice_assistant?.link_errors || 0),
+            max_link_errors: Number(data?.voice_assistant?.max_link_errors || 0),
+            max_webhook_errors: Number(data?.voice_assistant?.max_webhook_errors || 0),
+          },
+        });
+      })
+      .catch(() => setIntegrationHealth(null))
+      .finally(() => setIntegrationLoading(false));
+  }, [tab, adminToken, integrationFetchTrigger, integrationDays]);
 
   useEffect(() => {
     if (tab !== "customers") return;
@@ -1307,6 +1390,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         >
           <AlertCircle className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Журнал логов
+        </Button>
+        <Button
+          className="filter-button"
+          style={{ background: tab === "integrations" ? "var(--color-primary-blue)" : undefined, color: tab === "integrations" ? "white" : undefined }}
+          onClick={() => setTab("integrations")}
+        >
+          <Activity className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+          Здоровье интеграций
         </Button>
         {isSuperAdmin && (
           <Button
@@ -3585,7 +3676,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <option value="preset_created">Пресет создан</option>
               <option value="preset_updated">Пресет обновлён</option>
               <option value="preset_deleted">Пресет удалён</option>
-              <option value="user_deleted">Профиль удалён</option>
+              <option value="user_archived">Профиль в архиве</option>
             </select>
             <label htmlFor="audit-filter-type" className="visually-hidden">Тип объекта</label>
             <select
@@ -3637,7 +3728,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 const escape = (s: string) => (s.includes(";") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s);
                 const actionLabel = (a: string) =>
                   a === "admin_login" ? "Вход в админку" : a === "user_register" ? "Регистрация" : a === "user_update" ? "Изменение"
-                    : a === "email_settings_saved" ? "Настройки почты" : a === "preset_created" ? "Пресет создан" : a === "preset_updated" ? "Пресет обновлён" : a === "preset_deleted" ? "Пресет удалён" : a === "user_deleted" ? "Профиль удалён" : a;
+                    : a === "email_settings_saved" ? "Настройки почты" : a === "preset_created" ? "Пресет создан" : a === "preset_updated" ? "Пресет обновлён" : a === "preset_deleted" ? "Пресет удалён" : a === "user_archived" ? "Профиль в архиве" : a;
                 const objCell = (e: (typeof auditEntries)[0]) =>
                   e.target_type === "user" && e.details && typeof e.details.login === "string" ? e.details.login : e.target_id ?? "—";
                 const detailsCell = (e: (typeof auditEntries)[0]) =>
@@ -3684,7 +3775,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </thead>
                 <tbody>
                   {auditEntries.map((e) => {
-                    const actionLabel = e.action === "admin_login" ? "Вход в админку" : e.action === "user_register" ? "Регистрация" : e.action === "user_update" ? "Изменение" : e.action === "email_settings_saved" ? "Настройки почты" : e.action === "preset_created" ? "Пресет создан" : e.action === "preset_updated" ? "Пресет обновлён" : e.action === "preset_deleted" ? "Пресет удалён" : e.action === "user_deleted" ? "Профиль удалён" : e.action;
+                    const actionLabel = e.action === "admin_login" ? "Вход в админку" : e.action === "user_register" ? "Регистрация" : e.action === "user_update" ? "Изменение" : e.action === "email_settings_saved" ? "Настройки почты" : e.action === "preset_created" ? "Пресет создан" : e.action === "preset_updated" ? "Пресет обновлён" : e.action === "preset_deleted" ? "Пресет удалён" : e.action === "user_archived" ? "Профиль в архиве" : e.action;
                     const objCell = e.target_type === "user" && e.details && typeof e.details.login === "string" ? e.details.login : e.target_id ?? "—";
                     const detailsStr = e.details && typeof e.details === "object" && Object.keys(e.details).filter((k) => k !== "login").length > 0
                       ? Object.entries(e.details)
@@ -3832,6 +3923,102 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+        </Panel>
+      )}
+
+      {tab === "integrations" && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.4rem" }}>2FA / Telegram / Email / Голосовой помощник</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            Сводное здоровье интеграций по последним дням: привязки, статусы, ошибки отправки и API-сбои.
+          </Typography.Body>
+          <Flex align="center" gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.9rem" }}>
+            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Период:</Typography.Body>
+            <select
+              className="admin-form-input"
+              value={String(integrationDays)}
+              onChange={(e) => setIntegrationDays(Math.max(1, Math.min(365, parseInt(e.target.value, 10) || 30)))}
+              style={{ padding: "0 0.5rem", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-bg)", fontSize: "0.9rem" }}
+            >
+              <option value="7">7 дней</option>
+              <option value="30">30 дней</option>
+              <option value="60">60 дней</option>
+              <option value="90">90 дней</option>
+            </select>
+            <Button
+              className="filter-button"
+              style={{ background: "var(--color-primary-blue)", color: "white" }}
+              onClick={() => setIntegrationFetchTrigger((x) => x + 1)}
+              disabled={integrationLoading}
+            >
+              {integrationLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Обновить"}
+            </Button>
+          </Flex>
+
+          {integrationLoading ? (
+            <Flex align="center" gap="0.5rem">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка...</Typography.Body>
+            </Flex>
+          ) : !integrationHealth ? (
+            <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
+              Нет данных по интеграциям. Проверьте, что есть доступ к БД/Redis и повторите обновление.
+            </Typography.Body>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(18rem, 1fr))", gap: "0.75rem" }}>
+              <Panel className="cargo-card" style={{ padding: "0.75rem", border: "1px solid var(--color-border)" }}>
+                <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>2FA / Telegram</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>Привязано: {integrationHealth.telegram.linked_total}</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>active: {integrationHealth.telegram.active}</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>pending: {integrationHealth.telegram.pending}</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>disabled: {integrationHealth.telegram.disabled}</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.82rem", marginTop: "0.3rem", color: "var(--color-text-secondary)" }}>
+                  Средний срок активной привязки: {integrationHealth.telegram.avg_lifetime_hours_active == null ? "—" : `${integrationHealth.telegram.avg_lifetime_hours_active} ч`}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+                  Среднее ожидание в pending: {integrationHealth.telegram.avg_pending_hours == null ? "—" : `${integrationHealth.telegram.avg_pending_hours} ч`}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.82rem", marginTop: "0.3rem", color: integrationHealth.telegram.pin_email_failed > 0 ? "var(--color-error, #dc2626)" : "var(--color-text-secondary)" }}>
+                  PIN email: отправлено {integrationHealth.telegram.pin_email_sent}, ошибок {integrationHealth.telegram.pin_email_failed}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.82rem", color: integrationHealth.telegram.webhook_errors > 0 ? "var(--color-error, #dc2626)" : "var(--color-text-secondary)" }}>
+                  Ошибки `/api/tg-webhook`: {integrationHealth.telegram.webhook_errors}
+                </Typography.Body>
+              </Panel>
+
+              <Panel className="cargo-card" style={{ padding: "0.75rem", border: "1px solid var(--color-border)" }}>
+                <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Email доставка</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                  Регистрация: {integrationHealth.email_delivery.registration.sent} / ошибок {integrationHealth.email_delivery.registration.failed}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                  Сброс пароля: {integrationHealth.email_delivery.password_reset.sent} / ошибок {integrationHealth.email_delivery.password_reset.failed}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                  Telegram PIN: {integrationHealth.email_delivery.telegram_pin.sent} / ошибок {integrationHealth.email_delivery.telegram_pin.failed}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.82rem", marginTop: "0.3rem", color: "var(--color-text-secondary)" }}>
+                  API ошибки: register {integrationHealth.email_delivery.api_errors.register}, reset {integrationHealth.email_delivery.api_errors.reset}, tg-webhook {integrationHealth.email_delivery.api_errors.tg_webhook}
+                </Typography.Body>
+              </Panel>
+
+              <Panel className="cargo-card" style={{ padding: "0.75rem", border: "1px solid var(--color-border)" }}>
+                <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Голосовой помощник (MAX)</Typography.Body>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                  Логинов с привязкой: {integrationHealth.voice_assistant.linked_logins}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                  Уникальных чатов: {integrationHealth.voice_assistant.linked_chats_unique}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.82rem", marginTop: "0.3rem", color: integrationHealth.voice_assistant.link_errors > 0 ? "var(--color-error, #dc2626)" : "var(--color-text-secondary)" }}>
+                  Ошибки привязок/вебхука: {integrationHealth.voice_assistant.link_errors}
+                </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+                  `max-link`: {integrationHealth.voice_assistant.max_link_errors}, `max-webhook`: {integrationHealth.voice_assistant.max_webhook_errors}
+                </Typography.Body>
+              </Panel>
             </div>
           )}
         </Panel>

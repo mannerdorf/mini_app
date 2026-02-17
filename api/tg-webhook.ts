@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import fs from "node:fs";
 import { getPool } from "./_db.js";
 import { sendTelegramActivationEmail } from "../lib/sendTelegramActivationEmail.js";
+import { writeAuditLog } from "../lib/adminAuditLog.js";
 
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -488,11 +489,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           candidate.customerName || candidate.login
         );
         if (!sent.ok) {
+          await writeAuditLog(pool, {
+            action: "email_delivery_telegram_pin_failed",
+            target_type: "telegram",
+            details: {
+              login: candidate.login,
+              inn: candidate.inn ?? null,
+              chat_id: chatIdStr,
+              error: sent.error || "unknown_error",
+            },
+          });
           await sendTgMessageChunked(chatId, `Пин-код не отправлен: ${sent.error || "ошибка почты"}`);
           return res.status(200).json({ ok: true });
         }
+        await writeAuditLog(pool, {
+          action: "email_delivery_telegram_pin_sent",
+          target_type: "telegram",
+          details: {
+            login: candidate.login,
+            inn: candidate.inn ?? null,
+            chat_id: chatIdStr,
+          },
+        });
       } catch (e) {
         console.error("telegram activation email failed:", e);
+        try {
+          const pool = getPool();
+          await writeAuditLog(pool, {
+            action: "email_delivery_telegram_pin_failed",
+            target_type: "telegram",
+            details: {
+              login: candidate.login,
+              inn: candidate.inn ?? null,
+              chat_id: chatIdStr,
+              error: (e as Error)?.message || "exception",
+            },
+          });
+        } catch {}
         await sendTgMessageChunked(chatId, "Не удалось отправить пин-код на почту. Попробуйте позже.");
         return res.status(200).json({ ok: true });
       }

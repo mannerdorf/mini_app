@@ -181,8 +181,20 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         );
         if (sendResult.ok) {
           emailSent = true;
+          await writeAuditLog(pool, {
+            action: "email_delivery_password_reset_sent",
+            target_type: "user",
+            target_id: id,
+            details: { login },
+          });
         } else {
           emailError = sendResult.error;
+          await writeAuditLog(pool, {
+            action: "email_delivery_password_reset_failed",
+            target_type: "user",
+            target_id: id,
+            details: { login, error: sendResult.error || "unknown_error" },
+          });
         }
       }
     }
