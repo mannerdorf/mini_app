@@ -3208,6 +3208,17 @@ function NotificationsPage({
   onOpenMaxBot?: () => Promise<void>;
   onUpdateAccount?: (accountId: string, patch: Partial<Account>) => void;
 }) {
+  const FETCH_TIMEOUT_MS = 8000;
+  const withTimeout = async <T,>(factory: (signal: AbortSignal) => Promise<T>, timeoutMs = FETCH_TIMEOUT_MS): Promise<T> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await factory(controller.signal);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   const [prefs, setPrefs] = useState<{ telegram: Record<string, boolean>; webpush: Record<string, boolean> }>({
     telegram: {},
     webpush: {},
@@ -3234,7 +3245,10 @@ function NotificationsPage({
   const checkTelegramLinked = useCallback(async () => {
     if (!login) return false;
     try {
-      const res = await fetch(`/api/2fa?login=${encodeURIComponent(login)}`);
+      const res = await withTimeout(
+        (signal) => fetch(`/api/2fa?login=${encodeURIComponent(login)}`, { signal }),
+        FETCH_TIMEOUT_MS
+      );
       if (!res.ok) return false;
       const data = await res.json();
       const linked = !!data?.settings?.telegramLinked;
@@ -3255,16 +3269,23 @@ function NotificationsPage({
       return;
     }
     let cancelled = false;
+    const hardStop = setTimeout(() => {
+      if (!cancelled) setPrefsLoading(false);
+    }, FETCH_TIMEOUT_MS + 2000);
     (async () => {
       try {
-        const [prefsRes, _] = await Promise.all([
-          fetch(`/api/webpush-preferences?login=${encodeURIComponent(login)}`),
-          checkTelegramLinked().then(() => {}),
-        ]);
+        const prefsRes = await withTimeout(
+          (signal) => fetch(`/api/webpush-preferences?login=${encodeURIComponent(login)}`, { signal }),
+          FETCH_TIMEOUT_MS
+        ).catch(() => null);
+        // Статус Telegram/MAX подгружаем независимо, чтобы не блокировать экран уведомлений.
+        checkTelegramLinked().catch(() => {});
         if (cancelled) return;
-        if (prefsRes.ok) {
+        if (prefsRes?.ok) {
           const data = await prefsRes.json();
           if (!cancelled) setPrefs({ telegram: data.telegram || {}, webpush: data.webpush || {} });
+        } else {
+          if (!cancelled) setPrefs({ telegram: {}, webpush: {} });
         }
       } catch {
         if (!cancelled) setPrefs({ telegram: {}, webpush: {} });
@@ -3274,6 +3295,7 @@ function NotificationsPage({
     })();
     return () => {
       cancelled = true;
+      clearTimeout(hardStop);
     };
   }, [login, checkTelegramLinked]);
 
