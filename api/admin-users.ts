@@ -56,9 +56,34 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       if (!byLogin.has(key)) byLogin.set(key, []);
       byLogin.get(key)!.push({ inn: c.inn, name: c.name || "" });
     }
+    const userLogins = users.map((u) => normalizeLogin(u.login)).filter(Boolean);
+    const uniqueUserLogins = [...new Set(userLogins)];
+    const byEmail = new Map<string, { inn: string; name: string }[]>();
+    if (uniqueUserLogins.length > 0) {
+      try {
+        const { rows: customersByEmail } = await pool.query<{ inn: string; customer_name: string | null; email: string | null }>(
+          `SELECT inn, customer_name, email
+           FROM cache_customers
+           WHERE email IS NOT NULL
+             AND lower(trim(email)) = ANY($1::text[])`,
+          [uniqueUserLogins]
+        );
+        for (const c of customersByEmail) {
+          const emailKey = normalizeLogin(c.email || "");
+          if (!emailKey) continue;
+          if (!byEmail.has(emailKey)) byEmail.set(emailKey, []);
+          byEmail.get(emailKey)!.push({ inn: c.inn, name: c.customer_name || "" });
+        }
+      } catch (e: unknown) {
+        const pgErr = e as { code?: string; message?: string };
+        if (pgErr?.code !== "42P01" && pgErr?.code !== "42703") {
+          console.error("admin-users cache_customers by email query error:", pgErr?.message || e);
+        }
+      }
+    }
     const usersWithCompanies = users.map((u) => {
       const key = normalizeLogin(u.login);
-      const list = byLogin.get(key) || [];
+      const list = [...(byLogin.get(key) || []), ...(byEmail.get(key) || [])];
       // Дедуп по ИНН, чтобы не было дублей при смешанном регистре логинов.
       const unique = new Map<string, { inn: string; name: string }>();
       for (const c of list) {
