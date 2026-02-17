@@ -48,15 +48,34 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const { rows: companies } = await pool.query<{ login: string; inn: string; name: string }>(
       `SELECT login, inn, name FROM account_companies ORDER BY login, name`
     );
+    const normalizeLogin = (v: string) => String(v || "").trim().toLowerCase();
     const byLogin = new Map<string, { inn: string; name: string }[]>();
     for (const c of companies) {
-      if (!byLogin.has(c.login)) byLogin.set(c.login, []);
-      byLogin.get(c.login)!.push({ inn: c.inn, name: c.name || "" });
+      const key = normalizeLogin(c.login);
+      if (!key) continue;
+      if (!byLogin.has(key)) byLogin.set(key, []);
+      byLogin.get(key)!.push({ inn: c.inn, name: c.name || "" });
     }
-    const usersWithCompanies = users.map((u) => ({
-      ...u,
-      companies: byLogin.get(u.login) || [],
-    }));
+    const usersWithCompanies = users.map((u) => {
+      const key = normalizeLogin(u.login);
+      const list = byLogin.get(key) || [];
+      // Дедуп по ИНН, чтобы не было дублей при смешанном регистре логинов.
+      const unique = new Map<string, { inn: string; name: string }>();
+      for (const c of list) {
+        const inn = String(c.inn || "").trim();
+        if (!inn) continue;
+        if (!unique.has(inn)) unique.set(inn, { inn, name: c.name || "" });
+      }
+      // Если company из профиля пользователя отсутствует в account_companies — добавляем как fallback.
+      const profileInn = String(u.inn || "").trim();
+      if (profileInn && !unique.has(profileInn)) {
+        unique.set(profileInn, { inn: profileInn, name: u.company_name || "" });
+      }
+      return {
+        ...u,
+        companies: [...unique.values()],
+      };
+    });
     return res.status(200).json({ users: usersWithCompanies, last_login_available: lastLoginAvailable });
   } catch (e: unknown) {
     const err = e as Error;
