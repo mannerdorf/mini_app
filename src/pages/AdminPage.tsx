@@ -2506,6 +2506,25 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   ) : (
                     sortedLabels.map((label) => {
                       const groupUsers = groups.get(label) ?? [];
+                      const activeCount = groupUsers.filter((u) => u.active).length;
+                      const inactiveCount = Math.max(0, groupUsers.length - activeCount);
+                      const latestLoginMs = groupUsers.reduce((max, u) => {
+                        const ms = u.last_login_at ? new Date(u.last_login_at).getTime() : 0;
+                        return Number.isFinite(ms) && ms > max ? ms : max;
+                      }, 0);
+                      const latestLoginLabel = latestLoginMs
+                        ? (() => {
+                            const now = Date.now();
+                            const diffM = Math.floor((now - latestLoginMs) / 60000);
+                            const diffH = Math.floor((now - latestLoginMs) / 3600000);
+                            const diffD = Math.floor((now - latestLoginMs) / 86400000);
+                            if (diffM < 1) return "только что";
+                            if (diffM < 60) return `${diffM} мин назад`;
+                            if (diffH < 24) return `${diffH} ч назад`;
+                            if (diffD < 7) return `${diffD} дн назад`;
+                            return new Date(latestLoginMs).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+                          })()
+                        : "нет входов";
                       const isExpanded = expandedCustomerLabels.has(label);
                       const toggleExpand = () => setExpandedCustomerLabels((prev) => {
                         const next = new Set(prev);
@@ -2521,7 +2540,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             onClick={toggleExpand}
                             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleExpand(); } }}
                             style={{
-                              padding: "0.75rem",
+                              padding: "0.7rem 0.8rem",
                               border: "1px solid var(--color-border)",
                               borderRadius: "8px",
                               background: "var(--color-bg-hover)",
@@ -2530,13 +2549,27 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               alignItems: "center",
                               justifyContent: "space-between",
                               gap: "0.5rem",
+                              borderLeft: `4px solid rgba(0, 113, 227, ${label === CUSTOMER_ALL ? 0.14 : 0.28})`,
                             }}
                           >
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <Typography.Body style={{ fontWeight: 600 }}>{groupDisplayName(label)}</Typography.Body>
-                              <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.2rem" }}>
-                                {groupUsers.length} {groupUsers.length === 1 ? "логин" : groupUsers.length < 5 ? "логина" : "логинов"}
-                              </Typography.Body>
+                              <Typography.Body style={{ fontWeight: 600, color: "var(--color-text-primary)" }}>{groupDisplayName(label)}</Typography.Body>
+                              <Flex gap="0.35rem" align="center" wrap="wrap" style={{ marginTop: "0.3rem" }}>
+                                <Typography.Body style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)", padding: "0.1rem 0.45rem", borderRadius: 999, background: "var(--color-bg-card)", border: "1px solid var(--color-border)" }}>
+                                  Логины: {groupUsers.length}
+                                </Typography.Body>
+                                <Typography.Body style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)", padding: "0.1rem 0.45rem", borderRadius: 999, background: "var(--color-bg-card)", border: "1px solid var(--color-border)" }}>
+                                  Активные: {activeCount}
+                                </Typography.Body>
+                                {inactiveCount > 0 && (
+                                  <Typography.Body style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)", padding: "0.1rem 0.45rem", borderRadius: 999, background: "var(--color-bg-card)", border: "1px solid var(--color-border)" }}>
+                                    Неактивные: {inactiveCount}
+                                  </Typography.Body>
+                                )}
+                                <Typography.Body style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)", padding: "0.1rem 0.45rem", borderRadius: 999, background: "var(--color-bg-card)", border: "1px solid var(--color-border)" }}>
+                                  Последний вход: {latestLoginLabel}
+                                </Typography.Body>
+                              </Flex>
                             </div>
                             {isExpanded ? <ChevronDown size={20} style={{ flexShrink: 0, color: "var(--color-text-secondary)" }} /> : <ChevronRight size={20} style={{ flexShrink: 0, color: "var(--color-text-secondary)" }} />}
                           </div>
