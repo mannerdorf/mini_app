@@ -2134,7 +2134,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 groups.set(label, list);
               };
               for (const u of visibleSorted) {
-                if (u.access_all_inns && (!u.companies || u.companies.length === 0)) {
+                // Логины с доступом ко всем заказчикам всегда показываем только в отдельной группе,
+                // чтобы не дублировать их в каждой группе заказчиков.
+                if (u.access_all_inns || !!u.permissions?.service_mode) {
                   if (!qNorm || customerNameMatchesQuery(CUSTOMER_ALL)) addToGroup(CUSTOMER_ALL, u);
                   continue;
                 }
