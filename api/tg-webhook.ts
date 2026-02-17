@@ -94,6 +94,20 @@ type TgActivationCandidate = {
   active: boolean;
 };
 
+function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+function maskEmail(value: string): string {
+  const email = String(value || "").trim();
+  const at = email.indexOf("@");
+  if (at <= 1) return email;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  const maskedLocal = `${local.slice(0, 1)}***${local.slice(-1)}`;
+  return `${maskedLocal}@${domain}`;
+}
+
 function random6(): string {
   let s = "";
   for (let i = 0; i < 6; i += 1) s += Math.floor(Math.random() * 10);
@@ -132,7 +146,7 @@ async function findActivationCandidateByLogin(loginRaw: string): Promise<TgActiv
        ru.login,
        ac.inn,
        coalesce(cc.customer_name, ru.company_name, '') as customer_name,
-       coalesce(cc.email, ru.login) as email,
+       coalesce(nullif(trim(cc.email), ''), ru.login) as email,
        ru.active
      from registered_users ru
      left join lateral (
@@ -173,7 +187,7 @@ async function findActivationCandidateByInn(innRaw: string): Promise<TgActivatio
        ru.login,
        ac.inn,
        coalesce(cc.customer_name, ru.company_name, '') as customer_name,
-       cc.email
+       coalesce(nullif(trim(cc.email), ''), ru.login) as email
      from account_companies ac
      join registered_users ru on lower(trim(ru.login)) = lower(trim(ac.login))
      left join cache_customers cc on cc.inn = ac.inn
@@ -411,7 +425,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const email = String(candidate.email || "").trim();
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (!email || !looksLikeEmail(email)) {
         await sendTgMessageChunked(chatId, "Для этого пользователя не найден email для отправки PIN. Обратитесь в поддержку.");
         return res.status(200).json({ ok: true });
       }
@@ -508,10 +522,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error("telegram_chat_links upsert(pending) failed:", e);
       }
 
-      await sendTgMessageChunked(
-        chatId,
-        "Пин-код для активации направлен на почту. Введите его в чат для завершения активации."
-      );
+      await sendTgMessageChunked(chatId, `Пин-код для активации направлен на почту ${maskEmail(email)}. Введите его в чат для завершения активации.`);
       return res.status(200).json({ ok: true });
     }
   }

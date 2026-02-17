@@ -115,13 +115,35 @@ function UserRow({
   adminToken,
   onToggleActive,
   onEditPermissions,
+  rank,
 }: {
   user: User;
   adminToken: string;
   onToggleActive: () => Promise<void>;
   onEditPermissions: (user: User) => void;
+  rank?: number;
 }) {
   const [loading, setLoading] = useState(false);
+  const now = Date.now();
+  const lastMs = user.last_login_at ? new Date(user.last_login_at).getTime() : 0;
+  const diffMs = lastMs ? now - lastMs : Infinity;
+  const ms30d = 30 * 24 * 3600 * 1000;
+  const freshness = diffMs >= ms30d ? 0 : Math.max(0, 1 - diffMs / ms30d);
+  const accentOpacity = Math.min(0.5, 0.12 + freshness * 0.38);
+  const timeLabel = user.last_login_at
+    ? (() => {
+        const d = new Date(user.last_login_at as string);
+        const dMs = now - d.getTime();
+        const diffM = Math.floor(dMs / 60000);
+        const diffH = Math.floor(dMs / 3600000);
+        const diffD = Math.floor(dMs / 86400000);
+        if (diffM < 1) return "только что";
+        if (diffM < 60) return `${diffM} мин назад`;
+        if (diffH < 24) return `${diffH} ч назад`;
+        if (diffD < 7) return `${diffD} дн назад`;
+        return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+      })()
+    : "никогда";
   const handleToggle = async () => {
     setLoading(true);
     try {
@@ -137,25 +159,62 @@ function UserRow({
       onClick={() => onEditPermissions(user)}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEditPermissions(user); } }}
       style={{
-        padding: "0.75rem",
+        padding: "0.65rem 0.75rem",
         border: "1px solid var(--color-border)",
         borderRadius: "8px",
         background: user.active ? "var(--color-bg-hover)" : "var(--color-bg-input)",
+        borderLeft: `4px solid rgba(0, 113, 227, ${accentOpacity})`,
         opacity: user.active ? 1 : 0.85,
         cursor: "pointer",
       }}
     >
       <Flex justify="space-between" align="flex-start" wrap="wrap" gap="0.5rem">
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Typography.Body style={{ fontWeight: 600 }}>{user.login ?? "—"}</Typography.Body>
-          {user.created_at && (
-            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
-              {new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
+          <Typography.Body style={{ fontWeight: 600, color: "var(--color-text-primary)", display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap" }}>
+            {typeof rank === "number" && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  minWidth: 22,
+                  height: 22,
+                  borderRadius: 999,
+                  fontSize: "0.75rem",
+                  background: "var(--color-bg-card)",
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text-secondary)",
+                }}
+              >
+                {rank + 1}
+              </span>
+            )}
+            {user.login ?? "—"}
+          </Typography.Body>
+          <Flex gap="0.35rem" align="center" wrap="wrap" style={{ marginTop: "0.35rem" }}>
+            <Typography.Body style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)", padding: "0.1rem 0.45rem", borderRadius: 999, background: "var(--color-bg-card)", border: "1px solid var(--color-border)" }}>
+              {user.active ? "Активен" : "Неактивен"}
             </Typography.Body>
-          )}
+            {user.created_at && (
+              <Typography.Body style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)", padding: "0.1rem 0.45rem", borderRadius: 999, background: "var(--color-bg-card)", border: "1px solid var(--color-border)" }}>
+                Создан: {new Date(user.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
+              </Typography.Body>
+            )}
+          </Flex>
         </div>
         <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
-          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>Профиль</Typography.Body>
+          <Typography.Body
+            style={{
+              fontSize: "0.74rem",
+              color: "var(--color-text-secondary)",
+              padding: "0.15rem 0.45rem",
+              borderRadius: 999,
+              background: "var(--color-bg-card)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            {timeLabel}
+          </Typography.Body>
           <span style={{ cursor: loading ? "wait" : "pointer" }}>
             <TapSwitch checked={user.active} onToggle={handleToggle} />
           </span>
@@ -2296,7 +2355,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 sorted.forEach((u) => s.add(u.id));
                 return [...s];
               });
-              const renderUserBlock = (u: User) => (
+              const renderUserBlock = (u: User, rank?: number) => (
                 <div key={u.id} style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem" }}>
                   <input
                     type="checkbox"
@@ -2310,6 +2369,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <UserRow
                       user={u}
                       adminToken={adminToken}
+                      rank={rank}
                       onToggleActive={async () => {
                         const next = !u.active;
                         if (next === false) {
@@ -2424,7 +2484,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     {visibleSorted.length === 0 ? (
                       <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет пользователей по запросу</Typography.Body>
                     ) : (
-                      visibleSorted.map((u) => renderUserBlock(u))
+                      visibleSorted.map((u, i) => renderUserBlock(u, i))
                     )}
                     {hasMore && (
                       <Button type="button" className="filter-button" onClick={() => setUsersVisibleCount((n) => n + USERS_PAGE_SIZE)} style={{ alignSelf: "flex-start", marginTop: "0.5rem" }}>
@@ -2575,7 +2635,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           </div>
                           {isExpanded && (
                             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", paddingLeft: "0.5rem" }}>
-                              {groupUsers.map((u) => renderUserBlock(u))}
+                              {groupUsers.map((u, i) => renderUserBlock(u, i))}
                             </div>
                           )}
                         </div>

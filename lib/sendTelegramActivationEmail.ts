@@ -7,7 +7,7 @@ export async function sendTelegramActivationEmail(
   toEmail: string,
   code6: string,
   customerLabel: string
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   const settings = await getEmailSettings(pool);
   if (!settings.smtp_host || !settings.from_email) {
     return { ok: false, error: "Настройки почты не заданы" };
@@ -42,14 +42,19 @@ export async function sendTelegramActivationEmail(
     `<p>Команда HAULZ</p>`;
 
   try {
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: settings.from_name ? `"${settings.from_name}" <${settings.from_email}>` : settings.from_email,
       to: toEmail,
       subject,
       text,
       html,
     });
-    return { ok: true };
+    const accepted = Array.isArray((info as any)?.accepted) ? (info as any).accepted as string[] : [];
+    const rejected = Array.isArray((info as any)?.rejected) ? (info as any).rejected as string[] : [];
+    if (accepted.length === 0 || rejected.includes(toEmail)) {
+      return { ok: false, error: `SMTP rejected recipient: ${toEmail}` };
+    }
+    return { ok: true, messageId: (info as any)?.messageId ? String((info as any).messageId) : undefined };
   } catch (e: unknown) {
     const err = e as Error;
     return { ok: false, error: err?.message || "Ошибка отправки" };
