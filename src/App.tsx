@@ -3341,9 +3341,22 @@ function NotificationsPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ login }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || "Не удалось отключить Telegram.");
+      let ok = false;
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        ok = !!data?.ok;
+      }
+      if (!ok) {
+        // Fallback for environments where new endpoint is not available yet.
+        const fallbackRes = await fetch("/api/2fa-telegram", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ login, action: "unlink" }),
+        });
+        const fallbackData = await fallbackRes.json().catch(() => ({}));
+        if (!fallbackRes.ok || !fallbackData?.ok) {
+          throw new Error(fallbackData?.error || "Не удалось отключить Telegram.");
+        }
       }
 
       const telegramOff: Record<string, boolean> = {
@@ -3364,6 +3377,7 @@ function NotificationsPage({
 
       setTelegramLinkedFromApi(false);
       if (activeAccountId && onUpdateAccount) onUpdateAccount(activeAccountId, { twoFactorTelegramLinked: false });
+      setTgLinkError(null);
     } catch (e: any) {
       setTgLinkError(e?.message || "Не удалось отключить Telegram.");
     } finally {
@@ -3479,6 +3493,11 @@ function NotificationsPage({
                 >
                   {tgUnlinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Отключить Telegram"}
                 </Button>
+                {tgLinkError && (
+                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
+                    {tgLinkError}
+                  </Typography.Body>
+                )}
                 {maxLinked ? (
                   <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
                     MAX подключён.
