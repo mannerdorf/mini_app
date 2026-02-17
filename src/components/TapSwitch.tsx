@@ -3,10 +3,9 @@ import React from "react";
 /** Общий переключатель (как в 2FA) — для Уведомлений и 2FA. */
 export function TapSwitch({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
     return (
-        <div
-            role="button"
-            tabIndex={0}
-            aria-checked={checked}
+        <button
+            type="button"
+            aria-pressed={checked}
             onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -27,6 +26,9 @@ export function TapSwitch({ checked, onToggle }: { checked: boolean; onToggle: (
                 cursor: "pointer",
                 flexShrink: 0,
                 transition: "background 0.2s",
+                border: "none",
+                outline: "none",
+                padding: 0,
             }}
         >
             <div
@@ -42,6 +44,6 @@ export function TapSwitch({ checked, onToggle }: { checked: boolean; onToggle: (
                     transition: "left 0.2s",
                 }}
             />
-        </div>
+        </button>
     );
 }

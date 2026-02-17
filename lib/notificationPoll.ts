@@ -8,7 +8,7 @@ const INVOICES_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
-export type CargoEvent = "accepted" | "in_transit" | "delivered" | "bill_paid";
+export type CargoEvent = "accepted" | "in_transit" | "delivered" | "bill_created" | "bill_paid";
 
 function pickFirst(item: any, keys: string[]): unknown {
   for (const key of keys) {
@@ -152,6 +152,15 @@ export function formatTelegramMessage(
   const billNumber = String(
     pickFirst(anyItem, ["NumberBill", "BillNumber", "Invoice", "InvoiceNumber", "Счет", "Счёт"]) ?? n
   ).trim() || n;
+  const billDate = String(
+    pickFirst(anyItem, ["DateBill", "BillDate", "InvoiceDate", "ДатаСчета", "ДатаСчёта", "Date"]) ?? "—"
+  ).trim() || "—";
+  const billSumRaw = pickFirst(anyItem, ["SumDoc", "Sum", "Amount", "Сумма"]);
+  const billVatRaw = pickFirst(anyItem, ["SumNDS", "NDS", "VAT", "НДС"]);
+  const billSumNum = typeof billSumRaw === "number" ? billSumRaw : parseFloat(String(billSumRaw ?? "").replace(",", "."));
+  const billVatNum = typeof billVatRaw === "number" ? billVatRaw : parseFloat(String(billVatRaw ?? "").replace(",", "."));
+  const billSum = Number.isFinite(billSumNum) ? new Intl.NumberFormat("ru-RU").format(Math.round(billSumNum)) : "—";
+  const billVat = Number.isFinite(billVatNum) ? new Intl.NumberFormat("ru-RU").format(Math.round(billVatNum)) : "—";
   switch (event) {
     case "accepted": {
       return `Создана перевозка. ${details}`;
@@ -160,6 +169,8 @@ export function formatTelegramMessage(
       return `Перевозка в пути. № ${n}`;
     case "delivered":
       return `Перевозка доставлена. № ${n}`;
+    case "bill_created":
+      return `Создан счет (${billNumber}) от ${billDate} на сумму ${billSum} ₽, в том числе НДС ${billVat} ₽.`;
     case "bill_paid":
       return `Счет (${billNumber}) оплачен.`;
     default:

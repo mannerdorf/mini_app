@@ -17,7 +17,16 @@ const POLL_SERVICE_PASSWORD = process.env.POLL_SERVICE_PASSWORD;
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 
-const NOTIFICATION_EVENTS: CargoEvent[] = ["accepted", "in_transit", "delivered", "bill_paid"];
+const NOTIFICATION_EVENTS: CargoEvent[] = ["accepted", "in_transit", "delivered", "bill_created", "bill_paid"];
+
+function hasBillData(item: any): boolean {
+  const number = String(
+    item?.NumberBill ?? item?.BillNumber ?? item?.Invoice ?? item?.InvoiceNumber ?? item?.["Счет"] ?? item?.["Счёт"] ?? ""
+  ).trim();
+  if (number) return true;
+  const stateBill = String(item?.StateBill ?? item?.StatusBill ?? "").trim();
+  return !!stateBill;
+}
 
 async function sendTelegramMessage(
   chatId: string,
@@ -245,6 +254,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const eventsToSend: CargoEvent[] = [];
         if (!last) {
           if (stateKey === "accepted") eventsToSend.push("accepted");
+          if (hasBillData(item)) eventsToSend.push("bill_created");
           if (payKey === "paid") eventsToSend.push("bill_paid");
         } else {
           const prevStateKey = getCargoStatusKey(last.state ?? undefined);
@@ -254,6 +264,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (stateKey === "delivered") eventsToSend.push("delivered");
           }
           const prevPayKey = getPaymentKey(last.state_bill ?? undefined);
+          if (prevPayKey === "unknown" && hasBillData(item)) eventsToSend.push("bill_created");
           if (payKey === "paid" && prevPayKey !== "paid") eventsToSend.push("bill_paid");
         }
 
@@ -264,6 +275,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (event === "accepted") {
             const erUrl = `${appDomain}/api/doc-short?metod=${encodeURIComponent("ЭР")}&number=${encodeURIComponent(number)}`;
             docButton = { inline_keyboard: [[{ text: "Получить ЭР", url: erUrl }]] };
+          } else if (event === "bill_created") {
+            const billUrl = `${appDomain}/api/doc-short?metod=${encodeURIComponent("СЧЕТ")}&number=${encodeURIComponent(number)}`;
+            docButton = { inline_keyboard: [[{ text: "Получить счет", url: billUrl }]] };
           } else if (event === "delivered") {
             const appUrl = `${appDomain}/api/doc-short?metod=${encodeURIComponent("АПП")}&number=${encodeURIComponent(number)}`;
             docButton = { inline_keyboard: [[{ text: "Получить АПП", url: appUrl }]] };

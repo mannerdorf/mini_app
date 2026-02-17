@@ -3142,59 +3142,12 @@ const NOTIF_PEREVOZKI: { id: string; label: string }[] = [
   { id: "delivered", label: "Доставлено" },
 ];
 const NOTIF_DOCS: { id: string; label: string }[] = [
+  { id: "bill_created", label: "Создан счёт" },
   { id: "bill_paid", label: "Счёт оплачен" },
 ];
 const NOTIF_SUMMARY: { id: string; label: string }[] = [
   { id: "daily_summary", label: "Ежедневная сводка в 10:00" },
 ];
-
-/** Общий переключатель (как в 2FA) — один компонент для Уведомлений и 2FA. */
-function TapSwitch({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={checked}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onToggle();
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onToggle();
-        }
-      }}
-      style={{
-        width: 44,
-        height: 24,
-        borderRadius: 12,
-        background: checked ? "var(--color-theme-primary, #2563eb)" : "var(--color-border, #ccc)",
-        position: "relative",
-        cursor: "pointer",
-        flexShrink: 0,
-        transition: "background 0.2s",
-        border: "none",
-        outline: "none",
-        padding: 0,
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          top: 2,
-          left: checked ? 22 : 2,
-          width: 20,
-          height: 20,
-          borderRadius: "50%",
-          background: "#fff",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-          transition: "left 0.2s",
-        }}
-      />
-    </button>
-  );
-}
 
 function NotificationsPage({
   activeAccount,
@@ -3235,6 +3188,7 @@ function NotificationsPage({
   const [webPushSubscribed, setWebPushSubscribed] = useState(false);
   const [tgLinkLoading, setTgLinkLoading] = useState(false);
   const [tgLinkError, setTgLinkError] = useState<string | null>(null);
+  const [tgUnlinkLoading, setTgUnlinkLoading] = useState(false);
   const [maxLinkLoading, setMaxLinkLoading] = useState(false);
   const [maxLinkError, setMaxLinkError] = useState<string | null>(null);
   /** Статус привязки Telegram с сервера (при открытии экрана и по «Проверить привязку»). */
@@ -3318,13 +3272,16 @@ function NotificationsPage({
       if (!login || !nextPrefs) return;
       setPrefsSaving(true);
       try {
-        await fetch("/api/webpush-preferences", {
+        const res = await fetch("/api/webpush-preferences", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ login, preferences: nextPrefs }),
         });
+        if (!res.ok) {
+          throw new Error("Не удалось сохранить настройки уведомлений.");
+        }
       } catch {
-        // leave optimistic value in UI; server sync will happen on next load
+        setTgLinkError("Не удалось сохранить настройки. Проверьте миграции notification_preferences.");
       } finally {
         setPrefsSaving(false);
       }
@@ -3373,6 +3330,46 @@ function NotificationsPage({
       setWebPushLoading(false);
     }
   }, [login]);
+
+  const disableTelegram = useCallback(async () => {
+    if (!login) return;
+    setTgLinkError(null);
+    setTgUnlinkLoading(true);
+    try {
+      const res = await fetch("/api/telegram-unlink", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Не удалось отключить Telegram.");
+      }
+
+      const telegramOff: Record<string, boolean> = {
+        accepted: false,
+        in_transit: false,
+        delivered: false,
+        bill_created: false,
+        bill_paid: false,
+        daily_summary: false,
+      };
+      const nextPrefs = { ...prefs, telegram: { ...prefs.telegram, ...telegramOff } };
+      setPrefs(nextPrefs);
+      await fetch("/api/webpush-preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ login, preferences: nextPrefs }),
+      }).catch(() => {});
+
+      setTelegramLinkedFromApi(false);
+      if (activeAccountId && onUpdateAccount) onUpdateAccount(activeAccountId, { twoFactorTelegramLinked: false });
+    } catch (e: any) {
+      setTgLinkError(e?.message || "Не удалось отключить Telegram.");
+    } finally {
+      setTgUnlinkLoading(false);
+    }
+  }, [login, prefs, activeAccountId, onUpdateAccount]);
 
   const webPushSupported =
     typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
@@ -3474,6 +3471,14 @@ function NotificationsPage({
                 <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
                   Telegram подключён.
                 </Typography.Body>
+                <Button
+                  type="button"
+                  className="button-secondary"
+                  disabled={tgUnlinkLoading}
+                  onClick={disableTelegram}
+                >
+                  {tgUnlinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Отключить Telegram"}
+                </Button>
                 {maxLinked ? (
                   <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
                     MAX подключён.
