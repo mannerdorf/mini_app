@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { getPool } from "./_db.js";
 
 async function getRedisValue(key: string): Promise<string | null> {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -77,7 +78,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const tgBind =
       (await getRedisValue(`tg:by_login:${login}`)) ||
       (loginRaw && loginRaw !== login ? await getRedisValue(`tg:by_login:${loginRaw}`) : null);
-    const telegramLinked = !!tgBind || !!stored?.telegramLinked;
+    let telegramLinkedFromDb = false;
+    try {
+      const pool = getPool();
+      const { rows } = await pool.query<{ exists: boolean }>(
+        `select exists(
+           select 1
+           from telegram_chat_links
+           where lower(trim(login)) = $1 and chat_status = 'active'
+         ) as exists`,
+        [login]
+      );
+      telegramLinkedFromDb = !!rows[0]?.exists;
+    } catch (e: any) {
+      if (e?.code !== "42P01") {
+        console.error("2fa telegram_chat_links check failed:", e?.message || e);
+      }
+    }
+    const telegramLinked = !!tgBind || !!stored?.telegramLinked || telegramLinkedFromDb;
 
     const maxBind =
       (await getRedisValue(`max:by_login:${login}`)) ||

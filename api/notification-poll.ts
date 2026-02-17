@@ -11,7 +11,7 @@ import {
 } from "../lib/notificationPoll";
 
 const CRON_SECRET = process.env.CRON_SECRET;
-const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
+const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
 const POLL_SERVICE_LOGIN = process.env.POLL_SERVICE_LOGIN;
 const POLL_SERVICE_PASSWORD = process.env.POLL_SERVICE_PASSWORD;
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
@@ -138,7 +138,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const uniqueLogins = [...new Set(loginInnPairs.map((r) => r.login.toLowerCase()))];
     const chatIdByLogin = new Map<string, string>();
+    try {
+      const tgLinks = await pool.query<{ login: string; telegram_chat_id: string }>(
+        `select login, telegram_chat_id
+         from telegram_chat_links
+         where chat_status = 'active' and telegram_chat_id is not null and telegram_chat_id <> ''`
+      );
+      for (const row of tgLinks.rows) {
+        const loginKey = String(row.login || "").trim().toLowerCase();
+        const chatId = String(row.telegram_chat_id || "").trim();
+        if (loginKey && chatId) {
+          chatIdByLogin.set(loginKey, chatId);
+        }
+      }
+    } catch (e: any) {
+      if (e?.code !== "42P01") {
+        console.error("notification-poll telegram_chat_links query failed:", e?.message || e);
+      }
+    }
     for (const login of uniqueLogins) {
+      if (chatIdByLogin.has(login)) continue;
       const chatId = await getRedisValue(`tg:by_login:${login}`);
       if (chatId) chatIdByLogin.set(login, chatId);
     }

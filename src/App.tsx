@@ -3341,15 +3341,15 @@ function NotificationsPage({
         </Panel>
       ) : (
         <>
-          {/* Telegram */}
+          {/* Чат-бот Telegram HAULZinfobot */}
           <Typography.Body style={{ marginBottom: "0.5rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-            Telegram
+            Чат-бот Telegram HAULZinfobot
           </Typography.Body>
           <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {!telegramLinked ? (
               <>
                 <Typography.Body style={{ fontSize: "0.9rem" }}>
-                  Привяжите Telegram, чтобы получать уведомления в боте по образцу: «Создана Перевозка №…», «В пути», «Доставлено», «Счёт по перевозке № … оплачен».
+                  Для активации откройте HAULZinfobot и введите логин или ИНН. Затем подтвердите пин-код из email.
                 </Typography.Body>
                 {onOpenTelegramBot && (
                   <Button
@@ -3368,7 +3368,7 @@ function NotificationsPage({
                       }
                     }}
                   >
-                    {tgLinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Привязать Telegram"}
+                    {tgLinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Открыть HAULZinfobot"}
                   </Button>
                 )}
                 {tgLinkError && (
@@ -3732,13 +3732,13 @@ function ProfilePage({
             icon: <Mic className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('voiceAssistants')
         },
+        ] : []),
         { 
             id: 'notifications', 
             label: 'Уведомления', 
             icon: <Bell className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('notifications')
         },
-        ] : []),
     ];
 
     const faqItems = [
@@ -4539,29 +4539,13 @@ function ProfilePage({
     }
 
     if (currentView === 'notifications') {
-        const serviceModeAllowed = !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
-        if (!serviceModeAllowed) {
-            return (
-                <div className="w-full">
-                    <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                        <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
-                            <ArrowLeft className="w-4 h-4" />
-                        </Button>
-                        <Typography.Headline style={{ fontSize: '1.25rem' }}>Уведомления</Typography.Headline>
-                    </Flex>
-                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Доступно только при включённом служебном режиме.</Typography.Body>
-                    </Panel>
-                </div>
-            );
-        }
         return (
             <NotificationsPage
                 activeAccount={activeAccount}
                 activeAccountId={activeAccountId}
                 onBack={() => setCurrentView('main')}
                 onOpenDeveloper={() => {}}
-                onOpenTelegramBot={undefined}
+                onOpenTelegramBot={openTelegramBotWithAccount}
                 onOpenMaxBot={undefined}
                 onUpdateAccount={onUpdateAccount}
             />
@@ -7381,7 +7365,7 @@ export default function App() {
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
 
     const MAX_SUPPORT_BOT_URL = "https://max.ru/id9706037094_bot";
-    const TG_SUPPORT_BOT_URL = "https://t.me/Haulzapp_bot";
+    const TG_SUPPORT_BOT_URL = "https://t.me/HAULZinfobot";
 
     const openExternalLink = (url: string) => {
         const webApp = getWebApp();
@@ -7393,28 +7377,7 @@ export default function App() {
     };
 
     const openTelegramBotWithAccount = async () => {
-        const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
-        if (!activeAccount) {
-            throw new Error("Сначала выберите компанию.");
-        }
-        const res = await fetch("/api/tg-link", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                login: activeAccount.login,
-                password: activeAccount.password,
-                customer: activeAccount.customer || null,
-                inn: activeAccount.activeCustomerInn ?? null,
-                accountId: activeAccount.id,
-            }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data?.token) {
-            throw new Error(data?.error || "Не удалось создать ссылку для Telegram.");
-        }
         const url = new URL(TG_SUPPORT_BOT_URL);
-        url.searchParams.set("start", `haulz_auth_${data.token}`);
-
         const webApp = getWebApp();
         if (webApp && typeof webApp.openTelegramLink === "function") {
             webApp.openTelegramLink(url.toString());

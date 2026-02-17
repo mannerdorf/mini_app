@@ -79,24 +79,33 @@ export async function fetchPerevozkiByInn(
 export function formatTelegramMessage(
   event: CargoEvent,
   cargoNumber: string,
-  item?: { Mest?: number; W?: number; Value?: number; PW?: number }
+  item?: {
+    Mest?: number;
+    W?: number;
+    Value?: number;
+    PW?: number;
+    Sender?: string;
+    Receiver?: string;
+    Poluchatel?: string;
+  }
 ): string {
   const n = cargoNumber;
+  const mest = item?.Mest ?? "—";
+  const pw = item?.PW ?? "—";
+  const sender = String(item?.Sender || "—").trim() || "—";
+  const receiver = String(item?.Receiver || item?.Poluchatel || "—").trim() || "—";
+  const details = `№ ${n} - мест: ${mest}, платный вес: ${pw}, отправитель: ${sender}, получатель: ${receiver}.`;
   switch (event) {
     case "accepted": {
-      const mest = item?.Mest ?? "—";
-      const w = item?.W ?? "—";
-      const vol = item?.Value ?? "—";
-      const pw = item?.PW ?? "—";
-      return `Создана Перевозка ${n} число мест ${mest}, вес ${w} кг, объем ${vol} м³, платный вес ${pw} кг.`;
+      return `Создана перевозка. ${details}`;
     }
     case "in_transit":
-      return `${n} В пути`;
+      return `Перевозка в пути. ${details}`;
     case "delivered":
-      return `Доставлено ${n}.`;
+      return `Перевозка доставлена. ${details}`;
     case "bill_paid":
-      return `Счёт по перевозке № ${n} оплачен.`;
+      return `Счёт по перевозке оплачен. ${details}`;
     default:
-      return `Перевозка ${n}: обновление статуса.`;
+      return `Обновление статуса перевозки. ${details}`;
   }
 }

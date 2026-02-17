@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getRedisValue, setRedisValue, deleteRedisValue } from "./redis";
 
-const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
+const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
 const CODE_TTL_SECONDS = 60 * 5; // 5 minutes
 
 async function sendTelegramMessage(chatId: string, text: string): Promise<boolean> {
