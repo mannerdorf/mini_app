@@ -8,7 +8,7 @@ import { writeAuditLog } from "../lib/adminAuditLog.js";
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const TG_MAX_MESSAGE_LENGTH = 4096;
-const TG_BOT_LINK_BASE = "https://t.me/Haulzapp_bot?startapp=haulz_n_";
+const TG_BOT_LINK_BASE = "https://t.me/HAULZinfobot?startapp=haulz_n_";
 const TG_LINK_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 const TG_ACTIVATION_CODE_TTL_SECONDS = 60 * 10; // 10 minutes
 
@@ -295,42 +295,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ok: true });
     }
 
-    if (payload.startsWith("haulz_auth_")) {
-      const token = payload.replace("haulz_auth_", "");
-      const raw = await getRedisValue(`tg:link:${token}`);
-      if (!raw) {
-        await sendTgMessageChunked(chatId, "Ссылка устарела. Откройте бота из мини‑приложения ещё раз.");
-        return res.status(200).json({ ok: true });
-      }
-      let parsed: any = null;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        parsed = null;
-      }
-      const saved = await setRedisValue(`tg:bind:${chatId}`, raw, TG_LINK_TTL_SECONDS);
-      if (!saved) {
-        await sendTgMessageChunked(chatId, "Не удалось сохранить привязку. Попробуйте позже.");
-        return res.status(200).json({ ok: true });
-      }
-      if (parsed?.login) {
-        const loginKey = String(parsed.login).trim().toLowerCase();
-        await setRedisValue(`tg:by_login:${loginKey}`, String(chatId));
-        if (loginKey !== String(parsed.login).trim()) {
-          await setRedisValue(`tg:by_login:${String(parsed.login).trim()}`, String(chatId));
-        }
-      }
-      if (parsed?.customer) {
-        await setRedisValue(`tg:by_customer:${parsed.customer}`, String(chatId));
-      }
-      const customerLabel = parsed?.customer || parsed?.login || "не указан";
-      await sendTgMessageChunked(
-        chatId,
-        `Готово! Аккаунт привязан.\nЗаказчик: ${customerLabel}\nТеперь можно писать в чат.`,
-      );
-      return res.status(200).json({ ok: true });
-    }
-
     await setRedisValue(
       `tg:onboarding:${chatIdStr}`,
       JSON.stringify({ step: "await_login_or_inn", startedAt: new Date().toISOString() }),
@@ -581,7 +545,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const boundRaw = await getRedisValue(`tg:bind:${chatId}`);
     if (!boundRaw) {
-      await sendTgMessageChunked(chatId, "Сначала откройте бота из мини‑приложения, чтобы привязать аккаунт.");
+      await sendTgMessageChunked(chatId, "Для активации бота HAULZ введите логин или ИНН.");
       return res.status(200).json({ ok: true, debug: debugInfo });
     }
     let bound: any = null;
@@ -591,7 +555,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       bound = null;
     }
     if (!bound) {
-      await sendTgMessageChunked(chatId, "Сначала откройте бота из мини‑приложения, чтобы привязать аккаунт.");
+      await sendTgMessageChunked(chatId, "Для активации бота HAULZ введите логин или ИНН.");
       return res.status(200).json({ ok: true, debug: debugInfo });
     }
     const boundCustomer = bound?.customer || null;
