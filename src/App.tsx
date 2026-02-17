@@ -3144,14 +3144,16 @@ const NOTIF_PEREVOZKI: { id: string; label: string }[] = [
 const NOTIF_DOCS: { id: string; label: string }[] = [
   { id: "bill_paid", label: "Счёт оплачен" },
 ];
+const NOTIF_SUMMARY: { id: string; label: string }[] = [
+  { id: "daily_summary", label: "Ежедневная сводка в 10:00" },
+];
 
 /** Общий переключатель (как в 2FA) — один компонент для Уведомлений и 2FA. */
 function TapSwitch({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-checked={checked}
+    <button
+      type="button"
+      aria-pressed={checked}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -3172,6 +3174,9 @@ function TapSwitch({ checked, onToggle }: { checked: boolean; onToggle: () => vo
         cursor: "pointer",
         flexShrink: 0,
         transition: "background 0.2s",
+        border: "none",
+        outline: "none",
+        padding: 0,
       }}
     >
       <div
@@ -3187,7 +3192,7 @@ function TapSwitch({ checked, onToggle }: { checked: boolean; onToggle: () => vo
           transition: "left 0.2s",
         }}
       />
-    </div>
+    </button>
   );
 }
 
@@ -3301,26 +3306,30 @@ function NotificationsPage({
 
   const savePrefs = useCallback(
     async (channel: "telegram" | "webpush", eventId: string, value: boolean) => {
-      const next = {
-        ...prefs,
-        [channel]: { ...prefs[channel], [eventId]: value },
-      };
-      setPrefs(next);
-      if (!login) return;
+      let nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean> } | null = null;
+      setPrefs((prev) => {
+        const next = {
+          ...prev,
+          [channel]: { ...prev[channel], [eventId]: value },
+        };
+        nextPrefs = next;
+        return next;
+      });
+      if (!login || !nextPrefs) return;
       setPrefsSaving(true);
       try {
         await fetch("/api/webpush-preferences", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ login, preferences: next }),
+          body: JSON.stringify({ login, preferences: nextPrefs }),
         });
       } catch {
-        // revert on error?
+        // leave optimistic value in UI; server sync will happen on next load
       } finally {
         setPrefsSaving(false);
       }
     },
-    [login, prefs]
+    [login]
   );
 
   const enableWebPush = useCallback(async () => {
@@ -3367,6 +3376,7 @@ function NotificationsPage({
 
   const webPushSupported =
     typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
+  const SHOW_WEB_PUSH_SECTION = false;
 
   return (
     <div className="w-full">
@@ -3397,31 +3407,31 @@ function NotificationsPage({
             Чат-бот Telegram HAULZinfobot
           </Typography.Body>
           <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {onOpenTelegramBot && (
+              <Button
+                type="button"
+                className="filter-button"
+                disabled={tgLinkLoading}
+                onClick={async () => {
+                  setTgLinkError(null);
+                  setTgLinkLoading(true);
+                  try {
+                    await onOpenTelegramBot();
+                  } catch (e: any) {
+                    setTgLinkError(e?.message || "Не удалось открыть Telegram.");
+                  } finally {
+                    setTgLinkLoading(false);
+                  }
+                }}
+              >
+                {tgLinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Открыть HAULZinfobot"}
+              </Button>
+            )}
             {!telegramLinked ? (
               <>
                 <Typography.Body style={{ fontSize: "0.9rem" }}>
                   Для активации откройте HAULZinfobot и введите логин или ИНН. Затем подтвердите пин-код из email.
                 </Typography.Body>
-                {onOpenTelegramBot && (
-                  <Button
-                    type="button"
-                    className="button-primary"
-                    disabled={tgLinkLoading}
-                    onClick={async () => {
-                      setTgLinkError(null);
-                      setTgLinkLoading(true);
-                      try {
-                        await onOpenTelegramBot();
-                      } catch (e: any) {
-                        setTgLinkError(e?.message || "Не удалось открыть Telegram.");
-                      } finally {
-                        setTgLinkLoading(false);
-                      }
-                    }}
-                  >
-                    {tgLinkLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Открыть HAULZinfobot"}
-                  </Button>
-                )}
                 {tgLinkError && (
                   <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
                     {tgLinkError}
@@ -3517,72 +3527,100 @@ function NotificationsPage({
                     />
                   </Flex>
                 ))}
+                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
+                  Сводка
+                </Typography.Body>
+                {NOTIF_SUMMARY.map((ev) => (
+                  <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                    <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                    <TapSwitch
+                      checked={!!prefs.telegram[ev.id]}
+                      onToggle={() => savePrefs("telegram", ev.id, !prefs.telegram[ev.id])}
+                    />
+                  </Flex>
+                ))}
               </>
             )}
           </Panel>
 
-          {/* Web Push */}
-          <Typography.Body style={{ marginTop: "1.25rem", marginBottom: "0.5rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-            Web Push (браузер)
-          </Typography.Body>
-          <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {webPushSupported && (
-              <>
-                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                  Уведомления в браузере (Chrome, Edge, Firefox; на iOS — после добавления на экран «Домой»).
-                </Typography.Body>
-                {!webPushSubscribed && (
-                  <Button
-                    type="button"
-                    className="button-primary"
-                    disabled={webPushLoading}
-                    onClick={enableWebPush}
-                  >
-                    {webPushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Включить уведомления в браузере"}
-                  </Button>
-                )}
-                {webPushSubscribed && (
-                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
-                    Уведомления в браузере включены.
-                  </Typography.Body>
-                )}
-                {webPushError && (
-                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
-                    {webPushError}
-                  </Typography.Body>
-                )}
-                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.25rem", marginBottom: "0.25rem" }}>
-                  Раздел «Перевозки»
-                </Typography.Body>
-                {NOTIF_PEREVOZKI.map((ev) => (
-                  <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
-                    <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
-                    <TapSwitch
-                      checked={!!prefs.webpush[ev.id]}
-                      onToggle={() => savePrefs("webpush", ev.id, !prefs.webpush[ev.id])}
-                    />
-                  </Flex>
-                ))}
-                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
-                  Раздел «Документы»
-                </Typography.Body>
-                {NOTIF_DOCS.map((ev) => (
-                  <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
-                    <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
-                    <TapSwitch
-                      checked={!!prefs.webpush[ev.id]}
-                      onToggle={() => savePrefs("webpush", ev.id, !prefs.webpush[ev.id])}
-                    />
-                  </Flex>
-                ))}
-              </>
-            )}
-            {!webPushSupported && (
-              <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-                Web Push доступен в браузерах (Chrome, Edge, Firefox). В мини‑приложении внутри соцсетей может быть недоступен.
+          {SHOW_WEB_PUSH_SECTION && (
+            <>
+              {/* Web Push */}
+              <Typography.Body style={{ marginTop: "1.25rem", marginBottom: "0.5rem", fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+                Web Push (браузер)
               </Typography.Body>
-            )}
-          </Panel>
+              <Panel className="cargo-card" style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {webPushSupported && (
+                  <>
+                    <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                      Уведомления в браузере (Chrome, Edge, Firefox; на iOS — после добавления на экран «Домой»).
+                    </Typography.Body>
+                    {!webPushSubscribed && (
+                      <Button
+                        type="button"
+                        className="button-primary"
+                        disabled={webPushLoading}
+                        onClick={enableWebPush}
+                      >
+                        {webPushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Включить уведомления в браузере"}
+                      </Button>
+                    )}
+                    {webPushSubscribed && (
+                      <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
+                        Уведомления в браузере включены.
+                      </Typography.Body>
+                    )}
+                    {webPushError && (
+                      <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>
+                        {webPushError}
+                      </Typography.Body>
+                    )}
+                    <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.25rem", marginBottom: "0.25rem" }}>
+                      Раздел «Перевозки»
+                    </Typography.Body>
+                    {NOTIF_PEREVOZKI.map((ev) => (
+                      <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                        <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                        <TapSwitch
+                          checked={!!prefs.webpush[ev.id]}
+                          onToggle={() => savePrefs("webpush", ev.id, !prefs.webpush[ev.id])}
+                        />
+                      </Flex>
+                    ))}
+                    <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
+                      Раздел «Документы»
+                    </Typography.Body>
+                    {NOTIF_DOCS.map((ev) => (
+                      <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                        <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                        <TapSwitch
+                          checked={!!prefs.webpush[ev.id]}
+                          onToggle={() => savePrefs("webpush", ev.id, !prefs.webpush[ev.id])}
+                        />
+                      </Flex>
+                    ))}
+                    <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginTop: "0.5rem", marginBottom: "0.25rem" }}>
+                      Сводка
+                    </Typography.Body>
+                    {NOTIF_SUMMARY.map((ev) => (
+                      <Flex key={ev.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
+                        <Typography.Body style={{ fontSize: "0.9rem" }}>{ev.label}</Typography.Body>
+                        <TapSwitch
+                          checked={!!prefs.webpush[ev.id]}
+                          onToggle={() => savePrefs("webpush", ev.id, !prefs.webpush[ev.id])}
+                        />
+                      </Flex>
+                    ))}
+                  </>
+                )}
+                {!webPushSupported && (
+                  <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+                    Web Push доступен в браузерах (Chrome, Edge, Firefox). В мини‑приложении внутри соцсетей может быть недоступен.
+                  </Typography.Body>
+                )}
+              </Panel>
+            </>
+          )}
 
           <Typography.Body
             style={{ marginTop: "1.5rem", fontSize: "0.8rem", color: "var(--color-text-secondary)", cursor: "pointer", textDecoration: "underline" }}

@@ -1,5 +1,8 @@
 {
-  "crons": [{"path": "/api/cron/refresh-cache", "schedule": "*/15 * * * *"}],
+  "crons": [
+    {"path": "/api/cron/refresh-cache", "schedule": "*/15 * * * *"},
+    {"path": "/api/notification-daily-summary", "schedule": "0 10 * * *"}
+  ],
   "functions": {
     "api/chat.ts": {"maxDuration": 60},
     "api/tg-webhook.ts": {"maxDuration": 60},

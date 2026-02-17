@@ -2,11 +2,11 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db";
 
 const DEFAULT_PREFS = {
-  telegram: {} as Record<string, boolean>,
-  webpush: {} as Record<string, boolean>,
+  telegram: { daily_summary: true } as Record<string, boolean>,
+  webpush: { daily_summary: false } as Record<string, boolean>,
 };
 
-const EVENTS = ["accepted", "in_transit", "delivered", "bill_paid"] as const;
+const EVENTS = ["accepted", "in_transit", "delivered", "bill_paid", "daily_summary"] as const;
 
 /** GET ?login= — настройки из БД (notification_preferences). POST { login, preferences } — сохранить в БД. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {

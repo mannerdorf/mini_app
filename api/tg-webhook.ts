@@ -245,6 +245,16 @@ async function upsertTelegramChatLink(args: {
   );
 }
 
+async function disableTelegramChatLinkByChatId(chatId: string): Promise<void> {
+  const pool = getPool();
+  await pool.query(
+    `update telegram_chat_links
+     set chat_status = 'disabled', last_seen_at = now(), updated_at = now()
+     where telegram_chat_id = $1`,
+    [chatId]
+  );
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -287,6 +297,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const chatIdStr = String(chatId);
   const startText = typeof userText === "string" ? userText.trim() : "";
+  const normalizedCommand = startText.toLowerCase();
+
+  // Явное отключение Telegram-рассылки.
+  if (normalizedCommand === "/delete" || normalizedCommand.startsWith("/delete ")) {
+    const onboardingKey = `tg:onboarding:${chatIdStr}`;
+    const activationCodeKey = `tg:activation:code:${chatIdStr}`;
+    const boundRaw = await getRedisValue(`tg:bind:${chatIdStr}`);
+    let bound: { login?: string; customer?: string } | null = null;
+    try {
+      bound = boundRaw ? JSON.parse(boundRaw) : null;
+    } catch {
+      bound = null;
+    }
+
+    const tasks: Promise<boolean>[] = [
+      deleteRedisValue(`tg:bind:${chatIdStr}`),
+      deleteRedisValue(onboardingKey),
+      deleteRedisValue(activationCodeKey),
+    ];
+
+    const loginRaw = String(bound?.login || "").trim();
+    const loginLower = loginRaw.toLowerCase();
+    if (loginRaw) {
+      tasks.push(deleteRedisValue(`tg:by_login:${loginRaw}`));
+      if (loginLower && loginLower !== loginRaw) {
+        tasks.push(deleteRedisValue(`tg:by_login:${loginLower}`));
+      }
+    }
+    if (bound?.customer) {
+      tasks.push(deleteRedisValue(`tg:by_customer:${String(bound.customer)}`));
+    }
+    await Promise.allSettled(tasks);
+
+    try {
+      await disableTelegramChatLinkByChatId(chatIdStr);
+    } catch (e: any) {
+      if (e?.code !== "42P01") {
+        console.error("telegram_chat_links disable failed:", e);
+      }
+    }
+
+    await sendTgMessageChunked(
+      chatId,
+      "Рассылка отключена. Чтобы подключить ее снова, введите /start и пройдите активацию."
+    );
+    return res.status(200).json({ ok: true });
+  }
 
   // Обработка /start с параметрами и запуск активации.
   if (startText.startsWith("/start")) {
@@ -393,7 +450,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         await deleteRedisValue(activationCodeKey);
         await deleteRedisValue(onboardingKey);
-        await sendTgMessageChunked(chatId, "Готово! Чат активирован. Теперь уведомления будут приходить в Telegram.");
+        await sendTgMessageChunked(
+          chatId,
+          "Готово! Чат активирован. Теперь уведомления будут приходить в Telegram. Для отказа от рассылки введите /delete или отключите ее в приложении."
+        );
         return res.status(200).json({ ok: true });
       }
 
