@@ -166,10 +166,10 @@ export function AppMainContent({
         </SectionBoundary>
       )}
 
-      {(showDashboard || activeTab === "cargo") && activeTab === "cargo" && selectedAuths.length > 0 && (
+      {(showDashboard || activeTab === "cargo") && activeTab === "cargo" && (selectedAuths.length > 0 || (useServiceRequest && !!auth)) && (
         <SectionBoundary section="Грузы">
         <CargoPage
-          auths={selectedAuths}
+          auths={selectedAuths.length > 0 ? selectedAuths : (auth ? [auth] : [])}
           onOpenChat={undefined}
           onCustomerDetected={updateActiveAccountCustomer}
           contextCargoNumber={contextCargoNumber}
@@ -187,7 +187,7 @@ export function AppMainContent({
         </SectionBoundary>
       )}
 
-      {activeTab === "cargo" && selectedAuths.length === 0 && (
+      {activeTab === "cargo" && selectedAuths.length === 0 && !(useServiceRequest && auth) && (
         <SectionBoundary section="Грузы">
         <EmptyCargoState
           accounts={accounts}

@@ -399,19 +399,9 @@ export function CargoPage({
                 <Typography.Headline style={{ fontSize: '1.25rem' }}>Грузы</Typography.Headline>
                 <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                     <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
-                    <button
-                        type="button"
-                        className="roles-switch-wrap"
-                        onClick={(e: React.MouseEvent) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setTableModeByCustomer(v => !v);
-                        }}
-                        style={{ cursor: 'pointer', border: 'none', background: 'transparent', padding: 2 }}
-                        aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}
-                    >
+                    <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
                         <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
-                    </button>
+                    </span>
                 </Flex>
             </Flex>
             <div className="filters-container filters-row-scroll">

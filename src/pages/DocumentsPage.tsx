@@ -448,7 +448,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
                     <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                         <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
-                        <span className="roles-switch-wrap">
+                        <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
                             <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
                         </span>
                     </Flex>
