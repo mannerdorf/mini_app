@@ -7029,10 +7029,10 @@ export default function App() {
     }, [accounts.length, activeAccountId, selectedAccountIds.length]);
 
     // Режим сквозной выборки без жёсткой привязки к ИНН:
-    // доступен только аккаунтам с правом analytics.
+    // переключатель доступен только тем, у кого в админке включён «Служебный режим» (service_mode).
     const serviceModeUnlocked = useMemo(() => {
-        return !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.analytics === true;
-    }, [activeAccount?.isRegisteredUser, activeAccount?.permissions?.analytics]);
+        return !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
+    }, [activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
     useEffect(() => {
         if (!serviceModeUnlocked && useServiceRequest) {
             setUseServiceRequest(false);
