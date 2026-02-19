@@ -116,7 +116,7 @@ create index if not exists notification_deliveries_login_sent_idx on notificatio
 create table if not exists notification_preferences (
   login text not null,
   channel text not null check (channel in ('telegram', 'web')),
-  event_id text not null check (event_id in ('accepted', 'in_transit', 'delivered', 'bill_paid')),
+  event_id text not null check (event_id in ('accepted', 'in_transit', 'delivered', 'bill_created', 'bill_paid', 'daily_summary')),
   enabled boolean not null default true,
   updated_at timestamptz not null default now(),
   primary key (login, channel, event_id)

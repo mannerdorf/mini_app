@@ -2,11 +2,11 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db";
 
 const DEFAULT_PREFS = {
-  telegram: {} as Record<string, boolean>,
-  webpush: {} as Record<string, boolean>,
+  telegram: { daily_summary: true } as Record<string, boolean>,
+  webpush: { daily_summary: false } as Record<string, boolean>,
 };
 
-const EVENTS = ["accepted", "in_transit", "delivered", "bill_paid"] as const;
+const EVENTS = ["accepted", "in_transit", "delivered", "bill_created", "bill_paid", "daily_summary"] as const;
 
 /** GET ?login= — настройки из БД (notification_preferences). POST { login, preferences } — сохранить в БД. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -73,18 +73,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     for (const eventId of EVENTS) {
-      await pool.query(
-        `INSERT INTO notification_preferences (login, channel, event_id, enabled, updated_at)
-         VALUES ($1, 'telegram', $2, $3, now())
-         ON CONFLICT (login, channel, event_id) DO UPDATE SET enabled = excluded.enabled, updated_at = now()`,
-        [login, eventId, !!current.telegram[eventId]]
-      );
-      await pool.query(
-        `INSERT INTO notification_preferences (login, channel, event_id, enabled, updated_at)
-         VALUES ($1, 'web', $2, $3, now())
-         ON CONFLICT (login, channel, event_id) DO UPDATE SET enabled = excluded.enabled, updated_at = now()`,
-        [login, eventId, !!current.webpush[eventId]]
-      );
+      try {
+        await pool.query(
+          `INSERT INTO notification_preferences (login, channel, event_id, enabled, updated_at)
+           VALUES ($1, 'telegram', $2, $3, now())
+           ON CONFLICT (login, channel, event_id) DO UPDATE SET enabled = excluded.enabled, updated_at = now()`,
+          [login, eventId, !!current.telegram[eventId]]
+        );
+        await pool.query(
+          `INSERT INTO notification_preferences (login, channel, event_id, enabled, updated_at)
+           VALUES ($1, 'web', $2, $3, now())
+           ON CONFLICT (login, channel, event_id) DO UPDATE SET enabled = excluded.enabled, updated_at = now()`,
+          [login, eventId, !!current.webpush[eventId]]
+        );
+      } catch (e: any) {
+        // Old schema may reject new event_id values by CHECK constraint.
+        if (e?.code === "23514") continue;
+        throw e;
+      }
     }
     return res.status(200).json({ ok: true, preferences: current });
   } catch (e: any) {

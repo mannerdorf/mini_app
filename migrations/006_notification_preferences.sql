@@ -1,9 +1,9 @@
--- 1. БЗ пуша: заказчик (login) / канал (telegram | web) / событие (accepted, in_transit, delivered, bill_paid) / вкл или выкл
+-- 1. БЗ пуша: заказчик (login) / канал (telegram | web) / событие (accepted, in_transit, delivered, bill_created, bill_paid, daily_summary) / вкл или выкл
 
 create table if not exists notification_preferences (
   login text not null,
   channel text not null check (channel in ('telegram', 'web')),
-  event_id text not null check (event_id in ('accepted', 'in_transit', 'delivered', 'bill_paid')),
+  event_id text not null check (event_id in ('accepted', 'in_transit', 'delivered', 'bill_created', 'bill_paid', 'daily_summary')),
   enabled boolean not null default true,
   updated_at timestamptz not null default now(),
   primary key (login, channel, event_id)

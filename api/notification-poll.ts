@@ -17,15 +17,33 @@ const POLL_SERVICE_PASSWORD = process.env.POLL_SERVICE_PASSWORD;
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 
-const NOTIFICATION_EVENTS: CargoEvent[] = ["accepted", "in_transit", "delivered", "bill_paid"];
+const NOTIFICATION_EVENTS: CargoEvent[] = ["accepted", "in_transit", "delivered", "bill_created", "bill_paid"];
 
-async function sendTelegramMessage(chatId: string, text: string): Promise<{ ok: boolean; error?: string }> {
+function hasBillData(item: any): boolean {
+  const number = String(
+    item?.NumberBill ?? item?.BillNumber ?? item?.Invoice ?? item?.InvoiceNumber ?? item?.["Счет"] ?? item?.["Счёт"] ?? ""
+  ).trim();
+  if (number) return true;
+  const stateBill = String(item?.StateBill ?? item?.StatusBill ?? "").trim();
+  return !!stateBill;
+}
+
+async function sendTelegramMessage(
+  chatId: string,
+  text: string,
+  replyMarkup?: Record<string, unknown>
+): Promise<{ ok: boolean; error?: string }> {
   if (!TG_BOT_TOKEN) return { ok: false, error: "TG_BOT_TOKEN not set" };
   try {
     const res = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data?.ok) return { ok: false, error: data?.description || String(res.status) };
@@ -109,6 +127,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let errorMessage: string | null = null;
   let innsPolled = 0;
   let notificationsSent = 0;
+  const appDomain =
+    process.env.NEXT_PUBLIC_APP_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
 
   try {
     const companiesResult = await pool.query<{ login: string; inn: string }>(
@@ -233,6 +254,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const eventsToSend: CargoEvent[] = [];
         if (!last) {
           if (stateKey === "accepted") eventsToSend.push("accepted");
+          if (hasBillData(item)) eventsToSend.push("bill_created");
           if (payKey === "paid") eventsToSend.push("bill_paid");
         } else {
           const prevStateKey = getCargoStatusKey(last.state ?? undefined);
@@ -242,15 +264,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (stateKey === "delivered") eventsToSend.push("delivered");
           }
           const prevPayKey = getPaymentKey(last.state_bill ?? undefined);
+          if (prevPayKey === "unknown" && hasBillData(item)) eventsToSend.push("bill_created");
           if (payKey === "paid" && prevPayKey !== "paid") eventsToSend.push("bill_paid");
         }
 
         for (const event of eventsToSend) {
           const text = formatTelegramMessage(event, number, item);
           const title = "HAULZ";
+          let docButton: Record<string, unknown> | undefined;
+          if (event === "accepted") {
+            const erUrl = `${appDomain}/api/doc-short?metod=${encodeURIComponent("ЭР")}&number=${encodeURIComponent(number)}`;
+            docButton = { inline_keyboard: [[{ text: "Получить ЭР", url: erUrl }]] };
+          } else if (event === "bill_created") {
+            const billUrl = `${appDomain}/api/doc-short?metod=${encodeURIComponent("СЧЕТ")}&number=${encodeURIComponent(number)}`;
+            docButton = { inline_keyboard: [[{ text: "Получить счет", url: billUrl }]] };
+          } else if (event === "delivered") {
+            const appUrl = `${appDomain}/api/doc-short?metod=${encodeURIComponent("АПП")}&number=${encodeURIComponent(number)}`;
+            docButton = { inline_keyboard: [[{ text: "Получить АПП", url: appUrl }]] };
+          } else if (event === "bill_paid") {
+            const updUrl = `${appDomain}/api/doc-short?metod=${encodeURIComponent("УПД")}&number=${encodeURIComponent(number)}`;
+            docButton = { inline_keyboard: [[{ text: "Скачать УПД", url: updUrl }]] };
+          }
           for (const sub of subscribers) {
             if (sub.prefsTelegram[event] && sub.telegramChatId) {
-              const sendResult = await sendTelegramMessage(sub.telegramChatId, text);
+              const sendResult = await sendTelegramMessage(sub.telegramChatId, text, docButton);
               notificationsSent += 1;
               await pool.query(
                 `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
