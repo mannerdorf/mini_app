@@ -148,6 +148,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
     const [routeFilterCargo, setRouteFilterCargo] = useState<string>('all');
     const [transportFilter, setTransportFilter] = useState<string>('');
+    const [transportSearchQuery, setTransportSearchQuery] = useState<string>('');
     const [isDeliveryStatusDropdownOpen, setIsDeliveryStatusDropdownOpen] = useState(false);
     const [isRouteCargoDropdownOpen, setIsRouteCargoDropdownOpen] = useState(false);
     const [isTransportDropdownOpen, setIsTransportDropdownOpen] = useState(false);
@@ -640,11 +641,23 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 Транспортное средство: {transportFilter || 'Все'} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
-                        <FilterDropdownPortal triggerRef={transportButtonRef} isOpen={isTransportDropdownOpen} onClose={() => setIsTransportDropdownOpen(false)}>
-                            <div className="dropdown-item" onClick={() => { setTransportFilter(''); setIsTransportDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                            {uniqueTransportVehicles.map(v => (
-                                <div key={v} className="dropdown-item" onClick={() => { setTransportFilter(v); setIsTransportDropdownOpen(false); }}><Typography.Body>{v}</Typography.Body></div>
-                            ))}
+                        <FilterDropdownPortal triggerRef={transportButtonRef} isOpen={isTransportDropdownOpen} onClose={() => { setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}>
+                            <div className="dropdown-item" style={{ padding: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                    type="text"
+                                    placeholder="Поиск..."
+                                    value={transportSearchQuery}
+                                    onChange={(e) => setTransportSearchQuery(e.target.value)}
+                                    className="filter-search-input"
+                                    style={{ width: '100%', padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', fontSize: '0.875rem', outline: 'none' }}
+                                />
+                            </div>
+                            <div className="dropdown-item" onClick={() => { setTransportFilter(''); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>Все</Typography.Body></div>
+                            {uniqueTransportVehicles
+                                .filter(v => !transportSearchQuery.trim() || v.toLowerCase().includes(transportSearchQuery.trim().toLowerCase()))
+                                .map(v => (
+                                    <div key={v} className="dropdown-item" onClick={() => { setTransportFilter(v); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>{v}</Typography.Body></div>
+                                ))}
                         </FilterDropdownPortal>
                         </>
                         )}
