@@ -693,6 +693,24 @@ function DashboardPage({
         return { year: n.getFullYear(), month: n.getMonth() + 1 };
     });
     const [paymentCalendarSelectedDate, setPaymentCalendarSelectedDate] = useState<string | null>(null);
+    const [timesheetAnalyticsLoading, setTimesheetAnalyticsLoading] = useState(false);
+    const [timesheetAnalyticsError, setTimesheetAnalyticsError] = useState<string | null>(null);
+    const [timesheetAnalyticsData, setTimesheetAnalyticsData] = useState<{
+        totalHours: number;
+        totalShifts: number;
+        totalCost: number;
+        employees: Array<{
+            employeeId: number;
+            fullName: string;
+            department: string;
+            position: string;
+            accrualType: "hour" | "shift";
+            accrualRate: number;
+            totalHours: number;
+            totalShifts: number;
+            totalCost: number;
+        }>;
+    } | null>(null);
 
     const handleSlaTableSort = (column: string) => {
         if (slaTableSortColumn === column) {
@@ -901,6 +919,49 @@ function DashboardPage({
         return () => { cancelled = true; };
     }, [showPaymentCalendar, auth?.login, auth?.password]);
 
+    useEffect(() => {
+        if (!hasAnalytics || !auth?.login || !auth?.password) {
+            setTimesheetAnalyticsData(null);
+            setTimesheetAnalyticsError(null);
+            return;
+        }
+        let cancelled = false;
+        setTimesheetAnalyticsLoading(true);
+        setTimesheetAnalyticsError(null);
+        fetch('/api/my-timesheet-analytics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                login: auth.login,
+                password: auth.password,
+                dateFrom: apiDateRange.dateFrom,
+                dateTo: apiDateRange.dateTo,
+            }),
+        })
+            .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+            .then(({ ok, data }) => {
+                if (cancelled) return;
+                if (!ok) throw new Error(data?.error || 'Ошибка загрузки аналитики табеля');
+                setTimesheetAnalyticsData({
+                    totalHours: Number(data?.totalHours || 0),
+                    totalShifts: Number(data?.totalShifts || 0),
+                    totalCost: Number(data?.totalCost || 0),
+                    employees: Array.isArray(data?.employees) ? data.employees : [],
+                });
+            })
+            .catch((e: unknown) => {
+                if (cancelled) return;
+                setTimesheetAnalyticsError((e as Error)?.message || 'Ошибка загрузки аналитики табеля');
+                setTimesheetAnalyticsData(null);
+            })
+            .finally(() => {
+                if (!cancelled) setTimesheetAnalyticsLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [hasAnalytics, auth?.login, auth?.password, apiDateRange.dateFrom, apiDateRange.dateTo]);
+
     const unpaidCount = useMemo(() => {
         return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
     }, [items]);
@@ -1073,6 +1134,23 @@ function DashboardPage({
         });
         return { sum, pw, w, vol, mest };
     }, [filteredItems]);
+    const timesheetPaidWeight = useMemo(() => {
+        return filteredItems.reduce((acc, item) => {
+            const pw = typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            return acc + pw;
+        }, 0);
+    }, [filteredItems]);
+    const timesheetCostPerKg = useMemo(() => {
+        const totalCost = Number(timesheetAnalyticsData?.totalCost || 0);
+        if (!(timesheetPaidWeight > 0)) return 0;
+        return totalCost / timesheetPaidWeight;
+    }, [timesheetAnalyticsData?.totalCost, timesheetPaidWeight]);
+    const topEmployeesByTimesheetCost = useMemo(() => {
+        const list = timesheetAnalyticsData?.employees || [];
+        return [...list]
+            .sort((a, b) => Number(b.totalCost || 0) - Number(a.totalCost || 0))
+            .slice(0, 5);
+    }, [timesheetAnalyticsData?.employees]);
     const getValForChart = useCallback((item: CargoItem) => {
         if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
         if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
@@ -2453,6 +2531,60 @@ function DashboardPage({
                                 <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
                                     Нет данных за выбранный период или условия оплаты не заданы в справочнике.
                                 </Typography.Body>
+                            )}
+                        </>
+                    )}
+                </Panel>
+            )}
+
+            {hasAnalytics && !loading && !error && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        Затраты табеля
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+                        В разрезе стоимости на 1 кг платного веса за выбранный период
+                    </Typography.Body>
+                    {timesheetAnalyticsLoading ? (
+                        <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка аналитики табеля...</Typography.Body></Flex>
+                    ) : timesheetAnalyticsError ? (
+                        <Typography.Body style={{ color: 'var(--color-error)' }}>{timesheetAnalyticsError}</Typography.Body>
+                    ) : (
+                        <>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Затраты табеля</Typography.Body>
+                                    <Typography.Body style={{ fontWeight: 600 }}>{Math.round(Number(timesheetAnalyticsData?.totalCost || 0)).toLocaleString('ru-RU')} ₽</Typography.Body>
+                                </div>
+                                <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Платный вес</Typography.Body>
+                                    <Typography.Body style={{ fontWeight: 600 }}>{Math.round(timesheetPaidWeight).toLocaleString('ru-RU')} кг</Typography.Body>
+                                </div>
+                                <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Стоимость на 1 кг</Typography.Body>
+                                    <Typography.Body style={{ fontWeight: 700, color: '#2563eb' }}>{timesheetCostPerKg.toFixed(2)} ₽/кг</Typography.Body>
+                                </div>
+                            </div>
+                            <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.4rem' }}>
+                                Топ сотрудников по затратам
+                            </Typography.Body>
+                            {topEmployeesByTimesheetCost.length === 0 ? (
+                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                    Нет данных табеля за выбранный период.
+                                </Typography.Body>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    {topEmployeesByTimesheetCost.map((row) => (
+                                        <div key={`timesheet-top-${row.employeeId}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.25rem' }}>
+                                            <Typography.Body style={{ fontSize: '0.8rem' }}>
+                                                {row.fullName || `Сотрудник #${row.employeeId}`} {row.department ? `· ${row.department}` : ''}
+                                            </Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                                                {Math.round(Number(row.totalCost || 0)).toLocaleString('ru-RU')} ₽
+                                            </Typography.Body>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </>
                     )}
