@@ -123,13 +123,6 @@ type EmployeeDirectoryRow = {
   created_at: string;
 };
 
-const EMPLOYEE_DEPARTMENTS = [
-  "Склад Москва",
-  "Склад Калининград",
-  "Отдел продаж",
-  "Управляющая компания",
-] as const;
-
 function UserRow({
   user,
   adminToken,
@@ -544,11 +537,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [userChangeQuery, setUserChangeQuery] = useState("");
   const [employeeDirectoryItems, setEmployeeDirectoryItems] = useState<EmployeeDirectoryRow[]>([]);
   const [employeeDirectoryLoading, setEmployeeDirectoryLoading] = useState(false);
-  const [employeeDirectoryEmail, setEmployeeDirectoryEmail] = useState("");
-  const [employeeDirectoryFullName, setEmployeeDirectoryFullName] = useState("");
-  const [employeeDirectoryDepartment, setEmployeeDirectoryDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
-  const [employeeDirectoryRole, setEmployeeDirectoryRole] = useState<"employee" | "department_head">("employee");
-  const [employeeDirectorySaving, setEmployeeDirectorySaving] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -1270,16 +1258,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (duplicate) return "Пользователь с таким email уже существует";
     return null;
   }, [formEmail, users]);
-
-  const employeeDirectoryEmailOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        users
-          .map((u) => String(u.login || "").trim().toLowerCase())
-          .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      )
-    ).sort((a, b) => a.localeCompare(b, "ru"));
-  }, [users]);
 
   const openPermissionsEditor = (user: User) => {
     setSelectedUser(user);
@@ -4651,87 +4629,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник сотрудников HAULZ</Typography.Body>
           <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.9rem" }}>
-            Регистрация сотрудников: ФИО, структурное подразделение и роль.
+            Отображаются пользователи с доступом HAULZ.
           </Typography.Body>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <input
-              type="email"
-              className="admin-form-input"
-              value={employeeDirectoryEmail}
-              list="employee-directory-email-options"
-              placeholder="Email сотрудника"
-              onChange={(e) => setEmployeeDirectoryEmail(e.target.value)}
-              style={{ width: "100%" }}
-            />
-            <datalist id="employee-directory-email-options">
-              {employeeDirectoryEmailOptions.map((email) => (
-                <option key={email} value={email} />
-              ))}
-            </datalist>
-            <Input
-              type="text"
-              className="admin-form-input"
-              value={employeeDirectoryFullName}
-              placeholder="ФИО"
-              onChange={(e) => setEmployeeDirectoryFullName(e.target.value)}
-            />
-            <select
-              className="admin-form-input"
-              value={employeeDirectoryDepartment}
-              onChange={(e) => setEmployeeDirectoryDepartment(e.target.value)}
-              style={{ padding: "0 0.5rem" }}
-            >
-              {EMPLOYEE_DEPARTMENTS.map((dep) => (
-                <option key={dep} value={dep}>{dep}</option>
-              ))}
-            </select>
-            <select
-              className="admin-form-input"
-              value={employeeDirectoryRole}
-              onChange={(e) => setEmployeeDirectoryRole(e.target.value as "employee" | "department_head")}
-              style={{ padding: "0 0.5rem" }}
-            >
-              <option value="employee">Сотрудник</option>
-              <option value="department_head">Руководитель подразделения</option>
-            </select>
-          </div>
-
-          <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: "0.9rem" }}>
-            <Button
-              type="button"
-              className="button-primary"
-              disabled={employeeDirectorySaving || !employeeDirectoryEmail.trim() || !employeeDirectoryFullName.trim()}
-              onClick={async () => {
-                setEmployeeDirectorySaving(true);
-                setError(null);
-                try {
-                  const res = await fetch("/api/admin-employee-directory", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
-                    body: JSON.stringify({
-                      email: employeeDirectoryEmail.trim().toLowerCase(),
-                      full_name: employeeDirectoryFullName.trim(),
-                      department: employeeDirectoryDepartment,
-                      employee_role: employeeDirectoryRole,
-                    }),
-                  });
-                  const data = await res.json().catch(() => ({}));
-                  if (!res.ok) throw new Error(data?.error || "Ошибка регистрации сотрудника");
-                  setEmployeeDirectoryEmail("");
-                  setEmployeeDirectoryFullName("");
-                  await fetchEmployeeDirectory();
-                } catch (e: unknown) {
-                  setError((e as Error)?.message || "Ошибка регистрации сотрудника");
-                } finally {
-                  setEmployeeDirectorySaving(false);
-                }
-              }}
-            >
-              {employeeDirectorySaving ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} /> : null}
-              Зарегистрировать сотрудника
-            </Button>
-          </Flex>
 
           {employeeDirectoryLoading ? (
             <Flex align="center" gap="0.5rem">

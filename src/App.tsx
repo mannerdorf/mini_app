@@ -4349,13 +4349,14 @@ function ProfilePage({
                         <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
                             <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Регистрация сотрудника</Typography.Body>
                             <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: '0.5rem' }}>
-                                <Input
-                                    type="email"
+                                <input
+                                    type="text"
                                     placeholder="Email сотрудника"
                                     value={inviteEmail}
                                     onChange={(e) => { setInviteEmail(e.target.value); setInviteError(null); setInviteSuccess(null); }}
                                     style={{ width: '12rem', minWidth: '10rem', height: '2.5rem', boxSizing: 'border-box' }}
                                     className="admin-form-input"
+                                    autoComplete="off"
                                 />
                                 <Input
                                     type="text"

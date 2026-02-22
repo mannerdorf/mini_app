@@ -24,6 +24,23 @@ const DEFAULT_PERMISSIONS = {
   supervisor: false,
 };
 
+async function ensureEmployeeDirectoryVisibilityForHaulz(pool: ReturnType<typeof getPool>, login: string) {
+  const { rows } = await pool.query<{ column_name: string }>(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'registered_users'`
+  );
+  const cols = new Set(rows.map((r) => r.column_name));
+  if (!cols.has("employee_role")) return;
+  const hasUpdatedAt = cols.has("updated_at");
+  await pool.query(
+    `UPDATE registered_users
+     SET employee_role = COALESCE(employee_role, 'employee')${hasUpdatedAt ? ", updated_at = now()" : ""}
+     WHERE login = $1`,
+    [login]
+  );
+}
+
 async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -116,6 +133,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [login, passwordHash, innForDb, companyName, JSON.stringify(permissions), financialAccess, accessAllInns]
     );
+
+    if (permissions.haulz === true) {
+      await ensureEmployeeDirectoryVisibilityForHaulz(pool, login);
+    }
 
     if (!accessAllInns) {
       const customersToInsert = definedCustomers.length

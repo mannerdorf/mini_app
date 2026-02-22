@@ -7,6 +7,23 @@ import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 
+async function ensureEmployeeDirectoryVisibilityForHaulz(pool: ReturnType<typeof getPool>, userId: number) {
+  const { rows } = await pool.query<{ column_name: string }>(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'registered_users'`
+  );
+  const cols = new Set(rows.map((r) => r.column_name));
+  if (!cols.has("employee_role")) return;
+  const hasUpdatedAt = cols.has("updated_at");
+  await pool.query(
+    `UPDATE registered_users
+     SET employee_role = COALESCE(employee_role, 'employee')${hasUpdatedAt ? ", updated_at = now()" : ""}
+     WHERE id = $1`,
+    [userId]
+  );
+}
+
 async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "PATCH" && req.method !== "POST") {
     res.setHeader("Allow", "PATCH, POST");
@@ -156,6 +173,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
       }
+    }
+
+    if (body?.permissions && typeof body.permissions === "object" && body.permissions.haulz === true) {
+      await ensureEmployeeDirectoryVisibilityForHaulz(pool, id);
     }
 
     let newPassword: string | undefined;
