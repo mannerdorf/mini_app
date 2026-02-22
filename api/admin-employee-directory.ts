@@ -1,8 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
-import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
-import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 
 const EMPLOYEE_ROLES = new Set(["employee", "department_head"]);
@@ -68,66 +66,47 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const department = String(body?.department || "").trim();
     const position = String(body?.position || "").trim();
     const employeeRole = String(body?.employee_role || "employee").trim();
-    const presetId = body?.preset_id ? parseInt(String(body.preset_id), 10) : null;
-    const sendEmail = body?.send_email !== false;
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Некорректный email" });
     if (!fullName) return res.status(400).json({ error: "Укажите ФИО" });
     if (!department) return res.status(400).json({ error: "Укажите структурное подразделение" });
     if (!EMPLOYEE_ROLES.has(employeeRole)) return res.status(400).json({ error: "Некорректная роль сотрудника" });
 
-    const defaults = {
-      cms_access: false,
-      cargo: true,
-      doc_invoices: true,
-      doc_acts: true,
-      doc_orders: true,
-      doc_claims: true,
-      doc_contracts: true,
-      doc_acts_settlement: true,
-      doc_tariffs: true,
-      haulz: false,
-      chat: true,
-      service_mode: false,
-      analytics: false,
-      supervisor: employeeRole === "department_head",
-    } as Record<string, boolean>;
-
-    let permissions = defaults;
-    let presetLabel: string | null = null;
-    if (presetId && Number.isFinite(presetId)) {
-      const { rows: presetRows } = await pool.query<{ label: string; permissions: Record<string, boolean> | null }>(
-        "SELECT label, permissions FROM admin_role_presets WHERE id = $1",
-        [presetId]
-      );
-      const preset = presetRows[0];
-      if (!preset) return res.status(400).json({ error: "Пресет не найден" });
-      presetLabel = preset.label;
-      permissions = { ...defaults, ...(preset.permissions || {}) };
-    }
-
-    const password = generatePassword(8);
-    const passwordHash = hashPassword(password);
     try {
-      const { rows } = await pool.query<{ id: number }>(
-        `INSERT INTO registered_users
-          (login, password_hash, inn, company_name, permissions, financial_access, access_all_inns, full_name, department${
-            columnsInfo.hasPosition ? ", position" : ""
-          }, employee_role, invited_with_preset_label)
-         VALUES ($1, $2, '', '', $3, false, false, $4, $5${
-           columnsInfo.hasPosition ? ", $6" : ""
-         }, ${columnsInfo.hasPosition ? "$7" : "$6"}, ${columnsInfo.hasPosition ? "$8" : "$7"})
-         RETURNING id`,
-        columnsInfo.hasPosition
-          ? [email, passwordHash, JSON.stringify(permissions), fullName, department, position, employeeRole, presetLabel]
-          : [email, passwordHash, JSON.stringify(permissions), fullName, department, employeeRole, presetLabel]
+      const existingUser = await pool.query<{ id: number; permissions: Record<string, boolean> | null }>(
+        "SELECT id, permissions FROM registered_users WHERE lower(trim(login)) = $1",
+        [email]
       );
-      if (sendEmail) {
-        await sendRegistrationEmail(pool, email, email, password, "HAULZ");
+      const user = existingUser.rows[0];
+      if (!user) {
+        return res.status(400).json({ error: "Пользователь с таким email не найден" });
       }
-      return res.status(200).json({ ok: true, id: rows[0]?.id });
+
+      const currentPermissions =
+        user.permissions && typeof user.permissions === "object" ? user.permissions : {};
+      const nextPermissions: Record<string, boolean> = {
+        ...currentPermissions,
+        haulz: true,
+        supervisor: employeeRole === "department_head",
+      };
+
+      const hasUpdatedAt = columnsInfo.cols.has("updated_at");
+      await pool.query(
+        `UPDATE registered_users
+         SET permissions = $1,
+             full_name = $2,
+             department = $3,
+             ${columnsInfo.hasPosition ? "position = $4," : ""}
+             employee_role = ${columnsInfo.hasPosition ? "$5" : "$4"}
+             ${hasUpdatedAt ? ", updated_at = now()" : ""}
+         WHERE id = ${columnsInfo.hasPosition ? "$6" : "$5"}`,
+        columnsInfo.hasPosition
+          ? [JSON.stringify(nextPermissions), fullName, department, position, employeeRole, user.id]
+          : [JSON.stringify(nextPermissions), fullName, department, employeeRole, user.id]
+      );
+
+      return res.status(200).json({ ok: true, id: user.id });
     } catch (e: any) {
-      if (e?.code === "23505") return res.status(400).json({ error: "Пользователь с таким email уже зарегистрирован" });
-      return res.status(500).json({ error: e?.message || "Ошибка регистрации сотрудника" });
+      return res.status(500).json({ error: e?.message || "Ошибка сохранения атрибутов сотрудника" });
     }
   }
 

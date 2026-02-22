@@ -4643,7 +4643,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник сотрудников HAULZ</Typography.Body>
           <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.9rem" }}>
-            Регистрация сотрудников: ФИО, структурное подразделение, должность и роль.
+            Назначение атрибутов сотруднику по email: ФИО, структурное подразделение, должность и роль.
           </Typography.Body>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
@@ -4712,20 +4712,20 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     }),
                   });
                   const data = await res.json().catch(() => ({}));
-                  if (!res.ok) throw new Error(data?.error || "Ошибка регистрации сотрудника");
+                  if (!res.ok) throw new Error(data?.error || "Ошибка сохранения атрибутов сотрудника");
                   setEmployeeDirectoryEmail("");
                   setEmployeeDirectoryFullName("");
                   setEmployeeDirectoryPosition("");
                   await fetchEmployeeDirectory();
                 } catch (e: unknown) {
-                  setError((e as Error)?.message || "Ошибка регистрации сотрудника");
+                  setError((e as Error)?.message || "Ошибка сохранения атрибутов сотрудника");
                 } finally {
                   setEmployeeDirectorySaving(false);
                 }
               }}
             >
               {employeeDirectorySaving ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} /> : null}
-              Зарегистрировать сотрудника
+              Сохранить атрибуты
             </Button>
           </Flex>
 
