@@ -4822,12 +4822,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   {employeeDirectoryEditingId === emp.id && (
                     <div style={{ marginTop: "0.65rem", borderTop: "1px dashed var(--color-border)", paddingTop: "0.65rem" }} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "0.5rem" }}>
-                        <Input
+                        <input
                           type="text"
                           className="admin-form-input"
                           value={employeeDirectoryEditFullName}
                           placeholder="ФИО"
                           onChange={(e) => setEmployeeDirectoryEditFullName(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ width: "100%" }}
+                          autoComplete="off"
                         />
                         <select
                           className="admin-form-input"
@@ -4839,12 +4842,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             <option key={dep} value={dep}>{dep}</option>
                           ))}
                         </select>
-                        <Input
+                        <input
                           type="text"
                           className="admin-form-input"
                           value={employeeDirectoryEditPosition}
                           placeholder="Должность"
                           onChange={(e) => setEmployeeDirectoryEditPosition(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ width: "100%" }}
+                          autoComplete="off"
                         />
                         <select
                           className="admin-form-input"
