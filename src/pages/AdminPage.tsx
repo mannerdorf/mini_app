@@ -4757,6 +4757,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
                   }}
                   onKeyDown={(e) => {
+                    const target = e.target as HTMLElement;
+                    const tag = target?.tagName?.toLowerCase();
+                    if (tag === "input" || tag === "select" || tag === "textarea" || tag === "button") return;
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       setEmployeeDirectoryEditingId(emp.id);
