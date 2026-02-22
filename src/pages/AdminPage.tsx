@@ -569,7 +569,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     return `${now.getFullYear()}-${month}`;
   });
   const [timesheetSearch, setTimesheetSearch] = useState("");
-  const [timesheetHours, setTimesheetHours] = useState<Record<string, number>>({});
+  const [timesheetHours, setTimesheetHours] = useState<Record<string, string>>({});
 
   const timesheetDays = useMemo(() => {
     const [yRaw, mRaw] = (timesheetMonth || "").split("-");
@@ -4145,12 +4145,26 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           </thead>
                           <tbody>
                             {group.employees.map((emp) => {
-                              const totalHours = timesheetDays.reduce((acc, d) => {
+                              const isShiftAccrual = emp.accrual_type === "shift";
+                              const hourlyRate = Number(emp.accrual_rate ?? 0);
+                              const shiftHours = 8;
+                              const totalShifts = timesheetDays.reduce((acc, d) => {
                                 const key = `${emp.id}__${d.iso}`;
-                                const val = timesheetHours[key];
-                                const fallback = d.isWeekend ? 0 : 8;
-                                return acc + (Number.isFinite(val) ? val : fallback);
+                                const val = (timesheetHours[key] || "").trim().toUpperCase();
+                                return acc + (val === "С" ? 1 : 0);
                               }, 0);
+                              const totalHours = isShiftAccrual
+                                ? totalShifts * shiftHours
+                                : timesheetDays.reduce((acc, d) => {
+                                    const key = `${emp.id}__${d.iso}`;
+                                    const val = (timesheetHours[key] || "").trim().toUpperCase();
+                                    const fallback = d.isWeekend ? 0 : 8;
+                                    const parsed = Number(val);
+                                    return acc + (Number.isFinite(parsed) ? parsed : fallback);
+                                  }, 0);
+                              const totalMoney = isShiftAccrual
+                                ? totalShifts * hourlyRate
+                                : totalHours * hourlyRate;
                               return (
                                 <tr key={`timesheet-row-${group.department}-${emp.id}`}>
                                   <td style={{ padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card)", zIndex: 1 }}>
@@ -4159,39 +4173,66 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                   </td>
                                   {timesheetDays.map((d) => {
                                     const key = `${emp.id}__${d.iso}`;
-                                    const value = timesheetHours[key];
-                                    const fallback = d.isWeekend ? 0 : 8;
+                                    const value = (timesheetHours[key] || "").trim().toUpperCase();
+                                    const fallback = d.isWeekend ? "0" : "8";
                                     return (
                                       <td key={`timesheet-cell-${emp.id}-${d.iso}`} style={{ padding: "0.2rem", borderBottom: "1px solid var(--color-border)", background: d.isWeekend ? "var(--color-bg-hover)" : "transparent" }}>
-                                        <input
-                                          type="number"
-                                          min={0}
-                                          max={24}
-                                          step={0.5}
-                                          value={Number.isFinite(value) ? String(value) : String(fallback)}
-                                          onChange={(e) => {
-                                            const raw = e.target.value;
-                                            if (raw === "") {
-                                              setTimesheetHours((prev) => {
-                                                const next = { ...prev };
-                                                delete next[key];
-                                                return next;
-                                              });
-                                              return;
-                                            }
-                                            const parsed = Number(raw);
-                                            if (!Number.isFinite(parsed)) return;
-                                            const normalized = Math.max(0, Math.min(24, parsed));
-                                            setTimesheetHours((prev) => ({ ...prev, [key]: normalized }));
-                                          }}
-                                          className="admin-form-input"
-                                          style={{ width: "3rem", padding: "0 0.25rem", textAlign: "center", margin: "0 auto" }}
-                                        />
+                                        {isShiftAccrual ? (
+                                          <input
+                                            type="text"
+                                            maxLength={1}
+                                            value={value}
+                                            onChange={(e) => {
+                                              const raw = e.target.value.trim().toUpperCase();
+                                              if (raw === "") {
+                                                setTimesheetHours((prev) => {
+                                                  const next = { ...prev };
+                                                  delete next[key];
+                                                  return next;
+                                                });
+                                                return;
+                                              }
+                                              if (raw !== "С") return;
+                                              setTimesheetHours((prev) => ({ ...prev, [key]: "С" }));
+                                            }}
+                                            className="admin-form-input"
+                                            style={{ width: "3rem", padding: "0 0.25rem", textAlign: "center", margin: "0 auto", textTransform: "uppercase", fontWeight: 600 }}
+                                            placeholder=""
+                                          />
+                                        ) : (
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            max={24}
+                                            step={0.5}
+                                            value={value || fallback}
+                                            onChange={(e) => {
+                                              const raw = e.target.value;
+                                              if (raw === "") {
+                                                setTimesheetHours((prev) => {
+                                                  const next = { ...prev };
+                                                  delete next[key];
+                                                  return next;
+                                                });
+                                                return;
+                                              }
+                                              const parsed = Number(raw);
+                                              if (!Number.isFinite(parsed)) return;
+                                              const normalized = Math.max(0, Math.min(24, parsed));
+                                              setTimesheetHours((prev) => ({ ...prev, [key]: String(normalized) }));
+                                            }}
+                                            className="admin-form-input"
+                                            style={{ width: "3rem", padding: "0 0.25rem", textAlign: "center", margin: "0 auto" }}
+                                          />
+                                        )}
                                       </td>
                                     );
                                   })}
-                                  <td style={{ textAlign: "center", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", fontWeight: 600 }}>
-                                    {Number(totalHours.toFixed(1))}
+                                  <td style={{ textAlign: "center", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", fontWeight: 600, minWidth: "7.2rem" }}>
+                                    <div>{Number(totalHours.toFixed(1))} ч</div>
+                                    <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>
+                                      {Number(totalMoney.toFixed(2))} ₽
+                                    </div>
                                   </td>
                                 </tr>
                               );

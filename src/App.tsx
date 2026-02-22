@@ -3739,6 +3739,26 @@ function ProfilePage({
     const [haulzEnabled, setHaulzEnabled] = useState(false);
     const [haulzRoleFilter, setHaulzRoleFilter] = useState<'all' | 'employee' | 'department_head'>('all');
     const [haulzEmployeeFilterId, setHaulzEmployeeFilterId] = useState<string>('all');
+    const [departmentTimesheetDepartment, setDepartmentTimesheetDepartment] = useState("");
+    const [departmentTimesheetEmployees, setDepartmentTimesheetEmployees] = useState<Array<{
+        id: number;
+        login: string;
+        fullName: string;
+        department: string;
+        position: string;
+        employeeRole: "employee" | "department_head";
+        accrualType: "hour" | "shift";
+        accrualRate: number;
+        active: boolean;
+    }>>([]);
+    const [departmentTimesheetLoading, setDepartmentTimesheetLoading] = useState(false);
+    const [departmentTimesheetError, setDepartmentTimesheetError] = useState<string | null>(null);
+    const [departmentTimesheetMonth, setDepartmentTimesheetMonth] = useState<string>(() => {
+        const now = new Date();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        return `${now.getFullYear()}-${month}`;
+    });
+    const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
 
     const DEPARTMENT_OPTIONS = [
         'Склад Москва',
@@ -3777,6 +3797,43 @@ function ProfilePage({
             setEmployeesError('Ошибка сети');
         } finally {
             setEmployeesLoading(false);
+        }
+    }, [activeAccount?.login, activeAccount?.password]);
+
+    const departmentTimesheetDays = useMemo(() => {
+        if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return [];
+        const [yearRaw, monthRaw] = departmentTimesheetMonth.split("-");
+        const year = Number(yearRaw);
+        const month = Number(monthRaw);
+        if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return [];
+        const daysInMonth = new Date(year, month, 0).getDate();
+        return Array.from({ length: daysInMonth }, (_, idx) => idx + 1);
+    }, [departmentTimesheetMonth]);
+
+    const fetchDepartmentTimesheet = useCallback(async () => {
+        if (!activeAccount?.login || !activeAccount?.password) return;
+        setDepartmentTimesheetLoading(true);
+        setDepartmentTimesheetError(null);
+        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        try {
+            const res = await fetch(`${origin}/api/my-department-timesheet`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setDepartmentTimesheetError(data.error || "Ошибка загрузки табеля");
+                setDepartmentTimesheetEmployees([]);
+                return;
+            }
+            setDepartmentTimesheetDepartment(typeof data.department === "string" ? data.department : "");
+            setDepartmentTimesheetEmployees(Array.isArray(data.employees) ? data.employees : []);
+        } catch {
+            setDepartmentTimesheetError("Ошибка сети");
+            setDepartmentTimesheetEmployees([]);
+        } finally {
+            setDepartmentTimesheetLoading(false);
         }
     }, [activeAccount?.login, activeAccount?.password]);
 
@@ -3829,6 +3886,10 @@ function ProfilePage({
         if ((currentView === 'employees' || currentView === 'haulz') && activeAccount?.login) void fetchEmployeesAndPresets();
     }, [currentView, activeAccount?.login, fetchEmployeesAndPresets]);
 
+    useEffect(() => {
+        if (currentView === 'departmentTimesheet' && activeAccount?.login) void fetchDepartmentTimesheet();
+    }, [currentView, activeAccount?.login, fetchDepartmentTimesheet]);
+
     // Настройки
     const settingsItems = [
         { 
@@ -3851,11 +3912,16 @@ function ProfilePage({
         }] : []),
         ...(activeAccount?.isRegisteredUser && activeAccount?.inCustomerDirectory === true ? [
         // Сотрудники доступны только если в админке включено право «Руководитель» для этого пользователя
-        ...(activeAccount?.permissions?.supervisor === true ? [{
+        ...(activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true ? [{
             id: 'employees',
             label: 'Справочник сотрудников',
             icon: <Users className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('employees')
+        }, {
+            id: 'departmentTimesheet',
+            label: 'Табель учета рабочего времени',
+            icon: <Calendar className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => setCurrentView('departmentTimesheet')
         }] : [])
         ] : []),
         ...(!!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true ? [
@@ -4185,6 +4251,95 @@ function ProfilePage({
                 <Button type="button" className="button-primary" onClick={() => setCurrentView('employees')}>
                     Справочник сотрудников
                 </Button>
+            </div>
+        );
+    }
+
+    if (currentView === 'departmentTimesheet') {
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Табель учета рабочего времени</Typography.Headline>
+                </Flex>
+                <Typography.Body style={{ marginBottom: '0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
+                    Отображаются только сотрудники вашего подразделения HAULZ.
+                </Typography.Body>
+                <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '0.75rem' }}>
+                    <Flex align="center" justify="space-between" wrap="wrap" gap="0.75rem">
+                        <Typography.Body style={{ fontWeight: 600 }}>
+                            Подразделение: {departmentTimesheetDepartment || "—"}
+                        </Typography.Body>
+                        <Flex align="center" gap="0.5rem">
+                            <input
+                                type="month"
+                                value={departmentTimesheetMonth}
+                                onChange={(e) => setDepartmentTimesheetMonth(e.target.value)}
+                                style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.4rem 0.6rem', background: 'var(--color-bg)' }}
+                            />
+                            <Button type="button" className="filter-button" onClick={() => void fetchDepartmentTimesheet()}>
+                                Обновить
+                            </Button>
+                        </Flex>
+                    </Flex>
+                </Panel>
+                {departmentTimesheetLoading ? (
+                    <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>
+                ) : departmentTimesheetError ? (
+                    <Typography.Body style={{ color: 'var(--color-error)' }}>{departmentTimesheetError}</Typography.Body>
+                ) : departmentTimesheetEmployees.length === 0 ? (
+                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>В вашем подразделении пока нет сотрудников.</Typography.Body>
+                    </Panel>
+                ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${220 + departmentTimesheetDays.length * 44}px` }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--color-bg)', textAlign: 'left', borderBottom: '1px solid var(--color-border)', padding: '0.5rem', minWidth: '220px' }}>Сотрудник</th>
+                                    {departmentTimesheetDays.map((day) => (
+                                        <th key={day} style={{ textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.4rem', minWidth: '44px' }}>{day}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {departmentTimesheetEmployees.map((emp) => (
+                                    <tr key={emp.id}>
+                                        <td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', padding: '0.5rem' }}>
+                                            <Typography.Body style={{ fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                                                {emp.position || '—'} · {emp.accrualType === 'shift' ? 'Смена' : 'Часы'}
+                                            </Typography.Body>
+                                        </td>
+                                        {departmentTimesheetDays.map((day) => {
+                                            const key = `${emp.id}:${day}`;
+                                            const value = departmentTimesheetHours[key] || '';
+                                            const isShift = emp.accrualType === 'shift';
+                                            return (
+                                                <td key={key} style={{ borderBottom: '1px solid var(--color-border)', padding: '0.2rem' }}>
+                                                    <input
+                                                        value={value}
+                                                        onChange={(e) => {
+                                                            const nextRaw = e.target.value;
+                                                            const next = isShift
+                                                                ? (nextRaw.trim().toUpperCase().startsWith('С') ? 'С' : '')
+                                                                : nextRaw.replace(/[^0-9.,]/g, '').replace(',', '.');
+                                                            setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: next }));
+                                                        }}
+                                                        placeholder={isShift ? 'С' : '0'}
+                                                        style={{ width: '100%', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0.2rem 0.25rem', textAlign: 'center' }}
+                                                    />
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
         );
     }

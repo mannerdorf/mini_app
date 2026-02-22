@@ -100,6 +100,7 @@ export type ProfileView =
     | "haulz"
     | "roles"
     | "employees"
+    | "departmentTimesheet"
     | "addCompanyMethod"
     | "addCompanyByINN"
     | "addCompanyByLogin"
