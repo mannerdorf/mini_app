@@ -563,6 +563,52 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     return `${now.getFullYear()}-${month}`;
   });
   const [timesheetSearch, setTimesheetSearch] = useState("");
+  const [timesheetHours, setTimesheetHours] = useState<Record<string, number>>({});
+
+  const timesheetDays = useMemo(() => {
+    const [yRaw, mRaw] = (timesheetMonth || "").split("-");
+    const year = Number(yRaw);
+    const month = Number(mRaw);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return [] as { iso: string; day: number; weekdayShort: string; isWeekend: boolean }[];
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const weekdayShort = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+    const out: { iso: string; day: number; weekdayShort: string; isWeekend: boolean }[] = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dt = new Date(year, month - 1, d);
+      const wd = dt.getDay();
+      out.push({
+        iso: `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+        day: d,
+        weekdayShort: weekdayShort[wd] ?? "",
+        isWeekend: wd === 0 || wd === 6,
+      });
+    }
+    return out;
+  }, [timesheetMonth]);
+
+  const timesheetEmployeesByDepartment = useMemo(() => {
+    const q = timesheetSearch.trim().toLowerCase();
+    const filtered = employeeDirectoryItems.filter((emp) => {
+      if (!q) return true;
+      const haystack = [emp.full_name, emp.login, emp.department, emp.position]
+        .map((x) => String(x || "").toLowerCase())
+        .join(" ");
+      return haystack.includes(q);
+    });
+    const grouped = new Map<string, EmployeeDirectoryRow[]>();
+    for (const emp of filtered) {
+      const dep = (emp.department || "Без подразделения").trim() || "Без подразделения";
+      const list = grouped.get(dep) || [];
+      list.push(emp);
+      grouped.set(dep, list);
+    }
+    return Array.from(grouped.entries())
+      .map(([department, employees]) => ({
+        department,
+        employees: [...employees].sort((a, b) => String(a.full_name || a.login).localeCompare(String(b.full_name || b.login), "ru")),
+      }))
+      .sort((a, b) => a.department.localeCompare(b.department, "ru"));
+  }, [employeeDirectoryItems, timesheetSearch]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -4025,7 +4071,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Табель учета рабочего времени</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.8rem" }}>
-            Сводный список сотрудников за выбранный месяц. Используется для контроля фактического состава и подготовки табеля.
+            Шахматка по подразделениям: сотрудники по вертикали, даты месяца по горизонтали. В каждой ячейке укажите количество часов за день.
           </Typography.Body>
           <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.8rem" }}>
             <input
@@ -4050,31 +4096,108 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <Typography.Body>Загрузка...</Typography.Body>
             </Flex>
           ) : (
-            (() => {
-              const q = timesheetSearch.trim().toLowerCase();
-              const rows = employeeDirectoryItems.filter((emp) => {
-                if (!q) return true;
-                const haystack = [emp.full_name, emp.login, emp.department, emp.position]
-                  .map((x) => String(x || "").toLowerCase())
-                  .join(" ");
-                return haystack.includes(q);
-              });
-              if (rows.length === 0) {
-                return <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>За выбранный период сотрудники не найдены.</Typography.Body>;
-              }
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
-                  {rows.map((emp) => (
-                    <div key={`timesheet-${emp.id}`} style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.6rem 0.7rem", background: "var(--color-bg-hover)" }}>
-                      <Typography.Body style={{ fontWeight: 600 }}>{emp.full_name || "—"}</Typography.Body>
-                      <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
-                        Месяц: {timesheetMonth || "—"} · Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
+            <>
+              {timesheetDays.length === 0 ? (
+                <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+                  Выберите месяц для отображения табеля.
+                </Typography.Body>
+              ) : timesheetEmployeesByDepartment.length === 0 ? (
+                <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+                  За выбранный период сотрудники не найдены.
+                </Typography.Body>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+                  {timesheetEmployeesByDepartment.map((group) => (
+                    <Panel key={`timesheet-group-${group.department}`} className="cargo-card" style={{ padding: "0.6rem" }}>
+                      <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
+                        Подразделение: {group.department}
                       </Typography.Body>
-                    </div>
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
+                          <thead>
+                            <tr>
+                              <th style={{ textAlign: "left", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card)", zIndex: 1, minWidth: "15rem" }}>
+                                Сотрудник
+                              </th>
+                              {timesheetDays.map((d) => (
+                                <th
+                                  key={`timesheet-head-${group.department}-${d.iso}`}
+                                  style={{
+                                    textAlign: "center",
+                                    padding: "0.35rem 0.25rem",
+                                    borderBottom: "1px solid var(--color-border)",
+                                    minWidth: "3.2rem",
+                                    background: d.isWeekend ? "var(--color-bg-hover)" : "var(--color-bg-card)",
+                                  }}
+                                >
+                                  <div style={{ fontSize: "0.76rem" }}>{d.day}</div>
+                                  <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>{d.weekdayShort}</div>
+                                </th>
+                              ))}
+                              <th style={{ textAlign: "center", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", minWidth: "4rem" }}>Итого</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.employees.map((emp) => {
+                              const totalHours = timesheetDays.reduce((acc, d) => {
+                                const key = `${emp.id}__${d.iso}`;
+                                const val = timesheetHours[key];
+                                const fallback = d.isWeekend ? 0 : 8;
+                                return acc + (Number.isFinite(val) ? val : fallback);
+                              }, 0);
+                              return (
+                                <tr key={`timesheet-row-${group.department}-${emp.id}`}>
+                                  <td style={{ padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card)", zIndex: 1 }}>
+                                    <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)" }}>{emp.position || "—"}</Typography.Body>
+                                  </td>
+                                  {timesheetDays.map((d) => {
+                                    const key = `${emp.id}__${d.iso}`;
+                                    const value = timesheetHours[key];
+                                    const fallback = d.isWeekend ? 0 : 8;
+                                    return (
+                                      <td key={`timesheet-cell-${emp.id}-${d.iso}`} style={{ padding: "0.2rem", borderBottom: "1px solid var(--color-border)", background: d.isWeekend ? "var(--color-bg-hover)" : "transparent" }}>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={24}
+                                          step={0.5}
+                                          value={Number.isFinite(value) ? String(value) : String(fallback)}
+                                          onChange={(e) => {
+                                            const raw = e.target.value;
+                                            if (raw === "") {
+                                              setTimesheetHours((prev) => {
+                                                const next = { ...prev };
+                                                delete next[key];
+                                                return next;
+                                              });
+                                              return;
+                                            }
+                                            const parsed = Number(raw);
+                                            if (!Number.isFinite(parsed)) return;
+                                            const normalized = Math.max(0, Math.min(24, parsed));
+                                            setTimesheetHours((prev) => ({ ...prev, [key]: normalized }));
+                                          }}
+                                          className="admin-form-input"
+                                          style={{ width: "3rem", padding: "0 0.25rem", textAlign: "center", margin: "0 auto" }}
+                                        />
+                                      </td>
+                                    );
+                                  })}
+                                  <td style={{ textAlign: "center", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", fontWeight: 600 }}>
+                                    {Number(totalHours.toFixed(1))}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Panel>
                   ))}
                 </div>
-              );
-            })()
+              )}
+            </>
           )}
         </Panel>
       )}
