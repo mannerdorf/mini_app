@@ -115,9 +115,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            ($2::boolean = true AND invited_by_user_id = $3)
            OR invited_by_user_id = $1
            OR ($4::boolean = true AND lower(trim(coalesce(department, ''))) = lower(trim($5)))
+           OR (
+             $2::boolean = true
+             AND EXISTS (
+               SELECT 1
+               FROM employee_timesheet_entries te
+               WHERE te.employee_id = registered_users.id
+                 AND te.work_date >= $6::date
+                 AND te.work_date <= $7::date
+             )
+           )
          )
        ORDER BY coalesce(full_name, login), id`,
-      [me.id, hasAnalyticsScope, companyOwnerId, canUseDepartmentScope, meDepartment]
+      [me.id, hasAnalyticsScope, companyOwnerId, canUseDepartmentScope, meDepartment, dateFrom, dateTo]
     );
 
     const employees = employeesRes.rows.map((row) => ({
