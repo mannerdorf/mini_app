@@ -552,6 +552,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryRole, setEmployeeDirectoryRole] = useState<"employee" | "department_head">("employee");
   const [employeeDirectorySaving, setEmployeeDirectorySaving] = useState(false);
   const [employeeDirectoryEditingId, setEmployeeDirectoryEditingId] = useState<number | null>(null);
+  const [employeeDirectoryEditFullName, setEmployeeDirectoryEditFullName] = useState("");
   const [employeeDirectoryEditDepartment, setEmployeeDirectoryEditDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
   const [employeeDirectoryEditPosition, setEmployeeDirectoryEditPosition] = useState("");
   const [employeeDirectoryEditRole, setEmployeeDirectoryEditRole] = useState<"employee" | "department_head">("employee");
@@ -4750,6 +4751,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   tabIndex={0}
                   onClick={() => {
                     setEmployeeDirectoryEditingId(emp.id);
+                    setEmployeeDirectoryEditFullName(emp.full_name || "");
                     setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
                     setEmployeeDirectoryEditPosition(emp.position || "");
                     setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
@@ -4758,6 +4760,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
                       setEmployeeDirectoryEditingId(emp.id);
+                      setEmployeeDirectoryEditFullName(emp.full_name || "");
                       setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
                       setEmployeeDirectoryEditPosition(emp.position || "");
                       setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
@@ -4819,6 +4822,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   {employeeDirectoryEditingId === emp.id && (
                     <div style={{ marginTop: "0.65rem", borderTop: "1px dashed var(--color-border)", paddingTop: "0.65rem" }} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "0.5rem" }}>
+                        <Input
+                          type="text"
+                          className="admin-form-input"
+                          value={employeeDirectoryEditFullName}
+                          placeholder="ФИО"
+                          onChange={(e) => setEmployeeDirectoryEditFullName(e.target.value)}
+                        />
                         <select
                           className="admin-form-input"
                           value={employeeDirectoryEditDepartment}
@@ -4859,6 +4869,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 method: "PATCH",
                                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
                                 body: JSON.stringify({
+                                  full_name: employeeDirectoryEditFullName.trim(),
                                   department: employeeDirectoryEditDepartment,
                                   position: employeeDirectoryEditPosition.trim(),
                                   employee_role: employeeDirectoryEditRole,
@@ -4871,6 +4882,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                   x.id === emp.id
                                     ? {
                                         ...x,
+                                        full_name: employeeDirectoryEditFullName.trim(),
                                         department: employeeDirectoryEditDepartment,
                                         position: employeeDirectoryEditPosition.trim(),
                                         employee_role: employeeDirectoryEditRole,
