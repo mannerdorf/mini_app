@@ -228,7 +228,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "audit" | "logs" | "integrations" | "presets" | "payment_calendar" | "work_schedule">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
@@ -1055,7 +1055,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!isSuperAdmin && (tab === "presets" || tab === "payment_calendar" || tab === "work_schedule")) setTab("users");
+    if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule")) setTab("users");
   }, [isSuperAdmin, tab]);
 
   useEffect(() => {
@@ -1524,6 +1524,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <Activity className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Здоровье интеграций
         </Button>
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={{ background: tab === "employee_directory" ? "var(--color-primary-blue)" : undefined, color: tab === "employee_directory" ? "white" : undefined }}
+            onClick={() => setTab("employee_directory")}
+          >
+            <Users className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Справочник сотрудников
+          </Button>
+        )}
         {isSuperAdmin && (
           <Button
             className="filter-button"
@@ -4553,6 +4563,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               )}
             </>
           )}
+        </Panel>
+      )}
+
+      {tab === "employee_directory" && isSuperAdmin && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник сотрудников HAULZ</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            Раздел доступен только супер-администратору.
+          </Typography.Body>
+          <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+            Функции регистрации сотрудников с полями ФИО, подразделение и роль добавлены в пользовательский справочник сотрудников.
+          </Typography.Body>
         </Panel>
       )}
 
