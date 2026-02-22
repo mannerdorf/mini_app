@@ -9,13 +9,34 @@ const ACCRUAL_TYPES = new Set(["hour", "shift"]);
 
 type ColumnName = { column_name: string };
 
+function normalizeAccrualType(value: unknown): "hour" | "shift" {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "hour";
+  if (raw === "shift" || raw === "смена") return "shift";
+  if (raw === "hour" || raw === "часы" || raw === "час") return "hour";
+  return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
+}
+
 async function ensureEmployeeColumns(pool: ReturnType<typeof getPool>) {
-  const { rows } = await pool.query<ColumnName>(
-    `SELECT column_name
-     FROM information_schema.columns
-     WHERE table_schema = 'public' AND table_name = 'registered_users'`
-  );
-  const cols = new Set(rows.map((r) => r.column_name));
+  const readCols = async () => {
+    const { rows } = await pool.query<ColumnName>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'registered_users'`
+    );
+    return new Set(rows.map((r) => r.column_name));
+  };
+  let cols = await readCols();
+  if (!cols.has("position")) {
+    await pool.query("ALTER TABLE registered_users ADD COLUMN IF NOT EXISTS position text");
+  }
+  if (!cols.has("accrual_type")) {
+    await pool.query("ALTER TABLE registered_users ADD COLUMN IF NOT EXISTS accrual_type text");
+  }
+  if (!cols.has("accrual_rate")) {
+    await pool.query("ALTER TABLE registered_users ADD COLUMN IF NOT EXISTS accrual_rate numeric(12,2)");
+  }
+  cols = await readCols();
   const has = cols.has("full_name") && cols.has("department") && cols.has("employee_role");
   const hasPosition = cols.has("position");
   const hasAccrualType = cols.has("accrual_type");
@@ -61,7 +82,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
        WHERE (coalesce(trim(full_name), '') <> '' OR employee_role is not null OR invited_by_user_id is not null)
        ORDER BY created_at DESC`
     );
-    return res.status(200).json({ ok: true, items: rows });
+    return res.status(200).json({
+      ok: true,
+      items: rows.map((r) => ({
+        ...r,
+        accrual_type: normalizeAccrualType(r.accrual_type),
+      })),
+    });
   }
 
   if (req.method === "POST") {
@@ -74,7 +101,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const fullName = String(body?.full_name || "").trim();
     const department = String(body?.department || "").trim();
     const position = String(body?.position || "").trim();
-    const accrualType = String(body?.accrual_type || "hour").trim();
+    const accrualType = normalizeAccrualType(body?.accrual_type || "hour");
     const accrualRateRaw = body?.accrual_rate;
     const accrualRate = Number(accrualRateRaw);
     const employeeRole = String(body?.employee_role || "employee").trim();
@@ -250,8 +277,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const department = hasDepartmentUpdate ? String(body.department).trim() : "";
     const position = hasPositionUpdate ? String(body.position).trim() : "";
     const accrualType = hasAccrualTypeUpdate
-      ? String(body.accrual_type).trim()
-      : (row.accrual_type || "hour");
+      ? normalizeAccrualType(body.accrual_type)
+      : normalizeAccrualType(row.accrual_type || "hour");
     const accrualRate = hasAccrualRateUpdate
       ? Number(body.accrual_rate)
       : (row.accrual_rate == null ? 0 : Number(row.accrual_rate));

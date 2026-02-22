@@ -570,6 +570,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   });
   const [timesheetSearch, setTimesheetSearch] = useState("");
   const [timesheetHours, setTimesheetHours] = useState<Record<string, string>>({});
+  const isShiftAccrualType = (value: unknown) => {
+    const raw = String(value ?? "").trim().toLowerCase();
+    return raw === "shift" || raw === "смена" || raw.includes("shift") || raw.includes("смен");
+  };
 
   const timesheetDays = useMemo(() => {
     const [yRaw, mRaw] = (timesheetMonth || "").split("-");
@@ -4145,7 +4149,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           </thead>
                           <tbody>
                             {group.employees.map((emp) => {
-                              const isShiftAccrual = emp.accrual_type === "shift";
+                              const isShiftAccrual = isShiftAccrualType(emp.accrual_type);
                               const hourlyRate = Number(emp.accrual_rate ?? 0);
                               const shiftHours = 8;
                               const totalShifts = timesheetDays.reduce((acc, d) => {
@@ -5027,7 +5031,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     setEmployeeDirectoryEditFullName(emp.full_name || "");
                     setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
                     setEmployeeDirectoryEditPosition(emp.position || "");
-                    setEmployeeDirectoryEditAccrualType(emp.accrual_type === "shift" ? "shift" : "hour");
+                    setEmployeeDirectoryEditAccrualType(isShiftAccrualType(emp.accrual_type) ? "shift" : "hour");
                     setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
                     setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
                   }}
@@ -5041,7 +5045,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       setEmployeeDirectoryEditFullName(emp.full_name || "");
                       setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
                       setEmployeeDirectoryEditPosition(emp.position || "");
-                      setEmployeeDirectoryEditAccrualType(emp.accrual_type === "shift" ? "shift" : "hour");
+                      setEmployeeDirectoryEditAccrualType(isShiftAccrualType(emp.accrual_type) ? "shift" : "hour");
                       setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
                       setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
                     }
@@ -5053,7 +5057,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <div>
                       <Typography.Body style={{ fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
                       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                        Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Начисление: {emp.accrual_type === "shift" ? "Смена" : "Часы"} · Ставка: {emp.accrual_rate ?? 0} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
+                        Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Начисление: {isShiftAccrualType(emp.accrual_type) ? "Смена" : "Часы"} · Ставка: {emp.accrual_rate ?? 0} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
                       </Typography.Body>
                     </div>
                     <Flex align="center" gap="0.45rem" onClick={(e) => e.stopPropagation()}>
