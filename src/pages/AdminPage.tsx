@@ -570,10 +570,33 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   });
   const [timesheetSearch, setTimesheetSearch] = useState("");
   const [timesheetHours, setTimesheetHours] = useState<Record<string, string>>({});
+  const [timesheetMobilePicker, setTimesheetMobilePicker] = useState(false);
   const isShiftAccrualType = (value: unknown) => {
     const raw = String(value ?? "").trim().toLowerCase();
     return raw === "shift" || raw === "смена" || raw.includes("shift") || raw.includes("смен");
   };
+  const toHalfHourValue = (raw: string) => {
+    const parsed = Number(String(raw || "").replace(",", "."));
+    if (!Number.isFinite(parsed)) return "0.0";
+    const normalized = Math.max(0, Math.min(24, parsed));
+    return (Math.round(normalized * 2) / 2).toFixed(1);
+  };
+  const timesheetHalfHourOptions = useMemo(() => {
+    return Array.from({ length: 49 }, (_, idx) => {
+      const hours = Math.floor(idx / 2);
+      const mins = idx % 2 === 0 ? "00" : "30";
+      const value = (idx * 0.5).toFixed(1);
+      return { value, label: `${hours}:${mins}` };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const update = () => setTimesheetMobilePicker(window.matchMedia("(max-width: 768px)").matches);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   const timesheetDays = useMemo(() => {
     const [yRaw, mRaw] = (timesheetMonth || "").split("-");
@@ -4140,8 +4163,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     background: d.isWeekend ? "var(--color-bg-hover)" : "var(--color-bg-card)",
                                   }}
                                 >
-                                  <div style={{ fontSize: "0.76rem" }}>{d.day}</div>
-                                  <div style={{ fontSize: "0.68rem", color: "var(--color-text-secondary)" }}>{d.weekdayShort}</div>
+                                  <div style={{ fontSize: "0.76rem", color: d.isWeekend ? "#d93025" : "inherit", fontWeight: d.isWeekend ? 600 : 500 }}>{d.day}</div>
+                                  <div style={{ fontSize: "0.68rem", color: d.isWeekend ? "#d93025" : "var(--color-text-secondary)" }}>{d.weekdayShort}</div>
                                 </th>
                               ))}
                               <th style={{ textAlign: "center", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", minWidth: "4rem" }}>Итого</th>
@@ -4176,14 +4199,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               return (
                                 <tr key={`timesheet-row-${group.department}-${emp.id}`}>
                                   <td style={{ padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card)", zIndex: 1 }}>
-                                    <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)" }}>{emp.position || "—"}</Typography.Body>
+                                    <Typography.Body style={{ display: "block", fontSize: "0.82rem", fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
+                                    <Typography.Body style={{ display: "block", fontSize: "0.74rem", color: "var(--color-text-secondary)", marginTop: "0.1rem" }}>{emp.position || "—"}</Typography.Body>
                                   </td>
                                   {timesheetDays.map((d) => {
                                     const key = `${emp.id}__${d.iso}`;
                                     const value = (timesheetHours[key] || "").trim().toUpperCase();
                                     const fallback = "0";
                                     const shiftEnabled = isShiftEnabled(value);
+                                    const hourPickerValue = toHalfHourValue(value || fallback);
                                     return (
                                       <td key={`timesheet-cell-${emp.id}-${d.iso}`} style={{ padding: "0.2rem", borderBottom: "1px solid var(--color-border)", background: d.isWeekend ? "var(--color-bg-hover)" : "transparent" }}>
                                         {isShiftAccrual ? (
@@ -4209,6 +4233,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               fontWeight: 600,
                                               lineHeight: "1.6rem",
                                               fontSize: shiftEnabled ? "0.9rem" : "1rem",
+                                              WebkitAppearance: "none",
+                                              appearance: "none",
                                               cursor: "pointer",
                                             }}
                                             aria-label={shiftEnabled ? "Смена включена, нажмите чтобы выключить" : "Смена выключена, нажмите чтобы включить"}
@@ -4216,30 +4242,48 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                             {shiftEnabled ? "С" : "○"}
                                           </button>
                                         ) : (
-                                          <input
-                                            type="number"
-                                            min={0}
-                                            max={24}
-                                            step={0.5}
-                                            value={value || fallback}
-                                            onChange={(e) => {
-                                              const raw = e.target.value;
-                                              if (raw === "") {
-                                                setTimesheetHours((prev) => {
-                                                  const next = { ...prev };
-                                                  delete next[key];
-                                                  return next;
-                                                });
-                                                return;
-                                              }
-                                              const parsed = Number(raw);
-                                              if (!Number.isFinite(parsed)) return;
-                                              const normalized = Math.max(0, Math.min(24, parsed));
-                                              setTimesheetHours((prev) => ({ ...prev, [key]: String(normalized) }));
-                                            }}
-                                            className="admin-form-input"
-                                            style={{ width: "3rem", padding: "0 0.25rem", textAlign: "center", margin: "0 auto" }}
-                                          />
+                                          timesheetMobilePicker ? (
+                                            <select
+                                              value={hourPickerValue}
+                                              onChange={(e) => {
+                                                setTimesheetHours((prev) => ({ ...prev, [key]: e.target.value }));
+                                              }}
+                                              className="admin-form-input"
+                                              style={{ width: "4.3rem", padding: "0 0.2rem", textAlign: "center", margin: "0 auto", display: "block" }}
+                                              aria-label="Количество часов за день"
+                                            >
+                                              {timesheetHalfHourOptions.map((opt) => (
+                                                <option key={`${key}-opt-${opt.value}`} value={opt.value}>
+                                                  {opt.label}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          ) : (
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              max={24}
+                                              step={0.5}
+                                              value={value || fallback}
+                                              onChange={(e) => {
+                                                const raw = e.target.value;
+                                                if (raw === "") {
+                                                  setTimesheetHours((prev) => {
+                                                    const next = { ...prev };
+                                                    delete next[key];
+                                                    return next;
+                                                  });
+                                                  return;
+                                                }
+                                                const parsed = Number(raw);
+                                                if (!Number.isFinite(parsed)) return;
+                                                const normalized = Math.max(0, Math.min(24, parsed));
+                                                setTimesheetHours((prev) => ({ ...prev, [key]: String(normalized) }));
+                                              }}
+                                              className="admin-form-input"
+                                              style={{ width: "3rem", padding: "0 0.25rem", textAlign: "center", margin: "0 auto" }}
+                                            />
+                                          )
                                         )}
                                       </td>
                                     );

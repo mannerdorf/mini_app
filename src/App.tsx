@@ -3813,6 +3813,21 @@ function ProfilePage({
         const daysInMonth = new Date(year, month, 0).getDate();
         return Array.from({ length: daysInMonth }, (_, idx) => idx + 1);
     }, [departmentTimesheetMonth]);
+    const departmentTimesheetWeekdayByDay = useMemo(() => {
+        if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return {} as Record<number, { short: string; isWeekend: boolean }>;
+        const [yearRaw, monthRaw] = departmentTimesheetMonth.split("-");
+        const year = Number(yearRaw);
+        const month = Number(monthRaw);
+        if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return {} as Record<number, { short: string; isWeekend: boolean }>;
+        const weekdayShort = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+        const out: Record<number, { short: string; isWeekend: boolean }> = {};
+        for (const day of departmentTimesheetDays) {
+            const dt = new Date(year, month - 1, day);
+            const wd = dt.getDay();
+            out[day] = { short: weekdayShort[wd] ?? "", isWeekend: wd === 0 || wd === 6 };
+        }
+        return out;
+    }, [departmentTimesheetMonth, departmentTimesheetDays]);
 
     const fetchDepartmentTimesheet = useCallback(async () => {
         if (!activeAccount?.login || !activeAccount?.password) return;
@@ -4303,9 +4318,16 @@ function ProfilePage({
                             <thead>
                                 <tr>
                                     <th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--color-bg)', textAlign: 'left', borderBottom: '1px solid var(--color-border)', padding: '0.5rem', minWidth: '220px' }}>Сотрудник</th>
-                                    {departmentTimesheetDays.map((day) => (
-                                        <th key={day} style={{ textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.4rem', minWidth: '44px' }}>{day}</th>
-                                    ))}
+                                    {departmentTimesheetDays.map((day) => {
+                                        const dayMeta = departmentTimesheetWeekdayByDay[day];
+                                        const isWeekend = !!dayMeta?.isWeekend;
+                                        return (
+                                            <th key={day} style={{ textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.3rem 0.2rem', minWidth: '44px', background: isWeekend ? 'var(--color-bg-hover)' : 'transparent' }}>
+                                                <div style={{ fontSize: '0.76rem', color: isWeekend ? '#d93025' : 'inherit', fontWeight: isWeekend ? 600 : 500 }}>{day}</div>
+                                                <div style={{ fontSize: '0.68rem', color: isWeekend ? '#d93025' : 'var(--color-text-secondary)' }}>{dayMeta?.short || ''}</div>
+                                            </th>
+                                        );
+                                    })}
                                     <th style={{ textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.4rem', minWidth: '120px' }}>Итого</th>
                                 </tr>
                             </thead>
@@ -4352,22 +4374,29 @@ function ProfilePage({
                                                                 }));
                                                             }}
                                                             style={{
-                                                                width: '100%',
-                                                                minWidth: 36,
+                                                                width: '2.2rem',
+                                                                height: '1.6rem',
+                                                                minWidth: '2.2rem',
                                                                 boxSizing: 'border-box',
                                                                 border: shiftEnabled ? '1px solid #1f8f45' : '1px solid var(--color-border)',
-                                                                borderRadius: 6,
+                                                                borderRadius: 999,
                                                                 background: shiftEnabled ? '#35c46a' : 'var(--color-bg)',
                                                                 color: shiftEnabled ? '#fff' : 'var(--color-text-secondary)',
-                                                                padding: '0.2rem 0.25rem',
+                                                                padding: 0,
+                                                                lineHeight: '1.6rem',
                                                                 textAlign: 'center',
                                                                 fontWeight: 600,
+                                                                fontSize: shiftEnabled ? '0.9rem' : '1rem',
+                                                                WebkitAppearance: 'none',
+                                                                appearance: 'none',
+                                                                display: 'block',
+                                                                margin: '0 auto',
                                                                 cursor: 'pointer',
                                                             }}
                                                             aria-label={shiftEnabled ? 'Смена отмечена, нажмите чтобы снять' : 'Нажмите чтобы отметить смену'}
                                                             title={shiftEnabled ? 'Смена отмечена' : 'Отметить смену'}
                                                         >
-                                                            {shiftEnabled ? 'С' : ''}
+                                                            {shiftEnabled ? 'С' : '○'}
                                                         </button>
                                                     ) : (
                                                         <input
