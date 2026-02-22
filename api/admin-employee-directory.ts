@@ -138,22 +138,33 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ok: true });
     }
 
-    const fullName = String(body?.full_name || "").trim();
-    const department = String(body?.department || "").trim();
-    const position = String(body?.position || "").trim();
-    const employeeRole = String(body?.employee_role || "").trim();
-    if (!fullName) return res.status(400).json({ error: "Укажите ФИО" });
-    if (!department) return res.status(400).json({ error: "Укажите структурное подразделение" });
-    if (!EMPLOYEE_ROLES.has(employeeRole)) return res.status(400).json({ error: "Некорректная роль сотрудника" });
-
-    const existing = await pool.query<{ permissions: Record<string, boolean> | null }>(
-      "SELECT permissions FROM registered_users WHERE id = $1",
+    const existing = await pool.query<{
+      full_name: string | null;
+      department: string | null;
+      position: string | null;
+      employee_role: "employee" | "department_head" | null;
+      permissions: Record<string, boolean> | null;
+    }>(
+      `SELECT full_name, department, ${
+        columnsInfo.hasPosition ? "position" : "null::text as position"
+      }, employee_role, permissions
+       FROM registered_users WHERE id = $1`,
       [id]
     );
     if (!existing.rows[0]) return res.status(404).json({ error: "Сотрудник не найден" });
+    const row = existing.rows[0];
+    const fullName = typeof body?.full_name === "string" ? String(body.full_name).trim() : (row.full_name || "");
+    const department = typeof body?.department === "string" ? String(body.department).trim() : (row.department || "");
+    const position = typeof body?.position === "string" ? String(body.position).trim() : (row.position || "");
+    const employeeRole = typeof body?.employee_role === "string"
+      ? String(body.employee_role).trim()
+      : (row.employee_role || "employee");
+    if (!fullName) return res.status(400).json({ error: "Укажите ФИО" });
+    if (!department) return res.status(400).json({ error: "Укажите структурное подразделение" });
+    if (!EMPLOYEE_ROLES.has(employeeRole)) return res.status(400).json({ error: "Некорректная роль сотрудника" });
     const currentPermissions =
-      existing.rows[0].permissions && typeof existing.rows[0].permissions === "object"
-        ? existing.rows[0].permissions
+      row.permissions && typeof row.permissions === "object"
+        ? row.permissions
         : {};
     const nextPermissions: Record<string, boolean> = {
       ...currentPermissions,

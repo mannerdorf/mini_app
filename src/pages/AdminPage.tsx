@@ -552,8 +552,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryRole, setEmployeeDirectoryRole] = useState<"employee" | "department_head">("employee");
   const [employeeDirectorySaving, setEmployeeDirectorySaving] = useState(false);
   const [employeeDirectoryEditingId, setEmployeeDirectoryEditingId] = useState<number | null>(null);
-  const [employeeDirectoryEditFullName, setEmployeeDirectoryEditFullName] = useState("");
-  const [employeeDirectoryEditDepartment, setEmployeeDirectoryEditDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
   const [employeeDirectoryEditPosition, setEmployeeDirectoryEditPosition] = useState("");
   const [employeeDirectoryEditRole, setEmployeeDirectoryEditRole] = useState<"employee" | "department_head">("employee");
   const [employeeDirectoryEditSaving, setEmployeeDirectoryEditSaving] = useState(false);
@@ -4745,37 +4743,34 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
               {employeeDirectoryItems.map((emp) => (
-                <div key={emp.id} style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.6rem 0.7rem", background: "var(--color-bg-hover)" }}>
+                <div
+                  key={emp.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setEmployeeDirectoryEditingId(emp.id);
+                    setEmployeeDirectoryEditPosition(emp.position || "");
+                    setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setEmployeeDirectoryEditingId(emp.id);
+                      setEmployeeDirectoryEditPosition(emp.position || "");
+                      setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
+                    }
+                  }}
+                  style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.6rem 0.7rem", background: "var(--color-bg-hover)", cursor: "pointer" }}
+                  aria-label={`Редактировать сотрудника ${emp.full_name || emp.login}`}
+                >
                   <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem">
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        setEmployeeDirectoryEditingId(emp.id);
-                        setEmployeeDirectoryEditFullName(emp.full_name || "");
-                        setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
-                        setEmployeeDirectoryEditPosition(emp.position || "");
-                        setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          setEmployeeDirectoryEditingId(emp.id);
-                          setEmployeeDirectoryEditFullName(emp.full_name || "");
-                          setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
-                          setEmployeeDirectoryEditPosition(emp.position || "");
-                          setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
-                        }
-                      }}
-                      style={{ cursor: "pointer" }}
-                      aria-label={`Редактировать сотрудника ${emp.full_name || emp.login}`}
-                    >
+                    <div>
                       <Typography.Body style={{ fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
                       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
                         Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
                       </Typography.Body>
                     </div>
-                    <Flex align="center" gap="0.45rem">
+                    <Flex align="center" gap="0.45rem" onClick={(e) => e.stopPropagation()}>
                       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>{emp.active ? "Вкл" : "Выкл"}</Typography.Body>
                       <TapSwitch
                         checked={emp.active}
@@ -4819,25 +4814,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     </Flex>
                   </Flex>
                   {employeeDirectoryEditingId === emp.id && (
-                    <div style={{ marginTop: "0.65rem", borderTop: "1px dashed var(--color-border)", paddingTop: "0.65rem" }}>
+                    <div style={{ marginTop: "0.65rem", borderTop: "1px dashed var(--color-border)", paddingTop: "0.65rem" }} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "0.5rem" }}>
-                        <Input
-                          type="text"
-                          className="admin-form-input"
-                          value={employeeDirectoryEditFullName}
-                          placeholder="ФИО"
-                          onChange={(e) => setEmployeeDirectoryEditFullName(e.target.value)}
-                        />
-                        <select
-                          className="admin-form-input"
-                          value={employeeDirectoryEditDepartment}
-                          onChange={(e) => setEmployeeDirectoryEditDepartment(e.target.value)}
-                          style={{ padding: "0 0.5rem" }}
-                        >
-                          {EMPLOYEE_DEPARTMENTS.map((dep) => (
-                            <option key={dep} value={dep}>{dep}</option>
-                          ))}
-                        </select>
                         <Input
                           type="text"
                           className="admin-form-input"
@@ -4859,7 +4837,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <Button
                           type="button"
                           className="button-primary"
-                          disabled={employeeDirectoryEditSaving || !employeeDirectoryEditFullName.trim()}
+                          disabled={employeeDirectoryEditSaving}
                           onClick={async () => {
                             setEmployeeDirectoryEditSaving(true);
                             setError(null);
@@ -4868,8 +4846,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 method: "PATCH",
                                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
                                 body: JSON.stringify({
-                                  full_name: employeeDirectoryEditFullName.trim(),
-                                  department: employeeDirectoryEditDepartment,
                                   position: employeeDirectoryEditPosition.trim(),
                                   employee_role: employeeDirectoryEditRole,
                                 }),
@@ -4881,8 +4857,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                   x.id === emp.id
                                     ? {
                                         ...x,
-                                        full_name: employeeDirectoryEditFullName.trim(),
-                                        department: employeeDirectoryEditDepartment,
                                         position: employeeDirectoryEditPosition.trim(),
                                         employee_role: employeeDirectoryEditRole,
                                       }
