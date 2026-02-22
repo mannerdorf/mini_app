@@ -4299,17 +4299,35 @@ function ProfilePage({
                     </Panel>
                 ) : (
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${220 + departmentTimesheetDays.length * 44}px` }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${340 + departmentTimesheetDays.length * 44}px` }}>
                             <thead>
                                 <tr>
                                     <th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--color-bg)', textAlign: 'left', borderBottom: '1px solid var(--color-border)', padding: '0.5rem', minWidth: '220px' }}>Сотрудник</th>
                                     {departmentTimesheetDays.map((day) => (
                                         <th key={day} style={{ textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.4rem', minWidth: '44px' }}>{day}</th>
                                     ))}
+                                    <th style={{ textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.4rem', minWidth: '120px' }}>Итого</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {departmentTimesheetEmployees.map((emp) => (
+                                {departmentTimesheetEmployees.map((emp) => {
+                                    const isShift = isShiftAccrual(emp.accrualType);
+                                    const rate = Number(emp.accrualRate ?? 0);
+                                    const totalShiftCount = departmentTimesheetDays.reduce((acc, day) => {
+                                        const key = `${emp.id}:${day}`;
+                                        return acc + ((departmentTimesheetHours[key] || '').trim().toUpperCase() === 'С' ? 1 : 0);
+                                    }, 0);
+                                    const totalHours = isShift
+                                        ? totalShiftCount * 8
+                                        : departmentTimesheetDays.reduce((acc, day) => {
+                                            const key = `${emp.id}:${day}`;
+                                            const value = (departmentTimesheetHours[key] || '').trim().replace(',', '.');
+                                            const num = Number(value);
+                                            return acc + (Number.isFinite(num) ? num : 0);
+                                        }, 0);
+                                    const totalMoney = isShift ? totalShiftCount * rate : totalHours * rate;
+
+                                    return (
                                     <tr key={emp.id}>
                                         <td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', padding: '0.5rem' }}>
                                             <Typography.Body style={{ fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
@@ -4321,25 +4339,61 @@ function ProfilePage({
                                             const key = `${emp.id}:${day}`;
                                             const value = departmentTimesheetHours[key] || '';
                                             const isShift = isShiftAccrual(emp.accrualType);
+                                            const shiftEnabled = value.trim().toUpperCase() === 'С';
                                             return (
                                                 <td key={key} style={{ borderBottom: '1px solid var(--color-border)', padding: '0.2rem' }}>
-                                                    <input
-                                                        value={value}
-                                                        onChange={(e) => {
-                                                            const nextRaw = e.target.value;
-                                                            const next = isShift
-                                                                ? (nextRaw.trim().toUpperCase().startsWith('С') ? 'С' : '')
-                                                                : nextRaw.replace(/[^0-9.,]/g, '').replace(',', '.');
-                                                            setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: next }));
-                                                        }}
-                                                        placeholder={isShift ? 'С' : '0'}
-                                                        style={{ width: '100%', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0.2rem 0.25rem', textAlign: 'center' }}
-                                                    />
+                                                    {isShift ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setDepartmentTimesheetHours((prev) => ({
+                                                                    ...prev,
+                                                                    [key]: shiftEnabled ? '' : 'С',
+                                                                }));
+                                                            }}
+                                                            style={{
+                                                                width: '100%',
+                                                                minWidth: 36,
+                                                                boxSizing: 'border-box',
+                                                                border: shiftEnabled ? '1px solid #1f8f45' : '1px solid var(--color-border)',
+                                                                borderRadius: 6,
+                                                                background: shiftEnabled ? '#35c46a' : 'var(--color-bg)',
+                                                                color: shiftEnabled ? '#fff' : 'var(--color-text-secondary)',
+                                                                padding: '0.2rem 0.25rem',
+                                                                textAlign: 'center',
+                                                                fontWeight: 600,
+                                                                cursor: 'pointer',
+                                                            }}
+                                                            aria-label={shiftEnabled ? 'Смена отмечена, нажмите чтобы снять' : 'Нажмите чтобы отметить смену'}
+                                                            title={shiftEnabled ? 'Смена отмечена' : 'Отметить смену'}
+                                                        >
+                                                            {shiftEnabled ? 'С' : ''}
+                                                        </button>
+                                                    ) : (
+                                                        <input
+                                                            value={value}
+                                                            onChange={(e) => {
+                                                                const nextRaw = e.target.value;
+                                                                const next = nextRaw.replace(/[^0-9.,]/g, '').replace(',', '.');
+                                                                setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: next }));
+                                                            }}
+                                                            placeholder="0"
+                                                            style={{ width: '100%', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0.2rem 0.25rem', textAlign: 'center' }}
+                                                        />
+                                                    )}
                                                 </td>
                                             );
                                         })}
+                                        <td style={{ borderBottom: '1px solid var(--color-border)', padding: '0.35rem 0.4rem', textAlign: 'center' }}>
+                                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                                                {isShift ? `${totalShiftCount} смен` : `${Number(totalHours.toFixed(2))} ч`}
+                                            </Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.76rem', color: 'var(--color-text-secondary)' }}>
+                                                {Number(totalMoney.toFixed(2))} ₽
+                                            </Typography.Body>
+                                        </td>
                                     </tr>
-                                ))}
+                                )})}
                             </tbody>
                         </table>
                     </div>
