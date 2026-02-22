@@ -4340,7 +4340,7 @@ function ProfilePage({
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${340 + departmentTimesheetDays.length * 44}px` }}>
                             <thead>
                                 <tr>
-                                    <th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--color-bg)', textAlign: 'left', borderBottom: '1px solid var(--color-border)', padding: '0.5rem', minWidth: '220px' }}>Сотрудник</th>
+                                    <th style={{ position: 'sticky', left: 0, zIndex: 4, background: 'var(--color-bg)', textAlign: 'left', borderBottom: '1px solid var(--color-border)', padding: '0.5rem', minWidth: '220px', boxShadow: '2px 0 0 var(--color-border)' }}>Сотрудник</th>
                                     {departmentTimesheetDays.map((day) => {
                                         const dayMeta = departmentTimesheetWeekdayByDay[day];
                                         const isWeekend = !!dayMeta?.isWeekend;
@@ -4377,7 +4377,7 @@ function ProfilePage({
 
                                     return (
                                     <tr key={emp.id}>
-                                        <td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', padding: '0.5rem' }}>
+                                        <td style={{ position: 'sticky', left: 0, zIndex: 3, minWidth: '220px', background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', padding: '0.5rem', boxShadow: '2px 0 0 var(--color-border)' }}>
                                             <Typography.Body style={{ display: 'block', fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
                                             <Typography.Body style={{ display: 'block', fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '0.1rem' }}>
                                                 {emp.position || '—'}
