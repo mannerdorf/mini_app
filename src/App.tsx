@@ -3759,10 +3759,25 @@ function ProfilePage({
         return `${now.getFullYear()}-${month}`;
     });
     const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
+    const [departmentTimesheetMobilePicker, setDepartmentTimesheetMobilePicker] = useState(false);
     const isShiftAccrual = (value: string) => {
         const raw = String(value || '').trim().toLowerCase();
         return raw === 'shift' || raw === 'смена' || raw.includes('shift') || raw.includes('смен');
     };
+    const toHalfHourValue = (raw: string) => {
+        const parsed = Number(String(raw || '').replace(',', '.'));
+        if (!Number.isFinite(parsed)) return '0.0';
+        const normalized = Math.max(0, Math.min(24, parsed));
+        return (Math.round(normalized * 2) / 2).toFixed(1);
+    };
+    const departmentTimesheetHalfHourOptions = useMemo(() => {
+        return Array.from({ length: 49 }, (_, idx) => {
+            const hours = Math.floor(idx / 2);
+            const mins = idx % 2 === 0 ? '00' : '30';
+            const value = (idx * 0.5).toFixed(1);
+            return { value, label: `${hours}:${mins}` };
+        });
+    }, []);
 
     const DEPARTMENT_OPTIONS = [
         'Склад Москва',
@@ -3828,6 +3843,14 @@ function ProfilePage({
         }
         return out;
     }, [departmentTimesheetMonth, departmentTimesheetDays]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const update = () => setDepartmentTimesheetMobilePicker(window.matchMedia('(max-width: 768px)').matches);
+        update();
+        window.addEventListener('resize', update);
+        return () => window.removeEventListener('resize', update);
+    }, []);
 
     const fetchDepartmentTimesheet = useCallback(async () => {
         if (!activeAccount?.login || !activeAccount?.password) return;
@@ -4352,9 +4375,12 @@ function ProfilePage({
                                     return (
                                     <tr key={emp.id}>
                                         <td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', padding: '0.5rem' }}>
-                                            <Typography.Body style={{ fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
-                                            <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
-                                                {emp.position || '—'} · {isShiftAccrual(emp.accrualType) ? 'Смена' : 'Часы'}
+                                            <Typography.Body style={{ display: 'block', fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
+                                            <Typography.Body style={{ display: 'block', fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '0.1rem' }}>
+                                                {emp.position || '—'}
+                                            </Typography.Body>
+                                            <Typography.Body style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
+                                                {isShiftAccrual(emp.accrualType) ? 'Смена' : 'Часы'}
                                             </Typography.Body>
                                         </td>
                                         {departmentTimesheetDays.map((day) => {
@@ -4362,6 +4388,7 @@ function ProfilePage({
                                             const value = departmentTimesheetHours[key] || '';
                                             const isShift = isShiftAccrual(emp.accrualType);
                                             const shiftEnabled = value.trim().toUpperCase() === 'С';
+                                            const hourPickerValue = toHalfHourValue(value || '0');
                                             return (
                                                 <td key={key} style={{ borderBottom: '1px solid var(--color-border)', padding: '0.2rem' }}>
                                                     {isShift ? (
@@ -4399,16 +4426,31 @@ function ProfilePage({
                                                             {shiftEnabled ? 'С' : '○'}
                                                         </button>
                                                     ) : (
-                                                        <input
-                                                            value={value}
-                                                            onChange={(e) => {
-                                                                const nextRaw = e.target.value;
-                                                                const next = nextRaw.replace(/[^0-9.,]/g, '').replace(',', '.');
-                                                                setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: next }));
-                                                            }}
-                                                            placeholder="0"
-                                                            style={{ width: '100%', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0.2rem 0.25rem', textAlign: 'center' }}
-                                                        />
+                                                        departmentTimesheetMobilePicker ? (
+                                                            <select
+                                                                value={hourPickerValue}
+                                                                onChange={(e) => {
+                                                                    setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: e.target.value }));
+                                                                }}
+                                                                style={{ width: '4.3rem', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0 0.2rem', textAlign: 'center', display: 'block', margin: '0 auto' }}
+                                                                aria-label="Количество часов за день"
+                                                            >
+                                                                {departmentTimesheetHalfHourOptions.map((opt) => (
+                                                                    <option key={`${key}-opt-${opt.value}`} value={opt.value}>{opt.label}</option>
+                                                                ))}
+                                                            </select>
+                                                        ) : (
+                                                            <input
+                                                                value={value}
+                                                                onChange={(e) => {
+                                                                    const nextRaw = e.target.value;
+                                                                    const next = nextRaw.replace(/[^0-9.,]/g, '').replace(',', '.');
+                                                                    setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: next }));
+                                                                }}
+                                                                placeholder="0"
+                                                                style={{ width: '100%', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0.2rem 0.25rem', textAlign: 'center' }}
+                                                            />
+                                                        )
                                                     )}
                                                 </td>
                                             );
