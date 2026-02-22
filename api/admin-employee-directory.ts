@@ -17,7 +17,8 @@ async function ensureEmployeeColumns(pool: ReturnType<typeof getPool>) {
   );
   const cols = new Set(rows.map((r) => r.column_name));
   const has = cols.has("full_name") && cols.has("department") && cols.has("employee_role");
-  return { cols, has };
+  const hasPosition = cols.has("position");
+  return { cols, has, hasPosition };
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
@@ -41,12 +42,15 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       login: string;
       full_name: string | null;
       department: string | null;
+      position: string | null;
       employee_role: "employee" | "department_head" | null;
       active: boolean;
       invited_with_preset_label: string | null;
       created_at: string;
     }>(
-      `SELECT id, login, full_name, department, employee_role, active, invited_with_preset_label, created_at
+      `SELECT id, login, full_name, department, ${
+        columnsInfo.hasPosition ? "position" : "null::text as position"
+      }, employee_role, active, invited_with_preset_label, created_at
        FROM registered_users
        WHERE (coalesce(trim(full_name), '') <> '' OR employee_role is not null OR invited_by_user_id is not null)
        ORDER BY created_at DESC`
@@ -62,6 +66,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const email = String(body?.email || "").trim().toLowerCase();
     const fullName = String(body?.full_name || "").trim();
     const department = String(body?.department || "").trim();
+    const position = String(body?.position || "").trim();
     const employeeRole = String(body?.employee_role || "employee").trim();
     const presetId = body?.preset_id ? parseInt(String(body.preset_id), 10) : null;
     const sendEmail = body?.send_email !== false;
@@ -105,10 +110,16 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const { rows } = await pool.query<{ id: number }>(
         `INSERT INTO registered_users
-          (login, password_hash, inn, company_name, permissions, financial_access, access_all_inns, full_name, department, employee_role, invited_with_preset_label)
-         VALUES ($1, $2, '', '', $3, false, false, $4, $5, $6, $7)
+          (login, password_hash, inn, company_name, permissions, financial_access, access_all_inns, full_name, department${
+            columnsInfo.hasPosition ? ", position" : ""
+          }, employee_role, invited_with_preset_label)
+         VALUES ($1, $2, '', '', $3, false, false, $4, $5${
+           columnsInfo.hasPosition ? ", $6" : ""
+         }, ${columnsInfo.hasPosition ? "$7" : "$6"}, ${columnsInfo.hasPosition ? "$8" : "$7"})
          RETURNING id`,
-        [email, passwordHash, JSON.stringify(permissions), fullName, department, employeeRole, presetLabel]
+        columnsInfo.hasPosition
+          ? [email, passwordHash, JSON.stringify(permissions), fullName, department, position, employeeRole, presetLabel]
+          : [email, passwordHash, JSON.stringify(permissions), fullName, department, employeeRole, presetLabel]
       );
       if (sendEmail) {
         await sendRegistrationEmail(pool, email, email, password, "HAULZ");

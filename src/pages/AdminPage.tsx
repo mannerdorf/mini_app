@@ -117,6 +117,7 @@ type EmployeeDirectoryRow = {
   login: string;
   full_name: string;
   department: string;
+  position: string;
   employee_role: "employee" | "department_head";
   active: boolean;
   invited_with_preset_label: string | null;
@@ -547,6 +548,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryEmail, setEmployeeDirectoryEmail] = useState("");
   const [employeeDirectoryFullName, setEmployeeDirectoryFullName] = useState("");
   const [employeeDirectoryDepartment, setEmployeeDirectoryDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
+  const [employeeDirectoryPosition, setEmployeeDirectoryPosition] = useState("");
   const [employeeDirectoryRole, setEmployeeDirectoryRole] = useState<"employee" | "department_head">("employee");
   const [employeeDirectorySaving, setEmployeeDirectorySaving] = useState(false);
 
@@ -4641,7 +4643,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник сотрудников HAULZ</Typography.Body>
           <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.9rem" }}>
-            Регистрация сотрудников: ФИО, структурное подразделение и роль.
+            Регистрация сотрудников: ФИО, структурное подразделение, должность и роль.
           </Typography.Body>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
@@ -4671,6 +4673,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <option key={dep} value={dep}>{dep}</option>
               ))}
             </select>
+            <Input
+              type="text"
+              className="admin-form-input"
+              value={employeeDirectoryPosition}
+              placeholder="Должность"
+              onChange={(e) => setEmployeeDirectoryPosition(e.target.value)}
+            />
             <select
               className="admin-form-input"
               value={employeeDirectoryRole}
@@ -4698,6 +4707,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       email: employeeDirectoryEmail.trim().toLowerCase(),
                       full_name: employeeDirectoryFullName.trim(),
                       department: employeeDirectoryDepartment,
+                      position: employeeDirectoryPosition.trim(),
                       employee_role: employeeDirectoryRole,
                     }),
                   });
@@ -4705,6 +4715,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   if (!res.ok) throw new Error(data?.error || "Ошибка регистрации сотрудника");
                   setEmployeeDirectoryEmail("");
                   setEmployeeDirectoryFullName("");
+                  setEmployeeDirectoryPosition("");
                   await fetchEmployeeDirectory();
                 } catch (e: unknown) {
                   setError((e as Error)?.message || "Ошибка регистрации сотрудника");
@@ -4733,7 +4744,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <div>
                       <Typography.Body style={{ fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
                       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                        Подразделение: {emp.department || "—"} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
+                        Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
                       </Typography.Body>
                     </div>
                     <Flex align="center" gap="0.45rem">

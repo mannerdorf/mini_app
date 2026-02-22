@@ -1,7 +1,8 @@
--- Справочник сотрудников HAULZ: ФИО, подразделение и роль сотрудника.
+-- Справочник сотрудников HAULZ: ФИО, подразделение, должность и роль сотрудника.
 
 alter table registered_users add column if not exists full_name text;
 alter table registered_users add column if not exists department text;
+alter table registered_users add column if not exists position text;
 alter table registered_users add column if not exists employee_role text
   check (employee_role in ('employee', 'department_head'));
 
