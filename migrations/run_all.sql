@@ -299,3 +299,19 @@ alter table registered_users add column if not exists employee_role text
 create index if not exists registered_users_invited_by_employee_role_idx
   on registered_users(invited_by_user_id, employee_role)
   where invited_by_user_id is not null;
+
+-- ========== 028_employee_timesheet_entries.sql ==========
+-- Табель сотрудников: хранение значений по дням.
+create table if not exists employee_timesheet_entries (
+  id bigserial primary key,
+  employee_id bigint not null references registered_users(id) on delete cascade,
+  work_date date not null,
+  value_text text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (employee_id, work_date)
+);
+create index if not exists employee_timesheet_entries_work_date_idx
+  on employee_timesheet_entries(work_date);
+create index if not exists employee_timesheet_entries_employee_id_idx
+  on employee_timesheet_entries(employee_id);

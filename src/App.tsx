@@ -3854,6 +3854,7 @@ function ProfilePage({
 
     const fetchDepartmentTimesheet = useCallback(async () => {
         if (!activeAccount?.login || !activeAccount?.password) return;
+        if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return;
         setDepartmentTimesheetLoading(true);
         setDepartmentTimesheetError(null);
         const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
@@ -3861,23 +3862,64 @@ function ProfilePage({
             const res = await fetch(`${origin}/api/my-department-timesheet`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password }),
+                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, month: departmentTimesheetMonth }),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 setDepartmentTimesheetError(data.error || "Ошибка загрузки табеля");
                 setDepartmentTimesheetEmployees([]);
+                setDepartmentTimesheetHours({});
                 return;
             }
             setDepartmentTimesheetDepartment(typeof data.department === "string" ? data.department : "");
             setDepartmentTimesheetEmployees(Array.isArray(data.employees) ? data.employees : []);
+            const loadedEntries: Record<string, string> = {};
+            if (data.entries && typeof data.entries === "object") {
+                for (const [entryKey, entryValue] of Object.entries(data.entries as Record<string, string>)) {
+                    const match = /^(\d+)__(\d{4}-\d{2})-(\d{2})$/.exec(entryKey);
+                    if (!match) continue;
+                    if (match[2] !== departmentTimesheetMonth) continue;
+                    const employeeId = Number(match[1]);
+                    const day = Number(match[3]);
+                    if (!Number.isFinite(employeeId) || !Number.isFinite(day)) continue;
+                    loadedEntries[`${employeeId}:${day}`] = String(entryValue || "");
+                }
+            }
+            setDepartmentTimesheetHours(loadedEntries);
         } catch {
             setDepartmentTimesheetError("Ошибка сети");
             setDepartmentTimesheetEmployees([]);
+            setDepartmentTimesheetHours({});
         } finally {
             setDepartmentTimesheetLoading(false);
         }
-    }, [activeAccount?.login, activeAccount?.password]);
+    }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth]);
+
+    const saveDepartmentTimesheetCell = useCallback(async (employeeId: number, day: number, value: string) => {
+        if (!activeAccount?.login || !activeAccount?.password) return;
+        if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return;
+        const dayNormalized = String(day).padStart(2, "0");
+        const dateIso = `${departmentTimesheetMonth}-${dayNormalized}`;
+        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        try {
+            const res = await fetch(`${origin}/api/my-department-timesheet`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    login: activeAccount.login,
+                    password: activeAccount.password,
+                    month: departmentTimesheetMonth,
+                    employeeId,
+                    date: dateIso,
+                    value,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Ошибка сохранения табеля");
+        } catch (e) {
+            setDepartmentTimesheetError((e as Error)?.message || "Ошибка сохранения табеля");
+        }
+    }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth]);
 
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
@@ -4398,10 +4440,12 @@ function ProfilePage({
                                                         <button
                                                             type="button"
                                                             onClick={() => {
+                                                                const nextValue = shiftEnabled ? '' : 'С';
                                                                 setDepartmentTimesheetHours((prev) => ({
                                                                     ...prev,
-                                                                    [key]: shiftEnabled ? '' : 'С',
+                                                                    [key]: nextValue,
                                                                 }));
+                                                                void saveDepartmentTimesheetCell(emp.id, day, nextValue);
                                                             }}
                                                             style={{
                                                                 width: '2.2rem',
@@ -4433,7 +4477,9 @@ function ProfilePage({
                                                             <select
                                                                 value={hourPickerValue}
                                                                 onChange={(e) => {
-                                                                    setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: e.target.value }));
+                                                                    const nextValue = e.target.value;
+                                                                    setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
+                                                                    void saveDepartmentTimesheetCell(emp.id, day, nextValue);
                                                                 }}
                                                                 style={{ width: '4.3rem', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0 0.2rem', textAlign: 'center', display: 'block', margin: '0 auto' }}
                                                                 aria-label="Количество часов за день"
@@ -4449,6 +4495,7 @@ function ProfilePage({
                                                                     const nextRaw = e.target.value;
                                                                     const next = nextRaw.replace(/[^0-9.,]/g, '').replace(',', '.');
                                                                     setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: next }));
+                                                                    void saveDepartmentTimesheetCell(emp.id, day, next);
                                                                 }}
                                                                 placeholder="0"
                                                                 style={{ width: '100%', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0.2rem 0.25rem', textAlign: 'center' }}

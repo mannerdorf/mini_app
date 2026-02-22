@@ -1201,6 +1201,55 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
   }, [adminToken, isSuperAdmin, onLogout]);
 
+  const fetchTimesheetEntries = useCallback(async () => {
+    if (!adminToken || !isSuperAdmin || !/^\d{4}-\d{2}$/.test(timesheetMonth)) return;
+    try {
+      const res = await fetch(`/api/admin-timesheet?month=${encodeURIComponent(timesheetMonth)}`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        onLogout?.("expired");
+        return;
+      }
+      if (!res.ok) throw new Error(data?.error || "Ошибка загрузки табеля");
+      setTimesheetHours(data?.entries && typeof data.entries === "object" ? data.entries : {});
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Ошибка загрузки табеля");
+      setTimesheetHours({});
+    }
+  }, [adminToken, isSuperAdmin, onLogout, timesheetMonth]);
+
+  const saveTimesheetCell = useCallback(
+    async (employeeId: number, dateIso: string, value: string) => {
+      if (!adminToken || !isSuperAdmin) return;
+      try {
+        const res = await fetch("/api/admin-timesheet", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            month: timesheetMonth,
+            employeeId,
+            date: dateIso,
+            value,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          onLogout?.("expired");
+          return;
+        }
+        if (!res.ok) throw new Error(data?.error || "Ошибка сохранения табеля");
+      } catch (e: unknown) {
+        setError((e as Error)?.message || "Ошибка сохранения табеля");
+      }
+    },
+    [adminToken, isSuperAdmin, onLogout, timesheetMonth]
+  );
+
   useEffect(() => {
     if (tab === "employee_directory" && isSuperAdmin) {
       fetchEmployeeDirectory();
@@ -1212,6 +1261,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       fetchEmployeeDirectory();
     }
   }, [tab, isSuperAdmin, fetchEmployeeDirectory]);
+
+  useEffect(() => {
+    if (tab === "timesheet" && isSuperAdmin) {
+      fetchTimesheetEntries();
+    }
+  }, [tab, isSuperAdmin, fetchTimesheetEntries]);
 
   useEffect(() => {
     if (tab !== "users") setShowAddUserForm(false);
@@ -4217,10 +4272,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                           <button
                                             type="button"
                                             onClick={() => {
+                                              const nextValue = shiftEnabled ? "" : "С";
                                               setTimesheetHours((prev) => ({
                                                 ...prev,
-                                                [key]: shiftEnabled ? "" : "С",
+                                                [key]: nextValue,
                                               }));
+                                              void saveTimesheetCell(emp.id, d.iso, nextValue);
                                             }}
                                             style={{
                                               width: "2.2rem",
@@ -4249,7 +4306,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                             <select
                                               value={hourPickerValue}
                                               onChange={(e) => {
-                                                setTimesheetHours((prev) => ({ ...prev, [key]: e.target.value }));
+                                                const nextValue = e.target.value;
+                                                setTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
+                                                void saveTimesheetCell(emp.id, d.iso, nextValue);
                                               }}
                                               className="admin-form-input"
                                               style={{ width: "4.3rem", padding: "0 0.2rem", textAlign: "center", margin: "0 auto", display: "block" }}
@@ -4276,12 +4335,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                     delete next[key];
                                                     return next;
                                                   });
+                                                  void saveTimesheetCell(emp.id, d.iso, "");
                                                   return;
                                                 }
                                                 const parsed = Number(raw);
                                                 if (!Number.isFinite(parsed)) return;
                                                 const normalized = Math.max(0, Math.min(24, parsed));
-                                                setTimesheetHours((prev) => ({ ...prev, [key]: String(normalized) }));
+                                                const nextValue = String(normalized);
+                                                setTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
+                                                void saveTimesheetCell(emp.id, d.iso, nextValue);
                                               }}
                                               className="admin-form-input"
                                               style={{ width: "3rem", padding: "0 0.25rem", textAlign: "center", margin: "0 auto" }}
