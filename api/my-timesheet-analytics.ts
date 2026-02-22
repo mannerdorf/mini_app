@@ -172,8 +172,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const entries = entriesByEmployee.get(employee.employeeId) || [];
       let employeeHours = 0;
       let employeeShifts = 0;
+      const hasShiftMarks = entries.some((e) => isShiftEnabled(e.value));
+      const hasNumericHours = entries.some((e) => {
+        const parsed = Number(String(e.value || "").replace(",", "."));
+        return Number.isFinite(parsed) && parsed > 0;
+      });
+      const resolvedAccrualType: "hour" | "shift" =
+        employee.accrualType === "shift" || (hasShiftMarks && !hasNumericHours) ? "shift" : "hour";
 
-      if (employee.accrualType === "shift") {
+      if (resolvedAccrualType === "shift") {
         employeeShifts = entries.reduce((acc, e) => acc + (isShiftEnabled(e.value) ? 1 : 0), 0);
         employeeHours = employeeShifts * 8;
       } else {
@@ -183,7 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }, 0);
       }
 
-      const employeeCost = employee.accrualType === "shift"
+      const employeeCost = resolvedAccrualType === "shift"
         ? employeeShifts * employee.accrualRate
         : employeeHours * employee.accrualRate;
 
