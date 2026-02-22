@@ -4204,7 +4204,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
                           <thead>
                             <tr>
-                              <th style={{ textAlign: "left", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card)", zIndex: 4, minWidth: "15rem", boxShadow: "2px 0 0 var(--color-border)" }}>
+                              <th style={{ textAlign: "left", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card, #fff)", zIndex: 40, minWidth: "15rem", boxShadow: "2px 0 0 var(--color-border)" }}>
                                 Сотрудник
                               </th>
                               {timesheetDays.map((d) => (
@@ -4256,7 +4256,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 : `${Number(totalHours.toFixed(1))} ${timesheetMobilePicker ? "часы" : "ч"}`;
                               return (
                                 <tr key={`timesheet-row-${group.department}-${emp.id}`}>
-                                  <td style={{ padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card)", zIndex: 3, minWidth: "15rem", boxShadow: "2px 0 0 var(--color-border)" }}>
+                                  <td style={{ padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card, #fff)", zIndex: 30, minWidth: "15rem", boxShadow: "2px 0 0 var(--color-border)" }}>
                                     <Typography.Body style={{ display: "block", fontSize: "0.82rem", fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
                                     <Typography.Body style={{ display: "block", fontSize: "0.74rem", color: "var(--color-text-secondary)", marginTop: "0.1rem" }}>{emp.position || "—"}</Typography.Body>
                                   </td>
