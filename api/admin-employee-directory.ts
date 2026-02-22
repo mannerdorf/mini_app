@@ -117,13 +117,60 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     if (typeof body === "string") {
       try { body = JSON.parse(body); } catch { return res.status(400).json({ error: "Invalid JSON" }); }
     }
-    if (typeof body?.active !== "boolean") return res.status(400).json({ error: "active обязателен" });
     const hasUpdatedAt = columnsInfo.cols.has("updated_at");
+    const hasProfileUpdate =
+      typeof body?.full_name === "string" ||
+      typeof body?.department === "string" ||
+      typeof body?.position === "string" ||
+      typeof body?.employee_role === "string";
+
+    if (typeof body?.active !== "boolean" && !hasProfileUpdate) {
+      return res.status(400).json({ error: "Передайте active или атрибуты сотрудника" });
+    }
+
+    if (typeof body?.active === "boolean" && !hasProfileUpdate) {
+      await pool.query(
+        `UPDATE registered_users
+         SET active = $1${hasUpdatedAt ? ", updated_at = now()" : ""}
+         WHERE id = $2`,
+        [body.active, id]
+      );
+      return res.status(200).json({ ok: true });
+    }
+
+    const fullName = String(body?.full_name || "").trim();
+    const department = String(body?.department || "").trim();
+    const position = String(body?.position || "").trim();
+    const employeeRole = String(body?.employee_role || "").trim();
+    if (!fullName) return res.status(400).json({ error: "Укажите ФИО" });
+    if (!department) return res.status(400).json({ error: "Укажите структурное подразделение" });
+    if (!EMPLOYEE_ROLES.has(employeeRole)) return res.status(400).json({ error: "Некорректная роль сотрудника" });
+
+    const existing = await pool.query<{ permissions: Record<string, boolean> | null }>(
+      "SELECT permissions FROM registered_users WHERE id = $1",
+      [id]
+    );
+    if (!existing.rows[0]) return res.status(404).json({ error: "Сотрудник не найден" });
+    const currentPermissions =
+      existing.rows[0].permissions && typeof existing.rows[0].permissions === "object"
+        ? existing.rows[0].permissions
+        : {};
+    const nextPermissions: Record<string, boolean> = {
+      ...currentPermissions,
+      haulz: true,
+      supervisor: employeeRole === "department_head",
+    };
+
     await pool.query(
       `UPDATE registered_users
-       SET active = $1${hasUpdatedAt ? ", updated_at = now()" : ""}
-       WHERE id = $2`,
-      [body.active, id]
+       SET permissions = $1,
+           full_name = $2,
+           department = $3${columnsInfo.hasPosition ? ", position = $4" : ""},
+           employee_role = ${columnsInfo.hasPosition ? "$5" : "$4"}${hasUpdatedAt ? ", updated_at = now()" : ""}
+       WHERE id = ${columnsInfo.hasPosition ? "$6" : "$5"}`,
+      columnsInfo.hasPosition
+        ? [JSON.stringify(nextPermissions), fullName, department, position, employeeRole, id]
+        : [JSON.stringify(nextPermissions), fullName, department, employeeRole, id]
     );
     return res.status(200).json({ ok: true });
   }

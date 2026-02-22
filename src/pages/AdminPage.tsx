@@ -551,6 +551,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryPosition, setEmployeeDirectoryPosition] = useState("");
   const [employeeDirectoryRole, setEmployeeDirectoryRole] = useState<"employee" | "department_head">("employee");
   const [employeeDirectorySaving, setEmployeeDirectorySaving] = useState(false);
+  const [employeeDirectoryEditingId, setEmployeeDirectoryEditingId] = useState<number | null>(null);
+  const [employeeDirectoryEditFullName, setEmployeeDirectoryEditFullName] = useState("");
+  const [employeeDirectoryEditDepartment, setEmployeeDirectoryEditDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
+  const [employeeDirectoryEditPosition, setEmployeeDirectoryEditPosition] = useState("");
+  const [employeeDirectoryEditRole, setEmployeeDirectoryEditRole] = useState<"employee" | "department_head">("employee");
+  const [employeeDirectoryEditSaving, setEmployeeDirectoryEditSaving] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -4741,7 +4747,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               {employeeDirectoryItems.map((emp) => (
                 <div key={emp.id} style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.6rem 0.7rem", background: "var(--color-bg-hover)" }}>
                   <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem">
-                    <div>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setEmployeeDirectoryEditingId(emp.id);
+                        setEmployeeDirectoryEditFullName(emp.full_name || "");
+                        setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
+                        setEmployeeDirectoryEditPosition(emp.position || "");
+                        setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setEmployeeDirectoryEditingId(emp.id);
+                          setEmployeeDirectoryEditFullName(emp.full_name || "");
+                          setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
+                          setEmployeeDirectoryEditPosition(emp.position || "");
+                          setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
+                        }
+                      }}
+                      style={{ cursor: "pointer" }}
+                      aria-label={`Редактировать сотрудника ${emp.full_name || emp.login}`}
+                    >
                       <Typography.Body style={{ fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
                       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
                         Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
@@ -4770,7 +4798,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         type="button"
                         className="filter-button"
                         style={{ padding: "0.35rem" }}
-                        onClick={async () => {
+                        onClick={async (e) => {
+                          e.stopPropagation();
                           try {
                             const res = await fetch(`/api/admin-employee-directory?id=${emp.id}`, {
                               method: "DELETE",
@@ -4789,6 +4818,98 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </Button>
                     </Flex>
                   </Flex>
+                  {employeeDirectoryEditingId === emp.id && (
+                    <div style={{ marginTop: "0.65rem", borderTop: "1px dashed var(--color-border)", paddingTop: "0.65rem" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "0.5rem" }}>
+                        <Input
+                          type="text"
+                          className="admin-form-input"
+                          value={employeeDirectoryEditFullName}
+                          placeholder="ФИО"
+                          onChange={(e) => setEmployeeDirectoryEditFullName(e.target.value)}
+                        />
+                        <select
+                          className="admin-form-input"
+                          value={employeeDirectoryEditDepartment}
+                          onChange={(e) => setEmployeeDirectoryEditDepartment(e.target.value)}
+                          style={{ padding: "0 0.5rem" }}
+                        >
+                          {EMPLOYEE_DEPARTMENTS.map((dep) => (
+                            <option key={dep} value={dep}>{dep}</option>
+                          ))}
+                        </select>
+                        <Input
+                          type="text"
+                          className="admin-form-input"
+                          value={employeeDirectoryEditPosition}
+                          placeholder="Должность"
+                          onChange={(e) => setEmployeeDirectoryEditPosition(e.target.value)}
+                        />
+                        <select
+                          className="admin-form-input"
+                          value={employeeDirectoryEditRole}
+                          onChange={(e) => setEmployeeDirectoryEditRole(e.target.value as "employee" | "department_head")}
+                          style={{ padding: "0 0.5rem" }}
+                        >
+                          <option value="employee">Сотрудник</option>
+                          <option value="department_head">Руководитель подразделения</option>
+                        </select>
+                      </div>
+                      <Flex align="center" gap="0.5rem" style={{ marginTop: "0.55rem" }}>
+                        <Button
+                          type="button"
+                          className="button-primary"
+                          disabled={employeeDirectoryEditSaving || !employeeDirectoryEditFullName.trim()}
+                          onClick={async () => {
+                            setEmployeeDirectoryEditSaving(true);
+                            setError(null);
+                            try {
+                              const res = await fetch(`/api/admin-employee-directory?id=${emp.id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                body: JSON.stringify({
+                                  full_name: employeeDirectoryEditFullName.trim(),
+                                  department: employeeDirectoryEditDepartment,
+                                  position: employeeDirectoryEditPosition.trim(),
+                                  employee_role: employeeDirectoryEditRole,
+                                }),
+                              });
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok) throw new Error(data?.error || "Ошибка сохранения атрибутов");
+                              setEmployeeDirectoryItems((prev) =>
+                                prev.map((x) =>
+                                  x.id === emp.id
+                                    ? {
+                                        ...x,
+                                        full_name: employeeDirectoryEditFullName.trim(),
+                                        department: employeeDirectoryEditDepartment,
+                                        position: employeeDirectoryEditPosition.trim(),
+                                        employee_role: employeeDirectoryEditRole,
+                                      }
+                                    : x
+                                )
+                              );
+                              setEmployeeDirectoryEditingId(null);
+                            } catch (e: unknown) {
+                              setError((e as Error)?.message || "Ошибка сохранения атрибутов");
+                            } finally {
+                              setEmployeeDirectoryEditSaving(false);
+                            }
+                          }}
+                        >
+                          {employeeDirectoryEditSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить"}
+                        </Button>
+                        <Button
+                          type="button"
+                          className="filter-button"
+                          disabled={employeeDirectoryEditSaving}
+                          onClick={() => setEmployeeDirectoryEditingId(null)}
+                        >
+                          Отмена
+                        </Button>
+                      </Flex>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
