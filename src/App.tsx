@@ -3759,6 +3759,10 @@ function ProfilePage({
         return `${now.getFullYear()}-${month}`;
     });
     const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
+    const isShiftAccrual = (value: string) => {
+        const raw = String(value || '').trim().toLowerCase();
+        return raw === 'shift' || raw === 'смена' || raw.includes('shift') || raw.includes('смен');
+    };
 
     const DEPARTMENT_OPTIONS = [
         'Склад Москва',
@@ -4310,13 +4314,13 @@ function ProfilePage({
                                         <td style={{ position: 'sticky', left: 0, zIndex: 1, background: 'var(--color-bg)', borderBottom: '1px solid var(--color-border)', padding: '0.5rem' }}>
                                             <Typography.Body style={{ fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
                                             <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
-                                                {emp.position || '—'} · {emp.accrualType === 'shift' ? 'Смена' : 'Часы'}
+                                                {emp.position || '—'} · {isShiftAccrual(emp.accrualType) ? 'Смена' : 'Часы'}
                                             </Typography.Body>
                                         </td>
                                         {departmentTimesheetDays.map((day) => {
                                             const key = `${emp.id}:${day}`;
                                             const value = departmentTimesheetHours[key] || '';
-                                            const isShift = emp.accrualType === 'shift';
+                                            const isShift = isShiftAccrual(emp.accrualType);
                                             return (
                                                 <td key={key} style={{ borderBottom: '1px solid var(--color-border)', padding: '0.2rem' }}>
                                                     <input

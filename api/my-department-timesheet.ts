@@ -4,6 +4,14 @@ import { verifyPassword } from "../lib/passwordUtils.js";
 
 type Body = { login?: string; password?: string };
 
+function normalizeAccrualType(value: unknown): "hour" | "shift" {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "hour";
+  if (raw === "shift" || raw === "смена") return "shift";
+  if (raw === "hour" || raw === "часы" || raw === "час") return "hour";
+  return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
+}
+
 function parseBody(req: VercelRequest): Body {
   let body: unknown = req.body;
   if (typeof body === "string") {
@@ -106,7 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         department: r.department || "",
         position: r.position || "",
         employeeRole: r.employee_role || "employee",
-        accrualType: r.accrual_type || "hour",
+        accrualType: normalizeAccrualType(r.accrual_type),
         accrualRate: r.accrual_rate == null ? 0 : Number(r.accrual_rate),
         active: r.active,
       })),
