@@ -74,8 +74,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pool = getPool();
     await ensureTimesheetTable(pool);
 
-    const meRes = await pool.query<{ id: number; password_hash: string; permissions: Record<string, boolean> | null; active: boolean }>(
-      "SELECT id, password_hash, permissions, active FROM registered_users WHERE lower(trim(login)) = $1 LIMIT 1",
+    const meRes = await pool.query<{ id: number; password_hash: string; permissions: Record<string, boolean> | null; active: boolean; department: string | null }>(
+      "SELECT id, password_hash, permissions, active, department FROM registered_users WHERE lower(trim(login)) = $1 LIMIT 1",
       [login]
     );
     const me = meRes.rows[0];
@@ -87,6 +87,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: "Недостаточно прав для просмотра аналитики" });
     }
 
+    const meDepartment = String(me.department || "").trim();
+    const canUseDepartmentScope = permissions.supervisor === true && !!meDepartment;
+
     const employeesRes = await pool.query<{
       id: number;
       full_name: string | null;
@@ -97,10 +100,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }>(
       `SELECT id, full_name, department, position, accrual_type, accrual_rate
        FROM registered_users
-       WHERE invited_by_user_id = $1
+       WHERE id <> $1
          AND coalesce((permissions->>'haulz')::boolean, false) = true
+         AND (
+           invited_by_user_id = $1
+           OR ($2::boolean = true AND lower(trim(coalesce(department, ''))) = lower(trim($3)))
+         )
        ORDER BY coalesce(full_name, login), id`,
-      [me.id]
+      [me.id, canUseDepartmentScope, meDepartment]
     );
 
     const employees = employeesRes.rows.map((row) => ({

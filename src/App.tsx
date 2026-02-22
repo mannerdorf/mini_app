@@ -1151,6 +1151,26 @@ function DashboardPage({
             .sort((a, b) => Number(b.totalCost || 0) - Number(a.totalCost || 0))
             .slice(0, 5);
     }, [timesheetAnalyticsData?.employees]);
+    const timesheetByDepartment = useMemo(() => {
+        const rows = timesheetAnalyticsData?.employees || [];
+        const grouped = new Map<string, { department: string; totalCost: number; totalHours: number; totalShifts: number; employeeCount: number }>();
+        for (const row of rows) {
+            const department = String(row.department || '').trim() || 'Без подразделения';
+            const current = grouped.get(department) || { department, totalCost: 0, totalHours: 0, totalShifts: 0, employeeCount: 0 };
+            current.totalCost += Number(row.totalCost || 0);
+            current.totalHours += Number(row.totalHours || 0);
+            current.totalShifts += Number(row.totalShifts || 0);
+            current.employeeCount += 1;
+            grouped.set(department, current);
+        }
+        const totalCost = Number(timesheetAnalyticsData?.totalCost || 0);
+        return Array.from(grouped.values())
+            .map((row) => ({
+                ...row,
+                share: totalCost > 0 ? (row.totalCost / totalCost) * 100 : 0,
+            }))
+            .sort((a, b) => b.totalCost - a.totalCost);
+    }, [timesheetAnalyticsData?.employees, timesheetAnalyticsData?.totalCost]);
     const getValForChart = useCallback((item: CargoItem) => {
         if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
         if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
@@ -2581,6 +2601,30 @@ function DashboardPage({
                                             </Typography.Body>
                                             <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>
                                                 {Math.round(Number(row.totalCost || 0)).toLocaleString('ru-RU')} ₽
+                                            </Typography.Body>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginTop: '0.75rem', marginBottom: '0.4rem' }}>
+                                По подразделениям
+                            </Typography.Body>
+                            {timesheetByDepartment.length === 0 ? (
+                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                    Нет данных по подразделениям за выбранный период.
+                                </Typography.Body>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                    {timesheetByDepartment.map((row) => (
+                                        <div key={`timesheet-dep-${row.department}`} style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.3rem' }}>
+                                            <Flex align="center" justify="space-between" gap="0.5rem">
+                                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>{row.department}</Typography.Body>
+                                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                                                    {Math.round(row.totalCost).toLocaleString('ru-RU')} ₽
+                                                </Typography.Body>
+                                            </Flex>
+                                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
+                                                Сотрудников: {row.employeeCount} · Часы: {Number(row.totalHours.toFixed(1))} · Смены: {row.totalShifts} · Доля: {row.share.toFixed(1)}%
                                             </Typography.Body>
                                         </div>
                                     ))}
