@@ -153,14 +153,20 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     );
     if (!existing.rows[0]) return res.status(404).json({ error: "Сотрудник не найден" });
     const row = existing.rows[0];
-    const fullName = typeof body?.full_name === "string" ? String(body.full_name).trim() : (row.full_name || "");
-    const department = typeof body?.department === "string" ? String(body.department).trim() : (row.department || "");
-    const position = typeof body?.position === "string" ? String(body.position).trim() : (row.position || "");
-    const employeeRole = typeof body?.employee_role === "string"
+    const hasFullNameUpdate = typeof body?.full_name === "string";
+    const hasDepartmentUpdate = typeof body?.department === "string";
+    const hasPositionUpdate = typeof body?.position === "string";
+    const hasRoleUpdate = typeof body?.employee_role === "string";
+
+    const fullName = hasFullNameUpdate ? String(body.full_name).trim() : "";
+    const department = hasDepartmentUpdate ? String(body.department).trim() : "";
+    const position = hasPositionUpdate ? String(body.position).trim() : "";
+    const employeeRole = hasRoleUpdate
       ? String(body.employee_role).trim()
-      : (row.employee_role || "employee");
-    if (!fullName) return res.status(400).json({ error: "Укажите ФИО" });
-    if (!department) return res.status(400).json({ error: "Укажите структурное подразделение" });
+      : (row.employee_role || (row.permissions?.supervisor ? "department_head" : "employee"));
+
+    if (hasFullNameUpdate && !fullName) return res.status(400).json({ error: "Укажите ФИО" });
+    if (hasDepartmentUpdate && !department) return res.status(400).json({ error: "Укажите структурное подразделение" });
     if (!EMPLOYEE_ROLES.has(employeeRole)) return res.status(400).json({ error: "Некорректная роль сотрудника" });
     const currentPermissions =
       row.permissions && typeof row.permissions === "object"
@@ -172,16 +178,25 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       supervisor: employeeRole === "department_head",
     };
 
+    const setParts: string[] = [];
+    const params: unknown[] = [];
+    const addParam = (value: unknown) => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    setParts.push(`permissions = ${addParam(JSON.stringify(nextPermissions))}`);
+    if (hasFullNameUpdate) setParts.push(`full_name = ${addParam(fullName)}`);
+    if (hasDepartmentUpdate) setParts.push(`department = ${addParam(department)}`);
+    if (hasPositionUpdate && columnsInfo.hasPosition) setParts.push(`position = ${addParam(position)}`);
+    if (hasRoleUpdate) setParts.push(`employee_role = ${addParam(employeeRole)}`);
+    if (hasUpdatedAt) setParts.push("updated_at = now()");
+
     await pool.query(
       `UPDATE registered_users
-       SET permissions = $1,
-           full_name = $2,
-           department = $3${columnsInfo.hasPosition ? ", position = $4" : ""},
-           employee_role = ${columnsInfo.hasPosition ? "$5" : "$4"}${hasUpdatedAt ? ", updated_at = now()" : ""}
-       WHERE id = ${columnsInfo.hasPosition ? "$6" : "$5"}`,
-      columnsInfo.hasPosition
-        ? [JSON.stringify(nextPermissions), fullName, department, position, employeeRole, id]
-        : [JSON.stringify(nextPermissions), fullName, department, employeeRole, id]
+       SET ${setParts.join(", ")}
+       WHERE id = ${addParam(id)}`,
+      params
     );
     return res.status(200).json({ ok: true });
   }
