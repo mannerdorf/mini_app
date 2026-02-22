@@ -110,7 +110,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `SELECT id, full_name, department, position, accrual_type, accrual_rate
        FROM registered_users
        WHERE id <> $1
-         AND coalesce((permissions->>'haulz')::boolean, false) = true
          AND (
            ($2::boolean = true AND invited_by_user_id = $3)
            OR invited_by_user_id = $1
