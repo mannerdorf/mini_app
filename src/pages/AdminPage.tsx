@@ -249,7 +249,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
@@ -557,6 +557,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryEditPosition, setEmployeeDirectoryEditPosition] = useState("");
   const [employeeDirectoryEditRole, setEmployeeDirectoryEditRole] = useState<"employee" | "department_head">("employee");
   const [employeeDirectoryEditSaving, setEmployeeDirectoryEditSaving] = useState(false);
+  const [timesheetMonth, setTimesheetMonth] = useState<string>(() => {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    return `${now.getFullYear()}-${month}`;
+  });
+  const [timesheetSearch, setTimesheetSearch] = useState("");
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -1091,7 +1097,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule")) setTab("users");
+    if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet")) setTab("users");
   }, [isSuperAdmin, tab]);
 
   const fetchEmployeeDirectory = useCallback(async () => {
@@ -1118,6 +1124,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   useEffect(() => {
     if (tab === "employee_directory" && isSuperAdmin) {
+      fetchEmployeeDirectory();
+    }
+  }, [tab, isSuperAdmin, fetchEmployeeDirectory]);
+
+  useEffect(() => {
+    if (tab === "timesheet" && isSuperAdmin) {
       fetchEmployeeDirectory();
     }
   }, [tab, isSuperAdmin, fetchEmployeeDirectory]);
@@ -1626,6 +1638,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <Clock className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             График работы
+          </Button>
+        )}
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={{ background: tab === "timesheet" ? "var(--color-primary-blue)" : undefined, color: tab === "timesheet" ? "white" : undefined }}
+            onClick={() => setTab("timesheet")}
+          >
+            <Calendar className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Табель учета рабочего времени
           </Button>
         )}
       </Flex>
@@ -3995,6 +4017,64 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </table>
               </div>
             </>
+          )}
+        </Panel>
+      )}
+
+      {tab === "timesheet" && isSuperAdmin && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Табель учета рабочего времени</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.8rem" }}>
+            Сводный список сотрудников за выбранный месяц. Используется для контроля фактического состава и подготовки табеля.
+          </Typography.Body>
+          <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.8rem" }}>
+            <input
+              type="month"
+              className="admin-form-input"
+              value={timesheetMonth}
+              onChange={(e) => setTimesheetMonth(e.target.value)}
+              style={{ minWidth: "12rem", padding: "0 0.6rem" }}
+            />
+            <Input
+              type="text"
+              className="admin-form-input"
+              value={timesheetSearch}
+              onChange={(e) => setTimesheetSearch(e.target.value)}
+              placeholder="Поиск по ФИО, email, подразделению"
+              style={{ minWidth: "18rem", flex: 1 }}
+            />
+          </Flex>
+          {employeeDirectoryLoading ? (
+            <Flex align="center" gap="0.5rem">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка...</Typography.Body>
+            </Flex>
+          ) : (
+            (() => {
+              const q = timesheetSearch.trim().toLowerCase();
+              const rows = employeeDirectoryItems.filter((emp) => {
+                if (!q) return true;
+                const haystack = [emp.full_name, emp.login, emp.department, emp.position]
+                  .map((x) => String(x || "").toLowerCase())
+                  .join(" ");
+                return haystack.includes(q);
+              });
+              if (rows.length === 0) {
+                return <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>За выбранный период сотрудники не найдены.</Typography.Body>;
+              }
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+                  {rows.map((emp) => (
+                    <div key={`timesheet-${emp.id}`} style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.6rem 0.7rem", background: "var(--color-bg-hover)" }}>
+                      <Typography.Body style={{ fontWeight: 600 }}>{emp.full_name || "—"}</Typography.Body>
+                      <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+                        Месяц: {timesheetMonth || "—"} · Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
+                      </Typography.Body>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
           )}
         </Panel>
       )}
