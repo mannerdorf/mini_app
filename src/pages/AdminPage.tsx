@@ -21,13 +21,14 @@ const PERMISSION_KEYS = [
   { key: "supervisor", label: "Руководитель" },
 ] as const;
 
-/** Первая строка разделов: при активном — красная. Аналитику может включить только суперадмин. По умолчанию при регистрации: Фин. показатели и Руководитель — активны, остальное — пассивно. */
+/** Первая строка разделов: при активном — красная (для HAULZ — зелёная). Аналитику может включить только суперадмин. По умолчанию при регистрации: Фин. показатели и Руководитель — активны, остальное — пассивно. */
 const PERMISSION_ROW1 = [
   { key: "__financial__", label: "Фин. показатели" as const },
   { key: "supervisor", label: "Руководитель" as const },
   { key: "cms_access", label: "Доступ в CMS" },
   { key: "service_mode", label: "Служебный режим" },
   { key: "analytics", label: "Аналитика" as const },
+  { key: "haulz", label: "HAULZ" as const },
 ] as const;
 
 /** Вторая строка разделов: при активном — синяя */
@@ -35,7 +36,6 @@ const PERMISSION_ROW2 = [
   { key: "cargo", label: "Грузы" },
   { key: "doc_invoices", label: "Счета" },
   { key: "doc_acts", label: "УПД" },
-  { key: "haulz", label: "HAULZ" },
   { key: "doc_orders", label: "Заявки" },
   { key: "doc_claims", label: "Претензии" },
   { key: "doc_contracts", label: "Договоры" },
@@ -548,9 +548,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryFullName, setEmployeeDirectoryFullName] = useState("");
   const [employeeDirectoryDepartment, setEmployeeDirectoryDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
   const [employeeDirectoryRole, setEmployeeDirectoryRole] = useState<"employee" | "department_head">("employee");
-  const [employeeDirectoryPresetId, setEmployeeDirectoryPresetId] = useState<string>("");
   const [employeeDirectorySaving, setEmployeeDirectorySaving] = useState(false);
-  const [employeeDirectorySendEmail, setEmployeeDirectorySendEmail] = useState(true);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -1272,6 +1270,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (duplicate) return "Пользователь с таким email уже существует";
     return null;
   }, [formEmail, users]);
+
+  const employeeDirectoryEmailOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        users
+          .map((u) => String(u.login || "").trim().toLowerCase())
+          .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      )
+    ).sort((a, b) => a.localeCompare(b, "ru"));
+  }, [users]);
 
   const openPermissionsEditor = (user: User) => {
     setSelectedUser(user);
@@ -2239,7 +2247,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         const isActive = key === "__financial__" ? editorFinancial : key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : key === "analytics" ? !!editorPermissions.analytics : !!editorPermissions[key];
                         const onClick = key === "__financial__" ? () => { setEditorSelectedPresetId(""); setEditorFinancial(!editorFinancial); } : key === "service_mode" ? () => { setEditorSelectedPresetId(""); const v = !(!!editorPermissions.service_mode || editorAccessAllInns); setEditorPermissions((p) => ({ ...p, service_mode: v })); setEditorAccessAllInns(v); } : () => handlePermissionsToggle(key);
                         const activeClass = isActive
-                          ? (key === "service_mode" || key === "analytics" ? "active active-warning" : "active active-danger")
+                          ? (key === "service_mode" || key === "analytics"
+                              ? "active active-warning"
+                              : key === "haulz"
+                                ? "active active-success"
+                                : "active active-danger")
                           : "";
                         return (
                           <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>
@@ -2485,7 +2497,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       const isActive = key === "__financial__" ? bulkFinancial : key === "service_mode" ? (!!bulkPermissions.service_mode || bulkAccessAllInns) : !!bulkPermissions[key];
                       const onClick = key === "__financial__" ? () => { setBulkSelectedPresetId(""); setBulkFinancial(!bulkFinancial); } : key === "service_mode" ? () => { setBulkSelectedPresetId(""); const v = !(!!bulkPermissions.service_mode || bulkAccessAllInns); setBulkPermissions((p) => ({ ...p, service_mode: v })); setBulkAccessAllInns(v); } : () => { setBulkSelectedPresetId(""); setBulkPermissions((p) => ({ ...p, [key]: !p[key] })); };
                       const activeClass = isActive
-                        ? (key === "service_mode" || key === "analytics" ? "active active-warning" : "active active-danger")
+                        ? (key === "service_mode" || key === "analytics"
+                            ? "active active-warning"
+                            : key === "haulz"
+                              ? "active active-success"
+                              : "active active-danger")
                         : "";
                       return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>;
                     })}
@@ -2872,7 +2888,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   const isActive = key === "__financial__" ? formFinancial : key === "service_mode" ? (!!formPermissions.service_mode || formAccessAllInns) : !!formPermissions[key];
                   const onClick = key === "__financial__" ? () => { setFormSelectedPresetId(""); setFormFinancial(!formFinancial); } : key === "service_mode" ? () => { setFormSelectedPresetId(""); const v = !(!!formPermissions.service_mode || formAccessAllInns); setFormPermissions((p) => ({ ...p, service_mode: v })); setFormAccessAllInns(v); if (v) clearCustomerSelection(); } : () => togglePerm(key);
                   const activeClass = isActive
-                    ? (key === "service_mode" || key === "analytics" ? "active active-warning" : "active active-danger")
+                    ? (key === "service_mode" || key === "analytics"
+                        ? "active active-warning"
+                        : key === "haulz"
+                          ? "active active-success"
+                          : "active active-danger")
                     : "";
                   return (
                     <button type="button" key={key} className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>
@@ -4439,7 +4459,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       if (!isSuperAdmin && (key === "cms_access" || key === "service_mode" || key === "analytics")) return null;
                       const isActive = key === "__financial__" ? presetFormFinancial : key === "service_mode" ? (!!presetFormPermissions.service_mode || presetFormServiceMode) : !!presetFormPermissions[key];
                       const onClick = key === "__financial__" ? () => setPresetFormFinancial(!presetFormFinancial) : key === "service_mode" ? () => { const v = !(!!presetFormPermissions.service_mode || presetFormServiceMode); setPresetFormPermissions((p) => ({ ...p, service_mode: v })); setPresetFormServiceMode(v); } : () => setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }));
-                      return <button key={key} type="button" className={`permission-button ${isActive ? "active active-danger" : ""}`} onClick={onClick}>{label}</button>;
+                      const activeClass = isActive
+                        ? (key === "haulz" ? "active active-success" : "active active-danger")
+                        : "";
+                      return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>;
                     })}
                   </div>
                   <div className="admin-permissions-toolbar" style={{ marginTop: "0.25rem" }}>
@@ -4628,17 +4651,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник сотрудников HAULZ</Typography.Body>
           <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.9rem" }}>
-            Регистрация сотрудников: ФИО, структурное подразделение, роль и пресет прав.
+            Регистрация сотрудников: ФИО, структурное подразделение и роль.
           </Typography.Body>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            <Input
+            <input
               type="email"
               className="admin-form-input"
               value={employeeDirectoryEmail}
+              list="employee-directory-email-options"
               placeholder="Email сотрудника"
               onChange={(e) => setEmployeeDirectoryEmail(e.target.value)}
+              style={{ width: "100%" }}
             />
+            <datalist id="employee-directory-email-options">
+              {employeeDirectoryEmailOptions.map((email) => (
+                <option key={email} value={email} />
+              ))}
+            </datalist>
             <Input
               type="text"
               className="admin-form-input"
@@ -4665,24 +4695,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <option value="employee">Сотрудник</option>
               <option value="department_head">Руководитель подразделения</option>
             </select>
-            <select
-              className="admin-form-input"
-              value={employeeDirectoryPresetId}
-              onChange={(e) => setEmployeeDirectoryPresetId(e.target.value)}
-              style={{ padding: "0 0.5rem" }}
-            >
-              <option value="">Без пресета</option>
-              {permissionPresets.map((p) => (
-                <option key={p.id} value={p.id}>{p.label}</option>
-              ))}
-            </select>
           </div>
 
           <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: "0.9rem" }}>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-              <input type="checkbox" checked={employeeDirectorySendEmail} onChange={(e) => setEmployeeDirectorySendEmail(e.target.checked)} />
-              Отправить пароль на email
-            </label>
             <Button
               type="button"
               className="button-primary"
@@ -4699,8 +4714,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       full_name: employeeDirectoryFullName.trim(),
                       department: employeeDirectoryDepartment,
                       employee_role: employeeDirectoryRole,
-                      preset_id: employeeDirectoryPresetId || undefined,
-                      send_email: employeeDirectorySendEmail,
                     }),
                   });
                   const data = await res.json().catch(() => ({}));
