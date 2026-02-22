@@ -4371,6 +4371,9 @@ function ProfilePage({
                                             return acc + (Number.isFinite(num) ? num : 0);
                                         }, 0);
                                     const totalMoney = isShift ? totalShiftCount * rate : totalHours * rate;
+                                    const totalPrimaryText = isShift
+                                        ? `${totalShiftCount} ${departmentTimesheetMobilePicker ? 'смены' : 'смен'}`
+                                        : `${Number(totalHours.toFixed(2))} ${departmentTimesheetMobilePicker ? 'часы' : 'ч'}`;
 
                                     return (
                                     <tr key={emp.id}>
@@ -4457,7 +4460,7 @@ function ProfilePage({
                                         })}
                                         <td style={{ borderBottom: '1px solid var(--color-border)', padding: '0.35rem 0.4rem', textAlign: 'center' }}>
                                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-                                                {isShift ? `${totalShiftCount} смен` : `${Number(totalHours.toFixed(2))} ч`}
+                                                {totalPrimaryText}
                                             </Typography.Body>
                                             <Typography.Body style={{ fontSize: '0.76rem', color: 'var(--color-text-secondary)' }}>
                                                 {Number(totalMoney.toFixed(2))} ₽

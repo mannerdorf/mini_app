@@ -4196,6 +4196,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               const totalMoney = isShiftAccrual
                                 ? totalShifts * hourlyRate
                                 : totalHours * hourlyRate;
+                              const totalPrimaryText = isShiftAccrual
+                                ? `${totalShifts} ${timesheetMobilePicker ? "смены" : "смен"}`
+                                : `${Number(totalHours.toFixed(1))} ${timesheetMobilePicker ? "часы" : "ч"}`;
                               return (
                                 <tr key={`timesheet-row-${group.department}-${emp.id}`}>
                                   <td style={{ padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card)", zIndex: 1 }}>
@@ -4289,7 +4292,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     );
                                   })}
                                   <td style={{ textAlign: "center", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", fontWeight: 600, minWidth: "7.2rem" }}>
-                                    <div>{Number(totalHours.toFixed(1))} ч</div>
+                                    <div>{totalPrimaryText}</div>
                                     <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>
                                       {Number(totalMoney.toFixed(2))} ₽
                                     </div>
