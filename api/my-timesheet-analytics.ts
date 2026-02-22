@@ -74,8 +74,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pool = getPool();
     await ensureTimesheetTable(pool);
 
-    const meRes = await pool.query<{ id: number; password_hash: string; permissions: Record<string, boolean> | null; active: boolean; department: string | null }>(
-      "SELECT id, password_hash, permissions, active, department FROM registered_users WHERE lower(trim(login)) = $1 LIMIT 1",
+    const meRes = await pool.query<{
+      id: number;
+      password_hash: string;
+      permissions: Record<string, boolean> | null;
+      active: boolean;
+      department: string | null;
+      invited_by_user_id: number | null;
+    }>(
+      "SELECT id, password_hash, permissions, active, department, invited_by_user_id FROM registered_users WHERE lower(trim(login)) = $1 LIMIT 1",
       [login]
     );
     const me = meRes.rows[0];
@@ -88,7 +95,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const meDepartment = String(me.department || "").trim();
-    const canUseDepartmentScope = permissions.supervisor === true && !!meDepartment;
+    const hasAnalyticsScope = permissions.analytics === true;
+    const canUseDepartmentScope = !hasAnalyticsScope && permissions.supervisor === true && !!meDepartment;
+    const companyOwnerId = me.invited_by_user_id ?? me.id;
 
     const employeesRes = await pool.query<{
       id: number;
@@ -103,11 +112,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        WHERE id <> $1
          AND coalesce((permissions->>'haulz')::boolean, false) = true
          AND (
-           invited_by_user_id = $1
-           OR ($2::boolean = true AND lower(trim(coalesce(department, ''))) = lower(trim($3)))
+           ($2::boolean = true AND invited_by_user_id = $3)
+           OR invited_by_user_id = $1
+           OR ($4::boolean = true AND lower(trim(coalesce(department, ''))) = lower(trim($5)))
          )
        ORDER BY coalesce(full_name, login), id`,
-      [me.id, canUseDepartmentScope, meDepartment]
+      [me.id, hasAnalyticsScope, companyOwnerId, canUseDepartmentScope, meDepartment]
     );
 
     const employees = employeesRes.rows.map((row) => ({
