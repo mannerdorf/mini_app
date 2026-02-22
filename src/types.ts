@@ -97,6 +97,7 @@ export type HeaderCompanyRow = { login: string; inn: string; name: string };
 export type ProfileView =
     | "main"
     | "companies"
+    | "haulz"
     | "roles"
     | "employees"
     | "addCompanyMethod"

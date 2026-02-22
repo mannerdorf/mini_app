@@ -3721,11 +3721,14 @@ function ProfilePage({
     const [passwordError, setPasswordError] = useState<string | null>(null);
     const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-    const [employeesList, setEmployeesList] = useState<{ id: number; login: string; active: boolean; createdAt: string; presetLabel: string }[]>([]);
+    const [employeesList, setEmployeesList] = useState<{ id: number; login: string; active: boolean; createdAt: string; presetLabel: string; fullName?: string; department?: string; employeeRole?: "employee" | "department_head" }[]>([]);
     const [employeesLoading, setEmployeesLoading] = useState(false);
     const [employeesError, setEmployeesError] = useState<string | null>(null);
     const [rolePresets, setRolePresets] = useState<{ id: string; label: string }[]>([]);
     const [inviteEmail, setInviteEmail] = useState('');
+    const [inviteFullName, setInviteFullName] = useState('');
+    const [inviteDepartment, setInviteDepartment] = useState('');
+    const [inviteEmployeeRole, setInviteEmployeeRole] = useState<'employee' | 'department_head'>('employee');
     const [invitePresetId, setInvitePresetId] = useState('');
     const [inviteLoading, setInviteLoading] = useState(false);
     const [inviteError, setInviteError] = useState<string | null>(null);
@@ -3733,6 +3736,17 @@ function ProfilePage({
     const [employeeDeleteId, setEmployeeDeleteId] = useState<number | null>(null);
     const [employeeDeleteLoading, setEmployeeDeleteLoading] = useState(false);
     const [employeePresetLoadingId, setEmployeePresetLoadingId] = useState<number | null>(null);
+    const [haulzEnabled, setHaulzEnabled] = useState(false);
+    const [haulzRoleFilter, setHaulzRoleFilter] = useState<'all' | 'employee' | 'department_head'>('all');
+    const [haulzEmployeeFilterId, setHaulzEmployeeFilterId] = useState<string>('all');
+
+    const DEPARTMENT_OPTIONS = [
+        'Склад Москва',
+        'Склад Калининград',
+        'Отдел продаж',
+        'Управляющая компания',
+    ] as const;
+    const employeeRoleLabel = (value?: string) => value === 'department_head' ? 'Руководитель подразделения' : 'Сотрудник';
 
     const fetchEmployeesAndPresets = useCallback(async () => {
         if (!activeAccount?.login) return;
@@ -3812,7 +3826,7 @@ function ProfilePage({
     }, [twoFactorEnabled, twoFactorMethod, twoFactorTelegramLinked, checkTelegramLinkStatus]);
 
     useEffect(() => {
-        if (currentView === 'employees' && activeAccount?.login) void fetchEmployeesAndPresets();
+        if ((currentView === 'employees' || currentView === 'haulz') && activeAccount?.login) void fetchEmployeesAndPresets();
     }, [currentView, activeAccount?.login, fetchEmployeesAndPresets]);
 
     // Настройки
@@ -3829,11 +3843,17 @@ function ProfilePage({
             icon: <UserIcon className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('roles')
         },
+        ...(activeAccount?.isRegisteredUser ? [{
+            id: 'haulz',
+            label: 'HAULZ',
+            icon: <LayoutGrid className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
+            onClick: () => setCurrentView('haulz')
+        }] : []),
         ...(activeAccount?.isRegisteredUser && activeAccount?.inCustomerDirectory === true ? [
         // Сотрудники доступны только если в админке включено право «Руководитель» для этого пользователя
         ...(activeAccount?.permissions?.supervisor === true ? [{
             id: 'employees',
-            label: 'Сотрудники',
+            label: 'Справочник сотрудников',
             icon: <Users className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('employees')
         }] : [])
@@ -4114,6 +4134,61 @@ function ProfilePage({
         );
     }
 
+    if (currentView === 'haulz') {
+        const roleFiltered = employeesList.filter((emp) => haulzRoleFilter === 'all' ? true : (emp.employeeRole || 'employee') === haulzRoleFilter);
+        const visibleEmployees = roleFiltered.filter((emp) => haulzEmployeeFilterId === 'all' ? true : String(emp.id) === haulzEmployeeFilterId);
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>HAULZ</Typography.Headline>
+                </Flex>
+                <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+                    <Flex align="center" justify="space-between" style={{ gap: '0.75rem' }}>
+                        <Typography.Body style={{ fontWeight: 600 }}>Активировать раздел HAULZ</Typography.Body>
+                        <TapSwitch checked={haulzEnabled} onToggle={() => setHaulzEnabled((v) => !v)} />
+                    </Flex>
+                    {haulzEnabled && (
+                        <div style={{ marginTop: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                            <select
+                                className="admin-form-input invite-role-select"
+                                value={haulzRoleFilter}
+                                onChange={(e) => {
+                                    setHaulzRoleFilter(e.target.value as 'all' | 'employee' | 'department_head');
+                                    setHaulzEmployeeFilterId('all');
+                                }}
+                                style={{ padding: '0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)' }}
+                            >
+                                <option value="all">Роль: все</option>
+                                <option value="employee">Роль: сотрудник</option>
+                                <option value="department_head">Роль: руководитель подразделения</option>
+                            </select>
+                            <select
+                                className="admin-form-input invite-role-select"
+                                value={haulzEmployeeFilterId}
+                                onChange={(e) => setHaulzEmployeeFilterId(e.target.value)}
+                                style={{ padding: '0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)' }}
+                            >
+                                <option value="all">Имя сотрудника: все</option>
+                                {roleFiltered.map((emp) => (
+                                    <option key={emp.id} value={String(emp.id)}>{emp.fullName || emp.login}</option>
+                                ))}
+                            </select>
+                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                Найдено сотрудников: {visibleEmployees.length}
+                            </Typography.Body>
+                        </div>
+                    )}
+                </Panel>
+                <Button type="button" className="button-primary" onClick={() => setCurrentView('employees')}>
+                    Справочник сотрудников
+                </Button>
+            </div>
+        );
+    }
+
     if (currentView === 'employees') {
         return (
             <div className="w-full">
@@ -4121,10 +4196,10 @@ function ProfilePage({
                     <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
-                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Сотрудники</Typography.Headline>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Справочник сотрудников</Typography.Headline>
                 </Flex>
                 <Typography.Body style={{ marginBottom: '1rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
-                    Приглашайте сотрудников по email: им придёт пароль для входа. Выдайте роль (пресет) и в любой момент можете отключить доступ.
+                    Регистрируйте сотрудников с указанием ФИО, структурного подразделения и роли. Пароль для входа отправляется на email.
                 </Typography.Body>
                 {!activeAccount?.isRegisteredUser ? (
                     <Panel className="cargo-card" style={{ padding: '1rem' }}>
@@ -4144,7 +4219,7 @@ function ProfilePage({
                             <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>Приглашать сотрудников могут только пользователи, чья компания есть в справочнике заказчиков.</Typography.Body>
                         </Panel>
                         <div style={{ marginTop: '1rem' }}>
-                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Приглашённые</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Справочник сотрудников</Typography.Body>
                             {employeesLoading ? (
                                 <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>
                             ) : employeesError ? (
@@ -4157,8 +4232,10 @@ function ProfilePage({
                                     <Panel key={emp.id} className="cargo-card" style={{ padding: '0.75rem' }}>
                                         <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem">
                                             <div>
-                                                <Typography.Body style={{ fontWeight: 600 }}>{emp.login}</Typography.Body>
-                                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}</Typography.Body>
+                                                <Typography.Body style={{ fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
+                                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                    {employeeRoleLabel(emp.employeeRole)} · {emp.department || '—'} · {emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}
+                                                </Typography.Body>
                                             </div>
                                             <Flex align="center" gap="0.5rem" wrap="wrap">
                                                 <select
@@ -4231,7 +4308,7 @@ function ProfilePage({
                                             <div className="modal-content" style={{ maxWidth: '22rem', padding: '1.25rem' }} onClick={(e) => e.stopPropagation()}>
                                                 <Typography.Body id="employee-delete-title" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Удалить сотрудника?</Typography.Body>
                                                 <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
-                                                    {emp?.login ?? ''} будет удалён из списка и не сможет войти в приложение.
+                                                    {(emp?.fullName || emp?.login || '')} будет удалён из списка и не сможет войти в приложение.
                                                 </Typography.Body>
                                                 <Flex gap="0.5rem" wrap="wrap">
                                                     <Button
@@ -4270,16 +4347,44 @@ function ProfilePage({
                 ) : (
                     <>
                         <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Пригласить сотрудника</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Регистрация сотрудника</Typography.Body>
                             <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: '0.5rem' }}>
                                 <Input
                                     type="email"
-                                    placeholder="Email"
+                                    placeholder="Email сотрудника"
                                     value={inviteEmail}
                                     onChange={(e) => { setInviteEmail(e.target.value); setInviteError(null); setInviteSuccess(null); }}
                                     style={{ width: '12rem', minWidth: '10rem', height: '2.5rem', boxSizing: 'border-box' }}
                                     className="admin-form-input"
                                 />
+                                <Input
+                                    type="text"
+                                    placeholder="ФИО"
+                                    value={inviteFullName}
+                                    onChange={(e) => { setInviteFullName(e.target.value); setInviteError(null); setInviteSuccess(null); }}
+                                    style={{ width: '14rem', minWidth: '12rem', height: '2.5rem', boxSizing: 'border-box' }}
+                                    className="admin-form-input"
+                                />
+                                <select
+                                    className="admin-form-input invite-role-select"
+                                    value={inviteDepartment}
+                                    onChange={(e) => { setInviteDepartment(e.target.value); setInviteError(null); }}
+                                    style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.5rem', boxSizing: 'border-box', minWidth: '12rem' }}
+                                    aria-label="Структурное подразделение"
+                                >
+                                    <option value="">Структурное подразделение</option>
+                                    {DEPARTMENT_OPTIONS.map((dep) => <option key={dep} value={dep}>{dep}</option>)}
+                                </select>
+                                <select
+                                    className="admin-form-input invite-role-select"
+                                    value={inviteEmployeeRole}
+                                    onChange={(e) => setInviteEmployeeRole(e.target.value as 'employee' | 'department_head')}
+                                    style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.5rem', boxSizing: 'border-box', minWidth: '12rem' }}
+                                    aria-label="Роль сотрудника"
+                                >
+                                    <option value="employee">Сотрудник</option>
+                                    <option value="department_head">Руководитель подразделения</option>
+                                </select>
                                 <select
                                     className="admin-form-input invite-role-select"
                                     value={invitePresetId}
@@ -4298,19 +4403,27 @@ function ProfilePage({
                                     type="button"
                                     className="button-primary"
                                     style={{ height: '2.5rem', padding: '0 1rem', boxSizing: 'border-box' }}
-                                    disabled={inviteLoading || !inviteEmail.trim() || !invitePresetId}
+                                    disabled={inviteLoading || !inviteEmail.trim() || !inviteFullName.trim() || !inviteDepartment || !invitePresetId}
                                     onClick={async () => {
                                         setInviteError(null); setInviteSuccess(null); setInviteLoading(true);
                                         try {
                                             const res = await fetch('/api/my-employees', {
                                                 method: 'POST',
                                                 headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ login: activeAccount.login, password: activeAccount.password, email: inviteEmail.trim(), presetId: invitePresetId }),
+                                                body: JSON.stringify({
+                                                    login: activeAccount.login,
+                                                    password: activeAccount.password,
+                                                    email: inviteEmail.trim(),
+                                                    fullName: inviteFullName.trim(),
+                                                    department: inviteDepartment,
+                                                    employeeRole: inviteEmployeeRole,
+                                                    presetId: invitePresetId
+                                                }),
                                             });
                                             const data = await res.json().catch(() => ({}));
                                             if (!res.ok) throw new Error(data.error || 'Ошибка');
                                             setInviteSuccess(data.message || 'Готово');
-                                            setInviteEmail(''); setInvitePresetId('');
+                                            setInviteEmail(''); setInviteFullName(''); setInviteDepartment(''); setInviteEmployeeRole('employee'); setInvitePresetId('');
                                             fetchEmployeesAndPresets();
                                         } catch (e) {
                                             setInviteError((e as Error)?.message || 'Ошибка приглашения');
@@ -4331,7 +4444,7 @@ function ProfilePage({
                             {inviteSuccess && <Typography.Body style={{ color: 'var(--color-success-status)', fontSize: '0.85rem' }}>{inviteSuccess}</Typography.Body>}
                         </Panel>
                         <div style={{ marginTop: '1rem' }}>
-                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Приглашённые</Typography.Body>
+                            <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>Справочник сотрудников</Typography.Body>
                             {employeesLoading ? (
                                 <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>
                             ) : employeesError ? (
@@ -4344,8 +4457,10 @@ function ProfilePage({
                                     <Panel key={emp.id} className="cargo-card" style={{ padding: '0.75rem' }}>
                                         <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem">
                                             <div>
-                                                <Typography.Body style={{ fontWeight: 600 }}>{emp.login}</Typography.Body>
-                                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}</Typography.Body>
+                                                <Typography.Body style={{ fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
+                                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                    {employeeRoleLabel(emp.employeeRole)} · {emp.department || '—'} · {emp.presetLabel} · {emp.active ? 'Доступ включён' : 'Отключён'}
+                                                </Typography.Body>
                                             </div>
                                             <Flex align="center" gap="0.5rem" wrap="wrap">
                                                 <select
@@ -4418,7 +4533,7 @@ function ProfilePage({
                                             <div className="modal-content" style={{ maxWidth: '22rem', padding: '1.25rem' }} onClick={(e) => e.stopPropagation()}>
                                                 <Typography.Body id="employee-delete-title" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Удалить сотрудника?</Typography.Body>
                                                 <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
-                                                    {emp?.login ?? ''} будет удалён из списка и не сможет войти в приложение.
+                                                    {(emp?.fullName || emp?.login || '')} будет удалён из списка и не сможет войти в приложение.
                                                 </Typography.Body>
                                                 <Flex gap="0.5rem" wrap="wrap">
                                                     <Button

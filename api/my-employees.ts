@@ -8,6 +8,9 @@ type Body = {
   login?: string;
   password?: string;
   email?: string;
+  fullName?: string;
+  department?: string;
+  employeeRole?: "employee" | "department_head";
   presetId?: string;
   active?: boolean;
 };
@@ -41,6 +44,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const login = typeof body.login === "string" ? body.login.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const fullName = typeof body.fullName === "string" ? body.fullName.trim() : "";
+    const department = typeof body.department === "string" ? body.department.trim() : "";
+    const employeeRole = body.employeeRole === "department_head" ? "department_head" : "employee";
     const presetId = typeof body.presetId === "string" ? body.presetId.trim() : "";
 
     if (!login || !password) {
@@ -54,8 +60,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "GET" || (req.method === "POST" && !email && !presetId)) {
       try {
         const pool = getPool();
-        const { rows } = await pool.query<{ id: number; login: string; active: boolean; created_at: string; invited_with_preset_label: string | null }>(
-          `SELECT id, login, active, created_at, invited_with_preset_label
+        const colsRes = await pool.query<{ column_name: string }>(
+          `SELECT column_name
+           FROM information_schema.columns
+           WHERE table_schema = 'public' AND table_name = 'registered_users'`
+        );
+        const columns = new Set(colsRes.rows.map((r) => r.column_name));
+        const hasFullName = columns.has("full_name");
+        const hasDepartment = columns.has("department");
+        const hasEmployeeRole = columns.has("employee_role");
+        const { rows } = await pool.query<{
+          id: number;
+          login: string;
+          active: boolean;
+          created_at: string;
+          invited_with_preset_label: string | null;
+          full_name: string | null;
+          department: string | null;
+          employee_role: "employee" | "department_head" | null;
+        }>(
+          `SELECT id, login, active, created_at, invited_with_preset_label${
+            hasFullName ? ", full_name" : ", null::text as full_name"
+          }${
+            hasDepartment ? ", department" : ", null::text as department"
+          }${
+            hasEmployeeRole ? ", employee_role" : ", null::text as employee_role"
+          }
            FROM registered_users WHERE invited_by_user_id = $1 ORDER BY created_at DESC`,
           [inviterId]
         );
@@ -66,6 +96,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             active: r.active,
             createdAt: r.created_at,
             presetLabel: r.invited_with_preset_label || "—",
+            fullName: r.full_name || "",
+            department: r.department || "",
+            employeeRole: r.employee_role || "employee",
           })),
         });
       } catch (e: unknown) {
@@ -78,8 +111,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return res.status(400).json({ error: "Укажите корректный email" });
       }
+      if (!fullName) {
+        return res.status(400).json({ error: "Укажите ФИО" });
+      }
+      if (!department) {
+        return res.status(400).json({ error: "Укажите структурное подразделение" });
+      }
       try {
       const pool = getPool();
+      const colsRes = await pool.query<{ column_name: string }>(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'registered_users'`
+      );
+      const columns = new Set(colsRes.rows.map((r) => r.column_name));
       const presetRow = await pool.query<{ label: string; permissions: unknown; financial_access: boolean; service_mode: boolean }>(
         "SELECT label, permissions, financial_access, service_mode FROM admin_role_presets WHERE id = $1",
         [parseInt(presetId, 10)]
@@ -116,20 +161,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const inn = firstCompany?.inn ?? inviter.inn ?? "";
       const companyName = firstCompany?.name ?? inviter.company_name ?? "";
       const accessAllInns = !!preset.service_mode;
+      const insertColumns = [
+        "login",
+        "password_hash",
+        "inn",
+        "company_name",
+        "permissions",
+        "financial_access",
+        "access_all_inns",
+        "invited_by_user_id",
+        "invited_with_preset_label",
+      ];
+      const insertValues: unknown[] = [
+        newLogin,
+        passwordHash,
+        accessAllInns ? "" : inn,
+        companyName,
+        JSON.stringify(permissions),
+        !!preset.financial_access,
+        accessAllInns,
+        inviterId,
+        preset.label,
+      ];
+      if (columns.has("full_name")) {
+        insertColumns.push("full_name");
+        insertValues.push(fullName);
+      }
+      if (columns.has("department")) {
+        insertColumns.push("department");
+        insertValues.push(department);
+      }
+      if (columns.has("employee_role")) {
+        insertColumns.push("employee_role");
+        insertValues.push(employeeRole);
+      }
+      const placeholders = insertValues.map((_, i) => `$${i + 1}`).join(", ");
       await pool.query(
-        `INSERT INTO registered_users (login, password_hash, inn, company_name, permissions, financial_access, access_all_inns, invited_by_user_id, invited_with_preset_label)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [
-          newLogin,
-          passwordHash,
-          accessAllInns ? "" : inn,
-          companyName,
-          JSON.stringify(permissions),
-          !!preset.financial_access,
-          accessAllInns,
-          inviterId,
-          preset.label,
-        ]
+        `INSERT INTO registered_users (${insertColumns.join(", ")})
+         VALUES (${placeholders})`,
+        insertValues
       );
       if (!accessAllInns && companies.rows.length > 0) {
         for (const c of companies.rows) {
