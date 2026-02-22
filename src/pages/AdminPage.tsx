@@ -118,6 +118,8 @@ type EmployeeDirectoryRow = {
   full_name: string;
   department: string;
   position: string;
+  accrual_type: "hour" | "shift" | null;
+  accrual_rate: number | null;
   employee_role: "employee" | "department_head";
   active: boolean;
   invited_with_preset_label: string | null;
@@ -549,12 +551,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryFullName, setEmployeeDirectoryFullName] = useState("");
   const [employeeDirectoryDepartment, setEmployeeDirectoryDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
   const [employeeDirectoryPosition, setEmployeeDirectoryPosition] = useState("");
+  const [employeeDirectoryAccrualType, setEmployeeDirectoryAccrualType] = useState<"hour" | "shift">("hour");
+  const [employeeDirectoryAccrualRate, setEmployeeDirectoryAccrualRate] = useState("0");
   const [employeeDirectoryRole, setEmployeeDirectoryRole] = useState<"employee" | "department_head">("employee");
   const [employeeDirectorySaving, setEmployeeDirectorySaving] = useState(false);
   const [employeeDirectoryEditingId, setEmployeeDirectoryEditingId] = useState<number | null>(null);
   const [employeeDirectoryEditFullName, setEmployeeDirectoryEditFullName] = useState("");
   const [employeeDirectoryEditDepartment, setEmployeeDirectoryEditDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
   const [employeeDirectoryEditPosition, setEmployeeDirectoryEditPosition] = useState("");
+  const [employeeDirectoryEditAccrualType, setEmployeeDirectoryEditAccrualType] = useState<"hour" | "shift">("hour");
+  const [employeeDirectoryEditAccrualRate, setEmployeeDirectoryEditAccrualRate] = useState("0");
   const [employeeDirectoryEditRole, setEmployeeDirectoryEditRole] = useState<"employee" | "department_head">("employee");
   const [employeeDirectoryEditSaving, setEmployeeDirectoryEditSaving] = useState(false);
   const [timesheetMonth, setTimesheetMonth] = useState<string>(() => {
@@ -4891,6 +4897,25 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             />
             <select
               className="admin-form-input"
+              value={employeeDirectoryAccrualType}
+              onChange={(e) => setEmployeeDirectoryAccrualType(e.target.value as "hour" | "shift")}
+              style={{ padding: "0 0.5rem" }}
+            >
+              <option value="hour">Начисление по часам</option>
+              <option value="shift">Начисление по сменам</option>
+            </select>
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              className="admin-form-input"
+              value={employeeDirectoryAccrualRate}
+              placeholder={employeeDirectoryAccrualType === "shift" ? "Ставка за смену" : "Ставка за час"}
+              onChange={(e) => setEmployeeDirectoryAccrualRate(e.target.value)}
+              style={{ width: "100%" }}
+            />
+            <select
+              className="admin-form-input"
               value={employeeDirectoryRole}
               onChange={(e) => setEmployeeDirectoryRole(e.target.value as "employee" | "department_head")}
               style={{ padding: "0 0.5rem" }}
@@ -4904,7 +4929,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Button
               type="button"
               className="button-primary"
-              disabled={employeeDirectorySaving || !employeeDirectoryFullName.trim()}
+              disabled={employeeDirectorySaving || !employeeDirectoryFullName.trim() || !Number.isFinite(Number(employeeDirectoryAccrualRate)) || Number(employeeDirectoryAccrualRate) < 0}
               onClick={async () => {
                 setEmployeeDirectorySaving(true);
                 setError(null);
@@ -4917,6 +4942,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       full_name: employeeDirectoryFullName.trim(),
                       department: employeeDirectoryDepartment,
                       position: employeeDirectoryPosition.trim(),
+                      accrual_type: employeeDirectoryAccrualType,
+                      accrual_rate: Number(employeeDirectoryAccrualRate),
                       employee_role: employeeDirectoryRole,
                     }),
                   });
@@ -4925,6 +4952,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   setEmployeeDirectoryEmail("");
                   setEmployeeDirectoryFullName("");
                   setEmployeeDirectoryPosition("");
+                  setEmployeeDirectoryAccrualType("hour");
+                  setEmployeeDirectoryAccrualRate("0");
                   await fetchEmployeeDirectory();
                 } catch (e: unknown) {
                   setError((e as Error)?.message || "Ошибка сохранения атрибутов сотрудника");
@@ -4957,6 +4986,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     setEmployeeDirectoryEditFullName(emp.full_name || "");
                     setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
                     setEmployeeDirectoryEditPosition(emp.position || "");
+                    setEmployeeDirectoryEditAccrualType(emp.accrual_type === "shift" ? "shift" : "hour");
+                    setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
                     setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
                   }}
                   onKeyDown={(e) => {
@@ -4969,6 +5000,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       setEmployeeDirectoryEditFullName(emp.full_name || "");
                       setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
                       setEmployeeDirectoryEditPosition(emp.position || "");
+                      setEmployeeDirectoryEditAccrualType(emp.accrual_type === "shift" ? "shift" : "hour");
+                      setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
                       setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
                     }
                   }}
@@ -4979,7 +5012,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <div>
                       <Typography.Body style={{ fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
                       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                        Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
+                        Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Начисление: {emp.accrual_type === "shift" ? "Смена" : "Часы"} · Ставка: {emp.accrual_rate ?? 0} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
                       </Typography.Body>
                     </div>
                     <Flex align="center" gap="0.45rem" onClick={(e) => e.stopPropagation()}>
@@ -5060,6 +5093,27 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         />
                         <select
                           className="admin-form-input"
+                          value={employeeDirectoryEditAccrualType}
+                          onChange={(e) => setEmployeeDirectoryEditAccrualType(e.target.value as "hour" | "shift")}
+                          style={{ padding: "0 0.5rem" }}
+                        >
+                          <option value="hour">Начисление по часам</option>
+                          <option value="shift">Начисление по сменам</option>
+                        </select>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          className="admin-form-input"
+                          value={employeeDirectoryEditAccrualRate}
+                          placeholder={employeeDirectoryEditAccrualType === "shift" ? "Ставка за смену" : "Ставка за час"}
+                          onChange={(e) => setEmployeeDirectoryEditAccrualRate(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ width: "100%" }}
+                          autoComplete="off"
+                        />
+                        <select
+                          className="admin-form-input"
                           value={employeeDirectoryEditRole}
                           onChange={(e) => setEmployeeDirectoryEditRole(e.target.value as "employee" | "department_head")}
                           style={{ padding: "0 0.5rem" }}
@@ -5072,7 +5126,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <Button
                           type="button"
                           className="button-primary"
-                          disabled={employeeDirectoryEditSaving}
+                          disabled={employeeDirectoryEditSaving || !Number.isFinite(Number(employeeDirectoryEditAccrualRate)) || Number(employeeDirectoryEditAccrualRate) < 0}
                           onClick={async () => {
                             setEmployeeDirectoryEditSaving(true);
                             setError(null);
@@ -5084,6 +5138,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                   full_name: employeeDirectoryEditFullName.trim(),
                                   department: employeeDirectoryEditDepartment,
                                   position: employeeDirectoryEditPosition.trim(),
+                                  accrual_type: employeeDirectoryEditAccrualType,
+                                  accrual_rate: Number(employeeDirectoryEditAccrualRate),
                                   employee_role: employeeDirectoryEditRole,
                                 }),
                               });
@@ -5097,6 +5153,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                         full_name: employeeDirectoryEditFullName.trim(),
                                         department: employeeDirectoryEditDepartment,
                                         position: employeeDirectoryEditPosition.trim(),
+                                        accrual_type: employeeDirectoryEditAccrualType,
+                                        accrual_rate: Number(employeeDirectoryEditAccrualRate),
                                         employee_role: employeeDirectoryEditRole,
                                       }
                                     : x
