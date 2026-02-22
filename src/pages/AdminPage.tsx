@@ -4647,7 +4647,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <div>
                       <Typography.Body style={{ fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
                       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                        {emp.department || "—"} · {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · {emp.login}
+                        Подразделение: {emp.department || "—"} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
                       </Typography.Body>
                     </div>
                     <Flex align="center" gap="0.45rem">
