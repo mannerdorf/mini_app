@@ -4166,7 +4166,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 : timesheetDays.reduce((acc, d) => {
                                     const key = `${emp.id}__${d.iso}`;
                                     const val = (timesheetHours[key] || "").trim().toUpperCase();
-                                    const fallback = d.isWeekend ? 0 : 8;
+                                    const fallback = 0;
                                     const parsed = Number(val);
                                     return acc + (Number.isFinite(parsed) ? parsed : fallback);
                                   }, 0);
@@ -4182,7 +4182,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                   {timesheetDays.map((d) => {
                                     const key = `${emp.id}__${d.iso}`;
                                     const value = (timesheetHours[key] || "").trim().toUpperCase();
-                                    const fallback = d.isWeekend ? "0" : "8";
+                                    const fallback = "0";
                                     const shiftEnabled = isShiftEnabled(value);
                                     return (
                                       <td key={`timesheet-cell-${emp.id}-${d.iso}`} style={{ padding: "0.2rem", borderBottom: "1px solid var(--color-border)", background: d.isWeekend ? "var(--color-bg-hover)" : "transparent" }}>
@@ -4196,21 +4196,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               }));
                                             }}
                                             style={{
-                                              width: "3rem",
-                                              padding: "0 0.25rem",
+                                              width: "2.2rem",
+                                              height: "1.6rem",
+                                              padding: 0,
                                               textAlign: "center",
                                               margin: "0 auto",
                                               display: "block",
-                                              borderRadius: 6,
+                                              borderRadius: 999,
                                               border: shiftEnabled ? "1px solid #1f8f45" : "1px solid var(--color-border)",
                                               background: shiftEnabled ? "#35c46a" : "var(--color-bg)",
                                               color: shiftEnabled ? "#ffffff" : "var(--color-text-secondary)",
                                               fontWeight: 600,
+                                              lineHeight: "1.6rem",
+                                              fontSize: shiftEnabled ? "0.9rem" : "1rem",
                                               cursor: "pointer",
                                             }}
                                             aria-label={shiftEnabled ? "Смена включена, нажмите чтобы выключить" : "Смена выключена, нажмите чтобы включить"}
                                           >
-                                            {shiftEnabled ? "С" : ""}
+                                            {shiftEnabled ? "С" : "○"}
                                           </button>
                                         ) : (
                                           <input
