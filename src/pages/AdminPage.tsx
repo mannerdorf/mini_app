@@ -4152,10 +4152,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               const isShiftAccrual = isShiftAccrualType(emp.accrual_type);
                               const hourlyRate = Number(emp.accrual_rate ?? 0);
                               const shiftHours = 8;
+                              const isShiftEnabled = (rawValue: string) => {
+                                const raw = String(rawValue || "").trim().toUpperCase();
+                                return raw === "С" || raw === "C" || raw === "1" || raw === "TRUE";
+                              };
                               const totalShifts = timesheetDays.reduce((acc, d) => {
                                 const key = `${emp.id}__${d.iso}`;
-                                const val = (timesheetHours[key] || "").trim().toUpperCase();
-                                return acc + (val === "С" ? 1 : 0);
+                                const val = timesheetHours[key] || "";
+                                return acc + (isShiftEnabled(val) ? 1 : 0);
                               }, 0);
                               const totalHours = isShiftAccrual
                                 ? totalShifts * shiftHours
@@ -4179,30 +4183,35 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     const key = `${emp.id}__${d.iso}`;
                                     const value = (timesheetHours[key] || "").trim().toUpperCase();
                                     const fallback = d.isWeekend ? "0" : "8";
+                                    const shiftEnabled = isShiftEnabled(value);
                                     return (
                                       <td key={`timesheet-cell-${emp.id}-${d.iso}`} style={{ padding: "0.2rem", borderBottom: "1px solid var(--color-border)", background: d.isWeekend ? "var(--color-bg-hover)" : "transparent" }}>
                                         {isShiftAccrual ? (
-                                          <input
-                                            type="text"
-                                            maxLength={1}
-                                            value={value}
-                                            onChange={(e) => {
-                                              const raw = e.target.value.trim().toUpperCase();
-                                              if (raw === "") {
-                                                setTimesheetHours((prev) => {
-                                                  const next = { ...prev };
-                                                  delete next[key];
-                                                  return next;
-                                                });
-                                                return;
-                                              }
-                                              if (raw !== "С") return;
-                                              setTimesheetHours((prev) => ({ ...prev, [key]: "С" }));
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setTimesheetHours((prev) => ({
+                                                ...prev,
+                                                [key]: shiftEnabled ? "" : "С",
+                                              }));
                                             }}
-                                            className="admin-form-input"
-                                            style={{ width: "3rem", padding: "0 0.25rem", textAlign: "center", margin: "0 auto", textTransform: "uppercase", fontWeight: 600 }}
-                                            placeholder=""
-                                          />
+                                            style={{
+                                              width: "3rem",
+                                              padding: "0 0.25rem",
+                                              textAlign: "center",
+                                              margin: "0 auto",
+                                              display: "block",
+                                              borderRadius: 6,
+                                              border: shiftEnabled ? "1px solid #1f8f45" : "1px solid var(--color-border)",
+                                              background: shiftEnabled ? "#35c46a" : "var(--color-bg)",
+                                              color: shiftEnabled ? "#ffffff" : "var(--color-text-secondary)",
+                                              fontWeight: 600,
+                                              cursor: "pointer",
+                                            }}
+                                            aria-label={shiftEnabled ? "Смена включена, нажмите чтобы выключить" : "Смена выключена, нажмите чтобы включить"}
+                                          >
+                                            {shiftEnabled ? "С" : ""}
+                                          </button>
                                         ) : (
                                           <input
                                             type="number"
