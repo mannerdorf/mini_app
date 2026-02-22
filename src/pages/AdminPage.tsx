@@ -15,6 +15,7 @@ const PERMISSION_KEYS = [
   { key: "doc_contracts", label: "Договоры" },
   { key: "doc_acts_settlement", label: "Акты сверок" },
   { key: "doc_tariffs", label: "Тарифы" },
+  { key: "haulz", label: "HAULZ" },
   { key: "service_mode", label: "Служебный режим" },
   { key: "analytics", label: "Аналитика" },
   { key: "supervisor", label: "Руководитель" },
@@ -34,6 +35,7 @@ const PERMISSION_ROW2 = [
   { key: "cargo", label: "Грузы" },
   { key: "doc_invoices", label: "Счета" },
   { key: "doc_acts", label: "УПД" },
+  { key: "haulz", label: "HAULZ" },
   { key: "doc_orders", label: "Заявки" },
   { key: "doc_claims", label: "Претензии" },
   { key: "doc_contracts", label: "Договоры" },
@@ -109,6 +111,24 @@ type User = {
   last_login_at?: string | null;
   companies?: { inn: string; name: string }[];
 };
+
+type EmployeeDirectoryRow = {
+  id: number;
+  login: string;
+  full_name: string;
+  department: string;
+  employee_role: "employee" | "department_head";
+  active: boolean;
+  invited_with_preset_label: string | null;
+  created_at: string;
+};
+
+const EMPLOYEE_DEPARTMENTS = [
+  "Склад Москва",
+  "Склад Калининград",
+  "Отдел продаж",
+  "Управляющая компания",
+] as const;
 
 function UserRow({
   user,
@@ -276,7 +296,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [bulkDeactivateConfirmOpen, setBulkDeactivateConfirmOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, service_mode: false, analytics: false, supervisor: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false,
   });
   const [bulkFinancial, setBulkFinancial] = useState(false);
   const [bulkAccessAllInns, setBulkAccessAllInns] = useState(false);
@@ -450,7 +470,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
   const [presetFormLabel, setPresetFormLabel] = useState("");
   const [presetFormPermissions, setPresetFormPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, service_mode: false, analytics: false, supervisor: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false,
   });
   const [presetFormFinancial, setPresetFormFinancial] = useState(false);
   const [presetFormServiceMode, setPresetFormServiceMode] = useState(false);
@@ -487,6 +507,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     doc_contracts: true,
     doc_acts_settlement: true,
     doc_tariffs: true,
+    haulz: false,
     service_mode: false,
     analytics: false,
     supervisor: true,
@@ -521,6 +542,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [userChangeEntries, setUserChangeEntries] = useState<{ id: number; action: string; details: Record<string, unknown> | null; created_at: string }[]>([]);
   const [userChangeLoading, setUserChangeLoading] = useState(false);
   const [userChangeQuery, setUserChangeQuery] = useState("");
+  const [employeeDirectoryItems, setEmployeeDirectoryItems] = useState<EmployeeDirectoryRow[]>([]);
+  const [employeeDirectoryLoading, setEmployeeDirectoryLoading] = useState(false);
+  const [employeeDirectoryEmail, setEmployeeDirectoryEmail] = useState("");
+  const [employeeDirectoryFullName, setEmployeeDirectoryFullName] = useState("");
+  const [employeeDirectoryDepartment, setEmployeeDirectoryDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
+  const [employeeDirectoryRole, setEmployeeDirectoryRole] = useState<"employee" | "department_head">("employee");
+  const [employeeDirectoryPresetId, setEmployeeDirectoryPresetId] = useState<string>("");
+  const [employeeDirectorySaving, setEmployeeDirectorySaving] = useState(false);
+  const [employeeDirectorySendEmail, setEmployeeDirectorySendEmail] = useState(true);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -1057,6 +1087,34 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule")) setTab("users");
   }, [isSuperAdmin, tab]);
+
+  const fetchEmployeeDirectory = useCallback(async () => {
+    if (!adminToken || !isSuperAdmin) return;
+    setEmployeeDirectoryLoading(true);
+    try {
+      const res = await fetch("/api/admin-employee-directory", {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        onLogout?.("expired");
+        return;
+      }
+      if (!res.ok) throw new Error(data?.error || "Ошибка загрузки справочника сотрудников");
+      setEmployeeDirectoryItems(Array.isArray(data?.items) ? data.items : []);
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Ошибка загрузки справочника сотрудников");
+      setEmployeeDirectoryItems([]);
+    } finally {
+      setEmployeeDirectoryLoading(false);
+    }
+  }, [adminToken, isSuperAdmin, onLogout]);
+
+  useEffect(() => {
+    if (tab === "employee_directory" && isSuperAdmin) {
+      fetchEmployeeDirectory();
+    }
+  }, [tab, isSuperAdmin, fetchEmployeeDirectory]);
 
   useEffect(() => {
     if (tab !== "users") setShowAddUserForm(false);
@@ -4413,7 +4471,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           const data = await res.json().catch(() => ({}));
                           if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка сохранения");
                           setPresetFormLabel("");
-                          setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, service_mode: false, analytics: false });
+                          setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false });
                           setPresetFormFinancial(false);
                           setPresetFormServiceMode(false);
                           setPresetEditingId(null);
@@ -4569,12 +4627,163 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       {tab === "employee_directory" && isSuperAdmin && (
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник сотрудников HAULZ</Typography.Body>
-          <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-            Раздел доступен только супер-администратору.
+          <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.9rem" }}>
+            Регистрация сотрудников: ФИО, структурное подразделение, роль и пресет прав.
           </Typography.Body>
-          <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-            Функции регистрации сотрудников с полями ФИО, подразделение и роль добавлены в пользовательский справочник сотрудников.
-          </Typography.Body>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
+            <Input
+              type="email"
+              className="admin-form-input"
+              value={employeeDirectoryEmail}
+              placeholder="Email сотрудника"
+              onChange={(e) => setEmployeeDirectoryEmail(e.target.value)}
+            />
+            <Input
+              type="text"
+              className="admin-form-input"
+              value={employeeDirectoryFullName}
+              placeholder="ФИО"
+              onChange={(e) => setEmployeeDirectoryFullName(e.target.value)}
+            />
+            <select
+              className="admin-form-input"
+              value={employeeDirectoryDepartment}
+              onChange={(e) => setEmployeeDirectoryDepartment(e.target.value)}
+              style={{ padding: "0 0.5rem" }}
+            >
+              {EMPLOYEE_DEPARTMENTS.map((dep) => (
+                <option key={dep} value={dep}>{dep}</option>
+              ))}
+            </select>
+            <select
+              className="admin-form-input"
+              value={employeeDirectoryRole}
+              onChange={(e) => setEmployeeDirectoryRole(e.target.value as "employee" | "department_head")}
+              style={{ padding: "0 0.5rem" }}
+            >
+              <option value="employee">Сотрудник</option>
+              <option value="department_head">Руководитель подразделения</option>
+            </select>
+            <select
+              className="admin-form-input"
+              value={employeeDirectoryPresetId}
+              onChange={(e) => setEmployeeDirectoryPresetId(e.target.value)}
+              style={{ padding: "0 0.5rem" }}
+            >
+              <option value="">Без пресета</option>
+              {permissionPresets.map((p) => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: "0.9rem" }}>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+              <input type="checkbox" checked={employeeDirectorySendEmail} onChange={(e) => setEmployeeDirectorySendEmail(e.target.checked)} />
+              Отправить пароль на email
+            </label>
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={employeeDirectorySaving || !employeeDirectoryEmail.trim() || !employeeDirectoryFullName.trim()}
+              onClick={async () => {
+                setEmployeeDirectorySaving(true);
+                setError(null);
+                try {
+                  const res = await fetch("/api/admin-employee-directory", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                    body: JSON.stringify({
+                      email: employeeDirectoryEmail.trim().toLowerCase(),
+                      full_name: employeeDirectoryFullName.trim(),
+                      department: employeeDirectoryDepartment,
+                      employee_role: employeeDirectoryRole,
+                      preset_id: employeeDirectoryPresetId || undefined,
+                      send_email: employeeDirectorySendEmail,
+                    }),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(data?.error || "Ошибка регистрации сотрудника");
+                  setEmployeeDirectoryEmail("");
+                  setEmployeeDirectoryFullName("");
+                  await fetchEmployeeDirectory();
+                } catch (e: unknown) {
+                  setError((e as Error)?.message || "Ошибка регистрации сотрудника");
+                } finally {
+                  setEmployeeDirectorySaving(false);
+                }
+              }}
+            >
+              {employeeDirectorySaving ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} /> : null}
+              Зарегистрировать сотрудника
+            </Button>
+          </Flex>
+
+          {employeeDirectoryLoading ? (
+            <Flex align="center" gap="0.5rem">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка...</Typography.Body>
+            </Flex>
+          ) : employeeDirectoryItems.length === 0 ? (
+            <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>Сотрудники пока не заведены.</Typography.Body>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+              {employeeDirectoryItems.map((emp) => (
+                <div key={emp.id} style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.6rem 0.7rem", background: "var(--color-bg-hover)" }}>
+                  <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem">
+                    <div>
+                      <Typography.Body style={{ fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
+                      <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                        {emp.department || "—"} · {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · {emp.login}
+                      </Typography.Body>
+                    </div>
+                    <Flex align="center" gap="0.45rem">
+                      <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>{emp.active ? "Вкл" : "Выкл"}</Typography.Body>
+                      <TapSwitch
+                        checked={emp.active}
+                        onToggle={async () => {
+                          try {
+                            const res = await fetch(`/api/admin-employee-directory?id=${emp.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                              body: JSON.stringify({ active: !emp.active }),
+                            });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok) throw new Error(data?.error || "Ошибка обновления");
+                            setEmployeeDirectoryItems((prev) => prev.map((x) => (x.id === emp.id ? { ...x, active: !x.active } : x)));
+                          } catch (e: unknown) {
+                            setError((e as Error)?.message || "Ошибка обновления");
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        className="filter-button"
+                        style={{ padding: "0.35rem" }}
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/admin-employee-directory?id=${emp.id}`, {
+                              method: "DELETE",
+                              headers: { Authorization: `Bearer ${adminToken}` },
+                            });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok) throw new Error(data?.error || "Ошибка удаления");
+                            setEmployeeDirectoryItems((prev) => prev.filter((x) => x.id !== emp.id));
+                          } catch (e: unknown) {
+                            setError((e as Error)?.message || "Ошибка удаления");
+                          }
+                        }}
+                        aria-label="Удалить сотрудника"
+                      >
+                        <Trash2 className="w-4 h-4" style={{ color: "var(--color-error)" }} />
+                      </Button>
+                    </Flex>
+                  </Flex>
+                </div>
+              ))}
+            </div>
+          )}
         </Panel>
       )}
 

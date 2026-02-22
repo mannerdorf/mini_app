@@ -17,6 +17,7 @@ const DEFAULT_PERMISSIONS = {
   doc_contracts: false,
   doc_acts_settlement: false,
   doc_tariffs: false,
+  haulz: false,
   chat: true,
   service_mode: false,
   analytics: false,
