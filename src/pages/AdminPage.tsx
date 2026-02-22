@@ -4852,7 +4852,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник сотрудников HAULZ</Typography.Body>
           <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.9rem" }}>
-            Назначение атрибутов сотруднику по email: ФИО, структурное подразделение, должность и роль.
+            Назначение атрибутов сотруднику (email опционален): ФИО, структурное подразделение, должность и роль.
           </Typography.Body>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
@@ -4860,7 +4860,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               type="email"
               className="admin-form-input"
               value={employeeDirectoryEmail}
-              placeholder="Email сотрудника"
+              placeholder="Email сотрудника (необязательно)"
               onChange={(e) => setEmployeeDirectoryEmail(e.target.value)}
               style={{ width: "100%" }}
               autoComplete="off"
@@ -4904,7 +4904,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Button
               type="button"
               className="button-primary"
-              disabled={employeeDirectorySaving || !employeeDirectoryEmail.trim() || !employeeDirectoryFullName.trim()}
+              disabled={employeeDirectorySaving || !employeeDirectoryFullName.trim()}
               onClick={async () => {
                 setEmployeeDirectorySaving(true);
                 setError(null);
@@ -4913,7 +4913,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     method: "POST",
                     headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
                     body: JSON.stringify({
-                      email: employeeDirectoryEmail.trim().toLowerCase(),
+                      email: employeeDirectoryEmail.trim() ? employeeDirectoryEmail.trim().toLowerCase() : "",
                       full_name: employeeDirectoryFullName.trim(),
                       department: employeeDirectoryDepartment,
                       position: employeeDirectoryPosition.trim(),
