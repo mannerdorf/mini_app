@@ -592,7 +592,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [timesheetSearch, setTimesheetSearch] = useState("");
   const [timesheetHours, setTimesheetHours] = useState<Record<string, string>>({});
   const [timesheetPaymentMarks, setTimesheetPaymentMarks] = useState<Record<string, boolean>>({});
-  const [timesheetPaymentMode, setTimesheetPaymentMode] = useState(false);
   const [timesheetExpandedEmployeeId, setTimesheetExpandedEmployeeId] = useState<number | null>(null);
   const [timesheetPayoutsByEmployee, setTimesheetPayoutsByEmployee] = useState<Record<string, Array<{
     id: number;
@@ -1484,10 +1483,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       fetchTimesheetEntries();
     }
   }, [tab, isSuperAdmin, fetchTimesheetEntries]);
-
-  useEffect(() => {
-    if (!timesheetPaymentMode) setTimesheetExpandedEmployeeId(null);
-  }, [timesheetPaymentMode]);
 
   useEffect(() => {
     if (tab !== "users") setShowAddUserForm(false);
@@ -4395,25 +4390,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               placeholder="Поиск по ФИО, email, подразделению"
               style={{ minWidth: "18rem", flex: 1, height: "2.5rem", boxSizing: "border-box" }}
             />
-            <Button
-              type="button"
-              className="filter-button"
-              onClick={() => setTimesheetPaymentMode((prev) => !prev)}
-              style={{
-                height: "2.5rem",
-                borderColor: timesheetPaymentMode ? "#16a34a" : undefined,
-                color: timesheetPaymentMode ? "#166534" : undefined,
-                background: timesheetPaymentMode ? "#ecfdf3" : undefined,
-              }}
-            >
-              {timesheetPaymentMode ? "Режим оплаты: вкл" : "Режим оплаты"}
-            </Button>
           </Flex>
-          {timesheetPaymentMode ? (
-            <Typography.Body style={{ fontSize: "0.8rem", color: "#15803d", marginTop: "-0.35rem", marginBottom: "0.7rem" }}>
-              Режим оплаты активен: нажимайте на дни в табеле, чтобы отметить/снять день к оплате.
-            </Typography.Body>
-          ) : null}
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginTop: "-0.35rem", marginBottom: "0.7rem" }}>
+            Нажмите на сотрудника, чтобы открыть таблицу выплат и отметить дни к оплате.
+          </Typography.Body>
           {employeeDirectoryLoading ? (
             <Flex align="center" gap="0.5rem">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -4521,14 +4501,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 const key = `${emp.id}__${d.iso}`;
                                 return acc + (timesheetPaymentMarks[key] ? 1 : 0);
                               }, 0);
+                              const isPayoutExpanded = timesheetExpandedEmployeeId === emp.id;
                               return (
                                 <React.Fragment key={`timesheet-row-wrap-${group.department}-${emp.id}`}>
                                 <tr>
                                   <td style={{ padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card, #fff)", zIndex: 30, minWidth: "15rem", boxShadow: "2px 0 0 var(--color-border)" }}>
                                     <Typography.Body
-                                      style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, cursor: timesheetPaymentMode ? "pointer" : "default" }}
+                                      style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, cursor: "pointer" }}
                                       onClick={() => {
-                                        if (!timesheetPaymentMode) return;
                                         setTimesheetExpandedEmployeeId((prev) => (prev === emp.id ? null : emp.id));
                                       }}
                                     >
@@ -4548,7 +4528,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                       <td
                                         key={`timesheet-cell-${emp.id}-${d.iso}`}
                                         onClick={() => {
-                                          if (!timesheetPaymentMode) return;
+                                          if (!isPayoutExpanded) return;
                                           const nextPaid = !isMarkedForPayment;
                                           setTimesheetPaymentMarks((prev) => ({ ...prev, [key]: nextPaid }));
                                           void saveTimesheetPaymentMark(emp.id, d.iso, nextPaid);
@@ -4558,14 +4538,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                           borderBottom: "1px solid var(--color-border)",
                                           background: isMarkedForPayment ? "#fff7d6" : (d.isWeekend ? "var(--color-bg-hover)" : "transparent"),
                                           boxShadow: isMarkedForPayment ? "inset 0 0 0 1px #f59e0b" : undefined,
-                                          cursor: timesheetPaymentMode ? "pointer" : "default",
+                                          cursor: isPayoutExpanded ? "pointer" : "default",
                                         }}
                                       >
                                         {isShiftAccrual ? (
                                           <button
                                             type="button"
                                             onClick={() => {
-                                              if (timesheetPaymentMode) return;
+                                              if (isPayoutExpanded) return;
                                               if (adminShiftHoldTriggeredRef.current) {
                                                 adminShiftHoldTriggeredRef.current = false;
                                                 return;
@@ -4578,7 +4558,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               void saveTimesheetCell(emp.id, d.iso, nextValue);
                                             }}
                                             onMouseDown={(e) => {
-                                              if (timesheetPaymentMode) return;
+                                              if (isPayoutExpanded) return;
                                               if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
                                               adminShiftHoldTriggeredRef.current = false;
                                               const { clientX, clientY } = e;
@@ -4588,21 +4568,21 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               }, 450);
                                             }}
                                             onMouseUp={() => {
-                                              if (timesheetPaymentMode) return;
+                                              if (isPayoutExpanded) return;
                                               if (adminShiftHoldTimerRef.current) {
                                                 window.clearTimeout(adminShiftHoldTimerRef.current);
                                                 adminShiftHoldTimerRef.current = null;
                                               }
                                             }}
                                             onMouseLeave={() => {
-                                              if (timesheetPaymentMode) return;
+                                              if (isPayoutExpanded) return;
                                               if (adminShiftHoldTimerRef.current) {
                                                 window.clearTimeout(adminShiftHoldTimerRef.current);
                                                 adminShiftHoldTimerRef.current = null;
                                               }
                                             }}
                                             onTouchStart={(e) => {
-                                              if (timesheetPaymentMode) return;
+                                              if (isPayoutExpanded) return;
                                               if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
                                               adminShiftHoldTriggeredRef.current = false;
                                               const touch = e.touches[0];
@@ -4612,7 +4592,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               }, 450);
                                             }}
                                             onTouchEnd={() => {
-                                              if (timesheetPaymentMode) return;
+                                              if (isPayoutExpanded) return;
                                               if (adminShiftHoldTimerRef.current) {
                                                 window.clearTimeout(adminShiftHoldTimerRef.current);
                                                 adminShiftHoldTimerRef.current = null;
@@ -4634,8 +4614,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               fontSize: shiftMark ? "0.82rem" : "1rem",
                                               WebkitAppearance: "none",
                                               appearance: "none",
-                                              cursor: timesheetPaymentMode ? "default" : "pointer",
-                                              opacity: timesheetPaymentMode ? 0.9 : 1,
+                                              cursor: isPayoutExpanded ? "default" : "pointer",
+                                              opacity: isPayoutExpanded ? 0.9 : 1,
                                             }}
                                             aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : "Нажмите для Я, удерживайте для выбора статуса"}
                                           >
@@ -4645,7 +4625,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                           timesheetMobilePicker ? (
                                             <select
                                               value={hourPickerValue}
-                                              disabled={timesheetPaymentMode}
+                                              disabled={isPayoutExpanded}
                                               onChange={(e) => {
                                                 const nextValue = e.target.value;
                                                 setTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
@@ -4668,7 +4648,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               max={24}
                                               step={0.5}
                                               value={value || fallback}
-                                              disabled={timesheetPaymentMode}
+                                              disabled={isPayoutExpanded}
                                               onChange={(e) => {
                                                 const raw = e.target.value;
                                                 if (raw === "") {
@@ -4712,7 +4692,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     </td>
                                   ))}
                                 </tr>
-                                {timesheetPaymentMode && timesheetExpandedEmployeeId === emp.id ? (
+                                {timesheetExpandedEmployeeId === emp.id ? (
                                   <tr>
                                     <td colSpan={totalColumnCount} style={{ padding: "0.55rem", borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-hover)" }}>
                                       <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: "0.45rem" }}>
