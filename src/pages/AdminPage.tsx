@@ -280,6 +280,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     return () => el.classList.remove("light-mode");
   }, [theme]);
+  const onLogoutRef = useRef(onLogout);
+  useEffect(() => {
+    onLogoutRef.current = onLogout;
+  }, [onLogout]);
   const [users, setUsers] = useState<User[]>([]);
   const [lastLoginAvailable, setLastLoginAvailable] = useState(true);
   const [topActiveExpanded, setTopActiveExpanded] = useState(false);
@@ -1188,7 +1192,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
-        onLogout?.("expired");
+        onLogoutRef.current?.("expired");
         return;
       }
       if (!res.ok) throw new Error(data?.error || "Ошибка загрузки справочника сотрудников");
@@ -1199,7 +1203,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     } finally {
       setEmployeeDirectoryLoading(false);
     }
-  }, [adminToken, isSuperAdmin, onLogout]);
+  }, [adminToken, isSuperAdmin]);
 
   const fetchTimesheetEntries = useCallback(async () => {
     if (!adminToken || !isSuperAdmin || !/^\d{4}-\d{2}$/.test(timesheetMonth)) return;
@@ -1209,7 +1213,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
-        onLogout?.("expired");
+        onLogoutRef.current?.("expired");
         return;
       }
       if (!res.ok) throw new Error(data?.error || "Ошибка загрузки табеля");
@@ -1218,7 +1222,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setError((e as Error)?.message || "Ошибка загрузки табеля");
       setTimesheetHours({});
     }
-  }, [adminToken, isSuperAdmin, onLogout, timesheetMonth]);
+  }, [adminToken, isSuperAdmin, timesheetMonth]);
 
   const saveTimesheetCell = useCallback(
     async (employeeId: number, dateIso: string, value: string) => {
@@ -1239,7 +1243,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         });
         const data = await res.json().catch(() => ({}));
         if (res.status === 401) {
-          onLogout?.("expired");
+          onLogoutRef.current?.("expired");
           return;
         }
         if (!res.ok) throw new Error(data?.error || "Ошибка сохранения табеля");
@@ -1247,7 +1251,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         setError((e as Error)?.message || "Ошибка сохранения табеля");
       }
     },
-    [adminToken, isSuperAdmin, onLogout, timesheetMonth]
+    [adminToken, isSuperAdmin, timesheetMonth]
   );
 
   useEffect(() => {

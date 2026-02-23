@@ -37,7 +37,32 @@ function normalizeDate(value: unknown): string {
 
 function isShiftEnabled(rawValue: string): boolean {
   const raw = String(rawValue || "").trim().toUpperCase();
-  return raw === "С" || raw === "C" || raw === "1" || raw === "TRUE";
+  if (!raw) return false;
+  if (raw === "С" || raw === "C" || raw === "1" || raw === "TRUE" || raw === "ON" || raw === "YES") return true;
+  if (raw.includes("СМЕН") || raw.includes("SHIFT")) return true;
+  return false;
+}
+
+function parseHoursValue(rawValue: string): number {
+  const raw = String(rawValue || "").trim();
+  if (!raw) return 0;
+  // HH:MM format from legacy/mobile pickers.
+  const timeMatch = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (timeMatch) {
+    const hours = Number(timeMatch[1]);
+    const minutes = Number(timeMatch[2]);
+    if (Number.isFinite(hours) && Number.isFinite(minutes) && minutes >= 0 && minutes < 60) {
+      return hours + minutes / 60;
+    }
+  }
+  // Numeric values with optional suffixes ("8", "8.5", "8,5", "8ч", "8 ч").
+  const normalized = raw
+    .replace(/\s+/g, "")
+    .replace(",", ".")
+    .replace(/[^\d.]/g, "");
+  if (!normalized) return 0;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
@@ -173,10 +198,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let employeeHours = 0;
       let employeeShifts = 0;
       const hasShiftMarks = entries.some((e) => isShiftEnabled(e.value));
-      const hasNumericHours = entries.some((e) => {
-        const parsed = Number(String(e.value || "").replace(",", "."));
-        return Number.isFinite(parsed) && parsed > 0;
-      });
+      const hasNumericHours = entries.some((e) => parseHoursValue(e.value) > 0);
       const resolvedAccrualType: "hour" | "shift" =
         employee.accrualType === "shift" || (hasShiftMarks && !hasNumericHours) ? "shift" : "hour";
 
@@ -184,10 +206,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         employeeShifts = entries.reduce((acc, e) => acc + (isShiftEnabled(e.value) ? 1 : 0), 0);
         employeeHours = employeeShifts * 8;
       } else {
-        employeeHours = entries.reduce((acc, e) => {
-          const parsed = Number(String(e.value || "").replace(",", "."));
-          return acc + (Number.isFinite(parsed) ? parsed : 0);
-        }, 0);
+        employeeHours = entries.reduce((acc, e) => acc + parseHoursValue(e.value), 0);
       }
 
       const employeeCost = resolvedAccrualType === "shift"

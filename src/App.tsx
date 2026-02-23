@@ -3944,13 +3944,10 @@ function ProfilePage({
     });
     const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
     const [departmentTimesheetMobilePicker, setDepartmentTimesheetMobilePicker] = useState(false);
-    const [departmentTimesheetEmployeeEmail, setDepartmentTimesheetEmployeeEmail] = useState("");
     const [departmentTimesheetEmployeeFullName, setDepartmentTimesheetEmployeeFullName] = useState("");
-    const [departmentTimesheetEmployeeDepartment, setDepartmentTimesheetEmployeeDepartment] = useState("");
     const [departmentTimesheetEmployeePosition, setDepartmentTimesheetEmployeePosition] = useState("");
     const [departmentTimesheetEmployeeAccrualType, setDepartmentTimesheetEmployeeAccrualType] = useState<"hour" | "shift">("hour");
     const [departmentTimesheetEmployeeAccrualRate, setDepartmentTimesheetEmployeeAccrualRate] = useState("0");
-    const [departmentTimesheetEmployeeRole, setDepartmentTimesheetEmployeeRole] = useState<"employee" | "department_head">("employee");
     const [departmentTimesheetEmployeeSaving, setDepartmentTimesheetEmployeeSaving] = useState(false);
     const isShiftAccrual = (value: string) => {
         const raw = String(value || '').trim().toLowerCase();
@@ -4065,7 +4062,6 @@ function ProfilePage({
                 return;
             }
             setDepartmentTimesheetDepartment(typeof data.department === "string" ? data.department : "");
-            setDepartmentTimesheetEmployeeDepartment(typeof data.department === "string" ? data.department : "");
             setDepartmentTimesheetEmployees(Array.isArray(data.employees) ? data.employees : []);
             setDepartmentTimesheetAvailableEmployees(Array.isArray(data.availableEmployees) ? data.availableEmployees : []);
             const loadedEntries: Record<string, string> = {};
@@ -4195,23 +4191,20 @@ function ProfilePage({
                     login: activeAccount.login,
                     password: activeAccount.password,
                     month: departmentTimesheetMonth,
-                    email: departmentTimesheetEmployeeEmail.trim(),
                     fullName: departmentTimesheetEmployeeFullName.trim(),
-                    department: departmentTimesheetEmployeeDepartment.trim() || departmentTimesheetDepartment,
+                    department: departmentTimesheetDepartment,
                     position: departmentTimesheetEmployeePosition.trim(),
                     accrualType: departmentTimesheetEmployeeAccrualType,
                     accrualRate: rate,
-                    employeeRole: departmentTimesheetEmployeeRole,
+                    employeeRole: 'employee',
                 }),
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.error || 'Ошибка добавления сотрудника');
-            setDepartmentTimesheetEmployeeEmail("");
             setDepartmentTimesheetEmployeeFullName("");
             setDepartmentTimesheetEmployeePosition("");
             setDepartmentTimesheetEmployeeAccrualType("hour");
             setDepartmentTimesheetEmployeeAccrualRate("0");
-            setDepartmentTimesheetEmployeeRole("employee");
             await fetchDepartmentTimesheet();
         } catch (e) {
             setDepartmentTimesheetError((e as Error)?.message || 'Ошибка добавления сотрудника');
@@ -4222,14 +4215,11 @@ function ProfilePage({
         activeAccount?.login,
         activeAccount?.password,
         departmentTimesheetMonth,
-        departmentTimesheetEmployeeEmail,
         departmentTimesheetEmployeeFullName,
-        departmentTimesheetEmployeeDepartment,
         departmentTimesheetDepartment,
         departmentTimesheetEmployeePosition,
         departmentTimesheetEmployeeAccrualType,
         departmentTimesheetEmployeeAccrualRate,
-        departmentTimesheetEmployeeRole,
         fetchDepartmentTimesheet,
     ]);
 
@@ -4717,18 +4707,9 @@ function ProfilePage({
                 <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '0.75rem' }}>
                     <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Добавить сотрудника в табель</Typography.Body>
                     <Typography.Body style={{ marginBottom: '0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
-                        Можно создать нового сотрудника или назначить атрибуты существующему по email.
+                        Новый сотрудник будет добавлен в ваше подразделение как сотрудник.
                     </Typography.Body>
                     <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="wrap" align="center">
-                        <input
-                            type="text"
-                            placeholder="Email (опционально)"
-                            value={departmentTimesheetEmployeeEmail}
-                            onChange={(e) => { setDepartmentTimesheetEmployeeEmail(e.target.value); setDepartmentTimesheetError(null); }}
-                            style={{ width: '13rem', minWidth: '11rem', height: '2.4rem', boxSizing: 'border-box' }}
-                            className="admin-form-input"
-                            autoComplete="off"
-                        />
                         <Input
                             type="text"
                             placeholder="ФИО"
@@ -4737,16 +4718,6 @@ function ProfilePage({
                             style={{ width: '14rem', minWidth: '12rem', height: '2.4rem', boxSizing: 'border-box' }}
                             className="admin-form-input"
                         />
-                        <select
-                            className="admin-form-input invite-role-select"
-                            value={departmentTimesheetEmployeeDepartment}
-                            onChange={(e) => { setDepartmentTimesheetEmployeeDepartment(e.target.value); setDepartmentTimesheetError(null); }}
-                            style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '11rem' }}
-                            aria-label="Подразделение"
-                        >
-                            <option value="">Подразделение</option>
-                            {DEPARTMENT_OPTIONS.map((dep) => <option key={dep} value={dep}>{dep}</option>)}
-                        </select>
                         <Input
                             type="text"
                             placeholder="Должность"
@@ -4774,15 +4745,6 @@ function ProfilePage({
                             style={{ width: '8rem', minWidth: '7rem', height: '2.4rem', boxSizing: 'border-box' }}
                             className="admin-form-input"
                         />
-                        <select
-                            value={departmentTimesheetEmployeeRole}
-                            onChange={(e) => setDepartmentTimesheetEmployeeRole(e.target.value === 'department_head' ? 'department_head' : 'employee')}
-                            style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '12rem' }}
-                            aria-label="Роль сотрудника"
-                        >
-                            <option value="employee">Сотрудник</option>
-                            <option value="department_head">Руководитель подразделения</option>
-                        </select>
                         <Button
                             type="button"
                             className="filter-button"
