@@ -3913,9 +3913,6 @@ function ProfilePage({
     const [employeeDeleteId, setEmployeeDeleteId] = useState<number | null>(null);
     const [employeeDeleteLoading, setEmployeeDeleteLoading] = useState(false);
     const [employeePresetLoadingId, setEmployeePresetLoadingId] = useState<number | null>(null);
-    const [haulzEnabled, setHaulzEnabled] = useState(false);
-    const [haulzRoleFilter, setHaulzRoleFilter] = useState<'all' | 'employee' | 'department_head'>('all');
-    const [haulzEmployeeFilterId, setHaulzEmployeeFilterId] = useState<string>('all');
     const [departmentTimesheetDepartment, setDepartmentTimesheetDepartment] = useState("");
     const [departmentTimesheetEmployees, setDepartmentTimesheetEmployees] = useState<Array<{
         id: number;
@@ -3951,6 +3948,39 @@ function ProfilePage({
     const [departmentTimesheetEmployeeAccrualRate, setDepartmentTimesheetEmployeeAccrualRate] = useState("0");
     const [departmentTimesheetEmployeeSaving, setDepartmentTimesheetEmployeeSaving] = useState(false);
     const WORK_DAYS_IN_MONTH = 21;
+    const SHIFT_MARK_OPTIONS = [
+        { code: "Я", label: "Явка", bg: "#35c46a", color: "#ffffff", border: "#1f8f45" },
+        { code: "ПР", label: "Прогул", bg: "#ef4444", color: "#ffffff", border: "#dc2626" },
+        { code: "Б", label: "Болезнь", bg: "#f59e0b", color: "#111827", border: "#d97706" },
+        { code: "ОГ", label: "Отгул", bg: "#8b5cf6", color: "#ffffff", border: "#7c3aed" },
+        { code: "ОТ", label: "Отпуск", bg: "#3b82f6", color: "#ffffff", border: "#2563eb" },
+        { code: "УВ", label: "Уволен", bg: "#6b7280", color: "#ffffff", border: "#4b5563" },
+    ] as const;
+    const SHIFT_MARK_CODES = SHIFT_MARK_OPTIONS.map((x) => x.code);
+    type ShiftMarkCode = typeof SHIFT_MARK_OPTIONS[number]["code"];
+    const [departmentShiftPicker, setDepartmentShiftPicker] = useState<{ key: string; employeeId: number; day: number; x: number; y: number } | null>(null);
+    const departmentShiftHoldTimerRef = useRef<number | null>(null);
+    const departmentShiftHoldTriggeredRef = useRef(false);
+    const normalizeShiftMark = (rawValue: string): ShiftMarkCode | "" => {
+        const raw = String(rawValue || "").trim().toUpperCase();
+        if (!raw) return "";
+        if (raw === "Я") return "Я";
+        if (raw === "ПР") return "ПР";
+        if (raw === "Б") return "Б";
+        if (raw === "ОГ") return "ОГ";
+        if (raw === "ОТ") return "ОТ";
+        if (raw === "УВ") return "УВ";
+        // Backward compatibility with old shift markers.
+        if (raw === "С" || raw === "C" || raw === "1" || raw === "TRUE") return "Я";
+        return "";
+    };
+    const getShiftMarkStyle = (mark: ShiftMarkCode | "") => {
+        const option = SHIFT_MARK_OPTIONS.find((x) => x.code === mark);
+        if (!option) {
+            return { border: "1px solid var(--color-border)", background: "var(--color-bg)", color: "var(--color-text-secondary)" };
+        }
+        return { border: `1px solid ${option.border}`, background: option.bg, color: option.color };
+    };
     const isShiftAccrual = (value: string) => {
         const raw = String(value || '').trim().toLowerCase();
         return raw === 'shift' || raw === 'смена' || raw.includes('shift') || raw.includes('смен');
@@ -4039,6 +4069,42 @@ function ProfilePage({
         }
         return out;
     }, [departmentTimesheetMonth, departmentTimesheetDays]);
+    const departmentTimesheetSummary = useMemo(() => {
+        let totalHours = 0;
+        let totalShifts = 0;
+        let totalMoney = 0;
+        for (const emp of departmentTimesheetEmployees) {
+            const isShift = isShiftAccrual(emp.accrualType);
+            const rate = Number(emp.accrualRate ?? 0);
+            if (isShift) {
+                const shifts = departmentTimesheetDays.reduce((acc, day) => {
+                    const key = `${emp.id}:${day}`;
+                    return acc + (normalizeShiftMark(departmentTimesheetHours[key] || '') === 'Я' ? 1 : 0);
+                }, 0);
+                totalShifts += shifts;
+                totalHours += shifts * 8;
+                totalMoney += shifts * rate;
+            } else {
+                const hours = departmentTimesheetDays.reduce((acc, day) => {
+                    const key = `${emp.id}:${day}`;
+                    const value = Number(String(departmentTimesheetHours[key] || '').trim().replace(',', '.'));
+                    return acc + (Number.isFinite(value) ? value : 0);
+                }, 0);
+                totalHours += hours;
+                totalMoney += hours * rate;
+            }
+        }
+        return {
+            totalHours: Number(totalHours.toFixed(2)),
+            totalShifts,
+            totalMoney: Number(totalMoney.toFixed(2)),
+        };
+    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours]);
+    const companyTimesheetSummary = useMemo(() => {
+        // В текущем экране руководитель видит сотрудников только своего подразделения.
+        // Поэтому "по компании" равно сумме отображаемых данных текущего подразделения.
+        return departmentTimesheetSummary;
+    }, [departmentTimesheetSummary]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -4589,8 +4655,6 @@ function ProfilePage({
     }
 
     if (currentView === 'haulz') {
-        const roleFiltered = employeesList.filter((emp) => haulzRoleFilter === 'all' ? true : (emp.employeeRole || 'employee') === haulzRoleFilter);
-        const visibleEmployees = roleFiltered.filter((emp) => haulzEmployeeFilterId === 'all' ? true : String(emp.id) === haulzEmployeeFilterId);
         return (
             <div className="w-full">
                 <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
@@ -4599,52 +4663,16 @@ function ProfilePage({
                     </Button>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>HAULZ</Typography.Headline>
                 </Flex>
-                <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-                    <Flex align="center" justify="space-between" style={{ gap: '0.75rem' }}>
-                        <Typography.Body style={{ fontWeight: 600 }}>Активировать раздел HAULZ</Typography.Body>
-                        <TapSwitch checked={haulzEnabled} onToggle={() => setHaulzEnabled((v) => !v)} />
-                    </Flex>
-                    {haulzEnabled && (
-                        <div style={{ marginTop: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                            <select
-                                className="admin-form-input invite-role-select"
-                                value={haulzRoleFilter}
-                                onChange={(e) => {
-                                    setHaulzRoleFilter(e.target.value as 'all' | 'employee' | 'department_head');
-                                    setHaulzEmployeeFilterId('all');
-                                }}
-                                style={{ padding: '0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)' }}
-                            >
-                                <option value="all">Роль: все</option>
-                                <option value="employee">Роль: сотрудник</option>
-                                <option value="department_head">Роль: руководитель подразделения</option>
-                            </select>
-                            <select
-                                className="admin-form-input invite-role-select"
-                                value={haulzEmployeeFilterId}
-                                onChange={(e) => setHaulzEmployeeFilterId(e.target.value)}
-                                style={{ padding: '0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)' }}
-                            >
-                                <option value="all">Имя сотрудника: все</option>
-                                {roleFiltered.map((emp) => (
-                                    <option key={emp.id} value={String(emp.id)}>{emp.fullName || emp.login}</option>
-                                ))}
-                            </select>
-                            <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                Найдено сотрудников: {visibleEmployees.length}
-                            </Typography.Body>
-                        </div>
-                    )}
-                </Panel>
                 <Flex align="center" gap="0.6rem" wrap="wrap">
-                    <Button type="button" className="button-primary" onClick={() => setCurrentView('employees')}>
-                        Справочник сотрудников
-                    </Button>
                     {activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true ? (
                         <Button type="button" className="button-primary" onClick={() => setCurrentView('departmentTimesheet')}>
                             Табель учета рабочего времени
                         </Button>
-                    ) : null}
+                    ) : (
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>
+                            Раздел табеля доступен только руководителю подразделения HAULZ.
+                        </Typography.Body>
+                    )}
                 </Flex>
             </div>
         );
@@ -4780,7 +4808,7 @@ function ProfilePage({
                     </Panel>
                 ) : (
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${340 + departmentTimesheetDays.length * 44}px` }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${340 + departmentTimesheetDays.length * 44 + SHIFT_MARK_CODES.length * 52}px` }}>
                             <thead>
                                 <tr>
                                     <th style={{ position: 'sticky', left: 0, zIndex: 40, background: 'var(--color-bg-card, #fff)', textAlign: 'left', borderBottom: '1px solid var(--color-border)', padding: '0.5rem', minWidth: '220px', boxShadow: '2px 0 0 var(--color-border)' }}>Сотрудник</th>
@@ -4795,6 +4823,11 @@ function ProfilePage({
                                         );
                                     })}
                                     <th style={{ textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.4rem', minWidth: '120px' }}>Итого</th>
+                                    {SHIFT_MARK_CODES.map((code) => (
+                                        <th key={`legend-col-${code}`} style={{ textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.35rem 0.25rem', minWidth: '52px' }}>
+                                            {code}
+                                        </th>
+                                    ))}
                                 </tr>
                             </thead>
                             <tbody>
@@ -4803,7 +4836,7 @@ function ProfilePage({
                                     const rate = Number(emp.accrualRate ?? 0);
                                     const totalShiftCount = departmentTimesheetDays.reduce((acc, day) => {
                                         const key = `${emp.id}:${day}`;
-                                        return acc + ((departmentTimesheetHours[key] || '').trim().toUpperCase() === 'С' ? 1 : 0);
+                                        return acc + (normalizeShiftMark(departmentTimesheetHours[key] || '') === 'Я' ? 1 : 0);
                                     }, 0);
                                     const totalHours = isShift
                                         ? totalShiftCount * 8
@@ -4817,6 +4850,15 @@ function ProfilePage({
                                     const totalPrimaryText = isShift
                                         ? `${totalShiftCount} ${departmentTimesheetMobilePicker ? 'смены' : 'смен'}`
                                         : `${Number(totalHours.toFixed(2))} ${departmentTimesheetMobilePicker ? 'часы' : 'ч'}`;
+                                    const legendCounts = SHIFT_MARK_CODES.reduce<Record<string, number>>((acc, code) => {
+                                        acc[code] = 0;
+                                        return acc;
+                                    }, {});
+                                    for (const day of departmentTimesheetDays) {
+                                        const key = `${emp.id}:${day}`;
+                                        const mark = normalizeShiftMark(departmentTimesheetHours[key] || '');
+                                        if (mark) legendCounts[mark] = (legendCounts[mark] || 0) + 1;
+                                    }
 
                                     return (
                                     <tr key={emp.id}>
@@ -4847,7 +4889,8 @@ function ProfilePage({
                                             const key = `${emp.id}:${day}`;
                                             const value = departmentTimesheetHours[key] || '';
                                             const isShift = isShiftAccrual(emp.accrualType);
-                                            const shiftEnabled = value.trim().toUpperCase() === 'С';
+                                            const shiftMark = normalizeShiftMark(value);
+                                            const shiftMarkStyle = getShiftMarkStyle(shiftMark);
                                             const hourPickerValue = toHalfHourValue(value || '0');
                                             return (
                                                 <td key={key} style={{ borderBottom: '1px solid var(--color-border)', padding: '0.2rem' }}>
@@ -4855,37 +4898,77 @@ function ProfilePage({
                                                         <button
                                                             type="button"
                                                             onClick={() => {
-                                                                const nextValue = shiftEnabled ? '' : 'С';
+                                                                if (departmentShiftHoldTriggeredRef.current) {
+                                                                    departmentShiftHoldTriggeredRef.current = false;
+                                                                    return;
+                                                                }
+                                                                const nextValue = shiftMark === 'Я' ? '' : 'Я';
                                                                 setDepartmentTimesheetHours((prev) => ({
                                                                     ...prev,
                                                                     [key]: nextValue,
                                                                 }));
                                                                 void saveDepartmentTimesheetCell(emp.id, day, nextValue);
                                                             }}
+                                                            onMouseDown={(e) => {
+                                                                if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                departmentShiftHoldTriggeredRef.current = false;
+                                                                const { clientX, clientY } = e;
+                                                                departmentShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                                    departmentShiftHoldTriggeredRef.current = true;
+                                                                    setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: clientX, y: clientY });
+                                                                }, 450);
+                                                            }}
+                                                            onMouseUp={() => {
+                                                                if (departmentShiftHoldTimerRef.current) {
+                                                                    window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                    departmentShiftHoldTimerRef.current = null;
+                                                                }
+                                                            }}
+                                                            onMouseLeave={() => {
+                                                                if (departmentShiftHoldTimerRef.current) {
+                                                                    window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                    departmentShiftHoldTimerRef.current = null;
+                                                                }
+                                                            }}
+                                                            onTouchStart={(e) => {
+                                                                if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                departmentShiftHoldTriggeredRef.current = false;
+                                                                const touch = e.touches[0];
+                                                                departmentShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                                    departmentShiftHoldTriggeredRef.current = true;
+                                                                    setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: touch.clientX, y: touch.clientY });
+                                                                }, 450);
+                                                            }}
+                                                            onTouchEnd={() => {
+                                                                if (departmentShiftHoldTimerRef.current) {
+                                                                    window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                    departmentShiftHoldTimerRef.current = null;
+                                                                }
+                                                            }}
                                                             style={{
                                                                 width: '2.2rem',
                                                                 height: '1.6rem',
                                                                 minWidth: '2.2rem',
                                                                 boxSizing: 'border-box',
-                                                                border: shiftEnabled ? '1px solid #1f8f45' : '1px solid var(--color-border)',
+                                                                border: shiftMarkStyle.border,
                                                                 borderRadius: 999,
-                                                                background: shiftEnabled ? '#35c46a' : 'var(--color-bg)',
-                                                                color: shiftEnabled ? '#fff' : 'var(--color-text-secondary)',
+                                                                background: shiftMarkStyle.background,
+                                                                color: shiftMarkStyle.color,
                                                                 padding: 0,
                                                                 lineHeight: '1.6rem',
                                                                 textAlign: 'center',
                                                                 fontWeight: 600,
-                                                                fontSize: shiftEnabled ? '0.9rem' : '1rem',
+                                                                fontSize: shiftMark ? '0.82rem' : '1rem',
                                                                 WebkitAppearance: 'none',
                                                                 appearance: 'none',
                                                                 display: 'block',
                                                                 margin: '0 auto',
                                                                 cursor: 'pointer',
                                                             }}
-                                                            aria-label={shiftEnabled ? 'Смена отмечена, нажмите чтобы снять' : 'Нажмите чтобы отметить смену'}
-                                                            title={shiftEnabled ? 'Смена отмечена' : 'Отметить смену'}
+                                                            aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : 'Нажмите для Я, удерживайте для выбора статуса'}
+                                                            title={shiftMark ? `Статус: ${shiftMark}` : 'Нажмите для Я, удерживайте для выбора'}
                                                         >
-                                                            {shiftEnabled ? 'С' : '○'}
+                                                            {shiftMark || '○'}
                                                         </button>
                                                     ) : (
                                                         departmentTimesheetMobilePicker ? (
@@ -4921,19 +5004,118 @@ function ProfilePage({
                                             );
                                         })}
                                         <td style={{ borderBottom: '1px solid var(--color-border)', padding: '0.35rem 0.4rem', textAlign: 'center' }}>
-                                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                                            <Typography.Body style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', lineHeight: 1.2 }}>
                                                 {totalPrimaryText}
                                             </Typography.Body>
-                                            <Typography.Body style={{ fontSize: '0.76rem', color: 'var(--color-text-secondary)' }}>
+                                            <Typography.Body style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.76rem', color: 'var(--color-text-secondary)', lineHeight: 1.2 }}>
                                                 {Number(totalMoney.toFixed(2))} ₽
                                             </Typography.Body>
                                         </td>
+                                        {SHIFT_MARK_CODES.map((code) => (
+                                            <td key={`${emp.id}-legend-${code}`} style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'center', padding: '0.35rem 0.2rem' }}>
+                                                <Typography.Body style={{ fontSize: '0.82rem', fontWeight: 600 }}>
+                                                    {legendCounts[code] || 0}
+                                                </Typography.Body>
+                                            </td>
+                                        ))}
                                     </tr>
                                 )})}
                             </tbody>
                         </table>
                     </div>
+                    <Flex align="center" gap="0.5rem" wrap="wrap" style={{ marginTop: '0.65rem' }}>
+                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>Я - Явка</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>ПР - прогул</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>Б - Болезнь</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>ОГ - Отгул</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>ОТ - отпуск</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>УВ - Уволен</Typography.Body>
+                    </Flex>
+                    <Panel className="cargo-card" style={{ marginTop: '0.7rem', padding: '0.7rem' }}>
+                        <Typography.Body style={{ fontWeight: 600 }}>
+                            Итого по подразделению: {departmentTimesheetSummary.totalShifts} смен · {departmentTimesheetSummary.totalHours} ч
+                        </Typography.Body>
+                        <Typography.Body style={{ marginTop: '0.12rem', color: 'var(--color-text-secondary)' }}>
+                            {departmentTimesheetSummary.totalMoney.toLocaleString('ru-RU')} ₽
+                        </Typography.Body>
+                    </Panel>
+                    <Panel className="cargo-card" style={{ marginTop: '0.45rem', padding: '0.7rem' }}>
+                        <Typography.Body style={{ fontWeight: 600 }}>
+                            Итого по компании: {companyTimesheetSummary.totalShifts} смен · {companyTimesheetSummary.totalHours} ч
+                        </Typography.Body>
+                        <Typography.Body style={{ marginTop: '0.12rem', color: 'var(--color-text-secondary)' }}>
+                            {companyTimesheetSummary.totalMoney.toLocaleString('ru-RU')} ₽
+                        </Typography.Body>
+                    </Panel>
                 )}
+                {departmentShiftPicker ? (
+                    <div
+                        style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
+                        onClick={() => setDepartmentShiftPicker(null)}
+                    >
+                        <div
+                            style={{
+                                position: 'fixed',
+                                top: typeof window !== 'undefined' ? Math.min(departmentShiftPicker.y + 8, window.innerHeight - 220) : departmentShiftPicker.y + 8,
+                                left: typeof window !== 'undefined' ? Math.min(departmentShiftPicker.x - 80, window.innerWidth - 190) : departmentShiftPicker.x - 80,
+                                width: 180,
+                                background: 'var(--color-bg-card, #fff)',
+                                border: '1px solid var(--color-border)',
+                                borderRadius: 10,
+                                padding: '0.4rem',
+                                boxShadow: '0 10px 24px rgba(0,0,0,0.15)',
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {SHIFT_MARK_OPTIONS.map((opt) => (
+                                <button
+                                    key={`dept-shift-mark-${opt.code}`}
+                                    type="button"
+                                    onClick={() => {
+                                        const nextValue = opt.code;
+                                        setDepartmentTimesheetHours((prev) => ({ ...prev, [departmentShiftPicker.key]: nextValue }));
+                                        void saveDepartmentTimesheetCell(departmentShiftPicker.employeeId, departmentShiftPicker.day, nextValue);
+                                        setDepartmentShiftPicker(null);
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        marginBottom: '0.25rem',
+                                        padding: '0.35rem 0.5rem',
+                                        borderRadius: 8,
+                                        border: `1px solid ${opt.border}`,
+                                        background: opt.bg,
+                                        color: opt.color,
+                                        textAlign: 'left',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                    }}
+                                >
+                                    {opt.code} - {opt.label}
+                                </button>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setDepartmentTimesheetHours((prev) => ({ ...prev, [departmentShiftPicker.key]: '' }));
+                                    void saveDepartmentTimesheetCell(departmentShiftPicker.employeeId, departmentShiftPicker.day, '');
+                                    setDepartmentShiftPicker(null);
+                                }}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.3rem 0.5rem',
+                                    borderRadius: 8,
+                                    border: '1px solid var(--color-border)',
+                                    background: 'var(--color-bg)',
+                                    color: 'var(--color-text-secondary)',
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                }}
+                            >
+                                ○ - очистить
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
             </div>
         );
     }

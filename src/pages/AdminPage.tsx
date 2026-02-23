@@ -576,9 +576,39 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [timesheetHours, setTimesheetHours] = useState<Record<string, string>>({});
   const [timesheetMobilePicker, setTimesheetMobilePicker] = useState(false);
   const WORK_DAYS_IN_MONTH = 21;
+  const SHIFT_MARK_OPTIONS = [
+    { code: "Я", label: "Явка", bg: "#35c46a", color: "#ffffff", border: "#1f8f45" },
+    { code: "ПР", label: "Прогул", bg: "#ef4444", color: "#ffffff", border: "#dc2626" },
+    { code: "Б", label: "Болезнь", bg: "#f59e0b", color: "#111827", border: "#d97706" },
+    { code: "ОГ", label: "Отгул", bg: "#8b5cf6", color: "#ffffff", border: "#7c3aed" },
+    { code: "ОТ", label: "Отпуск", bg: "#3b82f6", color: "#ffffff", border: "#2563eb" },
+    { code: "УВ", label: "Уволен", bg: "#6b7280", color: "#ffffff", border: "#4b5563" },
+  ] as const;
+  const SHIFT_MARK_CODES = SHIFT_MARK_OPTIONS.map((x) => x.code);
+  type ShiftMarkCode = typeof SHIFT_MARK_OPTIONS[number]["code"];
+  const [adminShiftPicker, setAdminShiftPicker] = useState<{ key: string; employeeId: number; dateIso: string; x: number; y: number } | null>(null);
+  const adminShiftHoldTimerRef = useRef<number | null>(null);
+  const adminShiftHoldTriggeredRef = useRef(false);
   const isShiftAccrualType = (value: unknown) => {
     const raw = String(value ?? "").trim().toLowerCase();
     return raw === "shift" || raw === "смена" || raw.includes("shift") || raw.includes("смен");
+  };
+  const normalizeShiftMark = (rawValue: string): ShiftMarkCode | "" => {
+    const raw = String(rawValue || "").trim().toUpperCase();
+    if (!raw) return "";
+    if (raw === "Я") return "Я";
+    if (raw === "ПР") return "ПР";
+    if (raw === "Б") return "Б";
+    if (raw === "ОГ") return "ОГ";
+    if (raw === "ОТ") return "ОТ";
+    if (raw === "УВ") return "УВ";
+    if (raw === "С" || raw === "C" || raw === "1" || raw === "TRUE") return "Я";
+    return "";
+  };
+  const getShiftMarkStyle = (mark: ShiftMarkCode | "") => {
+    const option = SHIFT_MARK_OPTIONS.find((x) => x.code === mark);
+    if (!option) return { border: "1px solid var(--color-border)", background: "var(--color-bg)", color: "var(--color-text-secondary)" };
+    return { border: `1px solid ${option.border}`, background: option.bg, color: option.color };
   };
   const calcMonthlyByRate = (rateRaw: string, accrualType: "hour" | "shift"): number => {
     const rate = Number(String(rateRaw || "").replace(",", "."));
@@ -4179,16 +4209,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       {tab === "timesheet" && isSuperAdmin && (
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Табель учета рабочего времени</Typography.Body>
-          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.8rem" }}>
-            Шахматка по подразделениям: сотрудники по вертикали, даты месяца по горизонтали. В каждой ячейке укажите количество часов за день.
-          </Typography.Body>
           <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.8rem" }}>
             <input
               type="month"
               className="admin-form-input"
               value={timesheetMonth}
               onChange={(e) => setTimesheetMonth(e.target.value)}
-              style={{ minWidth: "12rem", padding: "0 0.6rem" }}
+              style={{ minWidth: "12rem", height: "2.5rem", boxSizing: "border-box", padding: "0 0.6rem" }}
             />
             <Input
               type="text"
@@ -4196,7 +4223,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               value={timesheetSearch}
               onChange={(e) => setTimesheetSearch(e.target.value)}
               placeholder="Поиск по ФИО, email, подразделению"
-              style={{ minWidth: "18rem", flex: 1 }}
+              style={{ minWidth: "18rem", flex: 1, height: "2.5rem", boxSizing: "border-box" }}
             />
           </Flex>
           {employeeDirectoryLoading ? (
@@ -4244,6 +4271,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 </th>
                               ))}
                               <th style={{ textAlign: "center", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", minWidth: "4rem" }}>Итого</th>
+                              {SHIFT_MARK_CODES.map((code) => (
+                                <th key={`timesheet-legend-head-${code}`} style={{ textAlign: "center", padding: "0.35rem 0.25rem", borderBottom: "1px solid var(--color-border)", minWidth: "52px" }}>
+                                  {code}
+                                </th>
+                              ))}
                             </tr>
                           </thead>
                           <tbody>
@@ -4251,14 +4283,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               const isShiftAccrual = isShiftAccrualType(emp.accrual_type);
                               const hourlyRate = Number(emp.accrual_rate ?? 0);
                               const shiftHours = 8;
-                              const isShiftEnabled = (rawValue: string) => {
-                                const raw = String(rawValue || "").trim().toUpperCase();
-                                return raw === "С" || raw === "C" || raw === "1" || raw === "TRUE";
-                              };
                               const totalShifts = timesheetDays.reduce((acc, d) => {
                                 const key = `${emp.id}__${d.iso}`;
                                 const val = timesheetHours[key] || "";
-                                return acc + (isShiftEnabled(val) ? 1 : 0);
+                                return acc + (normalizeShiftMark(val) === "Я" ? 1 : 0);
                               }, 0);
                               const totalHours = isShiftAccrual
                                 ? totalShifts * shiftHours
@@ -4275,6 +4303,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               const totalPrimaryText = isShiftAccrual
                                 ? `${totalShifts} ${timesheetMobilePicker ? "смены" : "смен"}`
                                 : `${Number(totalHours.toFixed(1))} ${timesheetMobilePicker ? "часы" : "ч"}`;
+                              const legendCounts = SHIFT_MARK_CODES.reduce<Record<string, number>>((acc, code) => {
+                                acc[code] = 0;
+                                return acc;
+                              }, {});
+                              for (const d of timesheetDays) {
+                                const key = `${emp.id}__${d.iso}`;
+                                const mark = normalizeShiftMark(timesheetHours[key] || "");
+                                if (mark) legendCounts[mark] = (legendCounts[mark] || 0) + 1;
+                              }
                               return (
                                 <tr key={`timesheet-row-${group.department}-${emp.id}`}>
                                   <td style={{ padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card, #fff)", zIndex: 30, minWidth: "15rem", boxShadow: "2px 0 0 var(--color-border)" }}>
@@ -4285,7 +4322,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     const key = `${emp.id}__${d.iso}`;
                                     const value = (timesheetHours[key] || "").trim().toUpperCase();
                                     const fallback = "0";
-                                    const shiftEnabled = isShiftEnabled(value);
+                                    const shiftMark = normalizeShiftMark(value);
+                                    const shiftMarkStyle = getShiftMarkStyle(shiftMark);
                                     const hourPickerValue = toHalfHourValue(value || fallback);
                                     return (
                                       <td key={`timesheet-cell-${emp.id}-${d.iso}`} style={{ padding: "0.2rem", borderBottom: "1px solid var(--color-border)", background: d.isWeekend ? "var(--color-bg-hover)" : "transparent" }}>
@@ -4293,12 +4331,52 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                           <button
                                             type="button"
                                             onClick={() => {
-                                              const nextValue = shiftEnabled ? "" : "С";
+                                              if (adminShiftHoldTriggeredRef.current) {
+                                                adminShiftHoldTriggeredRef.current = false;
+                                                return;
+                                              }
+                                              const nextValue = shiftMark === "Я" ? "" : "Я";
                                               setTimesheetHours((prev) => ({
                                                 ...prev,
                                                 [key]: nextValue,
                                               }));
                                               void saveTimesheetCell(emp.id, d.iso, nextValue);
+                                            }}
+                                            onMouseDown={(e) => {
+                                              if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
+                                              adminShiftHoldTriggeredRef.current = false;
+                                              const { clientX, clientY } = e;
+                                              adminShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                adminShiftHoldTriggeredRef.current = true;
+                                                setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: clientX, y: clientY });
+                                              }, 450);
+                                            }}
+                                            onMouseUp={() => {
+                                              if (adminShiftHoldTimerRef.current) {
+                                                window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                adminShiftHoldTimerRef.current = null;
+                                              }
+                                            }}
+                                            onMouseLeave={() => {
+                                              if (adminShiftHoldTimerRef.current) {
+                                                window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                adminShiftHoldTimerRef.current = null;
+                                              }
+                                            }}
+                                            onTouchStart={(e) => {
+                                              if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
+                                              adminShiftHoldTriggeredRef.current = false;
+                                              const touch = e.touches[0];
+                                              adminShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                adminShiftHoldTriggeredRef.current = true;
+                                                setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: touch.clientX, y: touch.clientY });
+                                              }, 450);
+                                            }}
+                                            onTouchEnd={() => {
+                                              if (adminShiftHoldTimerRef.current) {
+                                                window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                adminShiftHoldTimerRef.current = null;
+                                              }
                                             }}
                                             style={{
                                               width: "2.2rem",
@@ -4308,19 +4386,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               margin: "0 auto",
                                               display: "block",
                                               borderRadius: 999,
-                                              border: shiftEnabled ? "1px solid #1f8f45" : "1px solid var(--color-border)",
-                                              background: shiftEnabled ? "#35c46a" : "var(--color-bg)",
-                                              color: shiftEnabled ? "#ffffff" : "var(--color-text-secondary)",
+                                              border: shiftMarkStyle.border,
+                                              background: shiftMarkStyle.background,
+                                              color: shiftMarkStyle.color,
                                               fontWeight: 600,
                                               lineHeight: "1.6rem",
-                                              fontSize: shiftEnabled ? "0.9rem" : "1rem",
+                                              fontSize: shiftMark ? "0.82rem" : "1rem",
                                               WebkitAppearance: "none",
                                               appearance: "none",
                                               cursor: "pointer",
                                             }}
-                                            aria-label={shiftEnabled ? "Смена включена, нажмите чтобы выключить" : "Смена выключена, нажмите чтобы включить"}
+                                            aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : "Нажмите для Я, удерживайте для выбора статуса"}
                                           >
-                                            {shiftEnabled ? "С" : "○"}
+                                            {shiftMark || "○"}
                                           </button>
                                         ) : (
                                           timesheetMobilePicker ? (
@@ -4380,6 +4458,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                       {Number(totalMoney.toFixed(2))} ₽
                                     </div>
                                   </td>
+                                  {SHIFT_MARK_CODES.map((code) => (
+                                    <td key={`${emp.id}-legend-${code}`} style={{ textAlign: "center", padding: "0.35rem 0.25rem", borderBottom: "1px solid var(--color-border)" }}>
+                                      <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>
+                                        {legendCounts[code] || 0}
+                                      </Typography.Body>
+                                    </td>
+                                  ))}
                                 </tr>
                               );
                             })}
@@ -4388,10 +4473,83 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </div>
                     </Panel>
                   ))}
+                  <Flex align="center" gap="0.5rem" wrap="wrap">
+                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>Я - Явка</Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>ПР - прогул</Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>Б - Болезнь</Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>ОГ - Отгул</Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>ОТ - отпуск</Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>УВ - Уволен</Typography.Body>
+                  </Flex>
                 </div>
               )}
             </>
           )}
+          {adminShiftPicker ? (
+            <div style={{ position: "fixed", inset: 0, zIndex: 10000 }} onClick={() => setAdminShiftPicker(null)}>
+              <div
+                style={{
+                  position: "fixed",
+                  top: typeof window !== "undefined" ? Math.min(adminShiftPicker.y + 8, window.innerHeight - 220) : adminShiftPicker.y + 8,
+                  left: typeof window !== "undefined" ? Math.min(adminShiftPicker.x - 80, window.innerWidth - 190) : adminShiftPicker.x - 80,
+                  width: 180,
+                  background: "var(--color-bg-card, #fff)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 10,
+                  padding: "0.4rem",
+                  boxShadow: "0 10px 24px rgba(0,0,0,0.15)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {SHIFT_MARK_OPTIONS.map((opt) => (
+                  <button
+                    key={`admin-shift-mark-${opt.code}`}
+                    type="button"
+                    onClick={() => {
+                      const nextValue = opt.code;
+                      setTimesheetHours((prev) => ({ ...prev, [adminShiftPicker.key]: nextValue }));
+                      void saveTimesheetCell(adminShiftPicker.employeeId, adminShiftPicker.dateIso, nextValue);
+                      setAdminShiftPicker(null);
+                    }}
+                    style={{
+                      width: "100%",
+                      marginBottom: "0.25rem",
+                      padding: "0.35rem 0.5rem",
+                      borderRadius: 8,
+                      border: `1px solid ${opt.border}`,
+                      background: opt.bg,
+                      color: opt.color,
+                      textAlign: "left",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {opt.code} - {opt.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTimesheetHours((prev) => ({ ...prev, [adminShiftPicker.key]: "" }));
+                    void saveTimesheetCell(adminShiftPicker.employeeId, adminShiftPicker.dateIso, "");
+                    setAdminShiftPicker(null);
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.3rem 0.5rem",
+                    borderRadius: 8,
+                    border: "1px solid var(--color-border)",
+                    background: "var(--color-bg)",
+                    color: "var(--color-text-secondary)",
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                >
+                  ○ - очистить
+                </button>
+              </div>
+            </div>
+          ) : null}
         </Panel>
       )}
 
