@@ -219,6 +219,74 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const monthInfo = parseMonth(body?.month);
     if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
+    const payoutIdRaw = body?.payoutId;
+    if (payoutIdRaw !== undefined && payoutIdRaw !== null && String(payoutIdRaw).trim() !== "") {
+      const payoutId = Number(payoutIdRaw);
+      const employeeId = Number(body?.employeeId);
+      const payoutDate = String(body?.payoutDate || "").trim();
+      const amountRaw = body?.amount;
+      if (!Number.isFinite(payoutId) || payoutId <= 0) return res.status(400).json({ error: "payoutId обязателен" });
+      if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(payoutDate)) return res.status(400).json({ error: "payoutDate обязателен в формате YYYY-MM-DD" });
+      const amount = Number(String(amountRaw ?? "").replace(",", "."));
+      if (!Number.isFinite(amount) || amount < 0) return res.status(400).json({ error: "amount обязателен и не может быть меньше 0" });
+
+      const existingRes = await pool.query<{ cooperation_type: string | null }>(
+        `SELECT cooperation_type
+         FROM employee_timesheet_payouts
+         WHERE id = $1
+           AND employee_id = $2
+           AND period_month = $3::date
+         LIMIT 1`,
+        [payoutId, employeeId, monthInfo.start]
+      );
+      const existing = existingRes.rows[0];
+      if (!existing) return res.status(404).json({ error: "Выплата не найдена" });
+      const cooperationType = normalizeCooperationType(existing.cooperation_type);
+      const taxAmount = cooperationType === "ip" || cooperationType === "self_employed"
+        ? Number((amount / 0.94 - amount).toFixed(2))
+        : 0;
+
+      const updated = await pool.query<{
+        id: number;
+        payout_date: string;
+        period_from: string;
+        period_to: string;
+        amount: number;
+        tax_amount: number;
+        cooperation_type: string | null;
+        paid_dates: unknown;
+        created_at: string;
+      }>(
+        `UPDATE employee_timesheet_payouts
+         SET payout_date = $4::date,
+             amount = $5,
+             tax_amount = $6
+         WHERE id = $1
+           AND employee_id = $2
+           AND period_month = $3::date
+         RETURNING id, payout_date::text as payout_date, period_from::text as period_from, period_to::text as period_to,
+                   amount, tax_amount, cooperation_type, paid_dates, created_at::text as created_at`,
+        [payoutId, employeeId, monthInfo.start, payoutDate, amount, taxAmount]
+      );
+      const row = updated.rows[0];
+      if (!row) return res.status(404).json({ error: "Выплата не найдена" });
+      return res.status(200).json({
+        ok: true,
+        payout: {
+          id: row.id,
+          payoutDate: row.payout_date,
+          periodFrom: row.period_from,
+          periodTo: row.period_to,
+          amount: Number(row.amount || 0),
+          taxAmount: Number(row.tax_amount || 0),
+          cooperationType: normalizeCooperationType(row.cooperation_type),
+          paidDates: Array.isArray(row.paid_dates) ? row.paid_dates.map((x) => String(x || "")) : [],
+          createdAt: row.created_at,
+        },
+      });
+    }
+
     const employeeId = Number(body?.employeeId);
     const date = String(body?.date || "").trim();
     const paid = Boolean(body?.paid);
@@ -229,6 +297,19 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     if (!paid) {
       await pool.query("DELETE FROM employee_timesheet_payment_marks WHERE employee_id = $1 AND work_date = $2::date", [employeeId, date]);
       return res.status(200).json({ ok: true });
+    }
+    const alreadyPaidRes = await pool.query<{ work_date: string }>(
+      `SELECT d.value as work_date
+       FROM employee_timesheet_payouts p
+       CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(p.paid_dates, '[]'::jsonb)) d(value)
+       WHERE p.employee_id = $1
+         AND p.period_month = $2::date
+         AND d.value = $3
+       LIMIT 1`,
+      [employeeId, monthInfo.start, date]
+    );
+    if (alreadyPaidRes.rows[0]) {
+      return res.status(409).json({ error: `День ${date} уже был оплачен и не может быть выбран повторно` });
     }
     await pool.query(
       `INSERT INTO employee_timesheet_payment_marks(employee_id, work_date)
@@ -278,6 +359,20 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     );
     if (marksRes.rows.length === 0) return res.status(400).json({ error: "Не выбраны дни к выплате" });
     const markedDates = marksRes.rows.map((r) => r.work_date);
+    const duplicatePaidRes = await pool.query<{ work_date: string }>(
+      `SELECT DISTINCT d.value as work_date
+       FROM employee_timesheet_payouts p
+       CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(p.paid_dates, '[]'::jsonb)) d(value)
+       WHERE p.employee_id = $1
+         AND p.period_month = $2::date
+         AND d.value = ANY($3::text[])
+       ORDER BY d.value`,
+      [employeeId, monthInfo.start, markedDates]
+    );
+    if (duplicatePaidRes.rows.length > 0) {
+      const duplicates = duplicatePaidRes.rows.map((r) => r.work_date).join(", ");
+      return res.status(409).json({ error: `Эти дни уже были оплачены и не могут быть выплачены повторно: ${duplicates}` });
+    }
     const periodFrom = markedDates[0];
     const periodTo = markedDates[markedDates.length - 1];
 
@@ -339,7 +434,35 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  res.setHeader("Allow", "GET, PUT, PATCH, POST");
+  if (req.method === "DELETE") {
+    let body: any = req.body;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        return res.status(400).json({ error: "Invalid JSON" });
+      }
+    }
+    const monthInfo = parseMonth(body?.month);
+    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
+    const payoutId = Number(body?.payoutId);
+    const employeeId = Number(body?.employeeId);
+    if (!Number.isFinite(payoutId) || payoutId <= 0) return res.status(400).json({ error: "payoutId обязателен" });
+    if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
+
+    const deleted = await pool.query<{ id: number }>(
+      `DELETE FROM employee_timesheet_payouts
+       WHERE id = $1
+         AND employee_id = $2
+         AND period_month = $3::date
+       RETURNING id`,
+      [payoutId, employeeId, monthInfo.start]
+    );
+    if (!deleted.rows[0]) return res.status(404).json({ error: "Выплата не найдена" });
+    return res.status(200).json({ ok: true });
+  }
+
+  res.setHeader("Allow", "GET, PUT, PATCH, POST, DELETE");
   return res.status(405).json({ error: "Method not allowed" });
 }
 

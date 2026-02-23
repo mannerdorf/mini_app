@@ -605,6 +605,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     createdAt: string;
   }>>>({});
   const [timesheetPayoutSavingEmployeeId, setTimesheetPayoutSavingEmployeeId] = useState<number | null>(null);
+  const [timesheetPayoutEditingId, setTimesheetPayoutEditingId] = useState<number | null>(null);
+  const [timesheetPayoutEditingEmployeeId, setTimesheetPayoutEditingEmployeeId] = useState<number | null>(null);
+  const [timesheetPayoutEditDate, setTimesheetPayoutEditDate] = useState("");
+  const [timesheetPayoutEditAmount, setTimesheetPayoutEditAmount] = useState("");
+  const [timesheetPayoutActionLoadingId, setTimesheetPayoutActionLoadingId] = useState<number | null>(null);
   const [timesheetMobilePicker, setTimesheetMobilePicker] = useState(false);
   const WORK_DAYS_IN_MONTH = 21;
   const SHIFT_MARK_OPTIONS = [
@@ -1447,9 +1452,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         if (!res.ok) throw new Error(data?.error || "Ошибка сохранения оплаты");
       } catch (e: unknown) {
         setError((e as Error)?.message || "Ошибка сохранения оплаты");
+        await fetchTimesheetEntries();
       }
     },
-    [adminToken, isSuperAdmin, timesheetMonth]
+    [adminToken, isSuperAdmin, timesheetMonth, fetchTimesheetEntries]
   );
   const createTimesheetPayout = useCallback(
     async (employeeId: number) => {
@@ -1481,6 +1487,92 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       }
     },
     [adminToken, isSuperAdmin, timesheetMonth, fetchTimesheetEntries]
+  );
+  const updateTimesheetPayout = useCallback(
+    async (employeeId: number, payoutId: number, payoutDate: string, amountRaw: string) => {
+      if (!adminToken || !isSuperAdmin) return;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(payoutDate || "").trim())) {
+        setError("Дата выплаты должна быть в формате YYYY-MM-DD");
+        return;
+      }
+      const amount = Number(String(amountRaw || "").replace(",", "."));
+      if (!Number.isFinite(amount) || amount < 0) {
+        setError("Сумма выплаты должна быть числом не меньше 0");
+        return;
+      }
+      setTimesheetPayoutActionLoadingId(payoutId);
+      try {
+        const res = await fetch("/api/admin-timesheet", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            month: timesheetMonth,
+            employeeId,
+            payoutId,
+            payoutDate,
+            amount,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          onLogoutRef.current?.("expired");
+          return;
+        }
+        if (!res.ok) throw new Error(data?.error || "Ошибка изменения выплаты");
+        await fetchTimesheetEntries();
+        setTimesheetPayoutEditingId(null);
+        setTimesheetPayoutEditingEmployeeId(null);
+        setTimesheetPayoutEditDate("");
+        setTimesheetPayoutEditAmount("");
+      } catch (e: unknown) {
+        setError((e as Error)?.message || "Ошибка изменения выплаты");
+      } finally {
+        setTimesheetPayoutActionLoadingId(null);
+      }
+    },
+    [adminToken, isSuperAdmin, timesheetMonth, fetchTimesheetEntries]
+  );
+  const deleteTimesheetPayout = useCallback(
+    async (employeeId: number, payoutId: number) => {
+      if (!adminToken || !isSuperAdmin) return;
+      if (!window.confirm("Удалить выплату? Действие нельзя отменить.")) return;
+      setTimesheetPayoutActionLoadingId(payoutId);
+      try {
+        const res = await fetch("/api/admin-timesheet", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            month: timesheetMonth,
+            employeeId,
+            payoutId,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          onLogoutRef.current?.("expired");
+          return;
+        }
+        if (!res.ok) throw new Error(data?.error || "Ошибка удаления выплаты");
+        await fetchTimesheetEntries();
+        if (timesheetPayoutEditingId === payoutId) {
+          setTimesheetPayoutEditingId(null);
+          setTimesheetPayoutEditingEmployeeId(null);
+          setTimesheetPayoutEditDate("");
+          setTimesheetPayoutEditAmount("");
+        }
+      } catch (e: unknown) {
+        setError((e as Error)?.message || "Ошибка удаления выплаты");
+      } finally {
+        setTimesheetPayoutActionLoadingId(null);
+      }
+    },
+    [adminToken, isSuperAdmin, timesheetMonth, fetchTimesheetEntries, timesheetPayoutEditingId]
   );
 
   useEffect(() => {
@@ -4525,6 +4617,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               }
                               const totalColumnCount = 1 + timesheetDays.length + 1 + SHIFT_MARK_CODES.length;
                               const employeePayouts = timesheetPayoutsByEmployee[String(emp.id)] || [];
+                              const employeePaidTotal = employeePayouts.reduce((acc, payout) => acc + Number(payout.amount || 0), 0);
+                              const employeeOutstanding = Math.max(0, Number((totalMoney - employeePaidTotal).toFixed(2)));
                               const paidDatesSet = new Set(
                                 employeePayouts.flatMap((payout) =>
                                   Array.isArray(payout.paidDates) ? payout.paidDates : []
@@ -4564,17 +4658,20 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                         key={`timesheet-cell-${emp.id}-${d.iso}`}
                                         onClick={() => {
                                           if (!isPayoutExpanded) return;
+                                          if (isPaidDate) return;
                                           const nextPaid = !isMarkedForPayment;
                                           setTimesheetPaymentMarks((prev) => ({ ...prev, [key]: nextPaid }));
                                           void saveTimesheetPaymentMark(emp.id, d.iso, nextPaid);
                                         }}
                                         style={{
-                                          padding: "0.2rem",
+                                          padding: shiftMark === "Я" && isPaidDate ? "0.2rem 0.2rem 0.72rem 0.2rem" : "0.2rem",
                                           borderBottom: "1px solid var(--color-border)",
                                           background: isMarkedForPayment ? "#fff7d6" : (d.isWeekend ? "var(--color-bg-hover)" : "transparent"),
-                                          boxShadow: isMarkedForPayment ? "inset 0 0 0 1px #f59e0b" : undefined,
-                                          cursor: isPayoutExpanded ? "pointer" : "default",
+                                          boxShadow: isMarkedForPayment ? "inset 0 0 0 1px #f59e0b" : (isPaidDate ? "inset 0 0 0 1px #16a34a" : undefined),
+                                          cursor: isPayoutExpanded ? (isPaidDate ? "not-allowed" : "pointer") : "default",
+                                          opacity: isPayoutExpanded && isPaidDate ? 0.9 : 1,
                                         }}
+                                        title={isPaidDate ? "Этот день уже оплачен, повторная оплата запрещена" : undefined}
                                       >
                                         {isShiftAccrual ? (
                                           <div style={{ display: "grid", justifyItems: "center", rowGap: "0.08rem" }}>
@@ -4650,29 +4747,36 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                 fontSize: shiftMark ? "0.82rem" : "1rem",
                                                 WebkitAppearance: "none",
                                                 appearance: "none",
+                                                position: "relative",
+                                                overflow: "visible",
                                                 cursor: isPayoutExpanded ? "default" : "pointer",
                                                 opacity: isPayoutExpanded ? 0.9 : 1,
                                               }}
                                               aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : "Нажмите для Я, удерживайте для выбора статуса"}
                                             >
                                               {shiftMark || "○"}
+                                              {shiftMark === "Я" && isPaidDate ? (
+                                                <span
+                                                  style={{
+                                                    position: "absolute",
+                                                    left: "50%",
+                                                    bottom: "-0.68rem",
+                                                    transform: "translateX(-50%)",
+                                                    fontSize: "0.58rem",
+                                                    fontWeight: 700,
+                                                    lineHeight: 1,
+                                                    padding: "0.07rem 0.22rem",
+                                                    borderRadius: 999,
+                                                    border: "1px solid #15803d",
+                                                    color: "#15803d",
+                                                    background: "#dcfce7",
+                                                    whiteSpace: "nowrap",
+                                                  }}
+                                                >
+                                                  опл
+                                                </span>
+                                              ) : null}
                                             </button>
-                                            {shiftMark === "Я" && isPaidDate ? (
-                                              <span
-                                                style={{
-                                                  fontSize: "0.62rem",
-                                                  fontWeight: 700,
-                                                  lineHeight: 1,
-                                                  padding: "0.08rem 0.24rem",
-                                                  borderRadius: 999,
-                                                  border: "1px solid #15803d",
-                                                  color: "#15803d",
-                                                  background: "#dcfce7",
-                                                }}
-                                              >
-                                                опл
-                                              </span>
-                                            ) : null}
                                           </div>
                                         ) : (
                                           timesheetMobilePicker ? (
@@ -4734,7 +4838,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                       {Number(totalMoney.toFixed(2))} ₽
                                     </div>
                                     <div style={{ fontSize: "0.72rem", color: "#15803d", marginTop: "0.12rem" }}>
-                                      К оплате: {Number(totalMoneyToPay.toFixed(2))} ₽
+                                      Остаток: {employeeOutstanding.toLocaleString("ru-RU")} ₽
                                     </div>
                                   </td>
                                   {SHIFT_MARK_CODES.map((code) => (
@@ -4782,25 +4886,117 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                 {showTaxColumns ? (
                                                   <th style={{ textAlign: "right", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Налог</th>
                                                 ) : null}
+                                                <th style={{ textAlign: "right", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Действия</th>
                                               </tr>
                                             </thead>
                                             <tbody>
-                                              {employeePayouts.map((payout) => (
-                                                <tr key={`timesheet-payout-row-${payout.id}`}>
-                                                  <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>{payout.payoutDate}</td>
-                                                  <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>
-                                                    {payout.periodFrom} — {payout.periodTo}
-                                                  </td>
-                                                  <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right", fontWeight: 600 }}>
-                                                    {Number(payout.amount || 0).toLocaleString("ru-RU")} ₽
-                                                  </td>
-                                                  {showTaxColumns ? (
-                                                    <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right", fontWeight: 600, color: "#b45309" }}>
-                                                      {Number(payout.taxAmount || 0).toLocaleString("ru-RU")} ₽
+                                              {employeePayouts.map((payout) => {
+                                                const isEditing = timesheetPayoutEditingId === payout.id && timesheetPayoutEditingEmployeeId === emp.id;
+                                                const isActionLoading = timesheetPayoutActionLoadingId === payout.id;
+                                                const editAmountNumber = Number(String(timesheetPayoutEditAmount || "").replace(",", "."));
+                                                const previewTax = Number.isFinite(editAmountNumber) && editAmountNumber >= 0
+                                                  ? ((payout.cooperationType === "ip" || payout.cooperationType === "self_employed")
+                                                      ? Number((editAmountNumber / 0.94 - editAmountNumber).toFixed(2))
+                                                      : 0)
+                                                  : Number(payout.taxAmount || 0);
+                                                return (
+                                                  <tr key={`timesheet-payout-row-${payout.id}`}>
+                                                    <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>
+                                                      {isEditing ? (
+                                                        <input
+                                                          type="date"
+                                                          className="admin-form-input"
+                                                          value={timesheetPayoutEditDate}
+                                                          onChange={(e) => setTimesheetPayoutEditDate(e.target.value)}
+                                                          style={{ minWidth: "8.6rem", padding: "0.2rem 0.3rem" }}
+                                                        />
+                                                      ) : (
+                                                        payout.payoutDate
+                                                      )}
                                                     </td>
-                                                  ) : null}
-                                                </tr>
-                                              ))}
+                                                    <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>
+                                                      {payout.periodFrom} — {payout.periodTo}
+                                                    </td>
+                                                    <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right", fontWeight: 600 }}>
+                                                      {isEditing ? (
+                                                        <input
+                                                          type="number"
+                                                          min={0}
+                                                          step={0.01}
+                                                          className="admin-form-input"
+                                                          value={timesheetPayoutEditAmount}
+                                                          onChange={(e) => setTimesheetPayoutEditAmount(e.target.value)}
+                                                          style={{ width: "7.2rem", textAlign: "right", padding: "0.2rem 0.3rem" }}
+                                                        />
+                                                      ) : (
+                                                        `${Number(payout.amount || 0).toLocaleString("ru-RU")} ₽`
+                                                      )}
+                                                    </td>
+                                                    {showTaxColumns ? (
+                                                      <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right", fontWeight: 600, color: "#b45309" }}>
+                                                        {isEditing
+                                                          ? `${Number(previewTax || 0).toLocaleString("ru-RU")} ₽`
+                                                          : `${Number(payout.taxAmount || 0).toLocaleString("ru-RU")} ₽`}
+                                                      </td>
+                                                    ) : null}
+                                                    <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>
+                                                      {isEditing ? (
+                                                        <Flex align="center" justify="flex-end" gap="0.3rem">
+                                                          <Button
+                                                            type="button"
+                                                            className="filter-button"
+                                                            disabled={isActionLoading}
+                                                            onClick={() => void updateTimesheetPayout(emp.id, payout.id, timesheetPayoutEditDate, timesheetPayoutEditAmount)}
+                                                            style={{ padding: "0.2rem 0.45rem" }}
+                                                          >
+                                                            {isActionLoading ? "Сохранение..." : "Сохранить"}
+                                                          </Button>
+                                                          <Button
+                                                            type="button"
+                                                            className="filter-button"
+                                                            disabled={isActionLoading}
+                                                            onClick={() => {
+                                                              setTimesheetPayoutEditingId(null);
+                                                              setTimesheetPayoutEditingEmployeeId(null);
+                                                              setTimesheetPayoutEditDate("");
+                                                              setTimesheetPayoutEditAmount("");
+                                                            }}
+                                                            style={{ padding: "0.2rem 0.45rem" }}
+                                                          >
+                                                            Отмена
+                                                          </Button>
+                                                        </Flex>
+                                                      ) : (
+                                                        <Flex align="center" justify="flex-end" gap="0.3rem">
+                                                          <Button
+                                                            type="button"
+                                                            className="filter-button"
+                                                            disabled={timesheetPayoutActionLoadingId !== null}
+                                                            onClick={() => {
+                                                              setTimesheetPayoutEditingId(payout.id);
+                                                              setTimesheetPayoutEditingEmployeeId(emp.id);
+                                                              setTimesheetPayoutEditDate(payout.payoutDate || "");
+                                                              setTimesheetPayoutEditAmount(String(Number(payout.amount || 0)));
+                                                            }}
+                                                            style={{ padding: "0.2rem 0.45rem" }}
+                                                          >
+                                                            Изменить
+                                                          </Button>
+                                                          <Button
+                                                            type="button"
+                                                            className="filter-button"
+                                                            disabled={timesheetPayoutActionLoadingId !== null}
+                                                            onClick={() => void deleteTimesheetPayout(emp.id, payout.id)}
+                                                            style={{ padding: "0.2rem 0.45rem", borderColor: "#dc2626", color: "#b91c1c" }}
+                                                          >
+                                                            Удалить
+                                                          </Button>
+                                                        </Flex>
+                                                      )}
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
                                             </tbody>
                                           </table>
                                         </div>
