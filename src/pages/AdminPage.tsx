@@ -690,6 +690,50 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       }))
       .sort((a, b) => a.department.localeCompare(b.department, "ru"));
   }, [employeeDirectoryItems, timesheetSearch]);
+  const timesheetDepartmentSummaries = useMemo(() => {
+    return timesheetEmployeesByDepartment.map((group) => {
+      let totalHours = 0;
+      let totalShifts = 0;
+      let totalMoney = 0;
+      for (const emp of group.employees) {
+        const isShiftAccrual = isShiftAccrualType(emp.accrual_type);
+        const rate = Number(emp.accrual_rate ?? 0);
+        if (isShiftAccrual) {
+          const shifts = timesheetDays.reduce((acc, d) => {
+            const key = `${emp.id}__${d.iso}`;
+            return acc + (normalizeShiftMark(timesheetHours[key] || "") === "Я" ? 1 : 0);
+          }, 0);
+          totalShifts += shifts;
+          totalHours += shifts * 8;
+          totalMoney += shifts * rate;
+        } else {
+          const hours = timesheetDays.reduce((acc, d) => {
+            const key = `${emp.id}__${d.iso}`;
+            const parsed = Number(String(timesheetHours[key] || "").trim().replace(",", "."));
+            return acc + (Number.isFinite(parsed) ? parsed : 0);
+          }, 0);
+          totalHours += hours;
+          totalMoney += hours * rate;
+        }
+      }
+      return {
+        department: group.department,
+        totalHours: Number(totalHours.toFixed(2)),
+        totalShifts,
+        totalMoney: Number(totalMoney.toFixed(2)),
+      };
+    });
+  }, [timesheetEmployeesByDepartment, timesheetDays, timesheetHours]);
+  const timesheetCompanySummary = useMemo(() => {
+    const totalHours = timesheetDepartmentSummaries.reduce((acc, x) => acc + x.totalHours, 0);
+    const totalShifts = timesheetDepartmentSummaries.reduce((acc, x) => acc + x.totalShifts, 0);
+    const totalMoney = timesheetDepartmentSummaries.reduce((acc, x) => acc + x.totalMoney, 0);
+    return {
+      totalHours: Number(totalHours.toFixed(2)),
+      totalShifts,
+      totalMoney: Number(totalMoney.toFixed(2)),
+    };
+  }, [timesheetDepartmentSummaries]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -4480,7 +4524,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>ОГ - Отгул</Typography.Body>
                     <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>ОТ - отпуск</Typography.Body>
                     <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>УВ - Уволен</Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+                      Смена: нажмите и удерживайте для выбора статуса
+                    </Typography.Body>
                   </Flex>
+                  {timesheetDepartmentSummaries.map((row) => (
+                    <Panel key={`timesheet-summary-${row.department}`} className="cargo-card" style={{ marginTop: "0.65rem", padding: "0.7rem" }}>
+                      <Typography.Body style={{ fontWeight: 600 }}>
+                        Итого по подразделению: {row.department} · {row.totalShifts} смен · {row.totalHours} ч
+                      </Typography.Body>
+                      <Typography.Body style={{ marginTop: "0.12rem", color: "var(--color-text-secondary)" }}>
+                        {row.totalMoney.toLocaleString("ru-RU")} ₽
+                      </Typography.Body>
+                    </Panel>
+                  ))}
+                  <Panel className="cargo-card" style={{ marginTop: "0.65rem", padding: "0.7rem" }}>
+                    <Typography.Body style={{ fontWeight: 600 }}>
+                      Итого по компании: {timesheetCompanySummary.totalShifts} смен · {timesheetCompanySummary.totalHours} ч
+                    </Typography.Body>
+                    <Typography.Body style={{ marginTop: "0.12rem", color: "var(--color-text-secondary)" }}>
+                      {timesheetCompanySummary.totalMoney.toLocaleString("ru-RU")} ₽
+                    </Typography.Body>
+                  </Panel>
                 </div>
               )}
             </>
