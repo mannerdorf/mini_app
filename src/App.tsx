@@ -712,6 +712,40 @@ function DashboardPage({
             totalCost: number;
         }>;
     } | null>(null);
+    const normalizeDashboardAccrualType = (value: unknown): "hour" | "shift" => {
+        const raw = String(value ?? "").trim().toLowerCase();
+        if (!raw) return "hour";
+        if (raw === "shift" || raw === "смена") return "shift";
+        if (raw === "hour" || raw === "часы" || raw === "час") return "hour";
+        return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
+    };
+    const normalizeDashboardShiftMark = (rawValue: string): "Я" | "ПР" | "Б" | "ОГ" | "ОТ" | "УВ" | "" => {
+        const raw = String(rawValue || "").trim().toUpperCase();
+        if (!raw) return "";
+        if (raw === "Я") return "Я";
+        if (raw === "ПР") return "ПР";
+        if (raw === "Б") return "Б";
+        if (raw === "ОГ") return "ОГ";
+        if (raw === "ОТ") return "ОТ";
+        if (raw === "УВ") return "УВ";
+        if (raw === "С" || raw === "C" || raw === "1" || raw === "TRUE" || raw === "ON" || raw === "YES") return "Я";
+        if (raw.includes("СМЕН") || raw.includes("SHIFT")) return "Я";
+        return "";
+    };
+    const parseDashboardHoursValue = (rawValue: string): number => {
+        const raw = String(rawValue || "").trim();
+        if (!raw) return 0;
+        const timeMatch = raw.match(/^(\d{1,2}):(\d{2})$/);
+        if (timeMatch) {
+            const h = Number(timeMatch[1]);
+            const m = Number(timeMatch[2]);
+            if (Number.isFinite(h) && Number.isFinite(m) && m >= 0 && m < 60) return h + m / 60;
+        }
+        const normalized = raw.replace(/\s+/g, "").replace(",", ".").replace(/[^\d.]/g, "");
+        if (!normalized) return 0;
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+    };
 
     const handleSlaTableSort = (column: string) => {
         if (slaTableSortColumn === column) {
@@ -929,30 +963,88 @@ function DashboardPage({
         let cancelled = false;
         setTimesheetAnalyticsLoading(true);
         setTimesheetAnalyticsError(null);
-        fetch('/api/my-timesheet-analytics', {
+        const month = /^\d{4}-\d{2}-\d{2}$/.test(apiDateRange.dateFrom)
+            ? apiDateRange.dateFrom.slice(0, 7)
+            : "";
+        if (!month) {
+            setTimesheetAnalyticsError('Некорректный месяц для табеля');
+            setTimesheetAnalyticsData(null);
+            setTimesheetAnalyticsLoading(false);
+            return;
+        }
+        fetch('/api/my-department-timesheet', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 login: auth.login,
                 password: auth.password,
-                dateFrom: apiDateRange.dateFrom,
-                dateTo: apiDateRange.dateTo,
+                month,
             }),
         })
             .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
             .then(({ ok, data }) => {
                 if (cancelled) return;
-                if (!ok) throw new Error(data?.error || 'Ошибка загрузки аналитики табеля');
+                if (!ok) throw new Error(data?.error || 'Ошибка загрузки данных табеля');
+                const employees = Array.isArray(data?.employees) ? data.employees : [];
+                const entriesRaw = data?.entries && typeof data.entries === "object" ? (data.entries as Record<string, string>) : {};
+                const employeeRows = employees.map((row: any) => ({
+                    employeeId: Number(row?.id || 0),
+                    fullName: String(row?.fullName || ""),
+                    department: String(row?.department || ""),
+                    position: String(row?.position || ""),
+                    accrualType: normalizeDashboardAccrualType(row?.accrualType),
+                    accrualRate: Number(row?.accrualRate || 0),
+                })).filter((x: any) => Number.isFinite(x.employeeId) && x.employeeId > 0);
+                const entriesByEmployee = new Map<number, string[]>();
+                for (const [entryKey, entryValue] of Object.entries(entriesRaw)) {
+                    const match = /^(\d+)__\d{4}-\d{2}-\d{2}$/.exec(entryKey);
+                    if (!match) continue;
+                    const employeeId = Number(match[1]);
+                    if (!Number.isFinite(employeeId) || employeeId <= 0) continue;
+                    const list = entriesByEmployee.get(employeeId) || [];
+                    list.push(String(entryValue || ""));
+                    entriesByEmployee.set(employeeId, list);
+                }
+                let totalHours = 0;
+                let totalShifts = 0;
+                let totalCost = 0;
+                const employeeStats = employeeRows.map((employee: any) => {
+                    const values = entriesByEmployee.get(employee.employeeId) || [];
+                    const hasShiftMarks = values.some((v) => normalizeDashboardShiftMark(v) !== "");
+                    const hasNumericHours = values.some((v) => parseDashboardHoursValue(v) > 0);
+                    const resolvedAccrualType: "hour" | "shift" =
+                        employee.accrualType === "shift" || (hasShiftMarks && !hasNumericHours) ? "shift" : "hour";
+                    let employeeShifts = 0;
+                    let employeeHours = 0;
+                    if (resolvedAccrualType === "shift") {
+                        employeeShifts = values.reduce((acc, v) => acc + (normalizeDashboardShiftMark(v) === "Я" ? 1 : 0), 0);
+                        employeeHours = employeeShifts * 8;
+                    } else {
+                        employeeHours = values.reduce((acc, v) => acc + parseDashboardHoursValue(v), 0);
+                    }
+                    const employeeCost = resolvedAccrualType === "shift"
+                        ? employeeShifts * Number(employee.accrualRate || 0)
+                        : employeeHours * Number(employee.accrualRate || 0);
+                    totalHours += employeeHours;
+                    totalShifts += employeeShifts;
+                    totalCost += employeeCost;
+                    return {
+                        ...employee,
+                        totalHours: Number(employeeHours.toFixed(2)),
+                        totalShifts: Number(employeeShifts || 0),
+                        totalCost: Number(employeeCost.toFixed(2)),
+                    };
+                });
                 setTimesheetAnalyticsData({
-                    totalHours: Number(data?.totalHours || 0),
-                    totalShifts: Number(data?.totalShifts || 0),
-                    totalCost: Number(data?.totalCost || 0),
-                    employees: Array.isArray(data?.employees) ? data.employees : [],
+                    totalHours: Number(totalHours.toFixed(2)),
+                    totalShifts: Number(totalShifts || 0),
+                    totalCost: Number(totalCost.toFixed(2)),
+                    employees: employeeStats,
                 });
             })
             .catch((e: unknown) => {
                 if (cancelled) return;
-                setTimesheetAnalyticsError((e as Error)?.message || 'Ошибка загрузки аналитики табеля');
+                setTimesheetAnalyticsError((e as Error)?.message || 'Ошибка загрузки данных табеля');
                 setTimesheetAnalyticsData(null);
             })
             .finally(() => {
