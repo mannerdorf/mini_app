@@ -601,6 +601,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     amount: number;
     taxAmount: number;
     cooperationType: string;
+    paidDates?: string[];
     createdAt: string;
   }>>>({});
   const [timesheetPayoutSavingEmployeeId, setTimesheetPayoutSavingEmployeeId] = useState<number | null>(null);
@@ -791,6 +792,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       totalMoneyToPay: Number(totalMoneyToPay.toFixed(2)),
     };
   }, [timesheetDepartmentSummaries]);
+  const timesheetMonthPaymentStatus = useMemo(() => {
+    const totalAccrued = Number(timesheetCompanySummary.totalMoney || 0);
+    const paidTotal = Object.values(timesheetPayoutsByEmployee).reduce((acc, payouts) => {
+      return acc + payouts.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    }, 0);
+    if (totalAccrued <= 0) {
+      return { code: "paid", label: "Все выплачено", bg: "#ecfdf3", border: "#16a34a", color: "#166534" };
+    }
+    if (paidTotal <= 0) {
+      return { code: "unpaid", label: "Не выплачено", bg: "#fef2f2", border: "#dc2626", color: "#991b1b" };
+    }
+    if (paidTotal + 0.01 >= totalAccrued) {
+      return { code: "paid", label: "Все выплачено", bg: "#ecfdf3", border: "#16a34a", color: "#166534" };
+    }
+    return { code: "partial", label: "Выплачено частично", bg: "#fffbeb", border: "#d97706", color: "#92400e" };
+  }, [timesheetCompanySummary.totalMoney, timesheetPayoutsByEmployee]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -4380,7 +4397,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               className="admin-form-input"
               value={timesheetMonth}
               onChange={(e) => setTimesheetMonth(e.target.value)}
-              style={{ minWidth: "12rem", height: "2.5rem", boxSizing: "border-box", padding: "0 0.6rem" }}
+              style={{
+                minWidth: "12rem",
+                height: "2.5rem",
+                boxSizing: "border-box",
+                padding: "0 0.6rem",
+                background: timesheetMonthPaymentStatus.bg,
+                borderColor: timesheetMonthPaymentStatus.border,
+                color: timesheetMonthPaymentStatus.color,
+                fontWeight: 600,
+              }}
             />
             <Input
               type="text"
@@ -4391,6 +4417,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               style={{ minWidth: "18rem", flex: 1, height: "2.5rem", boxSizing: "border-box" }}
             />
           </Flex>
+          <Typography.Body style={{ fontSize: "0.78rem", color: timesheetMonthPaymentStatus.color, marginTop: "-0.35rem", marginBottom: "0.55rem" }}>
+            Статус месяца: {timesheetMonthPaymentStatus.label}
+          </Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginTop: "-0.35rem", marginBottom: "0.7rem" }}>
             Нажмите на сотрудника, чтобы открыть таблицу выплат и отметить дни к оплате.
           </Typography.Body>
@@ -4496,6 +4525,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               }
                               const totalColumnCount = 1 + timesheetDays.length + 1 + SHIFT_MARK_CODES.length;
                               const employeePayouts = timesheetPayoutsByEmployee[String(emp.id)] || [];
+                              const paidDatesSet = new Set(
+                                employeePayouts.flatMap((payout) =>
+                                  Array.isArray(payout.paidDates) ? payout.paidDates : []
+                                ),
+                              );
                               const showTaxColumns = emp.cooperation_type === "ip" || emp.cooperation_type === "self_employed";
                               const markedDaysCount = timesheetDays.reduce((acc, d) => {
                                 const key = `${emp.id}__${d.iso}`;
@@ -4524,6 +4558,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     const shiftMarkStyle = getShiftMarkStyle(shiftMark);
                                     const hourPickerValue = toHalfHourValue(value || fallback);
                                     const isMarkedForPayment = timesheetPaymentMarks[key] === true;
+                                    const isPaidDate = paidDatesSet.has(d.iso);
                                     return (
                                       <td
                                         key={`timesheet-cell-${emp.id}-${d.iso}`}
@@ -4542,85 +4577,103 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                         }}
                                       >
                                         {isShiftAccrual ? (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              if (isPayoutExpanded) return;
-                                              if (adminShiftHoldTriggeredRef.current) {
+                                          <div style={{ display: "grid", justifyItems: "center", rowGap: "0.08rem" }}>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (isPayoutExpanded) return;
+                                                if (adminShiftHoldTriggeredRef.current) {
+                                                  adminShiftHoldTriggeredRef.current = false;
+                                                  return;
+                                                }
+                                                const nextValue = shiftMark === "Я" ? "" : "Я";
+                                                setTimesheetHours((prev) => ({
+                                                  ...prev,
+                                                  [key]: nextValue,
+                                                }));
+                                                void saveTimesheetCell(emp.id, d.iso, nextValue);
+                                              }}
+                                              onMouseDown={(e) => {
+                                                if (isPayoutExpanded) return;
+                                                if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
                                                 adminShiftHoldTriggeredRef.current = false;
-                                                return;
-                                              }
-                                              const nextValue = shiftMark === "Я" ? "" : "Я";
-                                              setTimesheetHours((prev) => ({
-                                                ...prev,
-                                                [key]: nextValue,
-                                              }));
-                                              void saveTimesheetCell(emp.id, d.iso, nextValue);
-                                            }}
-                                            onMouseDown={(e) => {
-                                              if (isPayoutExpanded) return;
-                                              if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
-                                              adminShiftHoldTriggeredRef.current = false;
-                                              const { clientX, clientY } = e;
-                                              adminShiftHoldTimerRef.current = window.setTimeout(() => {
-                                                adminShiftHoldTriggeredRef.current = true;
-                                                setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: clientX, y: clientY });
-                                              }, 450);
-                                            }}
-                                            onMouseUp={() => {
-                                              if (isPayoutExpanded) return;
-                                              if (adminShiftHoldTimerRef.current) {
-                                                window.clearTimeout(adminShiftHoldTimerRef.current);
-                                                adminShiftHoldTimerRef.current = null;
-                                              }
-                                            }}
-                                            onMouseLeave={() => {
-                                              if (isPayoutExpanded) return;
-                                              if (adminShiftHoldTimerRef.current) {
-                                                window.clearTimeout(adminShiftHoldTimerRef.current);
-                                                adminShiftHoldTimerRef.current = null;
-                                              }
-                                            }}
-                                            onTouchStart={(e) => {
-                                              if (isPayoutExpanded) return;
-                                              if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
-                                              adminShiftHoldTriggeredRef.current = false;
-                                              const touch = e.touches[0];
-                                              adminShiftHoldTimerRef.current = window.setTimeout(() => {
-                                                adminShiftHoldTriggeredRef.current = true;
-                                                setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: touch.clientX, y: touch.clientY });
-                                              }, 450);
-                                            }}
-                                            onTouchEnd={() => {
-                                              if (isPayoutExpanded) return;
-                                              if (adminShiftHoldTimerRef.current) {
-                                                window.clearTimeout(adminShiftHoldTimerRef.current);
-                                                adminShiftHoldTimerRef.current = null;
-                                              }
-                                            }}
-                                            style={{
-                                              width: "2.2rem",
-                                              height: "1.6rem",
-                                              padding: 0,
-                                              textAlign: "center",
-                                              margin: "0 auto",
-                                              display: "block",
-                                              borderRadius: 999,
-                                              border: shiftMarkStyle.border,
-                                              background: shiftMarkStyle.background,
-                                              color: shiftMarkStyle.color,
-                                              fontWeight: 600,
-                                              lineHeight: "1.6rem",
-                                              fontSize: shiftMark ? "0.82rem" : "1rem",
-                                              WebkitAppearance: "none",
-                                              appearance: "none",
-                                              cursor: isPayoutExpanded ? "default" : "pointer",
-                                              opacity: isPayoutExpanded ? 0.9 : 1,
-                                            }}
-                                            aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : "Нажмите для Я, удерживайте для выбора статуса"}
-                                          >
-                                            {shiftMark || "○"}
-                                          </button>
+                                                const { clientX, clientY } = e;
+                                                adminShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                  adminShiftHoldTriggeredRef.current = true;
+                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: clientX, y: clientY });
+                                                }, 450);
+                                              }}
+                                              onMouseUp={() => {
+                                                if (isPayoutExpanded) return;
+                                                if (adminShiftHoldTimerRef.current) {
+                                                  window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                  adminShiftHoldTimerRef.current = null;
+                                                }
+                                              }}
+                                              onMouseLeave={() => {
+                                                if (isPayoutExpanded) return;
+                                                if (adminShiftHoldTimerRef.current) {
+                                                  window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                  adminShiftHoldTimerRef.current = null;
+                                                }
+                                              }}
+                                              onTouchStart={(e) => {
+                                                if (isPayoutExpanded) return;
+                                                if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                adminShiftHoldTriggeredRef.current = false;
+                                                const touch = e.touches[0];
+                                                adminShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                  adminShiftHoldTriggeredRef.current = true;
+                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: touch.clientX, y: touch.clientY });
+                                                }, 450);
+                                              }}
+                                              onTouchEnd={() => {
+                                                if (isPayoutExpanded) return;
+                                                if (adminShiftHoldTimerRef.current) {
+                                                  window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                  adminShiftHoldTimerRef.current = null;
+                                                }
+                                              }}
+                                              style={{
+                                                width: "2.2rem",
+                                                height: "1.6rem",
+                                                padding: 0,
+                                                textAlign: "center",
+                                                margin: "0 auto",
+                                                display: "block",
+                                                borderRadius: 999,
+                                                border: shiftMarkStyle.border,
+                                                background: shiftMarkStyle.background,
+                                                color: shiftMarkStyle.color,
+                                                fontWeight: 600,
+                                                lineHeight: "1.6rem",
+                                                fontSize: shiftMark ? "0.82rem" : "1rem",
+                                                WebkitAppearance: "none",
+                                                appearance: "none",
+                                                cursor: isPayoutExpanded ? "default" : "pointer",
+                                                opacity: isPayoutExpanded ? 0.9 : 1,
+                                              }}
+                                              aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : "Нажмите для Я, удерживайте для выбора статуса"}
+                                            >
+                                              {shiftMark || "○"}
+                                            </button>
+                                            {shiftMark === "Я" && isPaidDate ? (
+                                              <span
+                                                style={{
+                                                  fontSize: "0.62rem",
+                                                  fontWeight: 700,
+                                                  lineHeight: 1,
+                                                  padding: "0.08rem 0.24rem",
+                                                  borderRadius: 999,
+                                                  border: "1px solid #15803d",
+                                                  color: "#15803d",
+                                                  background: "#dcfce7",
+                                                }}
+                                              >
+                                                опл
+                                              </span>
+                                            ) : null}
+                                          </div>
                                         ) : (
                                           timesheetMobilePicker ? (
                                             <select

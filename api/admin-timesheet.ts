@@ -92,9 +92,11 @@ async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
       amount numeric(12,2) NOT NULL DEFAULT 0,
       tax_amount numeric(12,2) NOT NULL DEFAULT 0,
       cooperation_type text,
+      paid_dates jsonb NOT NULL DEFAULT '[]'::jsonb,
       created_at timestamptz NOT NULL DEFAULT now()
     )
   `);
+  await pool.query("ALTER TABLE employee_timesheet_payouts ADD COLUMN IF NOT EXISTS paid_dates jsonb NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_payouts_employee_idx ON employee_timesheet_payouts(employee_id)");
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_payouts_period_month_idx ON employee_timesheet_payouts(period_month)");
 }
@@ -141,17 +143,18 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       amount: number;
       tax_amount: number;
       cooperation_type: string | null;
+      paid_dates: unknown;
       created_at: string;
     }>(
       `SELECT id, employee_id, payout_date::text as payout_date, period_from::text as period_from, period_to::text as period_to,
-              amount, tax_amount, cooperation_type, created_at::text as created_at
+              amount, tax_amount, cooperation_type, paid_dates, created_at::text as created_at
        FROM employee_timesheet_payouts
        WHERE period_month = $1::date
        ORDER BY created_at DESC`,
       [monthInfo.start]
     );
     const payoutsByEmployee: Record<string, Array<{
-      id: number; payoutDate: string; periodFrom: string; periodTo: string; amount: number; taxAmount: number; cooperationType: string; createdAt: string;
+      id: number; payoutDate: string; periodFrom: string; periodTo: string; amount: number; taxAmount: number; cooperationType: string; paidDates: string[]; createdAt: string;
     }>> = {};
     for (const row of payoutRes.rows) {
       const k = String(row.employee_id);
@@ -164,6 +167,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         amount: Number(row.amount || 0),
         taxAmount: Number(row.tax_amount || 0),
         cooperationType: normalizeCooperationType(row.cooperation_type),
+        paidDates: Array.isArray(row.paid_dates) ? row.paid_dates.map((x) => String(x || "")) : [],
         createdAt: row.created_at,
       });
     }
@@ -304,10 +308,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       : 0;
 
     const inserted = await pool.query<{ id: number; payout_date: string; created_at: string }>(
-      `INSERT INTO employee_timesheet_payouts(employee_id, payout_date, period_month, period_from, period_to, amount, tax_amount, cooperation_type)
-       VALUES ($1, current_date, $2::date, $3::date, $4::date, $5, $6, $7)
+      `INSERT INTO employee_timesheet_payouts(employee_id, payout_date, period_month, period_from, period_to, amount, tax_amount, cooperation_type, paid_dates)
+       VALUES ($1, current_date, $2::date, $3::date, $4::date, $5, $6, $7, $8::jsonb)
        RETURNING id, payout_date::text as payout_date, created_at::text as created_at`,
-      [employeeId, monthInfo.start, periodFrom, periodTo, amount, taxAmount, cooperationType]
+      [employeeId, monthInfo.start, periodFrom, periodTo, amount, taxAmount, cooperationType, JSON.stringify(markedDates)]
     );
 
     await pool.query(
@@ -328,6 +332,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         amount,
         taxAmount,
         cooperationType,
+        paidDates: markedDates,
         createdAt: inserted.rows[0]?.created_at,
       },
       clearedMarks: markedDates.map((d) => `${employeeId}__${d}`),
