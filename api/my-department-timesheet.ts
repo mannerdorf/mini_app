@@ -92,6 +92,20 @@ async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
   `);
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_month_exclusions_month_idx ON employee_timesheet_month_exclusions(month_key)");
   await pool.query("ALTER TABLE registered_users ADD COLUMN IF NOT EXISTS cooperation_type text");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS employee_timesheet_shift_rate_overrides (
+      id bigserial PRIMARY KEY,
+      employee_id bigint NOT NULL REFERENCES registered_users(id) ON DELETE CASCADE,
+      work_date date NOT NULL,
+      shift_rate numeric(12,2) NOT NULL,
+      created_by_user_id bigint REFERENCES registered_users(id) ON DELETE SET NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (employee_id, work_date)
+    )
+  `);
+  await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_shift_rate_overrides_work_date_idx ON employee_timesheet_shift_rate_overrides(work_date)");
+  await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_shift_rate_overrides_employee_id_idx ON employee_timesheet_shift_rate_overrides(employee_id)");
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -292,6 +306,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const employeeId = Number(body.employeeId);
       const date = String(body.date || "").trim();
       const value = String(body.value || "").trim();
+      const hasShiftRatePayload = Object.prototype.hasOwnProperty.call(body, "shiftRate");
       if (!department && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
       if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "date обязателен в формате YYYY-MM-DD" });
@@ -328,6 +343,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       if (paidDateRes.rows.length > 0) {
         return res.status(409).json({ error: `День ${date} уже оплачен. Изменение или отмена запрещены.` });
+      }
+      if (hasShiftRatePayload) {
+        const rawShiftRate = body.shiftRate;
+        if (rawShiftRate === null || rawShiftRate === undefined || String(rawShiftRate).trim() === "") {
+          await pool.query(
+            "DELETE FROM employee_timesheet_shift_rate_overrides WHERE employee_id = $1 AND work_date = $2::date",
+            [employeeId, date]
+          );
+          return res.status(200).json({ ok: true });
+        }
+        const shiftRate = Number(String(rawShiftRate).replace(",", "."));
+        if (!Number.isFinite(shiftRate) || shiftRate < 0) {
+          return res.status(400).json({ error: "Укажите корректную стоимость смены" });
+        }
+        await pool.query(
+          `INSERT INTO employee_timesheet_shift_rate_overrides(employee_id, work_date, shift_rate, created_by_user_id)
+           VALUES ($1, $2::date, $3, $4)
+           ON CONFLICT (employee_id, work_date)
+           DO UPDATE SET shift_rate = EXCLUDED.shift_rate, updated_at = now(), created_by_user_id = EXCLUDED.created_by_user_id`,
+          [employeeId, date, Number(shiftRate.toFixed(2)), me.id]
+        );
+        return res.status(200).json({ ok: true });
       }
 
       if (value === "") {
@@ -438,6 +475,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const payoutsByEmployee: Record<string, number> = {};
     const paidDatesByEmployee: Record<string, string[]> = {};
+    const shiftRateOverrides: Record<string, number> = {};
     if (employeeIds.length > 0) {
       const payoutsRes = await pool.query<{ employee_id: number; total_paid: number }>(
         `SELECT employee_id, COALESCE(SUM(amount), 0) as total_paid
@@ -462,6 +500,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const key = String(row.employee_id);
         paidDatesByEmployee[key] = paidDatesByEmployee[key] || [];
         paidDatesByEmployee[key].push(String(row.work_date || ""));
+      }
+      const shiftRateRes = await pool.query<{ employee_id: number; work_date: string; shift_rate: number }>(
+        `SELECT employee_id, work_date::text as work_date, shift_rate
+         FROM employee_timesheet_shift_rate_overrides
+         WHERE work_date >= $1::date
+           AND work_date < $2::date
+           AND employee_id = ANY($3::int[])`,
+        [monthInfo.start, monthInfo.next, employeeIds]
+      );
+      for (const row of shiftRateRes.rows) {
+        shiftRateOverrides[`${row.employee_id}__${row.work_date}`] = Number(row.shift_rate || 0);
       }
     }
 
@@ -491,6 +540,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       entries,
       payoutsByEmployee,
       paidDatesByEmployee,
+      shiftRateOverrides,
     });
   } catch (e) {
     console.error("my-department-timesheet error:", e);

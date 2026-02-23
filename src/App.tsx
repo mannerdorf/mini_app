@@ -1000,6 +1000,9 @@ function DashboardPage({
                 const payoutsByEmployeeRaw = data?.payoutsByEmployee && typeof data.payoutsByEmployee === "object"
                     ? (data.payoutsByEmployee as Record<string, number>)
                     : {};
+                const shiftRateOverridesRaw = data?.shiftRateOverrides && typeof data.shiftRateOverrides === "object"
+                    ? (data.shiftRateOverrides as Record<string, number>)
+                    : {};
                 const employeeRows = employees.map((row: any) => ({
                     employeeId: Number(row?.id || 0),
                     fullName: String(row?.fullName || ""),
@@ -1014,14 +1017,15 @@ function DashboardPage({
                     && x.active !== false
                     && String(x.fullName || "").trim().length > 0
                 );
-                const entriesByEmployee = new Map<number, string[]>();
+                const entriesByEmployee = new Map<number, Array<{ date: string; value: string }>>();
                 for (const [entryKey, entryValue] of Object.entries(entriesRaw)) {
-                    const match = /^(\d+)__\d{4}-\d{2}-\d{2}$/.exec(entryKey);
+                    const match = /^(\d+)__(\d{4}-\d{2}-\d{2})$/.exec(entryKey);
                     if (!match) continue;
                     const employeeId = Number(match[1]);
+                    const dateIso = match[2];
                     if (!Number.isFinite(employeeId) || employeeId <= 0) continue;
                     const list = entriesByEmployee.get(employeeId) || [];
-                    list.push(String(entryValue || ""));
+                    list.push({ date: dateIso, value: String(entryValue || "") });
                     entriesByEmployee.set(employeeId, list);
                 }
                 let totalHours = 0;
@@ -1030,21 +1034,27 @@ function DashboardPage({
                 let totalPaid = 0;
                 const employeeStats = employeeRows.map((employee: any) => {
                     const values = entriesByEmployee.get(employee.employeeId) || [];
-                    const hasShiftMarks = values.some((v) => normalizeDashboardShiftMark(v) !== "");
-                    const hasNumericHours = values.some((v) => parseDashboardHoursValue(v) > 0);
+                    const hasShiftMarks = values.some((v) => normalizeDashboardShiftMark(v.value) !== "");
+                    const hasNumericHours = values.some((v) => parseDashboardHoursValue(v.value) > 0);
                     const resolvedAccrualType: "hour" | "shift" =
                         employee.accrualType === "shift" || (hasShiftMarks && !hasNumericHours) ? "shift" : "hour";
                     let employeeShifts = 0;
                     let employeeHours = 0;
+                    let employeeCost = 0;
                     if (resolvedAccrualType === "shift") {
-                        employeeShifts = values.reduce((acc, v) => acc + (normalizeDashboardShiftMark(v) === "Я" ? 1 : 0), 0);
+                        employeeShifts = values.reduce((acc, v) => acc + (normalizeDashboardShiftMark(v.value) === "Я" ? 1 : 0), 0);
                         employeeHours = employeeShifts * 8;
+                        employeeCost = values.reduce((acc, v) => {
+                            if (normalizeDashboardShiftMark(v.value) !== "Я") return acc;
+                            const overrideKey = `${employee.employeeId}__${v.date}`;
+                            const overrideRate = Number(shiftRateOverridesRaw[overrideKey]);
+                            const dayRate = Number.isFinite(overrideRate) ? overrideRate : Number(employee.accrualRate || 0);
+                            return acc + dayRate;
+                        }, 0);
                     } else {
-                        employeeHours = values.reduce((acc, v) => acc + parseDashboardHoursValue(v), 0);
+                        employeeHours = values.reduce((acc, v) => acc + parseDashboardHoursValue(v.value), 0);
+                        employeeCost = employeeHours * Number(employee.accrualRate || 0);
                     }
-                    const employeeCost = resolvedAccrualType === "shift"
-                        ? employeeShifts * Number(employee.accrualRate || 0)
-                        : employeeHours * Number(employee.accrualRate || 0);
                     const employeePaid = Number(payoutsByEmployeeRaw[String(employee.employeeId)] || 0);
                     const employeeOutstanding = Math.max(0, Number((employeeCost - employeePaid).toFixed(2)));
                     totalHours += employeeHours;
@@ -4116,6 +4126,7 @@ function ProfilePage({
     const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
     const [departmentTimesheetPayoutsByEmployee, setDepartmentTimesheetPayoutsByEmployee] = useState<Record<string, number>>({});
     const [departmentTimesheetPaidDayMarks, setDepartmentTimesheetPaidDayMarks] = useState<Record<string, boolean>>({});
+    const [departmentTimesheetShiftRateOverrides, setDepartmentTimesheetShiftRateOverrides] = useState<Record<string, number>>({});
     const [departmentTimesheetMobilePicker, setDepartmentTimesheetMobilePicker] = useState(false);
     const [departmentTimesheetEmployeeFullName, setDepartmentTimesheetEmployeeFullName] = useState("");
     const [departmentTimesheetEmployeePosition, setDepartmentTimesheetEmployeePosition] = useState("");
@@ -4268,9 +4279,16 @@ function ProfilePage({
                     const key = `${emp.id}:${day}`;
                     return acc + (normalizeShiftMark(departmentTimesheetHours[key] || '') === 'Я' ? 1 : 0);
                 }, 0);
+                const shiftMoney = departmentTimesheetDays.reduce((acc, day) => {
+                    const key = `${emp.id}:${day}`;
+                    if (normalizeShiftMark(departmentTimesheetHours[key] || '') !== 'Я') return acc;
+                    const override = departmentTimesheetShiftRateOverrides[key];
+                    const dayRate = Number.isFinite(override) ? override : rate;
+                    return acc + dayRate;
+                }, 0);
                 totalShifts += shifts;
                 totalHours += shifts * 8;
-                totalMoney += shifts * rate;
+                totalMoney += shiftMoney;
             } else {
                 const hours = departmentTimesheetDays.reduce((acc, day) => {
                     const key = `${emp.id}:${day}`;
@@ -4292,7 +4310,7 @@ function ProfilePage({
     };
     const departmentTimesheetSummary = useMemo(() => {
         return calculateTimesheetSummary(departmentTimesheetEmployees);
-    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee]);
+    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee, departmentTimesheetShiftRateOverrides]);
     const departmentTimesheetDepartmentSummaries = useMemo(() => {
         const grouped = new Map<string, typeof departmentTimesheetEmployees>();
         for (const emp of departmentTimesheetEmployees) {
@@ -4306,10 +4324,10 @@ function ProfilePage({
                 ...calculateTimesheetSummary(employees),
             }))
             .sort((a, b) => a.departmentName.localeCompare(b.departmentName, "ru"));
-    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee]);
+    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee, departmentTimesheetShiftRateOverrides]);
     const companyTimesheetSummary = useMemo(() => {
         return calculateTimesheetSummary(departmentTimesheetEmployees);
-    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee]);
+    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee, departmentTimesheetShiftRateOverrides]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -4340,6 +4358,7 @@ function ProfilePage({
                 setDepartmentTimesheetHours({});
                 setDepartmentTimesheetPayoutsByEmployee({});
                 setDepartmentTimesheetPaidDayMarks({});
+                setDepartmentTimesheetShiftRateOverrides({});
                 return;
             }
             setDepartmentTimesheetDepartment(typeof data.department === "string" ? data.department : "");
@@ -4377,6 +4396,20 @@ function ProfilePage({
                 }
             }
             setDepartmentTimesheetPaidDayMarks(paidDayMarks);
+            const loadedShiftRateOverrides: Record<string, number> = {};
+            if (data?.shiftRateOverrides && typeof data.shiftRateOverrides === "object") {
+                for (const [entryKey, entryValue] of Object.entries(data.shiftRateOverrides as Record<string, number>)) {
+                    const match = /^(\d+)__(\d{4}-\d{2})-(\d{2})$/.exec(entryKey);
+                    if (!match) continue;
+                    if (match[2] !== departmentTimesheetMonth) continue;
+                    const employeeId = Number(match[1]);
+                    const day = Number(match[3]);
+                    const rateValue = Number(entryValue);
+                    if (!Number.isFinite(employeeId) || !Number.isFinite(day) || !Number.isFinite(rateValue)) continue;
+                    loadedShiftRateOverrides[`${employeeId}:${day}`] = Number(rateValue);
+                }
+            }
+            setDepartmentTimesheetShiftRateOverrides(loadedShiftRateOverrides);
         } catch {
             setDepartmentTimesheetError("Ошибка сети");
             setDepartmentTimesheetAllDepartments(false);
@@ -4385,6 +4418,7 @@ function ProfilePage({
             setDepartmentTimesheetHours({});
             setDepartmentTimesheetPayoutsByEmployee({});
             setDepartmentTimesheetPaidDayMarks({});
+            setDepartmentTimesheetShiftRateOverrides({});
         } finally {
             setDepartmentTimesheetLoading(false);
         }
@@ -4419,6 +4453,36 @@ function ProfilePage({
             setDepartmentTimesheetError((e as Error)?.message || "Ошибка сохранения табеля");
         }
     }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth, departmentTimesheetIsEditableMonth]);
+    const saveDepartmentTimesheetShiftRate = useCallback(async (employeeId: number, day: number, shiftRate: string) => {
+        if (!activeAccount?.login || !activeAccount?.password) return;
+        if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return;
+        if (!departmentTimesheetIsEditableMonth) {
+            setDepartmentTimesheetError('Редактирование доступно только для текущего месяца');
+            return;
+        }
+        const dayNormalized = String(day).padStart(2, "0");
+        const dateIso = `${departmentTimesheetMonth}-${dayNormalized}`;
+        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        try {
+            const res = await fetch(`${origin}/api/my-department-timesheet`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    login: activeAccount.login,
+                    password: activeAccount.password,
+                    month: departmentTimesheetMonth,
+                    employeeId,
+                    date: dateIso,
+                    shiftRate: shiftRate.trim() === '' ? null : Number(shiftRate),
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Ошибка сохранения стоимости смены");
+        } catch (e) {
+            setDepartmentTimesheetError((e as Error)?.message || "Ошибка сохранения стоимости смены");
+            await fetchDepartmentTimesheet();
+        }
+    }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth, departmentTimesheetIsEditableMonth, fetchDepartmentTimesheet]);
 
     const removeDepartmentEmployeeFromMonth = useCallback(async (employeeId: number) => {
         if (!activeAccount?.login || !activeAccount?.password) return;
@@ -5114,7 +5178,15 @@ function ProfilePage({
                                             const num = Number(value);
                                             return acc + (Number.isFinite(num) ? num : 0);
                                         }, 0);
-                                    const totalMoney = isShift ? totalShiftCount * rate : totalHours * rate;
+                                    const totalMoney = isShift
+                                        ? departmentTimesheetDays.reduce((acc, day) => {
+                                            const key = `${emp.id}:${day}`;
+                                            if (normalizeShiftMark(departmentTimesheetHours[key] || '') !== 'Я') return acc;
+                                            const override = departmentTimesheetShiftRateOverrides[key];
+                                            const dayRate = Number.isFinite(override) ? override : rate;
+                                            return acc + dayRate;
+                                        }, 0)
+                                        : totalHours * rate;
                                     const totalPaid = Number(departmentTimesheetPayoutsByEmployee[String(emp.id)] || 0);
                                     const totalOutstanding = Math.max(0, Number((totalMoney - totalPaid).toFixed(2)));
                                     const totalPrimaryText = isShift
@@ -5164,120 +5236,185 @@ function ProfilePage({
                                             const shiftMarkStyle = getShiftMarkStyle(shiftMark);
                                             const hourPickerValue = toHalfHourValue(value || '0');
                                             const isPaidDate = departmentTimesheetPaidDayMarks[key] === true;
+                                            const baseShiftRate = Number(emp.accrualRate || 0);
+                                            const overrideShiftRate = Number(departmentTimesheetShiftRateOverrides[key]);
+                                            const hasOverrideShiftRate = Number.isFinite(overrideShiftRate);
+                                            const effectiveShiftRate = hasOverrideShiftRate ? overrideShiftRate : baseShiftRate;
+                                            const shiftRateHint = hasOverrideShiftRate
+                                                ? `База: ${baseShiftRate.toLocaleString('ru-RU')} ₽ · Ручная: ${overrideShiftRate.toLocaleString('ru-RU')} ₽`
+                                                : `База: ${baseShiftRate.toLocaleString('ru-RU')} ₽`;
                                             return (
                                                 <td key={key} style={{ borderBottom: '1px solid var(--color-border)', padding: shiftMark === "Я" && isPaidDate ? '0.2rem 0.2rem 0.72rem 0.2rem' : '0.2rem' }}>
                                                     {isShift ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                if (isPaidDate) return;
-                                                                if (!departmentTimesheetIsEditableMonth) return;
-                                                                if (departmentShiftHoldTriggeredRef.current) {
+                                                        <div style={{ display: 'grid', justifyItems: 'center', rowGap: '0.12rem' }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    if (isPaidDate) return;
+                                                                    if (!departmentTimesheetIsEditableMonth) return;
+                                                                    if (departmentShiftHoldTriggeredRef.current) {
+                                                                        departmentShiftHoldTriggeredRef.current = false;
+                                                                        return;
+                                                                    }
+                                                                    const nextValue = shiftMark === 'Я' ? '' : 'Я';
+                                                                    setDepartmentTimesheetHours((prev) => ({
+                                                                        ...prev,
+                                                                        [key]: nextValue,
+                                                                    }));
+                                                                    if (nextValue !== 'Я') {
+                                                                        setDepartmentTimesheetShiftRateOverrides((prev) => {
+                                                                            const next = { ...prev };
+                                                                            delete next[key];
+                                                                            return next;
+                                                                        });
+                                                                        void saveDepartmentTimesheetShiftRate(emp.id, day, '');
+                                                                    }
+                                                                    void saveDepartmentTimesheetCell(emp.id, day, nextValue);
+                                                                }}
+                                                                onMouseDown={(e) => {
+                                                                    if (isPaidDate) return;
+                                                                    if (!departmentTimesheetIsEditableMonth) return;
+                                                                    if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
                                                                     departmentShiftHoldTriggeredRef.current = false;
-                                                                    return;
-                                                                }
-                                                                const nextValue = shiftMark === 'Я' ? '' : 'Я';
-                                                                setDepartmentTimesheetHours((prev) => ({
-                                                                    ...prev,
-                                                                    [key]: nextValue,
-                                                                }));
-                                                                void saveDepartmentTimesheetCell(emp.id, day, nextValue);
-                                                            }}
-                                                            onMouseDown={(e) => {
-                                                                if (isPaidDate) return;
-                                                                if (!departmentTimesheetIsEditableMonth) return;
-                                                                if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
-                                                                departmentShiftHoldTriggeredRef.current = false;
-                                                                const { clientX, clientY } = e;
-                                                                departmentShiftHoldTimerRef.current = window.setTimeout(() => {
-                                                                    departmentShiftHoldTriggeredRef.current = true;
-                                                                    setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: clientX, y: clientY });
-                                                                }, 450);
-                                                            }}
-                                                            onMouseUp={() => {
-                                                                if (isPaidDate) return;
-                                                                if (!departmentTimesheetIsEditableMonth) return;
-                                                                if (departmentShiftHoldTimerRef.current) {
-                                                                    window.clearTimeout(departmentShiftHoldTimerRef.current);
-                                                                    departmentShiftHoldTimerRef.current = null;
-                                                                }
-                                                            }}
-                                                            onMouseLeave={() => {
-                                                                if (isPaidDate) return;
-                                                                if (!departmentTimesheetIsEditableMonth) return;
-                                                                if (departmentShiftHoldTimerRef.current) {
-                                                                    window.clearTimeout(departmentShiftHoldTimerRef.current);
-                                                                    departmentShiftHoldTimerRef.current = null;
-                                                                }
-                                                            }}
-                                                            onTouchStart={(e) => {
-                                                                if (isPaidDate) return;
-                                                                if (!departmentTimesheetIsEditableMonth) return;
-                                                                if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
-                                                                departmentShiftHoldTriggeredRef.current = false;
-                                                                const touch = e.touches[0];
-                                                                departmentShiftHoldTimerRef.current = window.setTimeout(() => {
-                                                                    departmentShiftHoldTriggeredRef.current = true;
-                                                                    setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: touch.clientX, y: touch.clientY });
-                                                                }, 450);
-                                                            }}
-                                                            onTouchEnd={() => {
-                                                                if (isPaidDate) return;
-                                                                if (!departmentTimesheetIsEditableMonth) return;
-                                                                if (departmentShiftHoldTimerRef.current) {
-                                                                    window.clearTimeout(departmentShiftHoldTimerRef.current);
-                                                                    departmentShiftHoldTimerRef.current = null;
-                                                                }
-                                                            }}
-                                                            style={{
-                                                                width: '2.2rem',
-                                                                height: '1.6rem',
-                                                                minWidth: '2.2rem',
-                                                                boxSizing: 'border-box',
-                                                                border: shiftMarkStyle.border,
-                                                                borderRadius: 999,
-                                                                background: shiftMarkStyle.background,
-                                                                color: shiftMarkStyle.color,
-                                                                padding: 0,
-                                                                lineHeight: '1.6rem',
-                                                                textAlign: 'center',
-                                                                fontWeight: 600,
-                                                                fontSize: shiftMark ? '0.82rem' : '1rem',
-                                                                WebkitAppearance: 'none',
-                                                                appearance: 'none',
-                                                                display: 'block',
-                                                                margin: '0 auto',
-                                                                position: 'relative',
-                                                                overflow: 'visible',
-                                                                cursor: departmentTimesheetIsEditableMonth && !isPaidDate ? 'pointer' : 'default',
-                                                                opacity: departmentTimesheetIsEditableMonth && !isPaidDate ? 1 : 0.85,
-                                                            }}
-                                                            aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : 'Нажмите для Я, удерживайте для выбора статуса'}
-                                                            title={isPaidDate ? 'Этот день уже оплачен' : (shiftMark ? `Статус: ${shiftMark}` : 'Нажмите для Я, удерживайте для выбора')}
-                                                        >
-                                                            {shiftMark || '○'}
-                                                            {shiftMark === "Я" && isPaidDate ? (
-                                                                <span
-                                                                    style={{
-                                                                        position: 'absolute',
-                                                                        left: '50%',
-                                                                        bottom: '-0.68rem',
-                                                                        transform: 'translateX(-50%)',
-                                                                        fontSize: '0.58rem',
-                                                                        fontWeight: 700,
-                                                                        lineHeight: 1,
-                                                                        padding: '0.07rem 0.22rem',
-                                                                        borderRadius: 999,
-                                                                        border: '1px solid #15803d',
-                                                                        color: '#15803d',
-                                                                        background: '#dcfce7',
-                                                                        whiteSpace: 'nowrap',
+                                                                    const { clientX, clientY } = e;
+                                                                    departmentShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                                        departmentShiftHoldTriggeredRef.current = true;
+                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: clientX, y: clientY });
+                                                                    }, 450);
+                                                                }}
+                                                                onMouseUp={() => {
+                                                                    if (isPaidDate) return;
+                                                                    if (!departmentTimesheetIsEditableMonth) return;
+                                                                    if (departmentShiftHoldTimerRef.current) {
+                                                                        window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                        departmentShiftHoldTimerRef.current = null;
+                                                                    }
+                                                                }}
+                                                                onMouseLeave={() => {
+                                                                    if (isPaidDate) return;
+                                                                    if (!departmentTimesheetIsEditableMonth) return;
+                                                                    if (departmentShiftHoldTimerRef.current) {
+                                                                        window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                        departmentShiftHoldTimerRef.current = null;
+                                                                    }
+                                                                }}
+                                                                onTouchStart={(e) => {
+                                                                    if (isPaidDate) return;
+                                                                    if (!departmentTimesheetIsEditableMonth) return;
+                                                                    if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                    departmentShiftHoldTriggeredRef.current = false;
+                                                                    const touch = e.touches[0];
+                                                                    departmentShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                                        departmentShiftHoldTriggeredRef.current = true;
+                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: touch.clientX, y: touch.clientY });
+                                                                    }, 450);
+                                                                }}
+                                                                onTouchEnd={() => {
+                                                                    if (isPaidDate) return;
+                                                                    if (!departmentTimesheetIsEditableMonth) return;
+                                                                    if (departmentShiftHoldTimerRef.current) {
+                                                                        window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                        departmentShiftHoldTimerRef.current = null;
+                                                                    }
+                                                                }}
+                                                                style={{
+                                                                    width: '2.2rem',
+                                                                    height: '1.6rem',
+                                                                    minWidth: '2.2rem',
+                                                                    boxSizing: 'border-box',
+                                                                    border: shiftMarkStyle.border,
+                                                                    borderRadius: 999,
+                                                                    background: shiftMarkStyle.background,
+                                                                    color: shiftMarkStyle.color,
+                                                                    padding: 0,
+                                                                    lineHeight: '1.6rem',
+                                                                    textAlign: 'center',
+                                                                    fontWeight: 600,
+                                                                    fontSize: shiftMark ? '0.82rem' : '1rem',
+                                                                    WebkitAppearance: 'none',
+                                                                    appearance: 'none',
+                                                                    display: 'block',
+                                                                    margin: '0 auto',
+                                                                    position: 'relative',
+                                                                    overflow: 'visible',
+                                                                    cursor: departmentTimesheetIsEditableMonth && !isPaidDate ? 'pointer' : 'default',
+                                                                    opacity: departmentTimesheetIsEditableMonth && !isPaidDate ? 1 : 0.85,
+                                                                }}
+                                                                aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : 'Нажмите для Я, удерживайте для выбора статуса'}
+                                                                title={isPaidDate ? `Этот день уже оплачен. ${shiftRateHint}` : (shiftMark ? `Статус: ${shiftMark}. ${shiftRateHint}` : `Нажмите для Я, удерживайте для выбора. ${shiftRateHint}`)}
+                                                            >
+                                                                {shiftMark || '○'}
+                                                                {shiftMark === "Я" && isPaidDate ? (
+                                                                    <span
+                                                                        style={{
+                                                                            position: 'absolute',
+                                                                            left: '50%',
+                                                                            bottom: '-0.68rem',
+                                                                            transform: 'translateX(-50%)',
+                                                                            fontSize: '0.58rem',
+                                                                            fontWeight: 700,
+                                                                            lineHeight: 1,
+                                                                            padding: '0.07rem 0.22rem',
+                                                                            borderRadius: 999,
+                                                                            border: '1px solid #15803d',
+                                                                            color: '#15803d',
+                                                                            background: '#dcfce7',
+                                                                            whiteSpace: 'nowrap',
+                                                                        }}
+                                                                    >
+                                                                        опл
+                                                                    </span>
+                                                                ) : null}
+                                                            </button>
+                                                            {shiftMark === 'Я' ? (
+                                                                <input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    step={1}
+                                                                    value={
+                                                                        Number.isFinite(departmentTimesheetShiftRateOverrides[key])
+                                                                            ? String(departmentTimesheetShiftRateOverrides[key])
+                                                                            : ''
+                                                                    }
+                                                                    placeholder={String(Number(emp.accrualRate || 0))}
+                                                                    disabled={!departmentTimesheetIsEditableMonth || isPaidDate}
+                                                                    onChange={(e) => {
+                                                                        if (isPaidDate || !departmentTimesheetIsEditableMonth) return;
+                                                                        const nextRaw = e.target.value;
+                                                                        if (nextRaw.trim() === '') {
+                                                                            setDepartmentTimesheetShiftRateOverrides((prev) => {
+                                                                                const next = { ...prev };
+                                                                                delete next[key];
+                                                                                return next;
+                                                                            });
+                                                                            void saveDepartmentTimesheetShiftRate(emp.id, day, '');
+                                                                            return;
+                                                                        }
+                                                                        const parsed = Number(nextRaw);
+                                                                        if (!Number.isFinite(parsed) || parsed < 0) return;
+                                                                        setDepartmentTimesheetShiftRateOverrides((prev) => ({
+                                                                            ...prev,
+                                                                            [key]: Number(parsed.toFixed(2)),
+                                                                        }));
+                                                                        void saveDepartmentTimesheetShiftRate(emp.id, day, String(parsed));
                                                                     }}
-                                                                >
-                                                                    опл
-                                                                </span>
+                                                                    style={{
+                                                                        width: '3.4rem',
+                                                                        minWidth: '3.4rem',
+                                                                        boxSizing: 'border-box',
+                                                                        border: '1px solid var(--color-border)',
+                                                                        borderRadius: 6,
+                                                                        background: 'var(--color-bg)',
+                                                                        padding: '0.08rem 0.2rem',
+                                                                        textAlign: 'center',
+                                                                        fontSize: '0.68rem',
+                                                                        lineHeight: 1.1,
+                                                                    }}
+                                                                    aria-label="Ручная стоимость смены"
+                                                                    title={`Стоимость смены (переопределение). ${shiftRateHint}. Факт: ${effectiveShiftRate.toLocaleString('ru-RU')} ₽`}
+                                                                />
                                                             ) : null}
-                                                        </button>
+                                                        </div>
                                                     ) : (
                                                         departmentTimesheetMobilePicker ? (
                                                             <select
@@ -5418,6 +5555,14 @@ function ProfilePage({
                                     onClick={() => {
                                         const nextValue = opt.code;
                                         setDepartmentTimesheetHours((prev) => ({ ...prev, [departmentShiftPicker.key]: nextValue }));
+                                        if (nextValue !== 'Я') {
+                                            setDepartmentTimesheetShiftRateOverrides((prev) => {
+                                                const next = { ...prev };
+                                                delete next[departmentShiftPicker.key];
+                                                return next;
+                                            });
+                                            void saveDepartmentTimesheetShiftRate(departmentShiftPicker.employeeId, departmentShiftPicker.day, '');
+                                        }
                                         void saveDepartmentTimesheetCell(departmentShiftPicker.employeeId, departmentShiftPicker.day, nextValue);
                                         setDepartmentShiftPicker(null);
                                     }}
@@ -5441,6 +5586,12 @@ function ProfilePage({
                                 type="button"
                                 onClick={() => {
                                     setDepartmentTimesheetHours((prev) => ({ ...prev, [departmentShiftPicker.key]: '' }));
+                                    setDepartmentTimesheetShiftRateOverrides((prev) => {
+                                        const next = { ...prev };
+                                        delete next[departmentShiftPicker.key];
+                                        return next;
+                                    });
+                                    void saveDepartmentTimesheetShiftRate(departmentShiftPicker.employeeId, departmentShiftPicker.day, '');
                                     void saveDepartmentTimesheetCell(departmentShiftPicker.employeeId, departmentShiftPicker.day, '');
                                     setDepartmentShiftPicker(null);
                                 }}
