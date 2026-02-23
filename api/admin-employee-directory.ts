@@ -6,6 +6,7 @@ import { withErrorLog } from "../lib/requestErrorLog.js";
 
 const EMPLOYEE_ROLES = new Set(["employee", "department_head"]);
 const ACCRUAL_TYPES = new Set(["hour", "shift"]);
+const COOPERATION_TYPES = new Set(["self_employed", "ip", "staff"]);
 
 type ColumnName = { column_name: string };
 
@@ -28,6 +29,15 @@ function normalizeAccrualType(value: unknown): "hour" | "shift" {
   return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
 }
 
+function normalizeCooperationType(value: unknown): "self_employed" | "ip" | "staff" {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "staff";
+  if (raw === "self_employed" || raw === "self-employed" || raw.includes("самозан")) return "self_employed";
+  if (raw === "ip" || raw.includes("ип")) return "ip";
+  if (raw === "staff" || raw.includes("штат")) return "staff";
+  return "staff";
+}
+
 async function ensureEmployeeColumns(pool: ReturnType<typeof getPool>) {
   const readCols = async () => {
     const { rows } = await pool.query<ColumnName>(
@@ -47,6 +57,9 @@ async function ensureEmployeeColumns(pool: ReturnType<typeof getPool>) {
   if (!cols.has("accrual_rate")) {
     await pool.query("ALTER TABLE registered_users ADD COLUMN IF NOT EXISTS accrual_rate numeric(12,2)");
   }
+  if (!cols.has("cooperation_type")) {
+    await pool.query("ALTER TABLE registered_users ADD COLUMN IF NOT EXISTS cooperation_type text");
+  }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS employee_timesheet_month_exclusions (
       id bigserial PRIMARY KEY,
@@ -63,7 +76,8 @@ async function ensureEmployeeColumns(pool: ReturnType<typeof getPool>) {
   const hasPosition = cols.has("position");
   const hasAccrualType = cols.has("accrual_type");
   const hasAccrualRate = cols.has("accrual_rate");
-  return { cols, has, hasPosition, hasAccrualType, hasAccrualRate };
+  const hasCooperationType = cols.has("cooperation_type");
+  return { cols, has, hasPosition, hasAccrualType, hasAccrualRate, hasCooperationType };
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
@@ -98,6 +112,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       position: string | null;
       accrual_type: "hour" | "shift" | null;
       accrual_rate: number | null;
+      cooperation_type: "self_employed" | "ip" | "staff" | null;
       employee_role: "employee" | "department_head" | null;
       active: boolean;
       invited_with_preset_label: string | null;
@@ -107,7 +122,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         columnsInfo.hasPosition ? "position" : "null::text as position"
       }, ${columnsInfo.hasAccrualType ? "accrual_type" : "null::text as accrual_type"}, ${
         columnsInfo.hasAccrualRate ? "accrual_rate" : "null::numeric as accrual_rate"
-      }, employee_role, active, invited_with_preset_label, created_at
+      }, ${columnsInfo.hasCooperationType ? "cooperation_type" : "null::text as cooperation_type"}, employee_role, active, invited_with_preset_label, created_at
        FROM registered_users
        WHERE (coalesce(trim(full_name), '') <> '' OR employee_role is not null OR invited_by_user_id is not null)
        ${monthFilterSql}
@@ -120,6 +135,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       items: rows.map((r) => ({
         ...r,
         accrual_type: normalizeAccrualType(r.accrual_type),
+        cooperation_type: normalizeCooperationType(r.cooperation_type || "staff"),
       })),
     });
   }
@@ -137,11 +153,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const accrualType = normalizeAccrualType(body?.accrual_type || "hour");
     const accrualRateRaw = body?.accrual_rate;
     const accrualRate = Number(accrualRateRaw);
+    const cooperationType = normalizeCooperationType(body?.cooperation_type || "staff");
     const employeeRole = String(body?.employee_role || "employee").trim();
     if (!fullName) return res.status(400).json({ error: "Укажите ФИО" });
     if (!department) return res.status(400).json({ error: "Укажите структурное подразделение" });
     if (!EMPLOYEE_ROLES.has(employeeRole)) return res.status(400).json({ error: "Некорректная роль сотрудника" });
     if (!ACCRUAL_TYPES.has(accrualType)) return res.status(400).json({ error: "Некорректный тип начисления" });
+    if (!COOPERATION_TYPES.has(cooperationType)) return res.status(400).json({ error: "Некорректный тип сотрудничества" });
     if (!Number.isFinite(accrualRate) || accrualRate < 0) return res.status(400).json({ error: "Укажите корректную ставку начисления" });
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Некорректный email" });
 
@@ -166,33 +184,26 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         };
 
         const hasUpdatedAt = columnsInfo.cols.has("updated_at");
+        const setParts: string[] = [];
+        const params: unknown[] = [];
+        const addParam = (value: unknown) => {
+          params.push(value);
+          return `$${params.length}`;
+        };
+        setParts.push(`permissions = ${addParam(JSON.stringify(nextPermissions))}`);
+        setParts.push(`full_name = ${addParam(fullName)}`);
+        setParts.push(`department = ${addParam(department)}`);
+        if (columnsInfo.hasPosition) setParts.push(`position = ${addParam(position)}`);
+        if (columnsInfo.hasAccrualType) setParts.push(`accrual_type = ${addParam(accrualType)}`);
+        if (columnsInfo.hasAccrualRate) setParts.push(`accrual_rate = ${addParam(Number(accrualRate.toFixed(2)))}`);
+        if (columnsInfo.hasCooperationType) setParts.push(`cooperation_type = ${addParam(cooperationType)}`);
+        setParts.push(`employee_role = ${addParam(employeeRole)}`);
+        if (hasUpdatedAt) setParts.push("updated_at = now()");
         await pool.query(
           `UPDATE registered_users
-           SET permissions = $1,
-               full_name = $2,
-               department = $3,
-               ${columnsInfo.hasPosition ? "position = $4," : ""}
-               ${columnsInfo.hasAccrualType ? `accrual_type = ${columnsInfo.hasPosition ? "$5" : "$4"},` : ""}
-               ${columnsInfo.hasAccrualRate ? `accrual_rate = ${columnsInfo.hasPosition ? (columnsInfo.hasAccrualType ? "$6" : "$5") : (columnsInfo.hasAccrualType ? "$5" : "$4")},` : ""}
-               employee_role = ${
-                 columnsInfo.hasPosition
-                   ? (columnsInfo.hasAccrualType ? (columnsInfo.hasAccrualRate ? "$7" : "$6") : (columnsInfo.hasAccrualRate ? "$6" : "$5"))
-                   : (columnsInfo.hasAccrualType ? (columnsInfo.hasAccrualRate ? "$6" : "$5") : (columnsInfo.hasAccrualRate ? "$5" : "$4"))
-               }
-               ${hasUpdatedAt ? ", updated_at = now()" : ""}
-           WHERE id = ${
-             columnsInfo.hasPosition
-               ? (columnsInfo.hasAccrualType ? (columnsInfo.hasAccrualRate ? "$8" : "$7") : (columnsInfo.hasAccrualRate ? "$7" : "$6"))
-               : (columnsInfo.hasAccrualType ? (columnsInfo.hasAccrualRate ? "$7" : "$6") : (columnsInfo.hasAccrualRate ? "$6" : "$5"))
-           }`,
-          (() => {
-            const params: unknown[] = [JSON.stringify(nextPermissions), fullName, department];
-            if (columnsInfo.hasPosition) params.push(position);
-            if (columnsInfo.hasAccrualType) params.push(accrualType);
-            if (columnsInfo.hasAccrualRate) params.push(Number(accrualRate.toFixed(2)));
-            params.push(employeeRole, user.id);
-            return params;
-          })()
+           SET ${setParts.join(", ")}
+           WHERE id = ${addParam(user.id)}`,
+          params
         );
 
         return res.status(200).json({ ok: true, id: user.id, mode: "assign_existing" });
@@ -218,31 +229,62 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         supervisor: employeeRole === "department_head",
       };
       const hasUpdatedAt = columnsInfo.cols.has("updated_at");
+      const params: unknown[] = [];
+      const addParam = (value: unknown) => {
+        params.push(value);
+        return `$${params.length}`;
+      };
+      const insertColumns = [
+        "login",
+        "password_hash",
+        "inn",
+        "company_name",
+        "permissions",
+        "financial_access",
+        "access_all_inns",
+        "active",
+        "full_name",
+        "department",
+      ];
+      const insertValues: string[] = [
+        addParam(internalLogin),
+        addParam(randomPasswordHash),
+        addParam(""),
+        addParam(""),
+        addParam(JSON.stringify(permissions)),
+        "false",
+        "false",
+        "false",
+        addParam(fullName),
+        addParam(department),
+      ];
+      if (columnsInfo.hasPosition) {
+        insertColumns.push("position");
+        insertValues.push(addParam(position));
+      }
+      if (columnsInfo.hasAccrualType) {
+        insertColumns.push("accrual_type");
+        insertValues.push(addParam(accrualType));
+      }
+      if (columnsInfo.hasAccrualRate) {
+        insertColumns.push("accrual_rate");
+        insertValues.push(addParam(Number(accrualRate.toFixed(2))));
+      }
+      if (columnsInfo.hasCooperationType) {
+        insertColumns.push("cooperation_type");
+        insertValues.push(addParam(cooperationType));
+      }
+      insertColumns.push("employee_role");
+      insertValues.push(addParam(employeeRole));
+      if (hasUpdatedAt) {
+        insertColumns.push("updated_at");
+        insertValues.push("now()");
+      }
       const { rows } = await pool.query<{ id: number }>(
-        `INSERT INTO registered_users
-          (login, password_hash, inn, company_name, permissions, financial_access, access_all_inns, active, full_name, department${
-            columnsInfo.hasPosition ? ", position" : ""
-          }${columnsInfo.hasAccrualType ? ", accrual_type" : ""}${columnsInfo.hasAccrualRate ? ", accrual_rate" : ""}, employee_role${hasUpdatedAt ? ", updated_at" : ""})
-         VALUES ($1, $2, '', '', $3, false, false, false, $4, $5${
-           columnsInfo.hasPosition ? ", $6" : ""
-         }${columnsInfo.hasAccrualType ? `, ${columnsInfo.hasPosition ? "$7" : "$6"}` : ""}${
-           columnsInfo.hasAccrualRate
-             ? `, ${columnsInfo.hasPosition ? (columnsInfo.hasAccrualType ? "$8" : "$7") : (columnsInfo.hasAccrualType ? "$7" : "$6")}`
-             : ""
-         }, ${
-           columnsInfo.hasPosition
-             ? (columnsInfo.hasAccrualType ? (columnsInfo.hasAccrualRate ? "$9" : "$8") : (columnsInfo.hasAccrualRate ? "$8" : "$7"))
-             : (columnsInfo.hasAccrualType ? (columnsInfo.hasAccrualRate ? "$8" : "$7") : (columnsInfo.hasAccrualRate ? "$7" : "$6"))
-         }${hasUpdatedAt ? ", now()" : ""})
+        `INSERT INTO registered_users (${insertColumns.join(", ")})
+         VALUES (${insertValues.join(", ")})
          RETURNING id`,
-        (() => {
-          const params: unknown[] = [internalLogin, randomPasswordHash, JSON.stringify(permissions), fullName, department];
-          if (columnsInfo.hasPosition) params.push(position);
-          if (columnsInfo.hasAccrualType) params.push(accrualType);
-          if (columnsInfo.hasAccrualRate) params.push(Number(accrualRate.toFixed(2)));
-          params.push(employeeRole);
-          return params;
-        })()
+        params
       );
       return res.status(200).json({ ok: true, id: rows[0]?.id, mode: "create_internal" });
     } catch (e: any) {
@@ -264,6 +306,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       typeof body?.position === "string" ||
       typeof body?.accrual_type === "string" ||
       typeof body?.accrual_rate !== "undefined" ||
+      typeof body?.cooperation_type === "string" ||
       typeof body?.employee_role === "string";
 
     if (typeof body?.active !== "boolean" && !hasProfileUpdate) {
@@ -286,6 +329,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       position: string | null;
       accrual_type: "hour" | "shift" | null;
       accrual_rate: number | null;
+      cooperation_type: "self_employed" | "ip" | "staff" | null;
       employee_role: "employee" | "department_head" | null;
       permissions: Record<string, boolean> | null;
     }>(
@@ -293,7 +337,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         columnsInfo.hasPosition ? "position" : "null::text as position"
       }, ${columnsInfo.hasAccrualType ? "accrual_type" : "null::text as accrual_type"}, ${
         columnsInfo.hasAccrualRate ? "accrual_rate" : "null::numeric as accrual_rate"
-      }, employee_role, permissions
+      }, ${columnsInfo.hasCooperationType ? "cooperation_type" : "null::text as cooperation_type"}, employee_role, permissions
        FROM registered_users WHERE id = $1`,
       [id]
     );
@@ -304,6 +348,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const hasPositionUpdate = typeof body?.position === "string";
     const hasAccrualTypeUpdate = typeof body?.accrual_type === "string";
     const hasAccrualRateUpdate = typeof body?.accrual_rate !== "undefined";
+    const hasCooperationTypeUpdate = typeof body?.cooperation_type === "string";
     const hasRoleUpdate = typeof body?.employee_role === "string";
 
     const fullName = hasFullNameUpdate ? String(body.full_name).trim() : "";
@@ -315,6 +360,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const accrualRate = hasAccrualRateUpdate
       ? Number(body.accrual_rate)
       : (row.accrual_rate == null ? 0 : Number(row.accrual_rate));
+    const cooperationType = hasCooperationTypeUpdate
+      ? normalizeCooperationType(body.cooperation_type)
+      : normalizeCooperationType(row.cooperation_type || "staff");
     const employeeRole = hasRoleUpdate
       ? String(body.employee_role).trim()
       : (row.employee_role || (row.permissions?.supervisor ? "department_head" : "employee"));
@@ -323,6 +371,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     if (hasDepartmentUpdate && !department) return res.status(400).json({ error: "Укажите структурное подразделение" });
     if (!ACCRUAL_TYPES.has(accrualType)) return res.status(400).json({ error: "Некорректный тип начисления" });
     if (!Number.isFinite(accrualRate) || accrualRate < 0) return res.status(400).json({ error: "Укажите корректную ставку начисления" });
+    if (!COOPERATION_TYPES.has(cooperationType)) return res.status(400).json({ error: "Некорректный тип сотрудничества" });
     if (!EMPLOYEE_ROLES.has(employeeRole)) return res.status(400).json({ error: "Некорректная роль сотрудника" });
     const currentPermissions =
       row.permissions && typeof row.permissions === "object"
@@ -347,6 +396,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     if (hasPositionUpdate && columnsInfo.hasPosition) setParts.push(`position = ${addParam(position)}`);
     if (hasAccrualTypeUpdate && columnsInfo.hasAccrualType) setParts.push(`accrual_type = ${addParam(accrualType)}`);
     if (hasAccrualRateUpdate && columnsInfo.hasAccrualRate) setParts.push(`accrual_rate = ${addParam(Number(accrualRate.toFixed(2)))}`);
+    if (hasCooperationTypeUpdate && columnsInfo.hasCooperationType) setParts.push(`cooperation_type = ${addParam(cooperationType)}`);
     if (hasRoleUpdate) setParts.push(`employee_role = ${addParam(employeeRole)}`);
     if (hasUpdatedAt) setParts.push("updated_at = now()");
 
@@ -394,6 +444,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     if (columnsInfo.hasPosition) setParts.push("position = null");
     if (columnsInfo.hasAccrualType) setParts.push("accrual_type = null");
     if (columnsInfo.hasAccrualRate) setParts.push("accrual_rate = null");
+    if (columnsInfo.hasCooperationType) setParts.push("cooperation_type = null");
     if (hasInvitedByUserId) setParts.push("invited_by_user_id = null");
     if (hasInvitedPresetLabel) setParts.push("invited_with_preset_label = null");
     if (hasUpdatedAt) setParts.push("updated_at = now()");

@@ -120,6 +120,7 @@ type EmployeeDirectoryRow = {
   position: string;
   accrual_type: "hour" | "shift" | null;
   accrual_rate: number | null;
+  cooperation_type: "self_employed" | "ip" | "staff" | null;
   employee_role: "employee" | "department_head";
   active: boolean;
   invited_with_preset_label: string | null;
@@ -132,6 +133,20 @@ const EMPLOYEE_DEPARTMENTS = [
   "Отдел продаж",
   "Управляющая компания",
 ] as const;
+const COOPERATION_TYPE_OPTIONS = [
+  { value: "self_employed", label: "Самозанятость" },
+  { value: "ip", label: "ИП" },
+  { value: "staff", label: "Штатный сотрудник" },
+] as const;
+type CooperationType = typeof COOPERATION_TYPE_OPTIONS[number]["value"];
+const normalizeCooperationType = (value: unknown): CooperationType => {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "self_employed" || raw === "self-employed" || raw.includes("самозан")) return "self_employed";
+  if (raw === "ip" || raw.includes("ип")) return "ip";
+  return "staff";
+};
+const cooperationTypeLabel = (value: unknown) =>
+  COOPERATION_TYPE_OPTIONS.find((x) => x.value === normalizeCooperationType(value))?.label || "Штатный сотрудник";
 
 function UserRow({
   user,
@@ -557,6 +572,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryPosition, setEmployeeDirectoryPosition] = useState("");
   const [employeeDirectoryAccrualType, setEmployeeDirectoryAccrualType] = useState<"hour" | "shift">("hour");
   const [employeeDirectoryAccrualRate, setEmployeeDirectoryAccrualRate] = useState("0");
+  const [employeeDirectoryCooperationType, setEmployeeDirectoryCooperationType] = useState<CooperationType>("staff");
   const [employeeDirectoryRole, setEmployeeDirectoryRole] = useState<"employee" | "department_head">("employee");
   const [employeeDirectorySaving, setEmployeeDirectorySaving] = useState(false);
   const [employeeDirectoryEditingId, setEmployeeDirectoryEditingId] = useState<number | null>(null);
@@ -565,6 +581,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryEditPosition, setEmployeeDirectoryEditPosition] = useState("");
   const [employeeDirectoryEditAccrualType, setEmployeeDirectoryEditAccrualType] = useState<"hour" | "shift">("hour");
   const [employeeDirectoryEditAccrualRate, setEmployeeDirectoryEditAccrualRate] = useState("0");
+  const [employeeDirectoryEditCooperationType, setEmployeeDirectoryEditCooperationType] = useState<CooperationType>("staff");
   const [employeeDirectoryEditRole, setEmployeeDirectoryEditRole] = useState<"employee" | "department_head">("employee");
   const [employeeDirectoryEditSaving, setEmployeeDirectoryEditSaving] = useState(false);
   const [timesheetMonth, setTimesheetMonth] = useState<string>(() => {
@@ -5268,7 +5285,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник сотрудников HAULZ</Typography.Body>
           <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.9rem" }}>
-            Назначение атрибутов сотруднику (email опционален): ФИО, структурное подразделение, должность и роль.
+            Назначение атрибутов сотруднику (email опционален): ФИО, структурное подразделение, должность, тип сотрудничества и роль.
           </Typography.Body>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "0.5rem", marginBottom: "0.75rem" }}>
@@ -5305,6 +5322,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               placeholder="Должность"
               onChange={(e) => setEmployeeDirectoryPosition(e.target.value)}
             />
+            <select
+              className="admin-form-input"
+              value={employeeDirectoryCooperationType}
+              onChange={(e) => setEmployeeDirectoryCooperationType(e.target.value as CooperationType)}
+              style={{ padding: "0 0.5rem" }}
+            >
+              {COOPERATION_TYPE_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
             <select
               className="admin-form-input"
               value={employeeDirectoryAccrualType}
@@ -5356,6 +5383,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       full_name: employeeDirectoryFullName.trim(),
                       department: employeeDirectoryDepartment,
                       position: employeeDirectoryPosition.trim(),
+                      cooperation_type: employeeDirectoryCooperationType,
                       accrual_type: employeeDirectoryAccrualType,
                       accrual_rate: Number(employeeDirectoryAccrualRate),
                       employee_role: employeeDirectoryRole,
@@ -5366,6 +5394,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   setEmployeeDirectoryEmail("");
                   setEmployeeDirectoryFullName("");
                   setEmployeeDirectoryPosition("");
+                  setEmployeeDirectoryCooperationType("staff");
                   setEmployeeDirectoryAccrualType("hour");
                   setEmployeeDirectoryAccrualRate("0");
                   await fetchEmployeeDirectory();
@@ -5400,6 +5429,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     setEmployeeDirectoryEditFullName(emp.full_name || "");
                     setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
                     setEmployeeDirectoryEditPosition(emp.position || "");
+                    setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
                     setEmployeeDirectoryEditAccrualType(isShiftAccrualType(emp.accrual_type) ? "shift" : "hour");
                     setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
                     setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
@@ -5414,6 +5444,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       setEmployeeDirectoryEditFullName(emp.full_name || "");
                       setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
                       setEmployeeDirectoryEditPosition(emp.position || "");
+                      setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
                       setEmployeeDirectoryEditAccrualType(isShiftAccrualType(emp.accrual_type) ? "shift" : "hour");
                       setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
                       setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
@@ -5426,7 +5457,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <div>
                       <Typography.Body style={{ fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
                       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                        Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Начисление: {isShiftAccrualType(emp.accrual_type) ? "Смена" : "Часы"} · Ставка: {emp.accrual_rate ?? 0} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
+                        Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Тип сотрудничества: {cooperationTypeLabel(emp.cooperation_type)} · Начисление: {isShiftAccrualType(emp.accrual_type) ? "Смена" : "Часы"} · Ставка: {emp.accrual_rate ?? 0} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
                       </Typography.Body>
                     </div>
                     <Flex align="center" gap="0.45rem" onClick={(e) => e.stopPropagation()}>
@@ -5507,6 +5538,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         />
                         <select
                           className="admin-form-input"
+                          value={employeeDirectoryEditCooperationType}
+                          onChange={(e) => setEmployeeDirectoryEditCooperationType(e.target.value as CooperationType)}
+                          style={{ padding: "0 0.5rem" }}
+                        >
+                          {COOPERATION_TYPE_OPTIONS.map((item) => (
+                            <option key={item.value} value={item.value}>{item.label}</option>
+                          ))}
+                        </select>
+                        <select
+                          className="admin-form-input"
                           value={employeeDirectoryEditAccrualType}
                           onChange={(e) => setEmployeeDirectoryEditAccrualType(e.target.value as "hour" | "shift")}
                           style={{ padding: "0 0.5rem" }}
@@ -5556,6 +5597,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                   full_name: employeeDirectoryEditFullName.trim(),
                                   department: employeeDirectoryEditDepartment,
                                   position: employeeDirectoryEditPosition.trim(),
+                                  cooperation_type: employeeDirectoryEditCooperationType,
                                   accrual_type: employeeDirectoryEditAccrualType,
                                   accrual_rate: Number(employeeDirectoryEditAccrualRate),
                                   employee_role: employeeDirectoryEditRole,
@@ -5571,6 +5613,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                         full_name: employeeDirectoryEditFullName.trim(),
                                         department: employeeDirectoryEditDepartment,
                                         position: employeeDirectoryEditPosition.trim(),
+                                        cooperation_type: employeeDirectoryEditCooperationType,
                                         accrual_type: employeeDirectoryEditAccrualType,
                                         accrual_rate: Number(employeeDirectoryEditAccrualRate),
                                         employee_role: employeeDirectoryEditRole,

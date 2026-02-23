@@ -5041,14 +5041,16 @@ function ProfilePage({
                             {departmentTimesheetSummary.totalMoney.toLocaleString('ru-RU')} ₽
                         </Typography.Body>
                     </Panel>
-                    <Panel className="cargo-card" style={{ marginTop: '0.45rem', padding: '0.7rem' }}>
-                        <Typography.Body style={{ fontWeight: 600 }}>
-                            Итого по компании: {companyTimesheetSummary.totalShifts} смен · {companyTimesheetSummary.totalHours} ч
-                        </Typography.Body>
-                        <Typography.Body style={{ marginTop: '0.12rem', color: 'var(--color-text-secondary)' }}>
-                            {companyTimesheetSummary.totalMoney.toLocaleString('ru-RU')} ₽
-                        </Typography.Body>
-                    </Panel>
+                    {activeAccount?.permissions?.analytics === true ? (
+                        <Panel className="cargo-card" style={{ marginTop: '0.45rem', padding: '0.7rem' }}>
+                            <Typography.Body style={{ fontWeight: 600 }}>
+                                Итого по компании: {companyTimesheetSummary.totalShifts} смен · {companyTimesheetSummary.totalHours} ч
+                            </Typography.Body>
+                            <Typography.Body style={{ marginTop: '0.12rem', color: 'var(--color-text-secondary)' }}>
+                                {companyTimesheetSummary.totalMoney.toLocaleString('ru-RU')} ₽
+                            </Typography.Body>
+                        </Panel>
+                    ) : null}
                     </>
                 )}
                 {departmentShiftPicker ? (
