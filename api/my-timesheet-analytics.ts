@@ -98,6 +98,16 @@ async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
       UNIQUE (employee_id, work_date)
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS employee_timesheet_month_exclusions (
+      id bigserial PRIMARY KEY,
+      employee_id bigint NOT NULL REFERENCES registered_users(id) ON DELETE CASCADE,
+      month_key date NOT NULL,
+      created_by_user_id bigint REFERENCES registered_users(id) ON DELETE SET NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (employee_id, month_key)
+    )
+  `);
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -142,9 +152,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const meDepartment = String(me.department || "").trim();
-    const hasAnalyticsScope = permissions.analytics === true;
-    const canUseDepartmentScope = !hasAnalyticsScope && permissions.supervisor === true && !!meDepartment;
-    const companyOwnerId = me.invited_by_user_id ?? me.id;
+    const canViewAllDepartments = permissions.analytics === true;
+    const canUseDepartmentScope = !canViewAllDepartments && permissions.supervisor === true && !!meDepartment;
 
     const employeesRes = await pool.query<{
       id: number;
@@ -156,24 +165,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }>(
       `SELECT id, full_name, department, position, accrual_type, accrual_rate
        FROM registered_users
-       WHERE (id <> $1 OR $2::boolean = true)
+       WHERE coalesce((permissions->>'haulz')::boolean, false) = true
+         AND (id <> $1 OR $2::boolean = true)
          AND (
-           ($2::boolean = true AND invited_by_user_id = $3)
-           OR invited_by_user_id = $1
-           OR ($4::boolean = true AND lower(trim(coalesce(department, ''))) = lower(trim($5)))
-           OR (
-             $2::boolean = true
-             AND EXISTS (
-               SELECT 1
-               FROM employee_timesheet_entries te
-               WHERE te.employee_id = registered_users.id
-                 AND te.work_date >= $6::date
-                 AND te.work_date <= $7::date
-             )
-           )
+           $2::boolean = true
+           OR ($3::boolean = true AND lower(trim(coalesce(department, ''))) = lower(trim($4)))
+         )
+         AND id NOT IN (
+           SELECT employee_id
+           FROM employee_timesheet_month_exclusions
+           WHERE month_key = $5::date
          )
        ORDER BY coalesce(full_name, login), id`,
-      [me.id, hasAnalyticsScope, companyOwnerId, canUseDepartmentScope, meDepartment, monthRange.from, monthRange.to]
+      [me.id, canViewAllDepartments, canUseDepartmentScope, meDepartment, monthRange.from]
     );
 
     const employees = employeesRes.rows.map((row) => ({
