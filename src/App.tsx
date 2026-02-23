@@ -1141,11 +1141,16 @@ function DashboardPage({
             return acc + pw;
         }, 0);
     }, [filteredItems]);
+    const companyTimesheetSummary = useMemo(() => ({
+        totalHours: Number(timesheetAnalyticsData?.totalHours || 0),
+        totalShifts: Number(timesheetAnalyticsData?.totalShifts || 0),
+        totalMoney: Number(timesheetAnalyticsData?.totalCost || 0),
+    }), [timesheetAnalyticsData?.totalHours, timesheetAnalyticsData?.totalShifts, timesheetAnalyticsData?.totalCost]);
     const timesheetCostPerKg = useMemo(() => {
-        const totalCost = Number(timesheetAnalyticsData?.totalCost || 0);
+        const totalCost = companyTimesheetSummary.totalMoney;
         if (!(timesheetPaidWeight > 0)) return 0;
         return totalCost / timesheetPaidWeight;
-    }, [timesheetAnalyticsData?.totalCost, timesheetPaidWeight]);
+    }, [companyTimesheetSummary.totalMoney, timesheetPaidWeight]);
     const topEmployeesByTimesheetCost = useMemo(() => {
         const list = timesheetAnalyticsData?.employees || [];
         return [...list]
@@ -1164,14 +1169,14 @@ function DashboardPage({
             current.employeeCount += 1;
             grouped.set(department, current);
         }
-        const totalCost = Number(timesheetAnalyticsData?.totalCost || 0);
+        const totalCost = companyTimesheetSummary.totalMoney;
         return Array.from(grouped.values())
             .map((row) => ({
                 ...row,
                 share: totalCost > 0 ? (row.totalCost / totalCost) * 100 : 0,
             }))
             .sort((a, b) => b.totalCost - a.totalCost);
-    }, [timesheetAnalyticsData?.employees, timesheetAnalyticsData?.totalCost]);
+    }, [timesheetAnalyticsData?.employees, companyTimesheetSummary.totalMoney]);
     const getValForChart = useCallback((item: CargoItem) => {
         if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
         if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
@@ -2575,7 +2580,7 @@ function DashboardPage({
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', marginBottom: '0.75rem' }}>
                                 <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
                                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Затраты табеля</Typography.Body>
-                                    <Typography.Body style={{ fontWeight: 600 }}>{Math.round(Number(timesheetAnalyticsData?.totalCost || 0)).toLocaleString('ru-RU')} ₽</Typography.Body>
+                                    <Typography.Body style={{ fontWeight: 600 }}>{Math.round(companyTimesheetSummary.totalMoney).toLocaleString('ru-RU')} ₽</Typography.Body>
                                 </div>
                                 <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
                                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Платный вес</Typography.Body>
