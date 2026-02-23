@@ -3914,6 +3914,7 @@ function ProfilePage({
     const [employeeDeleteLoading, setEmployeeDeleteLoading] = useState(false);
     const [employeePresetLoadingId, setEmployeePresetLoadingId] = useState<number | null>(null);
     const [departmentTimesheetDepartment, setDepartmentTimesheetDepartment] = useState("");
+    const [departmentTimesheetAllDepartments, setDepartmentTimesheetAllDepartments] = useState(false);
     const [departmentTimesheetEmployees, setDepartmentTimesheetEmployees] = useState<Array<{
         id: number;
         login: string;
@@ -4129,12 +4130,14 @@ function ProfilePage({
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 setDepartmentTimesheetError(data.error || "Ошибка загрузки табеля");
+                setDepartmentTimesheetAllDepartments(false);
                 setDepartmentTimesheetEmployees([]);
                 setDepartmentTimesheetAvailableEmployees([]);
                 setDepartmentTimesheetHours({});
                 return;
             }
             setDepartmentTimesheetDepartment(typeof data.department === "string" ? data.department : "");
+            setDepartmentTimesheetAllDepartments(data?.allDepartments === true);
             setDepartmentTimesheetEmployees(Array.isArray(data.employees) ? data.employees : []);
             setDepartmentTimesheetAvailableEmployees(Array.isArray(data.availableEmployees) ? data.availableEmployees : []);
             const loadedEntries: Record<string, string> = {};
@@ -4152,6 +4155,7 @@ function ProfilePage({
             setDepartmentTimesheetHours(loadedEntries);
         } catch {
             setDepartmentTimesheetError("Ошибка сети");
+            setDepartmentTimesheetAllDepartments(false);
             setDepartmentTimesheetEmployees([]);
             setDepartmentTimesheetAvailableEmployees([]);
             setDepartmentTimesheetHours({});
@@ -4693,7 +4697,7 @@ function ProfilePage({
                 <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '0.75rem' }}>
                     <Flex align="center" justify="space-between" wrap="wrap" gap="0.75rem">
                         <Typography.Body style={{ fontWeight: 600 }}>
-                            Подразделение: {departmentTimesheetDepartment || "—"}
+                            Подразделение: {departmentTimesheetAllDepartments ? "Все подразделения" : (departmentTimesheetDepartment || "—")}
                         </Typography.Body>
                         <Flex align="center" gap="0.5rem">
                             <input

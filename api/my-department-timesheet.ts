@@ -114,6 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (perms.supervisor !== true || perms.haulz !== true) {
       return res.status(403).json({ error: "Доступ только для руководителей подразделений HAULZ" });
     }
+    const canViewAllDepartments = perms.analytics === true;
 
     const department = String(me.department || "").trim();
     const monthInfo = parseMonth(body.month || "");
@@ -121,18 +122,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === "DELETE") {
       const employeeId = Number(body.employeeId);
-      if (!department) return res.status(400).json({ error: "У пользователя не задано подразделение" });
+      if (!department && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
       if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
 
-      const employeeRes = await pool.query<{ id: number }>(
-        `SELECT id
-         FROM registered_users
-         WHERE id = $1
-           AND lower(trim(coalesce(department, ''))) = lower(trim($2))
-           AND coalesce((permissions->>'haulz')::boolean, false) = true
-         LIMIT 1`,
-        [employeeId, department]
-      );
+      const employeeRes = canViewAllDepartments
+        ? await pool.query<{ id: number }>(
+            `SELECT id
+             FROM registered_users
+             WHERE id = $1
+               AND coalesce((permissions->>'haulz')::boolean, false) = true
+             LIMIT 1`,
+            [employeeId]
+          )
+        : await pool.query<{ id: number }>(
+            `SELECT id
+             FROM registered_users
+             WHERE id = $1
+               AND lower(trim(coalesce(department, ''))) = lower(trim($2))
+               AND coalesce((permissions->>'haulz')::boolean, false) = true
+             LIMIT 1`,
+            [employeeId, department]
+          );
       if (employeeRes.rows.length === 0) return res.status(403).json({ error: "Нет доступа к сотруднику другого подразделения" });
 
       await pool.query(
@@ -150,18 +160,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "PUT") {
-      if (!department) return res.status(400).json({ error: "У пользователя не задано подразделение" });
+      if (!department && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
       const existingEmployeeId = Number(body.existingEmployeeId);
       if (Number.isFinite(existingEmployeeId) && existingEmployeeId > 0) {
-        const existingInDepartmentRes = await pool.query<{ id: number }>(
-          `SELECT id
-           FROM registered_users
-           WHERE id = $1
-             AND lower(trim(coalesce(department, ''))) = lower(trim($2))
-             AND coalesce((permissions->>'haulz')::boolean, false) = true
-           LIMIT 1`,
-          [existingEmployeeId, department]
-        );
+        const existingInDepartmentRes = canViewAllDepartments
+          ? await pool.query<{ id: number }>(
+              `SELECT id
+               FROM registered_users
+               WHERE id = $1
+                 AND coalesce((permissions->>'haulz')::boolean, false) = true
+               LIMIT 1`,
+              [existingEmployeeId]
+            )
+          : await pool.query<{ id: number }>(
+              `SELECT id
+               FROM registered_users
+               WHERE id = $1
+                 AND lower(trim(coalesce(department, ''))) = lower(trim($2))
+                 AND coalesce((permissions->>'haulz')::boolean, false) = true
+               LIMIT 1`,
+              [existingEmployeeId, department]
+            );
         if (existingInDepartmentRes.rows.length === 0) {
           return res.status(403).json({ error: "Можно добавить только сотрудника своего подразделения" });
         }
@@ -181,7 +200,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const employeeRole = String(body.employeeRole || "employee").trim() === "department_head" ? "department_head" : "employee";
       if (!fullName) return res.status(400).json({ error: "Укажите ФИО" });
       if (!dep) return res.status(400).json({ error: "Укажите подразделение" });
-      if (dep.toLowerCase() !== department.toLowerCase()) {
+      if (!canViewAllDepartments && dep.toLowerCase() !== department.toLowerCase()) {
         return res.status(400).json({ error: "Можно добавлять сотрудников только своего подразделения" });
       }
       if (!Number.isFinite(accrualRate) || accrualRate < 0) return res.status(400).json({ error: "Укажите корректную ставку" });
@@ -251,20 +270,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const employeeId = Number(body.employeeId);
       const date = String(body.date || "").trim();
       const value = String(body.value || "").trim();
-      if (!department) return res.status(400).json({ error: "У пользователя не задано подразделение" });
+      if (!department && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
       if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "date обязателен в формате YYYY-MM-DD" });
       if (!date.startsWith(`${monthInfo.month}-`)) return res.status(400).json({ error: "Дата не соответствует выбранному месяцу" });
 
-      const employeeRes = await pool.query<{ id: number }>(
-        `SELECT id
-         FROM registered_users
-         WHERE id = $1
-           AND lower(trim(coalesce(department, ''))) = lower(trim($2))
-           AND coalesce((permissions->>'haulz')::boolean, false) = true
-         LIMIT 1`,
-        [employeeId, department]
-      );
+      const employeeRes = canViewAllDepartments
+        ? await pool.query<{ id: number }>(
+            `SELECT id
+             FROM registered_users
+             WHERE id = $1
+               AND coalesce((permissions->>'haulz')::boolean, false) = true
+             LIMIT 1`,
+            [employeeId]
+          )
+        : await pool.query<{ id: number }>(
+            `SELECT id
+             FROM registered_users
+             WHERE id = $1
+               AND lower(trim(coalesce(department, ''))) = lower(trim($2))
+               AND coalesce((permissions->>'haulz')::boolean, false) = true
+             LIMIT 1`,
+            [employeeId, department]
+          );
       if (employeeRes.rows.length === 0) return res.status(403).json({ error: "Нет доступа к сотруднику другого подразделения" });
 
       if (value === "") {
@@ -281,7 +309,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ok: true });
     }
 
-    if (!department) return res.status(200).json({ month: monthInfo.month, department: "", employees: [], availableEmployees: [], entries: {} });
+    if (!department && !canViewAllDepartments) return res.status(200).json({ month: monthInfo.month, department: "", allDepartments: false, employees: [], availableEmployees: [], entries: {} });
 
     const colsRes = await pool.query<{ column_name: string }>(
       `SELECT column_name
@@ -318,15 +346,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         hasAccrualRate ? ", accrual_rate" : ", null::numeric as accrual_rate"
       }, active
        FROM registered_users
-       WHERE lower(trim(coalesce(department, ''))) = lower(trim($1))
-         AND coalesce((permissions->>'haulz')::boolean, false) = true
+       WHERE coalesce((permissions->>'haulz')::boolean, false) = true
+         ${canViewAllDepartments ? "" : "AND lower(trim(coalesce(department, ''))) = lower(trim($1))"}
          AND id NOT IN (
            SELECT employee_id
            FROM employee_timesheet_month_exclusions
-           WHERE month_key = $2::date
+           WHERE month_key = $${canViewAllDepartments ? "1" : "2"}::date
          )
        ORDER BY coalesce(full_name, login), login`,
-      [department, monthInfo.start]
+      canViewAllDepartments ? [monthInfo.start] : [department, monthInfo.start]
     );
 
     const employeeIds = listRes.rows.map((r) => r.id);
@@ -345,15 +373,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         hasEmployeeRole ? ", employee_role" : ", null::text as employee_role"
       }
        FROM registered_users
-       WHERE lower(trim(coalesce(department, ''))) = lower(trim($1))
-         AND coalesce((permissions->>'haulz')::boolean, false) = true
+       WHERE coalesce((permissions->>'haulz')::boolean, false) = true
+         ${canViewAllDepartments ? "" : "AND lower(trim(coalesce(department, ''))) = lower(trim($1))"}
          AND id IN (
            SELECT employee_id
            FROM employee_timesheet_month_exclusions
-           WHERE month_key = $2::date
+           WHERE month_key = $${canViewAllDepartments ? "1" : "2"}::date
          )
        ORDER BY coalesce(full_name, login), login`,
-      [department, monthInfo.start]
+      canViewAllDepartments ? [monthInfo.start] : [department, monthInfo.start]
     );
     const entries: Record<string, string> = {};
     if (employeeIds.length > 0) {
@@ -373,6 +401,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       month: monthInfo.month,
       department,
+      allDepartments: canViewAllDepartments,
       employees: listRes.rows.map((r) => ({
         id: r.id,
         login: r.login,
