@@ -1266,9 +1266,10 @@ function DashboardPage({
             .map((row) => ({
                 ...row,
                 share: totalCost > 0 ? (row.totalCost / totalCost) * 100 : 0,
+                costPerKg: timesheetPaidWeight > 0 ? row.totalCost / timesheetPaidWeight : 0,
             }))
             .sort((a, b) => b.totalCost - a.totalCost);
-    }, [timesheetAnalyticsData?.employees, companyTimesheetSummary.totalMoney]);
+    }, [timesheetAnalyticsData?.employees, companyTimesheetSummary.totalMoney, timesheetPaidWeight]);
     const getValForChart = useCallback((item: CargoItem) => {
         if (chartType === 'money') return typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
         if (chartType === 'paidWeight') return typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
@@ -2670,17 +2671,23 @@ function DashboardPage({
                     ) : (
                         <>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                                <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
-                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Затраты табеля</Typography.Body>
-                                    <Typography.Body style={{ fontWeight: 600 }}>{Math.round(companyTimesheetSummary.totalMoney).toLocaleString('ru-RU')} ₽</Typography.Body>
+                                <div>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Затраты табеля</Typography.Body>
+                                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
+                                        <Typography.Body style={{ fontWeight: 600 }}>{Math.round(companyTimesheetSummary.totalMoney).toLocaleString('ru-RU')} ₽</Typography.Body>
+                                    </div>
                                 </div>
-                                <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
-                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Платный вес</Typography.Body>
-                                    <Typography.Body style={{ fontWeight: 600 }}>{Math.round(timesheetPaidWeight).toLocaleString('ru-RU')} кг</Typography.Body>
+                                <div>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Платный вес</Typography.Body>
+                                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
+                                        <Typography.Body style={{ fontWeight: 600 }}>{Math.round(timesheetPaidWeight).toLocaleString('ru-RU')} кг</Typography.Body>
+                                    </div>
                                 </div>
-                                <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
-                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Стоимость на 1 кг</Typography.Body>
-                                    <Typography.Body style={{ fontWeight: 700, color: '#2563eb' }}>{timesheetCostPerKg.toFixed(2)} ₽/кг</Typography.Body>
+                                <div>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Стоимость на 1 кг</Typography.Body>
+                                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
+                                        <Typography.Body style={{ fontWeight: 700, color: '#2563eb' }}>{timesheetCostPerKg.toFixed(2)} ₽/кг</Typography.Body>
+                                    </div>
                                 </div>
                             </div>
                             <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.4rem' }}>
@@ -2722,7 +2729,7 @@ function DashboardPage({
                                                 </Typography.Body>
                                             </Flex>
                                             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
-                                                Сотрудников: {row.employeeCount} · Часы: {Number(row.totalHours.toFixed(1))} · Смены: {row.totalShifts} · Доля: {row.share.toFixed(1)}%
+                                                Сотрудников: {row.employeeCount} · Часы: {Number(row.totalHours.toFixed(1))} · Смены: {row.totalShifts} · Доля: {row.share.toFixed(1)}% · 1 кг: {row.costPerKg.toFixed(2)} ₽/кг
                                             </Typography.Body>
                                         </div>
                                     ))}
@@ -4044,6 +4051,7 @@ function ProfilePage({
     const [departmentTimesheetEmployeePosition, setDepartmentTimesheetEmployeePosition] = useState("");
     const [departmentTimesheetEmployeeAccrualType, setDepartmentTimesheetEmployeeAccrualType] = useState<"hour" | "shift">("hour");
     const [departmentTimesheetEmployeeAccrualRate, setDepartmentTimesheetEmployeeAccrualRate] = useState("0");
+    const [departmentTimesheetEmployeeCooperationType, setDepartmentTimesheetEmployeeCooperationType] = useState<"self_employed" | "ip" | "staff">("staff");
     const [departmentTimesheetEmployeeSaving, setDepartmentTimesheetEmployeeSaving] = useState(false);
     const WORK_DAYS_IN_MONTH = 21;
     const SHIFT_MARK_OPTIONS = [
@@ -4108,6 +4116,11 @@ function ProfilePage({
         'Склад Калининград',
         'Отдел продаж',
         'Управляющая компания',
+    ] as const;
+    const COOPERATION_TYPE_OPTIONS = [
+        { value: "self_employed", label: "Самозанятость" },
+        { value: "ip", label: "ИП" },
+        { value: "staff", label: "Штатный сотрудник" },
     ] as const;
     const employeeRoleLabel = (value?: string) => value === 'department_head' ? 'Руководитель подразделения' : 'Сотрудник';
 
@@ -4385,6 +4398,7 @@ function ProfilePage({
                     position: departmentTimesheetEmployeePosition.trim(),
                     accrualType: departmentTimesheetEmployeeAccrualType,
                     accrualRate: rate,
+                    cooperationType: departmentTimesheetEmployeeCooperationType,
                     employeeRole: 'employee',
                 }),
             });
@@ -4394,6 +4408,7 @@ function ProfilePage({
             setDepartmentTimesheetEmployeePosition("");
             setDepartmentTimesheetEmployeeAccrualType("hour");
             setDepartmentTimesheetEmployeeAccrualRate("0");
+            setDepartmentTimesheetEmployeeCooperationType("staff");
             await fetchDepartmentTimesheet();
         } catch (e) {
             setDepartmentTimesheetError((e as Error)?.message || 'Ошибка добавления сотрудника');
@@ -4409,6 +4424,7 @@ function ProfilePage({
         departmentTimesheetEmployeePosition,
         departmentTimesheetEmployeeAccrualType,
         departmentTimesheetEmployeeAccrualRate,
+        departmentTimesheetEmployeeCooperationType,
         fetchDepartmentTimesheet,
     ]);
 
@@ -4887,6 +4903,18 @@ function ProfilePage({
                         >
                             <option value="hour">Почасовая</option>
                             <option value="shift">Сменная</option>
+                        </select>
+                        <select
+                            value={departmentTimesheetEmployeeCooperationType}
+                            onChange={(e) => setDepartmentTimesheetEmployeeCooperationType(
+                                e.target.value === "self_employed" || e.target.value === "ip" ? e.target.value : "staff"
+                            )}
+                            style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '11rem' }}
+                            aria-label="Тип занятости"
+                        >
+                            {COOPERATION_TYPE_OPTIONS.map((opt) => (
+                                <option key={`cooperation-type-${opt.value}`} value={opt.value}>{opt.label}</option>
+                            ))}
                         </select>
                         <Input
                             type="number"

@@ -30,6 +30,18 @@ async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
   `);
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_entries_work_date_idx ON employee_timesheet_entries(work_date)");
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_entries_employee_id_idx ON employee_timesheet_entries(employee_id)");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS employee_timesheet_payment_marks (
+      id bigserial PRIMARY KEY,
+      employee_id bigint NOT NULL REFERENCES registered_users(id) ON DELETE CASCADE,
+      work_date date NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (employee_id, work_date)
+    )
+  `);
+  await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_payment_marks_work_date_idx ON employee_timesheet_payment_marks(work_date)");
+  await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_payment_marks_employee_id_idx ON employee_timesheet_payment_marks(employee_id)");
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
@@ -55,7 +67,17 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     for (const row of rows) {
       entries[`${row.employee_id}__${row.work_date}`] = String(row.value_text || "");
     }
-    return res.status(200).json({ ok: true, month: monthInfo.month, entries });
+    const paymentRes = await pool.query<{ employee_id: number; work_date: string }>(
+      `SELECT employee_id, work_date::text as work_date
+       FROM employee_timesheet_payment_marks
+       WHERE work_date >= $1::date AND work_date < $2::date`,
+      [monthInfo.start, monthInfo.next]
+    );
+    const paymentMarks: Record<string, boolean> = {};
+    for (const row of paymentRes.rows) {
+      paymentMarks[`${row.employee_id}__${row.work_date}`] = true;
+    }
+    return res.status(200).json({ ok: true, month: monthInfo.month, entries, paymentMarks });
   }
 
   if (req.method === "PUT") {
@@ -92,7 +114,39 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true });
   }
 
-  res.setHeader("Allow", "GET, PUT");
+  if (req.method === "PATCH") {
+    let body: any = req.body;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        return res.status(400).json({ error: "Invalid JSON" });
+      }
+    }
+    const monthInfo = parseMonth(body?.month);
+    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
+    const employeeId = Number(body?.employeeId);
+    const date = String(body?.date || "").trim();
+    const paid = Boolean(body?.paid);
+    if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "date обязателен в формате YYYY-MM-DD" });
+    if (!date.startsWith(`${monthInfo.month}-`)) return res.status(400).json({ error: "Дата не соответствует выбранному месяцу" });
+
+    if (!paid) {
+      await pool.query("DELETE FROM employee_timesheet_payment_marks WHERE employee_id = $1 AND work_date = $2::date", [employeeId, date]);
+      return res.status(200).json({ ok: true });
+    }
+    await pool.query(
+      `INSERT INTO employee_timesheet_payment_marks(employee_id, work_date)
+       VALUES ($1, $2::date)
+       ON CONFLICT (employee_id, work_date)
+       DO UPDATE SET updated_at = now()`,
+      [employeeId, date]
+    );
+    return res.status(200).json({ ok: true });
+  }
+
+  res.setHeader("Allow", "GET, PUT, PATCH");
   return res.status(405).json({ error: "Method not allowed" });
 }
 

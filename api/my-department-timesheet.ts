@@ -15,6 +15,7 @@ type Body = {
   position?: string;
   accrualType?: "hour" | "shift" | string;
   accrualRate?: number | string;
+  cooperationType?: "self_employed" | "ip" | "staff" | string;
   employeeRole?: "employee" | "department_head" | string;
   existingEmployeeId?: number | string;
 };
@@ -25,6 +26,14 @@ function normalizeAccrualType(value: unknown): "hour" | "shift" {
   if (raw === "shift" || raw === "смена") return "shift";
   if (raw === "hour" || raw === "часы" || raw === "час") return "hour";
   return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
+}
+
+function normalizeCooperationType(value: unknown): "self_employed" | "ip" | "staff" {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "staff";
+  if (raw === "self_employed" || raw === "self-employed" || raw.includes("самозан")) return "self_employed";
+  if (raw === "ip" || raw.includes("ип")) return "ip";
+  return "staff";
 }
 
 function parseMonth(value: unknown): { month: string; start: string; next: string } | null {
@@ -77,6 +86,7 @@ async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
     )
   `);
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_month_exclusions_month_idx ON employee_timesheet_month_exclusions(month_key)");
+  await pool.query("ALTER TABLE registered_users ADD COLUMN IF NOT EXISTS cooperation_type text");
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -197,6 +207,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const position = String(body.position || "").trim();
       const accrualType = normalizeAccrualType(body.accrualType || "hour");
       const accrualRate = Number(body.accrualRate);
+      const cooperationType = normalizeCooperationType(body.cooperationType || "staff");
       const employeeRole = String(body.employeeRole || "employee").trim() === "department_head" ? "department_head" : "employee";
       if (!fullName) return res.status(400).json({ error: "Укажите ФИО" });
       if (!dep) return res.status(400).json({ error: "Укажите подразделение" });
@@ -227,9 +238,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                position = $4,
                accrual_type = $5,
                accrual_rate = $6,
-               employee_role = $7
-           WHERE id = $8`,
-          [JSON.stringify(nextPermissions), fullName, dep, position, accrualType, Number(accrualRate.toFixed(2)), employeeRole, user.id]
+               employee_role = $7,
+               cooperation_type = $8
+           WHERE id = $9`,
+          [JSON.stringify(nextPermissions), fullName, dep, position, accrualType, Number(accrualRate.toFixed(2)), employeeRole, cooperationType, user.id]
         );
         await pool.query("DELETE FROM employee_timesheet_month_exclusions WHERE employee_id = $1 AND month_key = $2::date", [user.id, monthInfo.start]);
         return res.status(200).json({ ok: true, id: user.id, mode: "assign_existing" });
@@ -255,10 +267,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
       const inserted = await pool.query<{ id: number }>(
         `INSERT INTO registered_users
-          (login, password_hash, inn, company_name, permissions, financial_access, access_all_inns, active, full_name, department, position, accrual_type, accrual_rate, employee_role)
-         VALUES ($1, $2, '', '', $3, false, false, false, $4, $5, $6, $7, $8, $9)
+          (login, password_hash, inn, company_name, permissions, financial_access, access_all_inns, active, full_name, department, position, accrual_type, accrual_rate, employee_role, cooperation_type)
+         VALUES ($1, $2, '', '', $3, false, false, false, $4, $5, $6, $7, $8, $9, $10)
          RETURNING id`,
-        [internalLogin, randomPasswordHash, JSON.stringify(permissions), fullName, dep, position, accrualType, Number(accrualRate.toFixed(2)), employeeRole]
+        [internalLogin, randomPasswordHash, JSON.stringify(permissions), fullName, dep, position, accrualType, Number(accrualRate.toFixed(2)), employeeRole, cooperationType]
       );
       const employeeId = inserted.rows[0]?.id;
       if (!employeeId) return res.status(500).json({ error: "Не удалось создать сотрудника" });

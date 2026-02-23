@@ -591,6 +591,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   });
   const [timesheetSearch, setTimesheetSearch] = useState("");
   const [timesheetHours, setTimesheetHours] = useState<Record<string, string>>({});
+  const [timesheetPaymentMarks, setTimesheetPaymentMarks] = useState<Record<string, boolean>>({});
+  const [timesheetPaymentMode, setTimesheetPaymentMode] = useState(false);
   const [timesheetMobilePicker, setTimesheetMobilePicker] = useState(false);
   const WORK_DAYS_IN_MONTH = 21;
   const SHIFT_MARK_OPTIONS = [
@@ -631,6 +633,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     const rate = Number(String(rateRaw || "").replace(",", "."));
     if (!Number.isFinite(rate) || rate < 0) return 0;
     return accrualType === "shift" ? rate * WORK_DAYS_IN_MONTH : rate * 8 * WORK_DAYS_IN_MONTH;
+  };
+  const parseTimesheetHoursValue = (rawValue: string): number => {
+    const raw = String(rawValue || "").trim();
+    if (!raw) return 0;
+    const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+    if (hhmm) {
+      const h = Number(hhmm[1]);
+      const m = Number(hhmm[2]);
+      if (Number.isFinite(h) && Number.isFinite(m) && m >= 0 && m < 60) return h + m / 60;
+    }
+    const parsed = Number(raw.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : 0;
   };
   const employeeDirectoryMonthlyEstimate = useMemo(
     () => calcMonthlyByRate(employeeDirectoryAccrualRate, employeeDirectoryAccrualType),
@@ -712,6 +726,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       let totalHours = 0;
       let totalShifts = 0;
       let totalMoney = 0;
+      let totalMoneyToPay = 0;
       for (const emp of group.employees) {
         const isShiftAccrual = isShiftAccrualType(emp.accrual_type);
         const rate = Number(emp.accrual_rate ?? 0);
@@ -720,17 +735,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             const key = `${emp.id}__${d.iso}`;
             return acc + (normalizeShiftMark(timesheetHours[key] || "") === "Я" ? 1 : 0);
           }, 0);
+          const paidShifts = timesheetDays.reduce((acc, d) => {
+            const key = `${emp.id}__${d.iso}`;
+            if (!timesheetPaymentMarks[key]) return acc;
+            return acc + (normalizeShiftMark(timesheetHours[key] || "") === "Я" ? 1 : 0);
+          }, 0);
           totalShifts += shifts;
           totalHours += shifts * 8;
           totalMoney += shifts * rate;
+          totalMoneyToPay += paidShifts * rate;
         } else {
           const hours = timesheetDays.reduce((acc, d) => {
             const key = `${emp.id}__${d.iso}`;
-            const parsed = Number(String(timesheetHours[key] || "").trim().replace(",", "."));
-            return acc + (Number.isFinite(parsed) ? parsed : 0);
+            return acc + parseTimesheetHoursValue(timesheetHours[key] || "");
+          }, 0);
+          const paidHours = timesheetDays.reduce((acc, d) => {
+            const key = `${emp.id}__${d.iso}`;
+            if (!timesheetPaymentMarks[key]) return acc;
+            return acc + parseTimesheetHoursValue(timesheetHours[key] || "");
           }, 0);
           totalHours += hours;
           totalMoney += hours * rate;
+          totalMoneyToPay += paidHours * rate;
         }
       }
       return {
@@ -738,17 +764,20 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         totalHours: Number(totalHours.toFixed(2)),
         totalShifts,
         totalMoney: Number(totalMoney.toFixed(2)),
+        totalMoneyToPay: Number(totalMoneyToPay.toFixed(2)),
       };
     });
-  }, [timesheetEmployeesByDepartment, timesheetDays, timesheetHours]);
+  }, [timesheetEmployeesByDepartment, timesheetDays, timesheetHours, timesheetPaymentMarks]);
   const timesheetCompanySummary = useMemo(() => {
     const totalHours = timesheetDepartmentSummaries.reduce((acc, x) => acc + x.totalHours, 0);
     const totalShifts = timesheetDepartmentSummaries.reduce((acc, x) => acc + x.totalShifts, 0);
     const totalMoney = timesheetDepartmentSummaries.reduce((acc, x) => acc + x.totalMoney, 0);
+    const totalMoneyToPay = timesheetDepartmentSummaries.reduce((acc, x) => acc + x.totalMoneyToPay, 0);
     return {
       totalHours: Number(totalHours.toFixed(2)),
       totalShifts,
       totalMoney: Number(totalMoney.toFixed(2)),
+      totalMoneyToPay: Number(totalMoneyToPay.toFixed(2)),
     };
   }, [timesheetDepartmentSummaries]);
 
@@ -1326,9 +1355,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       }
       if (!res.ok) throw new Error(data?.error || "Ошибка загрузки табеля");
       setTimesheetHours(data?.entries && typeof data.entries === "object" ? data.entries : {});
+      setTimesheetPaymentMarks(data?.paymentMarks && typeof data.paymentMarks === "object" ? data.paymentMarks : {});
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка загрузки табеля");
       setTimesheetHours({});
+      setTimesheetPaymentMarks({});
     }
   }, [adminToken, isSuperAdmin, timesheetMonth]);
 
@@ -1357,6 +1388,35 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         if (!res.ok) throw new Error(data?.error || "Ошибка сохранения табеля");
       } catch (e: unknown) {
         setError((e as Error)?.message || "Ошибка сохранения табеля");
+      }
+    },
+    [adminToken, isSuperAdmin, timesheetMonth]
+  );
+  const saveTimesheetPaymentMark = useCallback(
+    async (employeeId: number, dateIso: string, paid: boolean) => {
+      if (!adminToken || !isSuperAdmin) return;
+      try {
+        const res = await fetch("/api/admin-timesheet", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            month: timesheetMonth,
+            employeeId,
+            date: dateIso,
+            paid,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          onLogoutRef.current?.("expired");
+          return;
+        }
+        if (!res.ok) throw new Error(data?.error || "Ошибка сохранения оплаты");
+      } catch (e: unknown) {
+        setError((e as Error)?.message || "Ошибка сохранения оплаты");
       }
     },
     [adminToken, isSuperAdmin, timesheetMonth]
@@ -4286,7 +4346,25 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               placeholder="Поиск по ФИО, email, подразделению"
               style={{ minWidth: "18rem", flex: 1, height: "2.5rem", boxSizing: "border-box" }}
             />
+            <Button
+              type="button"
+              className="filter-button"
+              onClick={() => setTimesheetPaymentMode((prev) => !prev)}
+              style={{
+                height: "2.5rem",
+                borderColor: timesheetPaymentMode ? "#16a34a" : undefined,
+                color: timesheetPaymentMode ? "#166534" : undefined,
+                background: timesheetPaymentMode ? "#ecfdf3" : undefined,
+              }}
+            >
+              {timesheetPaymentMode ? "Режим оплаты: вкл" : "Режим оплаты"}
+            </Button>
           </Flex>
+          {timesheetPaymentMode ? (
+            <Typography.Body style={{ fontSize: "0.8rem", color: "#15803d", marginTop: "-0.35rem", marginBottom: "0.7rem" }}>
+              Режим оплаты активен: нажимайте на дни в табеле, чтобы отметить/снять день к оплате.
+            </Typography.Body>
+          ) : null}
           {employeeDirectoryLoading ? (
             <Flex align="center" gap="0.5rem">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -4353,14 +4431,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 ? totalShifts * shiftHours
                                 : timesheetDays.reduce((acc, d) => {
                                     const key = `${emp.id}__${d.iso}`;
-                                    const val = (timesheetHours[key] || "").trim().toUpperCase();
-                                    const fallback = 0;
-                                    const parsed = Number(val);
-                                    return acc + (Number.isFinite(parsed) ? parsed : fallback);
+                                    return acc + parseTimesheetHoursValue(timesheetHours[key] || "");
                                   }, 0);
                               const totalMoney = isShiftAccrual
                                 ? totalShifts * hourlyRate
                                 : totalHours * hourlyRate;
+                              const paidShifts = isShiftAccrual
+                                ? timesheetDays.reduce((acc, d) => {
+                                    const key = `${emp.id}__${d.iso}`;
+                                    if (!timesheetPaymentMarks[key]) return acc;
+                                    return acc + (normalizeShiftMark(timesheetHours[key] || "") === "Я" ? 1 : 0);
+                                  }, 0)
+                                : 0;
+                              const paidHours = isShiftAccrual
+                                ? paidShifts * shiftHours
+                                : timesheetDays.reduce((acc, d) => {
+                                    const key = `${emp.id}__${d.iso}`;
+                                    if (!timesheetPaymentMarks[key]) return acc;
+                                    return acc + parseTimesheetHoursValue(timesheetHours[key] || "");
+                                  }, 0);
+                              const totalMoneyToPay = isShiftAccrual
+                                ? paidShifts * hourlyRate
+                                : paidHours * hourlyRate;
                               const totalPrimaryText = isShiftAccrual
                                 ? `${totalShifts} ${timesheetMobilePicker ? "смены" : "смен"}`
                                 : `${Number(totalHours.toFixed(1))} ${timesheetMobilePicker ? "часы" : "ч"}`;
@@ -4386,12 +4478,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     const shiftMark = normalizeShiftMark(value);
                                     const shiftMarkStyle = getShiftMarkStyle(shiftMark);
                                     const hourPickerValue = toHalfHourValue(value || fallback);
+                                    const isMarkedForPayment = timesheetPaymentMarks[key] === true;
                                     return (
-                                      <td key={`timesheet-cell-${emp.id}-${d.iso}`} style={{ padding: "0.2rem", borderBottom: "1px solid var(--color-border)", background: d.isWeekend ? "var(--color-bg-hover)" : "transparent" }}>
+                                      <td
+                                        key={`timesheet-cell-${emp.id}-${d.iso}`}
+                                        onClick={() => {
+                                          if (!timesheetPaymentMode) return;
+                                          const nextPaid = !isMarkedForPayment;
+                                          setTimesheetPaymentMarks((prev) => ({ ...prev, [key]: nextPaid }));
+                                          void saveTimesheetPaymentMark(emp.id, d.iso, nextPaid);
+                                        }}
+                                        style={{
+                                          padding: "0.2rem",
+                                          borderBottom: "1px solid var(--color-border)",
+                                          background: isMarkedForPayment ? "#fff7d6" : (d.isWeekend ? "var(--color-bg-hover)" : "transparent"),
+                                          boxShadow: isMarkedForPayment ? "inset 0 0 0 1px #f59e0b" : undefined,
+                                          cursor: timesheetPaymentMode ? "pointer" : "default",
+                                        }}
+                                      >
                                         {isShiftAccrual ? (
                                           <button
                                             type="button"
                                             onClick={() => {
+                                              if (timesheetPaymentMode) return;
                                               if (adminShiftHoldTriggeredRef.current) {
                                                 adminShiftHoldTriggeredRef.current = false;
                                                 return;
@@ -4404,6 +4513,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               void saveTimesheetCell(emp.id, d.iso, nextValue);
                                             }}
                                             onMouseDown={(e) => {
+                                              if (timesheetPaymentMode) return;
                                               if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
                                               adminShiftHoldTriggeredRef.current = false;
                                               const { clientX, clientY } = e;
@@ -4413,18 +4523,21 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               }, 450);
                                             }}
                                             onMouseUp={() => {
+                                              if (timesheetPaymentMode) return;
                                               if (adminShiftHoldTimerRef.current) {
                                                 window.clearTimeout(adminShiftHoldTimerRef.current);
                                                 adminShiftHoldTimerRef.current = null;
                                               }
                                             }}
                                             onMouseLeave={() => {
+                                              if (timesheetPaymentMode) return;
                                               if (adminShiftHoldTimerRef.current) {
                                                 window.clearTimeout(adminShiftHoldTimerRef.current);
                                                 adminShiftHoldTimerRef.current = null;
                                               }
                                             }}
                                             onTouchStart={(e) => {
+                                              if (timesheetPaymentMode) return;
                                               if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
                                               adminShiftHoldTriggeredRef.current = false;
                                               const touch = e.touches[0];
@@ -4434,6 +4547,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               }, 450);
                                             }}
                                             onTouchEnd={() => {
+                                              if (timesheetPaymentMode) return;
                                               if (adminShiftHoldTimerRef.current) {
                                                 window.clearTimeout(adminShiftHoldTimerRef.current);
                                                 adminShiftHoldTimerRef.current = null;
@@ -4455,7 +4569,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               fontSize: shiftMark ? "0.82rem" : "1rem",
                                               WebkitAppearance: "none",
                                               appearance: "none",
-                                              cursor: "pointer",
+                                              cursor: timesheetPaymentMode ? "default" : "pointer",
+                                              opacity: timesheetPaymentMode ? 0.9 : 1,
                                             }}
                                             aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : "Нажмите для Я, удерживайте для выбора статуса"}
                                           >
@@ -4465,6 +4580,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                           timesheetMobilePicker ? (
                                             <select
                                               value={hourPickerValue}
+                                              disabled={timesheetPaymentMode}
                                               onChange={(e) => {
                                                 const nextValue = e.target.value;
                                                 setTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
@@ -4487,6 +4603,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               max={24}
                                               step={0.5}
                                               value={value || fallback}
+                                              disabled={timesheetPaymentMode}
                                               onChange={(e) => {
                                                 const raw = e.target.value;
                                                 if (raw === "") {
@@ -4517,6 +4634,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     <div>{totalPrimaryText}</div>
                                     <div style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>
                                       {Number(totalMoney.toFixed(2))} ₽
+                                    </div>
+                                    <div style={{ fontSize: "0.72rem", color: "#15803d", marginTop: "0.12rem" }}>
+                                      К оплате: {Number(totalMoneyToPay.toFixed(2))} ₽
                                     </div>
                                   </td>
                                   {SHIFT_MARK_CODES.map((code) => (
@@ -4553,6 +4673,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <Typography.Body style={{ marginTop: "0.12rem", color: "var(--color-text-secondary)" }}>
                         {row.totalMoney.toLocaleString("ru-RU")} ₽
                       </Typography.Body>
+                      <Typography.Body style={{ marginTop: "0.08rem", color: "#15803d", fontSize: "0.84rem" }}>
+                        К оплате: {row.totalMoneyToPay.toLocaleString("ru-RU")} ₽
+                      </Typography.Body>
                     </Panel>
                   ))}
                   <Panel className="cargo-card" style={{ marginTop: "0.65rem", padding: "0.7rem" }}>
@@ -4561,6 +4684,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     </Typography.Body>
                     <Typography.Body style={{ marginTop: "0.12rem", color: "var(--color-text-secondary)" }}>
                       {timesheetCompanySummary.totalMoney.toLocaleString("ru-RU")} ₽
+                    </Typography.Body>
+                    <Typography.Body style={{ marginTop: "0.08rem", color: "#15803d", fontSize: "0.84rem" }}>
+                      К оплате: {timesheetCompanySummary.totalMoneyToPay.toLocaleString("ru-RU")} ₽
                     </Typography.Body>
                   </Panel>
                 </div>
