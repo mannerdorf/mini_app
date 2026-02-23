@@ -4807,6 +4807,7 @@ function ProfilePage({
                         <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>В вашем подразделении пока нет сотрудников.</Typography.Body>
                     </Panel>
                 ) : (
+                    <>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${340 + departmentTimesheetDays.length * 44 + SHIFT_MARK_CODES.length * 52}px` }}>
                             <thead>
@@ -5048,6 +5049,7 @@ function ProfilePage({
                             {companyTimesheetSummary.totalMoney.toLocaleString('ru-RU')} ₽
                         </Typography.Body>
                     </Panel>
+                    </>
                 )}
                 {departmentShiftPicker ? (
                     <div
