@@ -49,6 +49,11 @@ function parseMonth(value: unknown): { month: string; start: string; next: strin
   return { month, start, next };
 }
 
+function getCurrentMonthKey(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function parseBody(req: VercelRequest): Body {
   let body: unknown = req.body;
   if (typeof body === "string") {
@@ -130,8 +135,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const department = String(me.department || "").trim();
     const monthInfo = parseMonth(body.month || "");
     if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
+    const isCurrentMonth = monthInfo.month === getCurrentMonthKey();
 
     if (req.method === "DELETE") {
+      if (!isCurrentMonth) return res.status(403).json({ error: "Руководитель может изменять табель только текущего месяца" });
       const employeeId = Number(body.employeeId);
       if (!department && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
       if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
@@ -171,6 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "PUT") {
+      if (!isCurrentMonth) return res.status(403).json({ error: "Руководитель может изменять табель только текущего месяца" });
       if (!department && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
       const existingEmployeeId = Number(body.existingEmployeeId);
       if (Number.isFinite(existingEmployeeId) && existingEmployeeId > 0) {
@@ -280,6 +288,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "PATCH") {
+      if (!isCurrentMonth) return res.status(403).json({ error: "Руководитель может изменять табель только текущего месяца" });
       const employeeId = Number(body.employeeId);
       const date = String(body.date || "").trim();
       const value = String(body.value || "").trim();
@@ -307,6 +316,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             [employeeId, department]
           );
       if (employeeRes.rows.length === 0) return res.status(403).json({ error: "Нет доступа к сотруднику другого подразделения" });
+      const paidDateRes = await pool.query<{ work_date: string }>(
+        `SELECT d.value as work_date
+         FROM employee_timesheet_payouts p
+         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(p.paid_dates, '[]'::jsonb)) d(value)
+         WHERE p.employee_id = $1
+           AND p.period_month = $2::date
+           AND d.value = $3
+         LIMIT 1`,
+        [employeeId, monthInfo.start, date]
+      );
+      if (paidDateRes.rows.length > 0) {
+        return res.status(409).json({ error: `День ${date} уже оплачен. Изменение или отмена запрещены.` });
+      }
 
       if (value === "") {
         await pool.query("DELETE FROM employee_timesheet_entries WHERE employee_id = $1 AND work_date = $2::date", [employeeId, date]);
@@ -414,6 +436,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         entries[`${row.employee_id}__${row.work_date}`] = String(row.value_text || "");
       }
     }
+    const payoutsByEmployee: Record<string, number> = {};
+    if (employeeIds.length > 0) {
+      const payoutsRes = await pool.query<{ employee_id: number; total_paid: number }>(
+        `SELECT employee_id, COALESCE(SUM(amount), 0) as total_paid
+         FROM employee_timesheet_payouts
+         WHERE period_month = $1::date
+           AND employee_id = ANY($2::int[])
+         GROUP BY employee_id`,
+        [monthInfo.start, employeeIds]
+      );
+      for (const row of payoutsRes.rows) {
+        payoutsByEmployee[String(row.employee_id)] = Number(row.total_paid || 0);
+      }
+    }
 
     return res.status(200).json({
       month: monthInfo.month,
@@ -439,6 +475,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         employeeRole: r.employee_role || "employee",
       })),
       entries,
+      payoutsByEmployee,
     });
   } catch (e) {
     console.error("my-department-timesheet error:", e);

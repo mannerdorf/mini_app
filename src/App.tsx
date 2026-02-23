@@ -705,6 +705,8 @@ function DashboardPage({
         totalHours: number;
         totalShifts: number;
         totalCost: number;
+        totalPaid: number;
+        totalOutstanding: number;
         employees: Array<{
             employeeId: number;
             fullName: string;
@@ -715,6 +717,8 @@ function DashboardPage({
             totalHours: number;
             totalShifts: number;
             totalCost: number;
+            totalPaid: number;
+            totalOutstanding: number;
         }>;
     } | null>(null);
     const normalizeDashboardAccrualType = (value: unknown): "hour" | "shift" => {
@@ -992,6 +996,9 @@ function DashboardPage({
                 if (!ok) throw new Error(data?.error || 'Ошибка загрузки данных табеля');
                 const employees = Array.isArray(data?.employees) ? data.employees : [];
                 const entriesRaw = data?.entries && typeof data.entries === "object" ? (data.entries as Record<string, string>) : {};
+                const payoutsByEmployeeRaw = data?.payoutsByEmployee && typeof data.payoutsByEmployee === "object"
+                    ? (data.payoutsByEmployee as Record<string, number>)
+                    : {};
                 const employeeRows = employees.map((row: any) => ({
                     employeeId: Number(row?.id || 0),
                     fullName: String(row?.fullName || ""),
@@ -1013,6 +1020,7 @@ function DashboardPage({
                 let totalHours = 0;
                 let totalShifts = 0;
                 let totalCost = 0;
+                let totalPaid = 0;
                 const employeeStats = employeeRows.map((employee: any) => {
                     const values = entriesByEmployee.get(employee.employeeId) || [];
                     const hasShiftMarks = values.some((v) => normalizeDashboardShiftMark(v) !== "");
@@ -1030,20 +1038,27 @@ function DashboardPage({
                     const employeeCost = resolvedAccrualType === "shift"
                         ? employeeShifts * Number(employee.accrualRate || 0)
                         : employeeHours * Number(employee.accrualRate || 0);
+                    const employeePaid = Number(payoutsByEmployeeRaw[String(employee.employeeId)] || 0);
+                    const employeeOutstanding = Math.max(0, Number((employeeCost - employeePaid).toFixed(2)));
                     totalHours += employeeHours;
                     totalShifts += employeeShifts;
                     totalCost += employeeCost;
+                    totalPaid += employeePaid;
                     return {
                         ...employee,
                         totalHours: Number(employeeHours.toFixed(2)),
                         totalShifts: Number(employeeShifts || 0),
                         totalCost: Number(employeeCost.toFixed(2)),
+                        totalPaid: Number(employeePaid.toFixed(2)),
+                        totalOutstanding: employeeOutstanding,
                     };
                 });
                 setTimesheetAnalyticsData({
                     totalHours: Number(totalHours.toFixed(2)),
                     totalShifts: Number(totalShifts || 0),
                     totalCost: Number(totalCost.toFixed(2)),
+                    totalPaid: Number(totalPaid.toFixed(2)),
+                    totalOutstanding: Math.max(0, Number((totalCost - totalPaid).toFixed(2))),
                     employees: employeeStats,
                 });
             })
@@ -1242,7 +1257,9 @@ function DashboardPage({
         totalHours: Number(timesheetAnalyticsData?.totalHours || 0),
         totalShifts: Number(timesheetAnalyticsData?.totalShifts || 0),
         totalMoney: Number(timesheetAnalyticsData?.totalCost || 0),
-    }), [timesheetAnalyticsData?.totalHours, timesheetAnalyticsData?.totalShifts, timesheetAnalyticsData?.totalCost]);
+        totalPaid: Number(timesheetAnalyticsData?.totalPaid || 0),
+        totalOutstanding: Number(timesheetAnalyticsData?.totalOutstanding || 0),
+    }), [timesheetAnalyticsData?.totalHours, timesheetAnalyticsData?.totalShifts, timesheetAnalyticsData?.totalCost, timesheetAnalyticsData?.totalPaid, timesheetAnalyticsData?.totalOutstanding]);
     const timesheetCostPerKg = useMemo(() => {
         const totalCost = companyTimesheetSummary.totalMoney;
         if (!(timesheetPaidWeight > 0)) return 0;
@@ -1256,11 +1273,13 @@ function DashboardPage({
     }, [timesheetAnalyticsData?.employees]);
     const timesheetByDepartment = useMemo(() => {
         const rows = timesheetAnalyticsData?.employees || [];
-        const grouped = new Map<string, { department: string; totalCost: number; totalHours: number; totalShifts: number; employeeCount: number }>();
+        const grouped = new Map<string, { department: string; totalCost: number; totalPaid: number; totalOutstanding: number; totalHours: number; totalShifts: number; employeeCount: number }>();
         for (const row of rows) {
             const department = String(row.department || '').trim() || 'Без подразделения';
-            const current = grouped.get(department) || { department, totalCost: 0, totalHours: 0, totalShifts: 0, employeeCount: 0 };
+            const current = grouped.get(department) || { department, totalCost: 0, totalPaid: 0, totalOutstanding: 0, totalHours: 0, totalShifts: 0, employeeCount: 0 };
             current.totalCost += Number(row.totalCost || 0);
+            current.totalPaid += Number(row.totalPaid || 0);
+            current.totalOutstanding += Number(row.totalOutstanding || 0);
             current.totalHours += Number(row.totalHours || 0);
             current.totalShifts += Number(row.totalShifts || 0);
             current.employeeCount += 1;
@@ -2697,6 +2716,18 @@ function DashboardPage({
                                         <Typography.Body style={{ fontWeight: 700, color: '#2563eb' }}>{timesheetCostPerKg.toFixed(2)} ₽/кг</Typography.Body>
                                     </div>
                                 </div>
+                                <div>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Выплаты</Typography.Body>
+                                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
+                                        <Typography.Body style={{ fontWeight: 600, color: '#065f46' }}>{Math.round(companyTimesheetSummary.totalPaid).toLocaleString('ru-RU')} ₽</Typography.Body>
+                                    </div>
+                                </div>
+                                <div>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Остаток</Typography.Body>
+                                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
+                                        <Typography.Body style={{ fontWeight: 700, color: '#b45309' }}>{Math.round(companyTimesheetSummary.totalOutstanding).toLocaleString('ru-RU')} ₽</Typography.Body>
+                                    </div>
+                                </div>
                             </div>
                             <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.4rem' }}>
                                 Топ сотрудников по затратам
@@ -2712,9 +2743,14 @@ function DashboardPage({
                                             <Typography.Body style={{ fontSize: '0.8rem' }}>
                                                 {row.fullName || `Сотрудник #${row.employeeId}`} {row.department ? `· ${row.department}` : ''}
                                             </Typography.Body>
-                                            <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                                                {Math.round(Number(row.totalCost || 0)).toLocaleString('ru-RU')} ₽
-                                            </Typography.Body>
+                                            <Flex align="center" gap="0.5rem" wrap="wrap" justify="flex-end">
+                                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                    выпл.: {Math.round(Number(row.totalPaid || 0)).toLocaleString('ru-RU')} ₽
+                                                </Typography.Body>
+                                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                                                    {Math.round(Number(row.totalCost || 0)).toLocaleString('ru-RU')} ₽
+                                                </Typography.Body>
+                                            </Flex>
                                         </div>
                                     ))}
                                 </div>
@@ -2732,8 +2768,8 @@ function DashboardPage({
                                         <div key={`timesheet-dep-${row.department}`} style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.3rem' }}>
                                             <Flex align="center" justify="space-between" gap="0.5rem">
                                                 <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>{row.department}</Typography.Body>
-                                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                                                    {Math.round(row.totalCost).toLocaleString('ru-RU')} ₽
+                                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, textAlign: 'right' }}>
+                                                    {Math.round(row.totalCost).toLocaleString('ru-RU')} ₽ · выпл. {Math.round(row.totalPaid || 0).toLocaleString('ru-RU')} ₽ · остаток {Math.round(row.totalOutstanding || 0).toLocaleString('ru-RU')} ₽
                                                 </Typography.Body>
                                             </Flex>
                                             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
@@ -4054,7 +4090,13 @@ function ProfilePage({
         const month = String(now.getMonth() + 1).padStart(2, "0");
         return `${now.getFullYear()}-${month}`;
     });
+    const departmentTimesheetCurrentMonthKey = useMemo(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    }, []);
+    const departmentTimesheetIsEditableMonth = departmentTimesheetMonth === departmentTimesheetCurrentMonthKey;
     const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
+    const [departmentTimesheetPayoutsByEmployee, setDepartmentTimesheetPayoutsByEmployee] = useState<Record<string, number>>({});
     const [departmentTimesheetMobilePicker, setDepartmentTimesheetMobilePicker] = useState(false);
     const [departmentTimesheetEmployeeFullName, setDepartmentTimesheetEmployeeFullName] = useState("");
     const [departmentTimesheetEmployeePosition, setDepartmentTimesheetEmployeePosition] = useState("");
@@ -4198,6 +4240,7 @@ function ProfilePage({
         let totalHours = 0;
         let totalShifts = 0;
         let totalMoney = 0;
+        let totalPaid = 0;
         for (const emp of employees) {
             const isShift = isShiftAccrual(emp.accrualType);
             const rate = Number(emp.accrualRate ?? 0);
@@ -4218,16 +4261,19 @@ function ProfilePage({
                 totalHours += hours;
                 totalMoney += hours * rate;
             }
+            totalPaid += Number(departmentTimesheetPayoutsByEmployee[String(emp.id)] || 0);
         }
         return {
             totalHours: Number(totalHours.toFixed(2)),
             totalShifts,
             totalMoney: Number(totalMoney.toFixed(2)),
+            totalPaid: Number(totalPaid.toFixed(2)),
+            totalOutstanding: Math.max(0, Number((totalMoney - totalPaid).toFixed(2))),
         };
     };
     const departmentTimesheetSummary = useMemo(() => {
         return calculateTimesheetSummary(departmentTimesheetEmployees);
-    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours]);
+    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee]);
     const departmentTimesheetDepartmentSummaries = useMemo(() => {
         const grouped = new Map<string, typeof departmentTimesheetEmployees>();
         for (const emp of departmentTimesheetEmployees) {
@@ -4241,10 +4287,10 @@ function ProfilePage({
                 ...calculateTimesheetSummary(employees),
             }))
             .sort((a, b) => a.departmentName.localeCompare(b.departmentName, "ru"));
-    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours]);
+    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee]);
     const companyTimesheetSummary = useMemo(() => {
         return calculateTimesheetSummary(departmentTimesheetEmployees);
-    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours]);
+    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -4273,6 +4319,7 @@ function ProfilePage({
                 setDepartmentTimesheetEmployees([]);
                 setDepartmentTimesheetAvailableEmployees([]);
                 setDepartmentTimesheetHours({});
+                setDepartmentTimesheetPayoutsByEmployee({});
                 return;
             }
             setDepartmentTimesheetDepartment(typeof data.department === "string" ? data.department : "");
@@ -4292,12 +4339,18 @@ function ProfilePage({
                 }
             }
             setDepartmentTimesheetHours(loadedEntries);
+            setDepartmentTimesheetPayoutsByEmployee(
+                data?.payoutsByEmployee && typeof data.payoutsByEmployee === "object"
+                    ? (data.payoutsByEmployee as Record<string, number>)
+                    : {}
+            );
         } catch {
             setDepartmentTimesheetError("Ошибка сети");
             setDepartmentTimesheetAllDepartments(false);
             setDepartmentTimesheetEmployees([]);
             setDepartmentTimesheetAvailableEmployees([]);
             setDepartmentTimesheetHours({});
+            setDepartmentTimesheetPayoutsByEmployee({});
         } finally {
             setDepartmentTimesheetLoading(false);
         }
@@ -4306,6 +4359,10 @@ function ProfilePage({
     const saveDepartmentTimesheetCell = useCallback(async (employeeId: number, day: number, value: string) => {
         if (!activeAccount?.login || !activeAccount?.password) return;
         if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return;
+        if (!departmentTimesheetIsEditableMonth) {
+            setDepartmentTimesheetError('Редактирование доступно только для текущего месяца');
+            return;
+        }
         const dayNormalized = String(day).padStart(2, "0");
         const dateIso = `${departmentTimesheetMonth}-${dayNormalized}`;
         const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
@@ -4327,10 +4384,14 @@ function ProfilePage({
         } catch (e) {
             setDepartmentTimesheetError((e as Error)?.message || "Ошибка сохранения табеля");
         }
-    }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth]);
+    }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth, departmentTimesheetIsEditableMonth]);
 
     const removeDepartmentEmployeeFromMonth = useCallback(async (employeeId: number) => {
         if (!activeAccount?.login || !activeAccount?.password) return;
+        if (!departmentTimesheetIsEditableMonth) {
+            setDepartmentTimesheetError('Редактирование доступно только для текущего месяца');
+            return;
+        }
         const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
         const confirmed = typeof window !== 'undefined' ? window.confirm('Удалить сотрудника из табеля текущего месяца?') : true;
         if (!confirmed) return;
@@ -4351,10 +4412,14 @@ function ProfilePage({
         } catch (e) {
             setDepartmentTimesheetError((e as Error)?.message || 'Ошибка удаления сотрудника из месяца');
         }
-    }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth, fetchDepartmentTimesheet]);
+    }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth, departmentTimesheetIsEditableMonth, fetchDepartmentTimesheet]);
 
     const addExistingDepartmentTimesheetEmployee = useCallback(async () => {
         if (!activeAccount?.login || !activeAccount?.password) return;
+        if (!departmentTimesheetIsEditableMonth) {
+            setDepartmentTimesheetError('Редактирование доступно только для текущего месяца');
+            return;
+        }
         const selectedId = Number(departmentTimesheetSelectedEmployeeId);
         if (!Number.isFinite(selectedId) || selectedId <= 0) {
             setDepartmentTimesheetError('Выберите сотрудника из списка');
@@ -4383,10 +4448,14 @@ function ProfilePage({
         } finally {
             setDepartmentTimesheetEmployeeSaving(false);
         }
-    }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth, departmentTimesheetSelectedEmployeeId, fetchDepartmentTimesheet]);
+    }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth, departmentTimesheetIsEditableMonth, departmentTimesheetSelectedEmployeeId, fetchDepartmentTimesheet]);
 
     const addDepartmentTimesheetEmployee = useCallback(async () => {
         if (!activeAccount?.login || !activeAccount?.password) return;
+        if (!departmentTimesheetIsEditableMonth) {
+            setDepartmentTimesheetError('Редактирование доступно только для текущего месяца');
+            return;
+        }
         if (!departmentTimesheetEmployeeFullName.trim()) {
             setDepartmentTimesheetError('Укажите ФИО');
             return;
@@ -4433,6 +4502,7 @@ function ProfilePage({
         activeAccount?.login,
         activeAccount?.password,
         departmentTimesheetMonth,
+        departmentTimesheetIsEditableMonth,
         departmentTimesheetEmployeeFullName,
         departmentTimesheetDepartment,
         departmentTimesheetEmployeePosition,
@@ -4853,6 +4923,11 @@ function ProfilePage({
                             </Button>
                         </Flex>
                     </Flex>
+                    {!departmentTimesheetIsEditableMonth ? (
+                        <Typography.Body style={{ marginTop: '0.55rem', fontSize: '0.78rem', color: '#b45309' }}>
+                            Редактирование доступно только для текущего месяца.
+                        </Typography.Body>
+                    ) : null}
                 </Panel>
                 <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '0.75rem' }}>
                     <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Добавить существующего сотрудника из подразделения</Typography.Body>
@@ -4873,7 +4948,7 @@ function ProfilePage({
                         <Button
                             type="button"
                             className="filter-button"
-                            disabled={departmentTimesheetEmployeeSaving || !departmentTimesheetAvailableEmployees.length}
+                            disabled={!departmentTimesheetIsEditableMonth || departmentTimesheetEmployeeSaving || !departmentTimesheetAvailableEmployees.length}
                             onClick={() => void addExistingDepartmentTimesheetEmployee()}
                             style={{ height: '2.4rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                         >
@@ -4943,7 +5018,7 @@ function ProfilePage({
                         <Button
                             type="button"
                             className="filter-button"
-                            disabled={departmentTimesheetEmployeeSaving}
+                            disabled={!departmentTimesheetIsEditableMonth || departmentTimesheetEmployeeSaving}
                             onClick={() => void addDepartmentTimesheetEmployee()}
                             style={{ height: '2.4rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                         >
@@ -5006,6 +5081,8 @@ function ProfilePage({
                                             return acc + (Number.isFinite(num) ? num : 0);
                                         }, 0);
                                     const totalMoney = isShift ? totalShiftCount * rate : totalHours * rate;
+                                    const totalPaid = Number(departmentTimesheetPayoutsByEmployee[String(emp.id)] || 0);
+                                    const totalOutstanding = Math.max(0, Number((totalMoney - totalPaid).toFixed(2)));
                                     const totalPrimaryText = isShift
                                         ? `${totalShiftCount} ${departmentTimesheetMobilePicker ? 'смены' : 'смен'}`
                                         : `${Number(totalHours.toFixed(2))} ${departmentTimesheetMobilePicker ? 'часы' : 'ч'}`;
@@ -5035,6 +5112,7 @@ function ProfilePage({
                                                 <Button
                                                     type="button"
                                                     className="filter-button"
+                                                    disabled={!departmentTimesheetIsEditableMonth}
                                                     style={{ padding: '0.25rem' }}
                                                     aria-label="Удалить сотрудника из текущего месяца"
                                                     title="Удалить из текущего месяца"
@@ -5057,6 +5135,7 @@ function ProfilePage({
                                                         <button
                                                             type="button"
                                                             onClick={() => {
+                                                                if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTriggeredRef.current) {
                                                                     departmentShiftHoldTriggeredRef.current = false;
                                                                     return;
@@ -5069,6 +5148,7 @@ function ProfilePage({
                                                                 void saveDepartmentTimesheetCell(emp.id, day, nextValue);
                                                             }}
                                                             onMouseDown={(e) => {
+                                                                if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
                                                                 departmentShiftHoldTriggeredRef.current = false;
                                                                 const { clientX, clientY } = e;
@@ -5078,18 +5158,21 @@ function ProfilePage({
                                                                 }, 450);
                                                             }}
                                                             onMouseUp={() => {
+                                                                if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTimerRef.current) {
                                                                     window.clearTimeout(departmentShiftHoldTimerRef.current);
                                                                     departmentShiftHoldTimerRef.current = null;
                                                                 }
                                                             }}
                                                             onMouseLeave={() => {
+                                                                if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTimerRef.current) {
                                                                     window.clearTimeout(departmentShiftHoldTimerRef.current);
                                                                     departmentShiftHoldTimerRef.current = null;
                                                                 }
                                                             }}
                                                             onTouchStart={(e) => {
+                                                                if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
                                                                 departmentShiftHoldTriggeredRef.current = false;
                                                                 const touch = e.touches[0];
@@ -5099,6 +5182,7 @@ function ProfilePage({
                                                                 }, 450);
                                                             }}
                                                             onTouchEnd={() => {
+                                                                if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTimerRef.current) {
                                                                     window.clearTimeout(departmentShiftHoldTimerRef.current);
                                                                     departmentShiftHoldTimerRef.current = null;
@@ -5122,7 +5206,8 @@ function ProfilePage({
                                                                 appearance: 'none',
                                                                 display: 'block',
                                                                 margin: '0 auto',
-                                                                cursor: 'pointer',
+                                                                cursor: departmentTimesheetIsEditableMonth ? 'pointer' : 'default',
+                                                                opacity: departmentTimesheetIsEditableMonth ? 1 : 0.85,
                                                             }}
                                                             aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : 'Нажмите для Я, удерживайте для выбора статуса'}
                                                             title={shiftMark ? `Статус: ${shiftMark}` : 'Нажмите для Я, удерживайте для выбора'}
@@ -5133,7 +5218,9 @@ function ProfilePage({
                                                         departmentTimesheetMobilePicker ? (
                                                             <select
                                                                 value={hourPickerValue}
+                                                                disabled={!departmentTimesheetIsEditableMonth}
                                                                 onChange={(e) => {
+                                                                    if (!departmentTimesheetIsEditableMonth) return;
                                                                     const nextValue = e.target.value;
                                                                     setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
                                                                     void saveDepartmentTimesheetCell(emp.id, day, nextValue);
@@ -5148,7 +5235,9 @@ function ProfilePage({
                                                         ) : (
                                                             <input
                                                                 value={value}
+                                                                disabled={!departmentTimesheetIsEditableMonth}
                                                                 onChange={(e) => {
+                                                                    if (!departmentTimesheetIsEditableMonth) return;
                                                                     const nextRaw = e.target.value;
                                                                     const next = nextRaw.replace(/[^0-9.,]/g, '').replace(',', '.');
                                                                     setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: next }));
@@ -5168,6 +5257,12 @@ function ProfilePage({
                                             </Typography.Body>
                                             <Typography.Body style={{ display: 'block', marginTop: '0.15rem', fontSize: '0.76rem', color: 'var(--color-text-secondary)', lineHeight: 1.2 }}>
                                                 {Number(totalMoney.toFixed(2))} ₽
+                                            </Typography.Body>
+                                            <Typography.Body style={{ display: 'block', marginTop: '0.12rem', fontSize: '0.72rem', color: '#065f46', lineHeight: 1.2 }}>
+                                                Выплачено: {Number(totalPaid.toFixed(2)).toLocaleString('ru-RU')} ₽
+                                            </Typography.Body>
+                                            <Typography.Body style={{ display: 'block', marginTop: '0.08rem', fontSize: '0.72rem', color: '#15803d', lineHeight: 1.2 }}>
+                                                Остаток: {Number(totalOutstanding.toFixed(2)).toLocaleString('ru-RU')} ₽
                                             </Typography.Body>
                                         </td>
                                         {SHIFT_MARK_CODES.map((code) => (
@@ -5205,6 +5300,12 @@ function ProfilePage({
                             <Typography.Body style={{ marginTop: '0.12rem', color: 'var(--color-text-secondary)' }}>
                                 {summary.totalMoney.toLocaleString('ru-RU')} ₽
                             </Typography.Body>
+                            <Typography.Body style={{ marginTop: '0.08rem', color: '#065f46', fontSize: '0.84rem' }}>
+                                Выплачено: {summary.totalPaid.toLocaleString('ru-RU')} ₽
+                            </Typography.Body>
+                            <Typography.Body style={{ marginTop: '0.08rem', color: '#15803d', fontSize: '0.84rem' }}>
+                                Остаток: {summary.totalOutstanding.toLocaleString('ru-RU')} ₽
+                            </Typography.Body>
                         </Panel>
                     ))}
                     {activeAccount?.permissions?.analytics === true ? (
@@ -5214,6 +5315,12 @@ function ProfilePage({
                             </Typography.Body>
                             <Typography.Body style={{ marginTop: '0.12rem', color: 'var(--color-text-secondary)' }}>
                                 {companyTimesheetSummary.totalMoney.toLocaleString('ru-RU')} ₽
+                            </Typography.Body>
+                            <Typography.Body style={{ marginTop: '0.08rem', color: '#065f46', fontSize: '0.84rem' }}>
+                                Выплачено: {companyTimesheetSummary.totalPaid.toLocaleString('ru-RU')} ₽
+                            </Typography.Body>
+                            <Typography.Body style={{ marginTop: '0.08rem', color: '#15803d', fontSize: '0.84rem' }}>
+                                Остаток: {companyTimesheetSummary.totalOutstanding.toLocaleString('ru-RU')} ₽
                             </Typography.Body>
                         </Panel>
                     ) : null}

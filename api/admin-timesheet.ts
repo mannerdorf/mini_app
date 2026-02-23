@@ -192,6 +192,19 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "date обязателен в формате YYYY-MM-DD" });
     if (!date.startsWith(`${monthInfo.month}-`)) return res.status(400).json({ error: "Дата не соответствует выбранному месяцу" });
+    const paidDateRes = await pool.query<{ work_date: string }>(
+      `SELECT d.value as work_date
+       FROM employee_timesheet_payouts p
+       CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(p.paid_dates, '[]'::jsonb)) d(value)
+       WHERE p.employee_id = $1
+         AND p.period_month = $2::date
+         AND d.value = $3
+       LIMIT 1`,
+      [employeeId, monthInfo.start, date]
+    );
+    if (paidDateRes.rows[0]) {
+      return res.status(409).json({ error: `День ${date} уже оплачен. Изменение или отмена запрещены.` });
+    }
 
     if (value === "") {
       await pool.query("DELETE FROM employee_timesheet_entries WHERE employee_id = $1 AND work_date = $2::date", [employeeId, date]);
