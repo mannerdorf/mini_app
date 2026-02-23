@@ -5123,36 +5123,34 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <Typography.Body style={{ fontWeight: 600 }}>
                         Итого по подразделению: {row.department} · {row.totalShifts} смен · {row.totalHours} ч
                       </Typography.Body>
-                      <Typography.Body style={{ marginTop: "0.12rem", color: "var(--color-text-secondary)" }}>
-                        {row.totalMoney.toLocaleString("ru-RU")} ₽
-                      </Typography.Body>
-                      <Typography.Body style={{ marginTop: "0.08rem", color: "#15803d", fontSize: "0.84rem" }}>
-                        К оплате: {row.totalMoneyToPay.toLocaleString("ru-RU")} ₽
-                      </Typography.Body>
-                      <Typography.Body style={{ marginTop: "0.08rem", color: "#065f46", fontSize: "0.84rem" }}>
-                        Выплачено: {row.totalPaid.toLocaleString("ru-RU")} ₽
-                      </Typography.Body>
-                      <Typography.Body style={{ marginTop: "0.08rem", color: "#b45309", fontSize: "0.84rem" }}>
-                        Остаток: {row.totalOutstanding.toLocaleString("ru-RU")} ₽
-                      </Typography.Body>
+                      <Flex align="center" gap="0.35rem" wrap="wrap" style={{ marginTop: "0.14rem" }}>
+                        <span style={{ fontSize: "0.74rem", padding: "0.14rem 0.4rem", borderRadius: 999, border: "1px solid #cbd5e1", background: "#f8fafc", color: "#0f172a", fontWeight: 600 }}>
+                          {row.totalMoney.toLocaleString("ru-RU")} ₽
+                        </span>
+                        <span style={{ fontSize: "0.74rem", padding: "0.14rem 0.4rem", borderRadius: 999, border: "1px solid #86efac", background: "#dcfce7", color: "#166534", fontWeight: 600 }}>
+                          {row.totalPaid.toLocaleString("ru-RU")} ₽
+                        </span>
+                        <span style={{ fontSize: "0.74rem", padding: "0.14rem 0.4rem", borderRadius: 999, border: "1px solid #fcd34d", background: "#fef3c7", color: "#92400e", fontWeight: 700 }}>
+                          {row.totalOutstanding.toLocaleString("ru-RU")} ₽
+                        </span>
+                      </Flex>
                     </Panel>
                   ))}
                   <Panel className="cargo-card" style={{ marginTop: "0.65rem", padding: "0.7rem" }}>
                     <Typography.Body style={{ fontWeight: 600 }}>
                       Итого по компании: {timesheetCompanySummary.totalShifts} смен · {timesheetCompanySummary.totalHours} ч
                     </Typography.Body>
-                    <Typography.Body style={{ marginTop: "0.12rem", color: "var(--color-text-secondary)" }}>
-                      {timesheetCompanySummary.totalMoney.toLocaleString("ru-RU")} ₽
-                    </Typography.Body>
-                    <Typography.Body style={{ marginTop: "0.08rem", color: "#15803d", fontSize: "0.84rem" }}>
-                      К оплате: {timesheetCompanySummary.totalMoneyToPay.toLocaleString("ru-RU")} ₽
-                    </Typography.Body>
-                    <Typography.Body style={{ marginTop: "0.08rem", color: "#065f46", fontSize: "0.84rem" }}>
-                      Выплачено: {timesheetCompanySummary.totalPaid.toLocaleString("ru-RU")} ₽
-                    </Typography.Body>
-                    <Typography.Body style={{ marginTop: "0.08rem", color: "#b45309", fontSize: "0.84rem" }}>
-                      Остаток: {timesheetCompanySummary.totalOutstanding.toLocaleString("ru-RU")} ₽
-                    </Typography.Body>
+                    <Flex align="center" gap="0.35rem" wrap="wrap" style={{ marginTop: "0.14rem" }}>
+                      <span style={{ fontSize: "0.74rem", padding: "0.14rem 0.4rem", borderRadius: 999, border: "1px solid #cbd5e1", background: "#f8fafc", color: "#0f172a", fontWeight: 600 }}>
+                        {timesheetCompanySummary.totalMoney.toLocaleString("ru-RU")} ₽
+                      </span>
+                      <span style={{ fontSize: "0.74rem", padding: "0.14rem 0.4rem", borderRadius: 999, border: "1px solid #86efac", background: "#dcfce7", color: "#166534", fontWeight: 600 }}>
+                        {timesheetCompanySummary.totalPaid.toLocaleString("ru-RU")} ₽
+                      </span>
+                      <span style={{ fontSize: "0.74rem", padding: "0.14rem 0.4rem", borderRadius: 999, border: "1px solid #fcd34d", background: "#fef3c7", color: "#92400e", fontWeight: 700 }}>
+                        {timesheetCompanySummary.totalOutstanding.toLocaleString("ru-RU")} ₽
+                      </span>
+                    </Flex>
                   </Panel>
                 </div>
               )}

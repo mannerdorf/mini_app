@@ -437,6 +437,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     const payoutsByEmployee: Record<string, number> = {};
+    const paidDatesByEmployee: Record<string, string[]> = {};
     if (employeeIds.length > 0) {
       const payoutsRes = await pool.query<{ employee_id: number; total_paid: number }>(
         `SELECT employee_id, COALESCE(SUM(amount), 0) as total_paid
@@ -448,6 +449,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       for (const row of payoutsRes.rows) {
         payoutsByEmployee[String(row.employee_id)] = Number(row.total_paid || 0);
+      }
+      const paidDatesRes = await pool.query<{ employee_id: number; work_date: string }>(
+        `SELECT p.employee_id, d.value as work_date
+         FROM employee_timesheet_payouts p
+         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(p.paid_dates, '[]'::jsonb)) d(value)
+         WHERE p.period_month = $1::date
+           AND p.employee_id = ANY($2::int[])`,
+        [monthInfo.start, employeeIds]
+      );
+      for (const row of paidDatesRes.rows) {
+        const key = String(row.employee_id);
+        paidDatesByEmployee[key] = paidDatesByEmployee[key] || [];
+        paidDatesByEmployee[key].push(String(row.work_date || ""));
       }
     }
 
@@ -476,6 +490,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })),
       entries,
       payoutsByEmployee,
+      paidDatesByEmployee,
     });
   } catch (e) {
     console.error("my-department-timesheet error:", e);

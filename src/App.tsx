@@ -714,6 +714,7 @@ function DashboardPage({
             position: string;
             accrualType: "hour" | "shift";
             accrualRate: number;
+            active?: boolean;
             totalHours: number;
             totalShifts: number;
             totalCost: number;
@@ -1006,7 +1007,13 @@ function DashboardPage({
                     position: String(row?.position || ""),
                     accrualType: normalizeDashboardAccrualType(row?.accrualType),
                     accrualRate: Number(row?.accrualRate || 0),
-                })).filter((x: any) => Number.isFinite(x.employeeId) && x.employeeId > 0);
+                    active: row?.active !== false,
+                })).filter((x: any) =>
+                    Number.isFinite(x.employeeId)
+                    && x.employeeId > 0
+                    && x.active !== false
+                    && String(x.fullName || "").trim().length > 0
+                );
                 const entriesByEmployee = new Map<number, string[]>();
                 for (const [entryKey, entryValue] of Object.entries(entriesRaw)) {
                     const match = /^(\d+)__\d{4}-\d{2}-\d{2}$/.exec(entryKey);
@@ -2683,7 +2690,7 @@ function DashboardPage({
             {canViewTimesheetCostDashboard && !loading && !error && !isVisibilityDeniedError(timesheetAnalyticsError) && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                        Затраты табеля
+                        ФОТ
                     </Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
                         В разрезе стоимости на 1 кг платного веса за выбранный период
@@ -2699,7 +2706,7 @@ function DashboardPage({
                         <>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', marginBottom: '0.75rem' }}>
                                 <div>
-                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Затраты табеля</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>ФОТ</Typography.Body>
                                     <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.5rem' }}>
                                         <Typography.Body style={{ fontWeight: 600 }}>{Math.round(companyTimesheetSummary.totalMoney).toLocaleString('ru-RU')} ₽</Typography.Body>
                                     </div>
@@ -2744,12 +2751,15 @@ function DashboardPage({
                                                 {row.fullName || `Сотрудник #${row.employeeId}`} {row.department ? `· ${row.department}` : ''}
                                             </Typography.Body>
                                             <Flex align="center" gap="0.5rem" wrap="wrap" justify="flex-end">
-                                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                    выпл.: {Math.round(Number(row.totalPaid || 0)).toLocaleString('ru-RU')} ₽
-                                                </Typography.Body>
-                                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>
+                                                <span style={{ fontSize: '0.74rem', padding: '0.14rem 0.4rem', borderRadius: 999, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', fontWeight: 600 }}>
                                                     {Math.round(Number(row.totalCost || 0)).toLocaleString('ru-RU')} ₽
-                                                </Typography.Body>
+                                                </span>
+                                                <span style={{ fontSize: '0.74rem', padding: '0.14rem 0.4rem', borderRadius: 999, border: '1px solid #86efac', background: '#dcfce7', color: '#166534', fontWeight: 600 }}>
+                                                    {Math.round(Number(row.totalPaid || 0)).toLocaleString('ru-RU')} ₽
+                                                </span>
+                                                <span style={{ fontSize: '0.74rem', padding: '0.14rem 0.4rem', borderRadius: 999, border: '1px solid #fcd34d', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>
+                                                    {Math.round(Number(row.totalOutstanding || 0)).toLocaleString('ru-RU')} ₽
+                                                </span>
                                             </Flex>
                                         </div>
                                     ))}
@@ -2768,9 +2778,17 @@ function DashboardPage({
                                         <div key={`timesheet-dep-${row.department}`} style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: '0.3rem' }}>
                                             <Flex align="center" justify="space-between" gap="0.5rem">
                                                 <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>{row.department}</Typography.Body>
-                                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, textAlign: 'right' }}>
-                                                    {Math.round(row.totalCost).toLocaleString('ru-RU')} ₽ · выпл. {Math.round(row.totalPaid || 0).toLocaleString('ru-RU')} ₽ · остаток {Math.round(row.totalOutstanding || 0).toLocaleString('ru-RU')} ₽
-                                                </Typography.Body>
+                                                <Flex align="center" justify="flex-end" gap="0.35rem" wrap="wrap">
+                                                    <span style={{ fontSize: '0.74rem', padding: '0.14rem 0.4rem', borderRadius: 999, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', fontWeight: 600 }}>
+                                                        {Math.round(row.totalCost).toLocaleString('ru-RU')} ₽
+                                                    </span>
+                                                    <span style={{ fontSize: '0.74rem', padding: '0.14rem 0.4rem', borderRadius: 999, border: '1px solid #86efac', background: '#dcfce7', color: '#166534', fontWeight: 600 }}>
+                                                        {Math.round(row.totalPaid || 0).toLocaleString('ru-RU')} ₽
+                                                    </span>
+                                                    <span style={{ fontSize: '0.74rem', padding: '0.14rem 0.4rem', borderRadius: 999, border: '1px solid #fcd34d', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>
+                                                        {Math.round(row.totalOutstanding || 0).toLocaleString('ru-RU')} ₽
+                                                    </span>
+                                                </Flex>
                                             </Flex>
                                             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
                                                 Сотрудников: {row.employeeCount} · Часы: {Number(row.totalHours.toFixed(1))} · Смены: {row.totalShifts} · Доля: {row.share.toFixed(1)}% · 1 кг: {row.costPerKg.toFixed(2)} ₽/кг
@@ -4097,6 +4115,7 @@ function ProfilePage({
     const departmentTimesheetIsEditableMonth = departmentTimesheetMonth === departmentTimesheetCurrentMonthKey;
     const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
     const [departmentTimesheetPayoutsByEmployee, setDepartmentTimesheetPayoutsByEmployee] = useState<Record<string, number>>({});
+    const [departmentTimesheetPaidDayMarks, setDepartmentTimesheetPaidDayMarks] = useState<Record<string, boolean>>({});
     const [departmentTimesheetMobilePicker, setDepartmentTimesheetMobilePicker] = useState(false);
     const [departmentTimesheetEmployeeFullName, setDepartmentTimesheetEmployeeFullName] = useState("");
     const [departmentTimesheetEmployeePosition, setDepartmentTimesheetEmployeePosition] = useState("");
@@ -4320,6 +4339,7 @@ function ProfilePage({
                 setDepartmentTimesheetAvailableEmployees([]);
                 setDepartmentTimesheetHours({});
                 setDepartmentTimesheetPayoutsByEmployee({});
+                setDepartmentTimesheetPaidDayMarks({});
                 return;
             }
             setDepartmentTimesheetDepartment(typeof data.department === "string" ? data.department : "");
@@ -4344,6 +4364,19 @@ function ProfilePage({
                     ? (data.payoutsByEmployee as Record<string, number>)
                     : {}
             );
+            const paidDayMarks: Record<string, boolean> = {};
+            if (data?.paidDatesByEmployee && typeof data.paidDatesByEmployee === "object") {
+                for (const [employeeId, dates] of Object.entries(data.paidDatesByEmployee as Record<string, string[]>)) {
+                    for (const date of Array.isArray(dates) ? dates : []) {
+                        const match = /^\d{4}-\d{2}-(\d{2})$/.exec(String(date || ""));
+                        if (!match) continue;
+                        const day = Number(match[1]);
+                        if (!Number.isFinite(day) || day <= 0) continue;
+                        paidDayMarks[`${employeeId}:${day}`] = true;
+                    }
+                }
+            }
+            setDepartmentTimesheetPaidDayMarks(paidDayMarks);
         } catch {
             setDepartmentTimesheetError("Ошибка сети");
             setDepartmentTimesheetAllDepartments(false);
@@ -4351,6 +4384,7 @@ function ProfilePage({
             setDepartmentTimesheetAvailableEmployees([]);
             setDepartmentTimesheetHours({});
             setDepartmentTimesheetPayoutsByEmployee({});
+            setDepartmentTimesheetPaidDayMarks({});
         } finally {
             setDepartmentTimesheetLoading(false);
         }
@@ -5129,12 +5163,14 @@ function ProfilePage({
                                             const shiftMark = normalizeShiftMark(value);
                                             const shiftMarkStyle = getShiftMarkStyle(shiftMark);
                                             const hourPickerValue = toHalfHourValue(value || '0');
+                                            const isPaidDate = departmentTimesheetPaidDayMarks[key] === true;
                                             return (
-                                                <td key={key} style={{ borderBottom: '1px solid var(--color-border)', padding: '0.2rem' }}>
+                                                <td key={key} style={{ borderBottom: '1px solid var(--color-border)', padding: shiftMark === "Я" && isPaidDate ? '0.2rem 0.2rem 0.72rem 0.2rem' : '0.2rem' }}>
                                                     {isShift ? (
                                                         <button
                                                             type="button"
                                                             onClick={() => {
+                                                                if (isPaidDate) return;
                                                                 if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTriggeredRef.current) {
                                                                     departmentShiftHoldTriggeredRef.current = false;
@@ -5148,6 +5184,7 @@ function ProfilePage({
                                                                 void saveDepartmentTimesheetCell(emp.id, day, nextValue);
                                                             }}
                                                             onMouseDown={(e) => {
+                                                                if (isPaidDate) return;
                                                                 if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
                                                                 departmentShiftHoldTriggeredRef.current = false;
@@ -5158,6 +5195,7 @@ function ProfilePage({
                                                                 }, 450);
                                                             }}
                                                             onMouseUp={() => {
+                                                                if (isPaidDate) return;
                                                                 if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTimerRef.current) {
                                                                     window.clearTimeout(departmentShiftHoldTimerRef.current);
@@ -5165,6 +5203,7 @@ function ProfilePage({
                                                                 }
                                                             }}
                                                             onMouseLeave={() => {
+                                                                if (isPaidDate) return;
                                                                 if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTimerRef.current) {
                                                                     window.clearTimeout(departmentShiftHoldTimerRef.current);
@@ -5172,6 +5211,7 @@ function ProfilePage({
                                                                 }
                                                             }}
                                                             onTouchStart={(e) => {
+                                                                if (isPaidDate) return;
                                                                 if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
                                                                 departmentShiftHoldTriggeredRef.current = false;
@@ -5182,6 +5222,7 @@ function ProfilePage({
                                                                 }, 450);
                                                             }}
                                                             onTouchEnd={() => {
+                                                                if (isPaidDate) return;
                                                                 if (!departmentTimesheetIsEditableMonth) return;
                                                                 if (departmentShiftHoldTimerRef.current) {
                                                                     window.clearTimeout(departmentShiftHoldTimerRef.current);
@@ -5206,20 +5247,44 @@ function ProfilePage({
                                                                 appearance: 'none',
                                                                 display: 'block',
                                                                 margin: '0 auto',
-                                                                cursor: departmentTimesheetIsEditableMonth ? 'pointer' : 'default',
-                                                                opacity: departmentTimesheetIsEditableMonth ? 1 : 0.85,
+                                                                position: 'relative',
+                                                                overflow: 'visible',
+                                                                cursor: departmentTimesheetIsEditableMonth && !isPaidDate ? 'pointer' : 'default',
+                                                                opacity: departmentTimesheetIsEditableMonth && !isPaidDate ? 1 : 0.85,
                                                             }}
                                                             aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : 'Нажмите для Я, удерживайте для выбора статуса'}
-                                                            title={shiftMark ? `Статус: ${shiftMark}` : 'Нажмите для Я, удерживайте для выбора'}
+                                                            title={isPaidDate ? 'Этот день уже оплачен' : (shiftMark ? `Статус: ${shiftMark}` : 'Нажмите для Я, удерживайте для выбора')}
                                                         >
                                                             {shiftMark || '○'}
+                                                            {shiftMark === "Я" && isPaidDate ? (
+                                                                <span
+                                                                    style={{
+                                                                        position: 'absolute',
+                                                                        left: '50%',
+                                                                        bottom: '-0.68rem',
+                                                                        transform: 'translateX(-50%)',
+                                                                        fontSize: '0.58rem',
+                                                                        fontWeight: 700,
+                                                                        lineHeight: 1,
+                                                                        padding: '0.07rem 0.22rem',
+                                                                        borderRadius: 999,
+                                                                        border: '1px solid #15803d',
+                                                                        color: '#15803d',
+                                                                        background: '#dcfce7',
+                                                                        whiteSpace: 'nowrap',
+                                                                    }}
+                                                                >
+                                                                    опл
+                                                                </span>
+                                                            ) : null}
                                                         </button>
                                                     ) : (
                                                         departmentTimesheetMobilePicker ? (
                                                             <select
                                                                 value={hourPickerValue}
-                                                                disabled={!departmentTimesheetIsEditableMonth}
+                                                                disabled={!departmentTimesheetIsEditableMonth || isPaidDate}
                                                                 onChange={(e) => {
+                                                                    if (isPaidDate) return;
                                                                     if (!departmentTimesheetIsEditableMonth) return;
                                                                     const nextValue = e.target.value;
                                                                     setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
@@ -5235,8 +5300,9 @@ function ProfilePage({
                                                         ) : (
                                                             <input
                                                                 value={value}
-                                                                disabled={!departmentTimesheetIsEditableMonth}
+                                                                disabled={!departmentTimesheetIsEditableMonth || isPaidDate}
                                                                 onChange={(e) => {
+                                                                    if (isPaidDate) return;
                                                                     if (!departmentTimesheetIsEditableMonth) return;
                                                                     const nextRaw = e.target.value;
                                                                     const next = nextRaw.replace(/[^0-9.,]/g, '').replace(',', '.');
