@@ -617,6 +617,11 @@ function DashboardPage({
     /** право «Руководитель»: показывать дашборд платёжного календаря (дата создания счёта + дни на оплату из админки) */
     hasSupervisor?: boolean;
 }) {
+    const isVisibilityDeniedError = (message?: string | null) => {
+        const raw = String(message || "").trim().toLowerCase();
+        if (!raw) return false;
+        return raw.includes("доступ") || raw.includes("недостаточно прав") || raw.includes("только для");
+    };
     const showPaymentCalendar = hasAnalytics || hasSupervisor;
     const canViewTimesheetCostDashboard = hasAnalytics || hasSupervisor;
     const [debugInfo, setDebugInfo] = useState<string>("");
@@ -2656,13 +2661,16 @@ function DashboardPage({
                 </Panel>
             )}
 
-            {canViewTimesheetCostDashboard && !loading && !error && (
+            {canViewTimesheetCostDashboard && !loading && !error && !isVisibilityDeniedError(timesheetAnalyticsError) && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
                         Затраты табеля
                     </Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
                         В разрезе стоимости на 1 кг платного веса за выбранный период
+                    </Typography.Body>
+                    <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '-0.35rem', marginBottom: '0.75rem' }}>
+                        Расчетный период: <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
                     </Typography.Body>
                     {timesheetAnalyticsLoading ? (
                         <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка аналитики табеля...</Typography.Body></Flex>
@@ -4025,6 +4033,7 @@ function ProfilePage({
         fullName: string;
         department: string;
         position: string;
+        cooperationType?: "self_employed" | "ip" | "staff" | string;
         employeeRole: "employee" | "department_head";
         accrualType: "hour" | "shift";
         accrualRate: number;
@@ -4123,6 +4132,11 @@ function ProfilePage({
         { value: "staff", label: "Штатный сотрудник" },
     ] as const;
     const employeeRoleLabel = (value?: string) => value === 'department_head' ? 'Руководитель подразделения' : 'Сотрудник';
+    const cooperationTypeLabel = (value?: string) => {
+        if (value === "self_employed") return "Самозанятость";
+        if (value === "ip") return "ИП";
+        return "Штатный сотрудник";
+    };
 
     const fetchEmployeesAndPresets = useCallback(async () => {
         if (!activeAccount?.login) return;
@@ -5012,7 +5026,7 @@ function ProfilePage({
                                                 <div>
                                                     <Typography.Body style={{ display: 'block', fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
                                                     <Typography.Body style={{ display: 'block', fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '0.1rem' }}>
-                                                        {emp.position || '—'}
+                                                        {cooperationTypeLabel(emp.cooperationType)}
                                                     </Typography.Body>
                                                     <Typography.Body style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
                                                         {isShiftAccrual(emp.accrualType) ? 'Смена' : 'Часы'}

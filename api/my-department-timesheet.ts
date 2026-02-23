@@ -121,10 +121,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const perms = me.permissions && typeof me.permissions === "object" ? me.permissions : {};
-    if (perms.supervisor !== true || perms.haulz !== true) {
+    const canViewAllDepartments = perms.analytics === true;
+    const canUseSupervisorScope = perms.supervisor === true && perms.haulz === true;
+    if (!canViewAllDepartments && !canUseSupervisorScope) {
       return res.status(403).json({ error: "Доступ только для руководителей подразделений HAULZ" });
     }
-    const canViewAllDepartments = perms.analytics === true;
 
     const department = String(me.department || "").trim();
     const monthInfo = parseMonth(body.month || "");
@@ -334,6 +335,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const hasEmployeeRole = cols.has("employee_role");
     const hasAccrualType = cols.has("accrual_type");
     const hasAccrualRate = cols.has("accrual_rate");
+    const hasCooperationType = cols.has("cooperation_type");
 
     const listRes = await pool.query<{
       id: number;
@@ -344,6 +346,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       employee_role: "employee" | "department_head" | null;
       accrual_type: "hour" | "shift" | null;
       accrual_rate: number | null;
+      cooperation_type: "self_employed" | "ip" | "staff" | null;
       active: boolean;
     }>(
       `SELECT id, login, department${
@@ -356,6 +359,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         hasAccrualType ? ", accrual_type" : ", null::text as accrual_type"
       }${
         hasAccrualRate ? ", accrual_rate" : ", null::numeric as accrual_rate"
+      }${
+        hasCooperationType ? ", cooperation_type" : ", null::text as cooperation_type"
       }, active
        FROM registered_users
        WHERE coalesce((permissions->>'haulz')::boolean, false) = true
@@ -423,6 +428,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         employeeRole: r.employee_role || "employee",
         accrualType: normalizeAccrualType(r.accrual_type),
         accrualRate: r.accrual_rate == null ? 0 : Number(r.accrual_rate),
+        cooperationType: normalizeCooperationType(r.cooperation_type || "staff"),
         active: r.active,
       })),
       availableEmployees: availableRes.rows.map((r) => ({

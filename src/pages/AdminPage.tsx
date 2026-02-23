@@ -593,6 +593,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [timesheetHours, setTimesheetHours] = useState<Record<string, string>>({});
   const [timesheetPaymentMarks, setTimesheetPaymentMarks] = useState<Record<string, boolean>>({});
   const [timesheetPaymentMode, setTimesheetPaymentMode] = useState(false);
+  const [timesheetExpandedEmployeeId, setTimesheetExpandedEmployeeId] = useState<number | null>(null);
+  const [timesheetPayoutsByEmployee, setTimesheetPayoutsByEmployee] = useState<Record<string, Array<{
+    id: number;
+    payoutDate: string;
+    periodFrom: string;
+    periodTo: string;
+    amount: number;
+    taxAmount: number;
+    cooperationType: string;
+    createdAt: string;
+  }>>>({});
+  const [timesheetPayoutSavingEmployeeId, setTimesheetPayoutSavingEmployeeId] = useState<number | null>(null);
   const [timesheetMobilePicker, setTimesheetMobilePicker] = useState(false);
   const WORK_DAYS_IN_MONTH = 21;
   const SHIFT_MARK_OPTIONS = [
@@ -1356,10 +1368,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       if (!res.ok) throw new Error(data?.error || "Ошибка загрузки табеля");
       setTimesheetHours(data?.entries && typeof data.entries === "object" ? data.entries : {});
       setTimesheetPaymentMarks(data?.paymentMarks && typeof data.paymentMarks === "object" ? data.paymentMarks : {});
+      setTimesheetPayoutsByEmployee(data?.payoutsByEmployee && typeof data.payoutsByEmployee === "object" ? data.payoutsByEmployee : {});
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка загрузки табеля");
       setTimesheetHours({});
       setTimesheetPaymentMarks({});
+      setTimesheetPayoutsByEmployee({});
     }
   }, [adminToken, isSuperAdmin, timesheetMonth]);
 
@@ -1421,6 +1435,37 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     },
     [adminToken, isSuperAdmin, timesheetMonth]
   );
+  const createTimesheetPayout = useCallback(
+    async (employeeId: number) => {
+      if (!adminToken || !isSuperAdmin) return;
+      setTimesheetPayoutSavingEmployeeId(employeeId);
+      try {
+        const res = await fetch("/api/admin-timesheet", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            month: timesheetMonth,
+            employeeId,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          onLogoutRef.current?.("expired");
+          return;
+        }
+        if (!res.ok) throw new Error(data?.error || "Ошибка проведения выплаты");
+        await fetchTimesheetEntries();
+      } catch (e: unknown) {
+        setError((e as Error)?.message || "Ошибка проведения выплаты");
+      } finally {
+        setTimesheetPayoutSavingEmployeeId(null);
+      }
+    },
+    [adminToken, isSuperAdmin, timesheetMonth, fetchTimesheetEntries]
+  );
 
   useEffect(() => {
     if (tab === "employee_directory" && isSuperAdmin) {
@@ -1439,6 +1484,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       fetchTimesheetEntries();
     }
   }, [tab, isSuperAdmin, fetchTimesheetEntries]);
+
+  useEffect(() => {
+    if (!timesheetPaymentMode) setTimesheetExpandedEmployeeId(null);
+  }, [timesheetPaymentMode]);
 
   useEffect(() => {
     if (tab !== "users") setShowAddUserForm(false);
@@ -4465,10 +4514,26 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 const mark = normalizeShiftMark(timesheetHours[key] || "");
                                 if (mark) legendCounts[mark] = (legendCounts[mark] || 0) + 1;
                               }
+                              const totalColumnCount = 1 + timesheetDays.length + 1 + SHIFT_MARK_CODES.length;
+                              const employeePayouts = timesheetPayoutsByEmployee[String(emp.id)] || [];
+                              const showTaxColumns = emp.cooperation_type === "ip" || emp.cooperation_type === "self_employed";
+                              const markedDaysCount = timesheetDays.reduce((acc, d) => {
+                                const key = `${emp.id}__${d.iso}`;
+                                return acc + (timesheetPaymentMarks[key] ? 1 : 0);
+                              }, 0);
                               return (
-                                <tr key={`timesheet-row-${group.department}-${emp.id}`}>
+                                <React.Fragment key={`timesheet-row-wrap-${group.department}-${emp.id}`}>
+                                <tr>
                                   <td style={{ padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card, #fff)", zIndex: 30, minWidth: "15rem", boxShadow: "2px 0 0 var(--color-border)" }}>
-                                    <Typography.Body style={{ display: "block", fontSize: "0.82rem", fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
+                                    <Typography.Body
+                                      style={{ display: "block", fontSize: "0.82rem", fontWeight: 600, cursor: timesheetPaymentMode ? "pointer" : "default" }}
+                                      onClick={() => {
+                                        if (!timesheetPaymentMode) return;
+                                        setTimesheetExpandedEmployeeId((prev) => (prev === emp.id ? null : emp.id));
+                                      }}
+                                    >
+                                      {emp.full_name || emp.login}
+                                    </Typography.Body>
                                     <Typography.Body style={{ display: "block", fontSize: "0.74rem", color: "var(--color-text-secondary)", marginTop: "0.1rem" }}>{emp.position || "—"}</Typography.Body>
                                   </td>
                                   {timesheetDays.map((d) => {
@@ -4647,6 +4712,70 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     </td>
                                   ))}
                                 </tr>
+                                {timesheetPaymentMode && timesheetExpandedEmployeeId === emp.id ? (
+                                  <tr>
+                                    <td colSpan={totalColumnCount} style={{ padding: "0.55rem", borderBottom: "1px solid var(--color-border)", background: "var(--color-bg-hover)" }}>
+                                      <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: "0.45rem" }}>
+                                        <Typography.Body style={{ fontSize: "0.82rem", fontWeight: 600 }}>
+                                          Выплаты сотрудника
+                                        </Typography.Body>
+                                        <Flex align="center" gap="0.45rem" wrap="wrap">
+                                          <Typography.Body style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>
+                                            Дней к выплате: {markedDaysCount} · Сумма: {Number(totalMoneyToPay.toFixed(2)).toLocaleString("ru-RU")} ₽
+                                          </Typography.Body>
+                                          <Button
+                                            type="button"
+                                            className="filter-button"
+                                            disabled={timesheetPayoutSavingEmployeeId === emp.id || markedDaysCount === 0 || Number(totalMoneyToPay) <= 0}
+                                            onClick={() => void createTimesheetPayout(emp.id)}
+                                            style={{ padding: "0.35rem 0.6rem" }}
+                                          >
+                                            {timesheetPayoutSavingEmployeeId === emp.id ? "Выплата..." : "+ Новая выплата"}
+                                          </Button>
+                                        </Flex>
+                                      </Flex>
+                                      {employeePayouts.length === 0 ? (
+                                        <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+                                          Выплат пока нет.
+                                        </Typography.Body>
+                                      ) : (
+                                        <div style={{ overflowX: "auto" }}>
+                                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                                            <thead>
+                                              <tr>
+                                                <th style={{ textAlign: "left", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Дата выплаты</th>
+                                                <th style={{ textAlign: "left", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>За период</th>
+                                                <th style={{ textAlign: "right", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Сумма</th>
+                                                {showTaxColumns ? (
+                                                  <th style={{ textAlign: "right", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Налог</th>
+                                                ) : null}
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {employeePayouts.map((payout) => (
+                                                <tr key={`timesheet-payout-row-${payout.id}`}>
+                                                  <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>{payout.payoutDate}</td>
+                                                  <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>
+                                                    {payout.periodFrom} — {payout.periodTo}
+                                                  </td>
+                                                  <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right", fontWeight: 600 }}>
+                                                    {Number(payout.amount || 0).toLocaleString("ru-RU")} ₽
+                                                  </td>
+                                                  {showTaxColumns ? (
+                                                    <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right", fontWeight: 600, color: "#b45309" }}>
+                                                      {Number(payout.taxAmount || 0).toLocaleString("ru-RU")} ₽
+                                                    </td>
+                                                  ) : null}
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ) : null}
+                                </React.Fragment>
                               );
                             })}
                           </tbody>
