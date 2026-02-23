@@ -3927,6 +3927,14 @@ function ProfilePage({
         accrualRate: number;
         active: boolean;
     }>>([]);
+    const [departmentTimesheetAvailableEmployees, setDepartmentTimesheetAvailableEmployees] = useState<Array<{
+        id: number;
+        login: string;
+        fullName: string;
+        position: string;
+        employeeRole: "employee" | "department_head";
+    }>>([]);
+    const [departmentTimesheetSelectedEmployeeId, setDepartmentTimesheetSelectedEmployeeId] = useState<string>("");
     const [departmentTimesheetLoading, setDepartmentTimesheetLoading] = useState(false);
     const [departmentTimesheetError, setDepartmentTimesheetError] = useState<string | null>(null);
     const [departmentTimesheetMonth, setDepartmentTimesheetMonth] = useState<string>(() => {
@@ -3936,6 +3944,14 @@ function ProfilePage({
     });
     const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
     const [departmentTimesheetMobilePicker, setDepartmentTimesheetMobilePicker] = useState(false);
+    const [departmentTimesheetEmployeeEmail, setDepartmentTimesheetEmployeeEmail] = useState("");
+    const [departmentTimesheetEmployeeFullName, setDepartmentTimesheetEmployeeFullName] = useState("");
+    const [departmentTimesheetEmployeeDepartment, setDepartmentTimesheetEmployeeDepartment] = useState("");
+    const [departmentTimesheetEmployeePosition, setDepartmentTimesheetEmployeePosition] = useState("");
+    const [departmentTimesheetEmployeeAccrualType, setDepartmentTimesheetEmployeeAccrualType] = useState<"hour" | "shift">("hour");
+    const [departmentTimesheetEmployeeAccrualRate, setDepartmentTimesheetEmployeeAccrualRate] = useState("0");
+    const [departmentTimesheetEmployeeRole, setDepartmentTimesheetEmployeeRole] = useState<"employee" | "department_head">("employee");
+    const [departmentTimesheetEmployeeSaving, setDepartmentTimesheetEmployeeSaving] = useState(false);
     const isShiftAccrual = (value: string) => {
         const raw = String(value || '').trim().toLowerCase();
         return raw === 'shift' || raw === 'смена' || raw.includes('shift') || raw.includes('смен');
@@ -4044,11 +4060,14 @@ function ProfilePage({
             if (!res.ok) {
                 setDepartmentTimesheetError(data.error || "Ошибка загрузки табеля");
                 setDepartmentTimesheetEmployees([]);
+                setDepartmentTimesheetAvailableEmployees([]);
                 setDepartmentTimesheetHours({});
                 return;
             }
             setDepartmentTimesheetDepartment(typeof data.department === "string" ? data.department : "");
+            setDepartmentTimesheetEmployeeDepartment(typeof data.department === "string" ? data.department : "");
             setDepartmentTimesheetEmployees(Array.isArray(data.employees) ? data.employees : []);
+            setDepartmentTimesheetAvailableEmployees(Array.isArray(data.availableEmployees) ? data.availableEmployees : []);
             const loadedEntries: Record<string, string> = {};
             if (data.entries && typeof data.entries === "object") {
                 for (const [entryKey, entryValue] of Object.entries(data.entries as Record<string, string>)) {
@@ -4065,6 +4084,7 @@ function ProfilePage({
         } catch {
             setDepartmentTimesheetError("Ошибка сети");
             setDepartmentTimesheetEmployees([]);
+            setDepartmentTimesheetAvailableEmployees([]);
             setDepartmentTimesheetHours({});
         } finally {
             setDepartmentTimesheetLoading(false);
@@ -4096,6 +4116,122 @@ function ProfilePage({
             setDepartmentTimesheetError((e as Error)?.message || "Ошибка сохранения табеля");
         }
     }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth]);
+
+    const removeDepartmentEmployeeFromMonth = useCallback(async (employeeId: number) => {
+        if (!activeAccount?.login || !activeAccount?.password) return;
+        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        const confirmed = typeof window !== 'undefined' ? window.confirm('Удалить сотрудника из табеля текущего месяца?') : true;
+        if (!confirmed) return;
+        try {
+            const res = await fetch(`${origin}/api/my-department-timesheet`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    login: activeAccount.login,
+                    password: activeAccount.password,
+                    month: departmentTimesheetMonth,
+                    employeeId,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Ошибка удаления сотрудника из месяца');
+            await fetchDepartmentTimesheet();
+        } catch (e) {
+            setDepartmentTimesheetError((e as Error)?.message || 'Ошибка удаления сотрудника из месяца');
+        }
+    }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth, fetchDepartmentTimesheet]);
+
+    const addExistingDepartmentTimesheetEmployee = useCallback(async () => {
+        if (!activeAccount?.login || !activeAccount?.password) return;
+        const selectedId = Number(departmentTimesheetSelectedEmployeeId);
+        if (!Number.isFinite(selectedId) || selectedId <= 0) {
+            setDepartmentTimesheetError('Выберите сотрудника из списка');
+            return;
+        }
+        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        setDepartmentTimesheetEmployeeSaving(true);
+        setDepartmentTimesheetError(null);
+        try {
+            const res = await fetch(`${origin}/api/my-department-timesheet`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    login: activeAccount.login,
+                    password: activeAccount.password,
+                    month: departmentTimesheetMonth,
+                    existingEmployeeId: selectedId,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Ошибка добавления сотрудника');
+            setDepartmentTimesheetSelectedEmployeeId("");
+            await fetchDepartmentTimesheet();
+        } catch (e) {
+            setDepartmentTimesheetError((e as Error)?.message || 'Ошибка добавления сотрудника');
+        } finally {
+            setDepartmentTimesheetEmployeeSaving(false);
+        }
+    }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth, departmentTimesheetSelectedEmployeeId, fetchDepartmentTimesheet]);
+
+    const addDepartmentTimesheetEmployee = useCallback(async () => {
+        if (!activeAccount?.login || !activeAccount?.password) return;
+        if (!departmentTimesheetEmployeeFullName.trim()) {
+            setDepartmentTimesheetError('Укажите ФИО');
+            return;
+        }
+        const rate = Number(departmentTimesheetEmployeeAccrualRate);
+        if (!Number.isFinite(rate) || rate < 0) {
+            setDepartmentTimesheetError('Укажите корректную ставку');
+            return;
+        }
+        const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+        setDepartmentTimesheetEmployeeSaving(true);
+        setDepartmentTimesheetError(null);
+        try {
+            const res = await fetch(`${origin}/api/my-department-timesheet`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    login: activeAccount.login,
+                    password: activeAccount.password,
+                    month: departmentTimesheetMonth,
+                    email: departmentTimesheetEmployeeEmail.trim(),
+                    fullName: departmentTimesheetEmployeeFullName.trim(),
+                    department: departmentTimesheetEmployeeDepartment.trim() || departmentTimesheetDepartment,
+                    position: departmentTimesheetEmployeePosition.trim(),
+                    accrualType: departmentTimesheetEmployeeAccrualType,
+                    accrualRate: rate,
+                    employeeRole: departmentTimesheetEmployeeRole,
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || 'Ошибка добавления сотрудника');
+            setDepartmentTimesheetEmployeeEmail("");
+            setDepartmentTimesheetEmployeeFullName("");
+            setDepartmentTimesheetEmployeePosition("");
+            setDepartmentTimesheetEmployeeAccrualType("hour");
+            setDepartmentTimesheetEmployeeAccrualRate("0");
+            setDepartmentTimesheetEmployeeRole("employee");
+            await fetchDepartmentTimesheet();
+        } catch (e) {
+            setDepartmentTimesheetError((e as Error)?.message || 'Ошибка добавления сотрудника');
+        } finally {
+            setDepartmentTimesheetEmployeeSaving(false);
+        }
+    }, [
+        activeAccount?.login,
+        activeAccount?.password,
+        departmentTimesheetMonth,
+        departmentTimesheetEmployeeEmail,
+        departmentTimesheetEmployeeFullName,
+        departmentTimesheetEmployeeDepartment,
+        departmentTimesheetDepartment,
+        departmentTimesheetEmployeePosition,
+        departmentTimesheetEmployeeAccrualType,
+        departmentTimesheetEmployeeAccrualRate,
+        departmentTimesheetEmployeeRole,
+        fetchDepartmentTimesheet,
+    ]);
 
     const checkTelegramLinkStatus = useCallback(async () => {
         if (!activeAccount?.login || !activeAccountId) return false;
@@ -4545,6 +4681,120 @@ function ProfilePage({
                         </Flex>
                     </Flex>
                 </Panel>
+                <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '0.75rem' }}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Добавить существующего сотрудника из подразделения</Typography.Body>
+                    <Flex align="center" gap="0.5rem" wrap="wrap">
+                        <select
+                            value={departmentTimesheetSelectedEmployeeId}
+                            onChange={(e) => { setDepartmentTimesheetSelectedEmployeeId(e.target.value); setDepartmentTimesheetError(null); }}
+                            style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '18rem' }}
+                            aria-label="Сотрудник подразделения"
+                        >
+                            <option value="">Выберите сотрудника</option>
+                            {departmentTimesheetAvailableEmployees.map((emp) => (
+                                <option key={`existing-dep-emp-${emp.id}`} value={String(emp.id)}>
+                                    {(emp.fullName || emp.login) + (emp.position ? ` — ${emp.position}` : "")}
+                                </option>
+                            ))}
+                        </select>
+                        <Button
+                            type="button"
+                            className="filter-button"
+                            disabled={departmentTimesheetEmployeeSaving || !departmentTimesheetAvailableEmployees.length}
+                            onClick={() => void addExistingDepartmentTimesheetEmployee()}
+                            style={{ height: '2.4rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                        >
+                            {departmentTimesheetEmployeeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                            Добавить выбранного
+                        </Button>
+                        {!departmentTimesheetAvailableEmployees.length ? (
+                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.82rem' }}>
+                                Нет скрытых сотрудников для этого месяца.
+                            </Typography.Body>
+                        ) : null}
+                    </Flex>
+                </Panel>
+                <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '0.75rem' }}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Добавить сотрудника в табель</Typography.Body>
+                    <Typography.Body style={{ marginBottom: '0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
+                        Можно создать нового сотрудника или назначить атрибуты существующему по email.
+                    </Typography.Body>
+                    <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="wrap" align="center">
+                        <input
+                            type="text"
+                            placeholder="Email (опционально)"
+                            value={departmentTimesheetEmployeeEmail}
+                            onChange={(e) => { setDepartmentTimesheetEmployeeEmail(e.target.value); setDepartmentTimesheetError(null); }}
+                            style={{ width: '13rem', minWidth: '11rem', height: '2.4rem', boxSizing: 'border-box' }}
+                            className="admin-form-input"
+                            autoComplete="off"
+                        />
+                        <Input
+                            type="text"
+                            placeholder="ФИО"
+                            value={departmentTimesheetEmployeeFullName}
+                            onChange={(e) => { setDepartmentTimesheetEmployeeFullName(e.target.value); setDepartmentTimesheetError(null); }}
+                            style={{ width: '14rem', minWidth: '12rem', height: '2.4rem', boxSizing: 'border-box' }}
+                            className="admin-form-input"
+                        />
+                        <select
+                            className="admin-form-input invite-role-select"
+                            value={departmentTimesheetEmployeeDepartment}
+                            onChange={(e) => { setDepartmentTimesheetEmployeeDepartment(e.target.value); setDepartmentTimesheetError(null); }}
+                            style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '11rem' }}
+                            aria-label="Подразделение"
+                        >
+                            <option value="">Подразделение</option>
+                            {DEPARTMENT_OPTIONS.map((dep) => <option key={dep} value={dep}>{dep}</option>)}
+                        </select>
+                        <Input
+                            type="text"
+                            placeholder="Должность"
+                            value={departmentTimesheetEmployeePosition}
+                            onChange={(e) => { setDepartmentTimesheetEmployeePosition(e.target.value); setDepartmentTimesheetError(null); }}
+                            style={{ width: '12rem', minWidth: '10rem', height: '2.4rem', boxSizing: 'border-box' }}
+                            className="admin-form-input"
+                        />
+                        <select
+                            value={departmentTimesheetEmployeeAccrualType}
+                            onChange={(e) => setDepartmentTimesheetEmployeeAccrualType(e.target.value === 'shift' ? 'shift' : 'hour')}
+                            style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '9rem' }}
+                            aria-label="Тип начисления"
+                        >
+                            <option value="hour">Почасовая</option>
+                            <option value="shift">Сменная</option>
+                        </select>
+                        <Input
+                            type="number"
+                            placeholder="Ставка"
+                            min={0}
+                            step={0.01}
+                            value={departmentTimesheetEmployeeAccrualRate}
+                            onChange={(e) => { setDepartmentTimesheetEmployeeAccrualRate(e.target.value); setDepartmentTimesheetError(null); }}
+                            style={{ width: '8rem', minWidth: '7rem', height: '2.4rem', boxSizing: 'border-box' }}
+                            className="admin-form-input"
+                        />
+                        <select
+                            value={departmentTimesheetEmployeeRole}
+                            onChange={(e) => setDepartmentTimesheetEmployeeRole(e.target.value === 'department_head' ? 'department_head' : 'employee')}
+                            style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '12rem' }}
+                            aria-label="Роль сотрудника"
+                        >
+                            <option value="employee">Сотрудник</option>
+                            <option value="department_head">Руководитель подразделения</option>
+                        </select>
+                        <Button
+                            type="button"
+                            className="filter-button"
+                            disabled={departmentTimesheetEmployeeSaving}
+                            onClick={() => void addDepartmentTimesheetEmployee()}
+                            style={{ height: '2.4rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                        >
+                            {departmentTimesheetEmployeeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                            Добавить
+                        </Button>
+                    </Flex>
+                </Panel>
                 {departmentTimesheetLoading ? (
                     <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>
                 ) : departmentTimesheetError ? (
@@ -4596,13 +4846,27 @@ function ProfilePage({
                                     return (
                                     <tr key={emp.id}>
                                         <td style={{ position: 'sticky', left: 0, zIndex: 30, minWidth: '220px', background: 'var(--color-bg-card, #fff)', borderBottom: '1px solid var(--color-border)', padding: '0.5rem', boxShadow: '2px 0 0 var(--color-border)' }}>
-                                            <Typography.Body style={{ display: 'block', fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
-                                            <Typography.Body style={{ display: 'block', fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '0.1rem' }}>
-                                                {emp.position || '—'}
-                                            </Typography.Body>
-                                            <Typography.Body style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
-                                                {isShiftAccrual(emp.accrualType) ? 'Смена' : 'Часы'}
-                                            </Typography.Body>
+                                            <Flex align="center" justify="space-between" gap="0.35rem" style={{ alignItems: 'flex-start' }}>
+                                                <div>
+                                                    <Typography.Body style={{ display: 'block', fontWeight: 600 }}>{emp.fullName || emp.login}</Typography.Body>
+                                                    <Typography.Body style={{ display: 'block', fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '0.1rem' }}>
+                                                        {emp.position || '—'}
+                                                    </Typography.Body>
+                                                    <Typography.Body style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
+                                                        {isShiftAccrual(emp.accrualType) ? 'Смена' : 'Часы'}
+                                                    </Typography.Body>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    className="filter-button"
+                                                    style={{ padding: '0.25rem' }}
+                                                    aria-label="Удалить сотрудника из текущего месяца"
+                                                    title="Удалить из текущего месяца"
+                                                    onClick={() => void removeDepartmentEmployeeFromMonth(emp.id)}
+                                                >
+                                                    <Trash2 className="w-4 h-4" style={{ color: 'var(--color-error)' }} />
+                                                </Button>
+                                            </Flex>
                                         </td>
                                         {departmentTimesheetDays.map((day) => {
                                             const key = `${emp.id}:${day}`;
