@@ -17,8 +17,7 @@ function substituteTemplate(template: string, vars: Record<string, string>): str
 }
 
 export function getAppUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL?.trim()
-    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://mini-app-lake-phi.vercel.app");
+  return "https://haulz.ru";
 }
 
 /** Базовые настройки из env. Шаблоны писем могут переопределяться из БД (getEmailSettings с pool). */
@@ -153,6 +152,7 @@ export async function sendRegistrationEmail(
     email: login,
     password,
     company_name: companyName || "",
+    app_url: getAppUrl(),
   };
   const isReset = !!options?.isPasswordReset;
   let html: string;
