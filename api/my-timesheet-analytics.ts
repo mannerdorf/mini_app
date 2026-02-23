@@ -47,12 +47,21 @@ function getMonthBounds(dateIso: string): { from: string; to: string } {
   return { from, to };
 }
 
-function isShiftEnabled(rawValue: string): boolean {
+type ShiftMarkCode = "Я" | "ПР" | "Б" | "ОГ" | "ОТ" | "УВ";
+
+function normalizeShiftMark(rawValue: string): ShiftMarkCode | "" {
   const raw = String(rawValue || "").trim().toUpperCase();
-  if (!raw) return false;
-  if (raw === "С" || raw === "C" || raw === "1" || raw === "TRUE" || raw === "ON" || raw === "YES") return true;
-  if (raw.includes("СМЕН") || raw.includes("SHIFT")) return true;
-  return false;
+  if (!raw) return "";
+  if (raw === "Я") return "Я";
+  if (raw === "ПР") return "ПР";
+  if (raw === "Б") return "Б";
+  if (raw === "ОГ") return "ОГ";
+  if (raw === "ОТ") return "ОТ";
+  if (raw === "УВ") return "УВ";
+  // Backward compatibility with legacy shift markers.
+  if (raw === "С" || raw === "C" || raw === "1" || raw === "TRUE" || raw === "ON" || raw === "YES") return "Я";
+  if (raw.includes("СМЕН") || raw.includes("SHIFT")) return "Я";
+  return "";
 }
 
 function parseHoursValue(rawValue: string): number {
@@ -210,13 +219,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const entries = entriesByEmployee.get(employee.employeeId) || [];
       let employeeHours = 0;
       let employeeShifts = 0;
-      const hasShiftMarks = entries.some((e) => isShiftEnabled(e.value));
+      const hasShiftMarks = entries.some((e) => normalizeShiftMark(e.value) !== "");
       const hasNumericHours = entries.some((e) => parseHoursValue(e.value) > 0);
       const resolvedAccrualType: "hour" | "shift" =
         employee.accrualType === "shift" || (hasShiftMarks && !hasNumericHours) ? "shift" : "hour";
 
       if (resolvedAccrualType === "shift") {
-        employeeShifts = entries.reduce((acc, e) => acc + (isShiftEnabled(e.value) ? 1 : 0), 0);
+        // Начисление в сменном графике только по отметке "Я".
+        employeeShifts = entries.reduce((acc, e) => acc + (normalizeShiftMark(e.value) === "Я" ? 1 : 0), 0);
         employeeHours = employeeShifts * 8;
       } else {
         employeeHours = entries.reduce((acc, e) => acc + parseHoursValue(e.value), 0);

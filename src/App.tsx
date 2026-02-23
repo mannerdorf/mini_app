@@ -4070,11 +4070,11 @@ function ProfilePage({
         }
         return out;
     }, [departmentTimesheetMonth, departmentTimesheetDays]);
-    const departmentTimesheetSummary = useMemo(() => {
+    const calculateTimesheetSummary = (employees: typeof departmentTimesheetEmployees) => {
         let totalHours = 0;
         let totalShifts = 0;
         let totalMoney = 0;
-        for (const emp of departmentTimesheetEmployees) {
+        for (const emp of employees) {
             const isShift = isShiftAccrual(emp.accrualType);
             const rate = Number(emp.accrualRate ?? 0);
             if (isShift) {
@@ -4100,12 +4100,27 @@ function ProfilePage({
             totalShifts,
             totalMoney: Number(totalMoney.toFixed(2)),
         };
+    };
+    const departmentTimesheetSummary = useMemo(() => {
+        return calculateTimesheetSummary(departmentTimesheetEmployees);
+    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours]);
+    const departmentTimesheetDepartmentSummaries = useMemo(() => {
+        const grouped = new Map<string, typeof departmentTimesheetEmployees>();
+        for (const emp of departmentTimesheetEmployees) {
+            const dep = String(emp.department || "").trim() || "Без подразделения";
+            const prev = grouped.get(dep) || [];
+            grouped.set(dep, [...prev, emp]);
+        }
+        return Array.from(grouped.entries())
+            .map(([departmentName, employees]) => ({
+                departmentName,
+                ...calculateTimesheetSummary(employees),
+            }))
+            .sort((a, b) => a.departmentName.localeCompare(b.departmentName, "ru"));
     }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours]);
     const companyTimesheetSummary = useMemo(() => {
-        // В текущем экране руководитель видит сотрудников только своего подразделения.
-        // Поэтому "по компании" равно сумме отображаемых данных текущего подразделения.
-        return departmentTimesheetSummary;
-    }, [departmentTimesheetSummary]);
+        return calculateTimesheetSummary(departmentTimesheetEmployees);
+    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -5037,14 +5052,22 @@ function ProfilePage({
                         <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>ОТ - отпуск</Typography.Body>
                         <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>УВ - Уволен</Typography.Body>
                     </Flex>
-                    <Panel className="cargo-card" style={{ marginTop: '0.7rem', padding: '0.7rem' }}>
-                        <Typography.Body style={{ fontWeight: 600 }}>
-                            Итого по подразделению: {departmentTimesheetSummary.totalShifts} смен · {departmentTimesheetSummary.totalHours} ч
-                        </Typography.Body>
-                        <Typography.Body style={{ marginTop: '0.12rem', color: 'var(--color-text-secondary)' }}>
-                            {departmentTimesheetSummary.totalMoney.toLocaleString('ru-RU')} ₽
-                        </Typography.Body>
-                    </Panel>
+                    {(departmentTimesheetAllDepartments
+                        ? departmentTimesheetDepartmentSummaries
+                        : [{
+                            departmentName: departmentTimesheetDepartment || "—",
+                            ...departmentTimesheetSummary,
+                        }]
+                    ).map((summary, idx) => (
+                        <Panel key={`department-summary-${summary.departmentName}`} className="cargo-card" style={{ marginTop: idx === 0 ? '0.7rem' : '0.45rem', padding: '0.7rem' }}>
+                            <Typography.Body style={{ fontWeight: 600 }}>
+                                Итого по подразделению: {summary.departmentName} · {summary.totalShifts} смен · {summary.totalHours} ч
+                            </Typography.Body>
+                            <Typography.Body style={{ marginTop: '0.12rem', color: 'var(--color-text-secondary)' }}>
+                                {summary.totalMoney.toLocaleString('ru-RU')} ₽
+                            </Typography.Body>
+                        </Panel>
+                    ))}
                     {activeAccount?.permissions?.analytics === true ? (
                         <Panel className="cargo-card" style={{ marginTop: '0.45rem', padding: '0.7rem' }}>
                             <Typography.Body style={{ fontWeight: 600 }}>
