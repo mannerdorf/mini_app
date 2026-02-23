@@ -362,7 +362,49 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "DELETE") {
     const id = parseInt(String(req.query?.id || "0"), 10);
     if (!id) return res.status(400).json({ error: "id обязателен" });
-    await pool.query("DELETE FROM registered_users WHERE id = $1", [id]);
+    const existing = await pool.query<{ permissions: Record<string, boolean> | null }>(
+      "SELECT permissions FROM registered_users WHERE id = $1",
+      [id]
+    );
+    const row = existing.rows[0];
+    if (!row) return res.status(404).json({ error: "Сотрудник не найден" });
+
+    const currentPermissions =
+      row.permissions && typeof row.permissions === "object" ? row.permissions : {};
+    const nextPermissions: Record<string, boolean> = {
+      ...currentPermissions,
+      haulz: false,
+      supervisor: false,
+    };
+
+    const hasUpdatedAt = columnsInfo.cols.has("updated_at");
+    const hasInvitedByUserId = columnsInfo.cols.has("invited_by_user_id");
+    const hasInvitedPresetLabel = columnsInfo.cols.has("invited_with_preset_label");
+    const setParts: string[] = [];
+    const params: unknown[] = [];
+    const addParam = (value: unknown) => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    setParts.push(`permissions = ${addParam(JSON.stringify(nextPermissions))}`);
+    setParts.push("full_name = null");
+    setParts.push("department = null");
+    setParts.push("employee_role = null");
+    if (columnsInfo.hasPosition) setParts.push("position = null");
+    if (columnsInfo.hasAccrualType) setParts.push("accrual_type = null");
+    if (columnsInfo.hasAccrualRate) setParts.push("accrual_rate = null");
+    if (hasInvitedByUserId) setParts.push("invited_by_user_id = null");
+    if (hasInvitedPresetLabel) setParts.push("invited_with_preset_label = null");
+    if (hasUpdatedAt) setParts.push("updated_at = now()");
+
+    await pool.query(
+      `UPDATE registered_users
+       SET ${setParts.join(", ")}
+       WHERE id = ${addParam(id)}`,
+      params
+    );
+
     return res.status(200).json({ ok: true });
   }
 

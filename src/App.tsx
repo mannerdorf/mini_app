@@ -3950,10 +3950,16 @@ function ProfilePage({
     const [departmentTimesheetEmployeeAccrualType, setDepartmentTimesheetEmployeeAccrualType] = useState<"hour" | "shift">("hour");
     const [departmentTimesheetEmployeeAccrualRate, setDepartmentTimesheetEmployeeAccrualRate] = useState("0");
     const [departmentTimesheetEmployeeSaving, setDepartmentTimesheetEmployeeSaving] = useState(false);
+    const WORK_DAYS_IN_MONTH = 21;
     const isShiftAccrual = (value: string) => {
         const raw = String(value || '').trim().toLowerCase();
         return raw === 'shift' || raw === 'смена' || raw.includes('shift') || raw.includes('смен');
     };
+    const departmentTimesheetMonthlyEstimate = useMemo(() => {
+        const rate = Number(String(departmentTimesheetEmployeeAccrualRate || '').replace(',', '.'));
+        if (!Number.isFinite(rate) || rate < 0) return 0;
+        return departmentTimesheetEmployeeAccrualType === 'shift' ? rate * WORK_DAYS_IN_MONTH : rate * 8 * WORK_DAYS_IN_MONTH;
+    }, [departmentTimesheetEmployeeAccrualRate, departmentTimesheetEmployeeAccrualType]);
     const toHalfHourValue = (raw: string) => {
         const parsed = Number(String(raw || '').replace(',', '.'));
         if (!Number.isFinite(parsed)) return '0.0';
@@ -4757,6 +4763,10 @@ function ProfilePage({
                             Добавить
                         </Button>
                     </Flex>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.4rem' }}>
+                        За {departmentTimesheetEmployeeAccrualType === 'shift' ? 'смену' : 'час'}: {Number(departmentTimesheetEmployeeAccrualRate || 0).toLocaleString('ru-RU')} ₽ ·
+                        За месяц ({WORK_DAYS_IN_MONTH} раб. дн.): {Math.round(departmentTimesheetMonthlyEstimate).toLocaleString('ru-RU')} ₽
+                    </Typography.Body>
                 </Panel>
                 {departmentTimesheetLoading ? (
                     <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>

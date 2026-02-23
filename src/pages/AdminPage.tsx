@@ -575,10 +575,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [timesheetSearch, setTimesheetSearch] = useState("");
   const [timesheetHours, setTimesheetHours] = useState<Record<string, string>>({});
   const [timesheetMobilePicker, setTimesheetMobilePicker] = useState(false);
+  const WORK_DAYS_IN_MONTH = 21;
   const isShiftAccrualType = (value: unknown) => {
     const raw = String(value ?? "").trim().toLowerCase();
     return raw === "shift" || raw === "смена" || raw.includes("shift") || raw.includes("смен");
   };
+  const calcMonthlyByRate = (rateRaw: string, accrualType: "hour" | "shift"): number => {
+    const rate = Number(String(rateRaw || "").replace(",", "."));
+    if (!Number.isFinite(rate) || rate < 0) return 0;
+    return accrualType === "shift" ? rate * WORK_DAYS_IN_MONTH : rate * 8 * WORK_DAYS_IN_MONTH;
+  };
+  const employeeDirectoryMonthlyEstimate = useMemo(
+    () => calcMonthlyByRate(employeeDirectoryAccrualRate, employeeDirectoryAccrualType),
+    [employeeDirectoryAccrualRate, employeeDirectoryAccrualType]
+  );
+  const employeeDirectoryEditMonthlyEstimate = useMemo(
+    () => calcMonthlyByRate(employeeDirectoryEditAccrualRate, employeeDirectoryEditAccrualType),
+    [employeeDirectoryEditAccrualRate, employeeDirectoryEditAccrualType]
+  );
   const toHalfHourValue = (raw: string) => {
     const parsed = Number(String(raw || "").replace(",", "."));
     if (!Number.isFinite(parsed)) return "0.0";
@@ -5097,6 +5111,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <option value="department_head">Руководитель подразделения</option>
             </select>
           </div>
+          <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)", marginTop: "-0.25rem", marginBottom: "0.55rem" }}>
+            За {employeeDirectoryAccrualType === "shift" ? "смену" : "час"}: {Number(employeeDirectoryAccrualRate || 0).toLocaleString("ru-RU")} ₽ ·
+            За месяц ({WORK_DAYS_IN_MONTH} раб. дн.): {Math.round(employeeDirectoryMonthlyEstimate).toLocaleString("ru-RU")} ₽
+          </Typography.Body>
 
           <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: "0.9rem" }}>
             <Button
@@ -5295,6 +5313,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           <option value="department_head">Руководитель подразделения</option>
                         </select>
                       </div>
+                      <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginTop: "0.35rem" }}>
+                        За {employeeDirectoryEditAccrualType === "shift" ? "смену" : "час"}: {Number(employeeDirectoryEditAccrualRate || 0).toLocaleString("ru-RU")} ₽ ·
+                        За месяц ({WORK_DAYS_IN_MONTH} раб. дн.): {Math.round(employeeDirectoryEditMonthlyEstimate).toLocaleString("ru-RU")} ₽
+                      </Typography.Body>
                       <Flex align="center" gap="0.5rem" style={{ marginTop: "0.55rem" }}>
                         <Button
                           type="button"
