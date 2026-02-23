@@ -5019,7 +5019,7 @@ function ProfilePage({
                                             </td>
                                         ))}
                                     </tr>
-                                )})}
+                                })}
                             </tbody>
                         </table>
                     </div>
