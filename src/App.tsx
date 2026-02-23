@@ -4310,11 +4310,6 @@ function ProfilePage({
             label: 'Справочник сотрудников',
             icon: <Users className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('employees')
-        }, {
-            id: 'departmentTimesheet',
-            label: 'Табель учета рабочего времени',
-            icon: <Calendar className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
-            onClick: () => setCurrentView('departmentTimesheet')
         }] : [])
         ] : []),
         ...(!!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true ? [
@@ -4641,9 +4636,16 @@ function ProfilePage({
                         </div>
                     )}
                 </Panel>
-                <Button type="button" className="button-primary" onClick={() => setCurrentView('employees')}>
-                    Справочник сотрудников
-                </Button>
+                <Flex align="center" gap="0.6rem" wrap="wrap">
+                    <Button type="button" className="button-primary" onClick={() => setCurrentView('employees')}>
+                        Справочник сотрудников
+                    </Button>
+                    {activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true ? (
+                        <Button type="button" className="button-primary" onClick={() => setCurrentView('departmentTimesheet')}>
+                            Табель учета рабочего времени
+                        </Button>
+                    ) : null}
+                </Flex>
             </div>
         );
     }
@@ -4652,7 +4654,7 @@ function ProfilePage({
         return (
             <div className="w-full">
                 <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('haulz')} style={{ padding: '0.5rem' }}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Табель учета рабочего времени</Typography.Headline>
