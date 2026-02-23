@@ -7175,10 +7175,15 @@ function CargoDetailsModal({
                             <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>{perevozkaError}</Typography.Body>
                         )}
                         {!perevozkaLoading && perevozkaTimeline && perevozkaTimeline.length > 0 && (() => {
-                            // Итого время в пути: от «получена в месте получения» до текущего времени по Москве
-                            const totalHours = receivedAtSender?.date
-                                ? Math.max(0, Math.round((Date.now() - new Date(receivedAtSender.date).getTime()) / (1000 * 60 * 60)))
-                                : null;
+                            // Итого время в пути: от получения в городе отправления до доставки (если доставлена), иначе до текущего времени.
+                            const totalHours = (() => {
+                                if (!receivedAtSender?.date) return null;
+                                const startMs = new Date(receivedAtSender.date).getTime();
+                                if (!Number.isFinite(startMs)) return null;
+                                const deliveredMs = deliveredStep?.date ? new Date(deliveredStep.date).getTime() : NaN;
+                                const endMs = Number.isFinite(deliveredMs) ? deliveredMs : Date.now();
+                                return Math.max(0, Math.round((endMs - startMs) / (1000 * 60 * 60)));
+                            })();
                             return (
                             <div>
                                 <div className="perevozka-timeline">
