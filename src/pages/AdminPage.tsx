@@ -1183,11 +1183,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet")) setTab("users");
   }, [isSuperAdmin, tab]);
 
-  const fetchEmployeeDirectory = useCallback(async () => {
+  const fetchEmployeeDirectory = useCallback(async (monthForTimesheet?: string) => {
     if (!adminToken || !isSuperAdmin) return;
     setEmployeeDirectoryLoading(true);
     try {
-      const res = await fetch("/api/admin-employee-directory", {
+      const monthQuery = monthForTimesheet && /^\d{4}-\d{2}$/.test(monthForTimesheet)
+        ? `?month=${encodeURIComponent(monthForTimesheet)}`
+        : "";
+      const res = await fetch(`/api/admin-employee-directory${monthQuery}`, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       const data = await res.json().catch(() => ({}));
@@ -1262,9 +1265,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   useEffect(() => {
     if (tab === "timesheet" && isSuperAdmin) {
-      fetchEmployeeDirectory();
+      fetchEmployeeDirectory(timesheetMonth);
     }
-  }, [tab, isSuperAdmin, fetchEmployeeDirectory]);
+  }, [tab, isSuperAdmin, fetchEmployeeDirectory, timesheetMonth]);
 
   useEffect(() => {
     if (tab === "timesheet" && isSuperAdmin) {

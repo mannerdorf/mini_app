@@ -9,6 +9,17 @@ const ACCRUAL_TYPES = new Set(["hour", "shift"]);
 
 type ColumnName = { column_name: string };
 
+function parseMonth(value: unknown): { month: string; start: string } | null {
+  const month = String(Array.isArray(value) ? value[0] : value ?? "").trim();
+  if (!/^\d{4}-\d{2}$/.test(month)) return null;
+  const [yRaw, mRaw] = month.split("-");
+  const year = Number(yRaw);
+  const monthNum = Number(mRaw);
+  if (!Number.isFinite(year) || !Number.isFinite(monthNum) || monthNum < 1 || monthNum > 12) return null;
+  const start = `${year}-${String(monthNum).padStart(2, "0")}-01`;
+  return { month, start };
+}
+
 function normalizeAccrualType(value: unknown): "hour" | "shift" {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return "hour";
@@ -36,6 +47,17 @@ async function ensureEmployeeColumns(pool: ReturnType<typeof getPool>) {
   if (!cols.has("accrual_rate")) {
     await pool.query("ALTER TABLE registered_users ADD COLUMN IF NOT EXISTS accrual_rate numeric(12,2)");
   }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS employee_timesheet_month_exclusions (
+      id bigserial PRIMARY KEY,
+      employee_id bigint NOT NULL REFERENCES registered_users(id) ON DELETE CASCADE,
+      month_key date NOT NULL,
+      created_by_user_id bigint REFERENCES registered_users(id) ON DELETE SET NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (employee_id, month_key)
+    )
+  `);
+  await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_month_exclusions_month_idx ON employee_timesheet_month_exclusions(month_key)");
   cols = await readCols();
   const has = cols.has("full_name") && cols.has("department") && cols.has("employee_role");
   const hasPosition = cols.has("position");
@@ -60,6 +82,14 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === "GET") {
+    const monthInfo = parseMonth(req.query?.month);
+    const monthFilterSql = monthInfo
+      ? `AND id NOT IN (
+          SELECT employee_id
+          FROM employee_timesheet_month_exclusions
+          WHERE month_key = $1::date
+        )`
+      : "";
     const { rows } = await pool.query<{
       id: number;
       login: string;
@@ -80,7 +110,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       }, employee_role, active, invited_with_preset_label, created_at
        FROM registered_users
        WHERE (coalesce(trim(full_name), '') <> '' OR employee_role is not null OR invited_by_user_id is not null)
+       ${monthFilterSql}
        ORDER BY created_at DESC`
+      ,
+      monthInfo ? [monthInfo.start] : []
     );
     return res.status(200).json({
       ok: true,

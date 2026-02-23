@@ -4743,7 +4743,7 @@ function ProfilePage({
                             step={0.01}
                             value={departmentTimesheetEmployeeAccrualRate}
                             onChange={(e) => { setDepartmentTimesheetEmployeeAccrualRate(e.target.value); setDepartmentTimesheetError(null); }}
-                            style={{ width: '8rem', minWidth: '7rem', height: '2.4rem', boxSizing: 'border-box' }}
+                            style={{ width: '5.2rem', minWidth: '4.6rem', height: '2.4rem', boxSizing: 'border-box' }}
                             className="admin-form-input"
                         />
                         <Button
