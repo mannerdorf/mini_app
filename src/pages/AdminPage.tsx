@@ -450,6 +450,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [integrationDays, setIntegrationDays] = useState<number>(30);
   const [integrationLoading, setIntegrationLoading] = useState(false);
   const [integrationFetchTrigger, setIntegrationFetchTrigger] = useState(0);
+  const [integrationSendLkSyncLoading, setIntegrationSendLkSyncLoading] = useState(false);
+  const [integrationSendLkSyncResult, setIntegrationSendLkSyncResult] = useState<string | null>(null);
   const [integrationHealth, setIntegrationHealth] = useState<{
     telegram: {
       linked_total: number;
@@ -467,6 +469,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       password_reset: { sent: number; failed: number };
       telegram_pin: { sent: number; failed: number };
       api_errors: { register: number; reset: number; tg_webhook: number };
+      sendlk: { sent: number; failed: number; skipped: number; bulk_runs: number };
       daily: Array<{
         day: string;
         registration_sent: number;
@@ -1181,6 +1184,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               reset: Number(data?.email_delivery?.api_errors?.reset || 0),
               tg_webhook: Number(data?.email_delivery?.api_errors?.tg_webhook || 0),
             },
+            sendlk: {
+              sent: Number(data?.email_delivery?.sendlk?.sent || 0),
+              failed: Number(data?.email_delivery?.sendlk?.failed || 0),
+              skipped: Number(data?.email_delivery?.sendlk?.skipped || 0),
+              bulk_runs: Number(data?.email_delivery?.sendlk?.bulk_runs || 0),
+            },
             daily: Array.isArray(data?.email_delivery?.daily)
               ? data.email_delivery.daily.map((d: any) => ({
                   day: String(d?.day || ""),
@@ -1207,6 +1216,31 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       .catch(() => setIntegrationHealth(null))
       .finally(() => setIntegrationLoading(false));
   }, [tab, adminToken, integrationFetchTrigger, integrationDays]);
+  const runSendLkBulkSync = useCallback(async () => {
+    if (!adminToken) return;
+    setIntegrationSendLkSyncLoading(true);
+    setIntegrationSendLkSyncResult(null);
+    try {
+      const res = await fetch("/api/admin-sendlk-sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ limit: 500 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Ошибка выгрузки SendLK");
+      setIntegrationSendLkSyncResult(
+        `Выгрузка завершена: выбрано ${Number(data?.selected || 0)}, отправлено ${Number(data?.sent || 0)}, ошибок ${Number(data?.failed || 0)}`
+      );
+      setIntegrationFetchTrigger((prev) => prev + 1);
+    } catch (e: unknown) {
+      setIntegrationSendLkSyncResult((e as Error)?.message || "Ошибка выгрузки SendLK");
+    } finally {
+      setIntegrationSendLkSyncLoading(false);
+    }
+  }, [adminToken]);
 
   useEffect(() => {
     if (tab !== "customers") return;
@@ -5591,6 +5625,25 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <Typography.Body style={{ fontSize: "0.82rem", marginTop: "0.3rem", color: "var(--color-text-secondary)" }}>
                   API ошибки: register {integrationHealth.email_delivery.api_errors.register}, reset {integrationHealth.email_delivery.api_errors.reset}, tg-webhook {integrationHealth.email_delivery.api_errors.tg_webhook}
                 </Typography.Body>
+                <Typography.Body style={{ fontSize: "0.82rem", marginTop: "0.3rem", color: integrationHealth.email_delivery.sendlk.failed > 0 ? "var(--color-error, #dc2626)" : "var(--color-text-secondary)" }}>
+                  SendLK: отправлено {integrationHealth.email_delivery.sendlk.sent}, ошибок {integrationHealth.email_delivery.sendlk.failed}, пропущено {integrationHealth.email_delivery.sendlk.skipped}, запусков bulk {integrationHealth.email_delivery.sendlk.bulk_runs}
+                </Typography.Body>
+                <Flex align="center" gap="0.45rem" wrap="wrap" style={{ marginTop: "0.45rem" }}>
+                  <Button
+                    type="button"
+                    className="filter-button"
+                    disabled={integrationSendLkSyncLoading}
+                    onClick={() => void runSendLkBulkSync()}
+                    style={{ padding: "0.3rem 0.55rem" }}
+                  >
+                    {integrationSendLkSyncLoading ? "Выгрузка..." : "Выгрузить активных в 1С (SendLK)"}
+                  </Button>
+                  {integrationSendLkSyncResult ? (
+                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+                      {integrationSendLkSyncResult}
+                    </Typography.Body>
+                  ) : null}
+                </Flex>
               </Panel>
 
               <Panel className="cargo-card" style={{ padding: "0.75rem", border: "1px solid var(--color-border)" }}>

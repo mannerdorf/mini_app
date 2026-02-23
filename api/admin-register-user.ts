@@ -5,6 +5,7 @@ import { getClientIp, isRateLimited, ADMIN_API_LIMIT } from "../lib/rateLimit.js
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
+import { sendLkAddTo1c } from "../lib/sendLkTo1c.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 
 const DEFAULT_PERMISSIONS = {
@@ -156,6 +157,33 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const { rows: idRows } = await pool.query<{ id: number }>("SELECT id FROM registered_users WHERE login = $1", [login]);
     const newId = idRows[0]?.id;
     await writeAuditLog(pool, { action: "user_register", target_type: "user", target_id: newId, details: { login } });
+    if (innForDb && email) {
+      const sendLkResult = await sendLkAddTo1c({ inn: innForDb, email });
+      await writeAuditLog(pool, {
+        action: sendLkResult.ok ? "integration_sendlk_sent" : "integration_sendlk_failed",
+        target_type: "user",
+        target_id: newId,
+        details: {
+          login,
+          inn: innForDb,
+          email,
+          status: sendLkResult.status ?? null,
+          error: sendLkResult.ok ? null : (sendLkResult.error || sendLkResult.responseText || "unknown_error"),
+        },
+      });
+    } else {
+      await writeAuditLog(pool, {
+        action: "integration_sendlk_skipped",
+        target_type: "user",
+        target_id: newId,
+        details: {
+          login,
+          inn: innForDb || null,
+          email: email || null,
+          reason: "missing_inn_or_email",
+        },
+      });
+    }
 
     if (sendEmail) {
       const sendResult = await sendRegistrationEmail(pool, email, login, password, companyName);

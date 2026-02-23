@@ -81,7 +81,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
              'email_delivery_password_reset_sent',
              'email_delivery_password_reset_failed',
              'email_delivery_telegram_pin_sent',
-             'email_delivery_telegram_pin_failed'
+             'email_delivery_telegram_pin_failed',
+             'integration_sendlk_sent',
+             'integration_sendlk_failed',
+             'integration_sendlk_skipped',
+             'integration_sendlk_bulk_run'
            )
          group by action`,
         [String(days)]
@@ -96,7 +100,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
              'email_delivery_password_reset_sent',
              'email_delivery_password_reset_failed',
              'email_delivery_telegram_pin_sent',
-             'email_delivery_telegram_pin_failed'
+             'email_delivery_telegram_pin_failed',
+             'integration_sendlk_sent',
+             'integration_sendlk_failed',
+             'integration_sendlk_skipped',
+             'integration_sendlk_bulk_run'
            )
          group by 1, 2
          order by 1 desc`,
@@ -228,6 +236,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           register: errorMap.get("/api/admin-register-user") || 0,
           reset: errorMap.get("/api/admin-user-update") || 0,
           tg_webhook: errorMap.get("/api/tg-webhook") || 0,
+        },
+        sendlk: {
+          sent: emailMap.get("integration_sendlk_sent") || 0,
+          failed: emailMap.get("integration_sendlk_failed") || 0,
+          skipped: emailMap.get("integration_sendlk_skipped") || 0,
+          bulk_runs: emailMap.get("integration_sendlk_bulk_run") || 0,
         },
         daily: Array.from(emailDailyMap.values())
           .sort((a, b) => String(b.day).localeCompare(String(a.day)))

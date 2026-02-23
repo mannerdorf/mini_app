@@ -5,6 +5,7 @@ import { withErrorLog } from "../lib/requestErrorLog.js";
 import { generatePassword, hashPassword } from "../lib/passwordUtils.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
+import { sendLkAddTo1c } from "../lib/sendLkTo1c.js";
 
 const DEFAULT_PERMISSIONS = {
   cms_access: false,
@@ -215,6 +216,35 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           target_id: userId,
           details: { login, inn: c.inn, customer_name: c.customer_name },
         });
+        if (c.inn && login) {
+          const sendLkResult = await sendLkAddTo1c({ inn: c.inn, email: login });
+          await writeAuditLog(pool, {
+            action: sendLkResult.ok ? "integration_sendlk_sent" : "integration_sendlk_failed",
+            target_type: "user",
+            target_id: userId,
+            details: {
+              login,
+              inn: c.inn,
+              email: login,
+              source: "auto_register",
+              status: sendLkResult.status ?? null,
+              error: sendLkResult.ok ? null : (sendLkResult.error || sendLkResult.responseText || "unknown_error"),
+            },
+          });
+        } else {
+          await writeAuditLog(pool, {
+            action: "integration_sendlk_skipped",
+            target_type: "user",
+            target_id: userId,
+            details: {
+              login,
+              inn: c.inn || null,
+              email: login || null,
+              source: "auto_register",
+              reason: "missing_inn_or_email",
+            },
+          });
+        }
 
         if (emailAttempts > 0 && emailDelayMs > 0) {
           const pause = emailDelayMs + randomInt(0, emailJitterMs);

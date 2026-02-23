@@ -3,6 +3,7 @@ import { getPool } from "./_db.js";
 import { verifyPassword } from "../lib/passwordUtils.js";
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
+import { sendLkAddTo1c } from "../lib/sendLkTo1c.js";
 
 type Body = {
   login?: string;
@@ -201,6 +202,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          VALUES (${placeholders})`,
         insertValues
       );
+      if (inn && newLogin) {
+        const sendLkResult = await sendLkAddTo1c({ inn, email: newLogin });
+        if (!sendLkResult.ok) {
+          console.error("my-employees SendLK failed:", {
+            email: newLogin,
+            inn,
+            status: sendLkResult.status,
+            error: sendLkResult.error || sendLkResult.responseText || "unknown_error",
+          });
+        }
+      }
       if (!accessAllInns && companies.rows.length > 0) {
         for (const c of companies.rows) {
           await pool.query(
