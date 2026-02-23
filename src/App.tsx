@@ -618,6 +618,7 @@ function DashboardPage({
     hasSupervisor?: boolean;
 }) {
     const showPaymentCalendar = hasAnalytics || hasSupervisor;
+    const canViewTimesheetCostDashboard = hasAnalytics || hasSupervisor;
     const [debugInfo, setDebugInfo] = useState<string>("");
     // Виджеты дашборда включены по умолчанию.
     const WIDGET_1_FILTERS = true;
@@ -920,7 +921,7 @@ function DashboardPage({
     }, [showPaymentCalendar, auth?.login, auth?.password]);
 
     useEffect(() => {
-        if (!hasAnalytics || !auth?.login || !auth?.password) {
+        if (!canViewTimesheetCostDashboard || !auth?.login || !auth?.password) {
             setTimesheetAnalyticsData(null);
             setTimesheetAnalyticsError(null);
             return;
@@ -960,7 +961,7 @@ function DashboardPage({
         return () => {
             cancelled = true;
         };
-    }, [hasAnalytics, auth?.login, auth?.password, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    }, [canViewTimesheetCostDashboard, auth?.login, auth?.password, apiDateRange.dateFrom, apiDateRange.dateTo]);
 
     const unpaidCount = useMemo(() => {
         return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
@@ -2557,7 +2558,7 @@ function DashboardPage({
                 </Panel>
             )}
 
-            {hasAnalytics && !loading && !error && (
+            {canViewTimesheetCostDashboard && !loading && !error && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
                         Затраты табеля
@@ -4709,7 +4710,7 @@ function ProfilePage({
                     <Typography.Body style={{ marginBottom: '0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
                         Новый сотрудник будет добавлен в ваше подразделение как сотрудник.
                     </Typography.Body>
-                    <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="wrap" align="center">
+                    <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="nowrap" align="center" style={{ overflowX: 'auto', paddingBottom: '0.1rem' }}>
                         <Input
                             type="text"
                             placeholder="ФИО"

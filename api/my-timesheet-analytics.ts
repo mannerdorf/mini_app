@@ -35,6 +35,18 @@ function normalizeDate(value: unknown): string {
   return date;
 }
 
+function getMonthBounds(dateIso: string): { from: string; to: string } {
+  const [yRaw, mRaw] = dateIso.split("-");
+  const year = Number(yRaw);
+  const month = Number(mRaw);
+  const monthSafe = Number.isFinite(month) && month >= 1 && month <= 12 ? month : 1;
+  const yearSafe = Number.isFinite(year) ? year : 1970;
+  const from = `${yearSafe}-${String(monthSafe).padStart(2, "0")}-01`;
+  const lastDay = new Date(yearSafe, monthSafe, 0).getDate();
+  const to = `${yearSafe}-${String(monthSafe).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to };
+}
+
 function isShiftEnabled(rawValue: string): boolean {
   const raw = String(rawValue || "").trim().toUpperCase();
   if (!raw) return false;
@@ -94,6 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!login || !password) return res.status(400).json({ error: "Укажите логин и пароль" });
   if (!dateFrom || !dateTo) return res.status(400).json({ error: "Укажите период dateFrom/dateTo в формате YYYY-MM-DD" });
   if (dateFrom > dateTo) return res.status(400).json({ error: "dateFrom не может быть больше dateTo" });
+  const monthRange = getMonthBounds(dateFrom);
 
   try {
     const pool = getPool();
@@ -151,7 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            )
          )
        ORDER BY coalesce(full_name, login), id`,
-      [me.id, hasAnalyticsScope, companyOwnerId, canUseDepartmentScope, meDepartment, dateFrom, dateTo]
+      [me.id, hasAnalyticsScope, companyOwnerId, canUseDepartmentScope, meDepartment, monthRange.from, monthRange.to]
     );
 
     const employees = employeesRes.rows.map((row) => ({
@@ -164,8 +177,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }));
     if (employees.length === 0) {
       return res.status(200).json({
-        dateFrom,
-        dateTo,
+        dateFrom: monthRange.from,
+        dateTo: monthRange.to,
         totalHours: 0,
         totalShifts: 0,
         totalCost: 0,
@@ -180,7 +193,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        WHERE employee_id = ANY($1::int[])
          AND work_date >= $2::date
          AND work_date <= $3::date`,
-      [employeeIds, dateFrom, dateTo]
+      [employeeIds, monthRange.from, monthRange.to]
     );
 
     const entriesByEmployee = new Map<number, Array<{ value: string }>>();
@@ -226,8 +239,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     return res.status(200).json({
-      dateFrom,
-      dateTo,
+      dateFrom: monthRange.from,
+      dateTo: monthRange.to,
       totalHours: Number(totalHours.toFixed(2)),
       totalShifts,
       totalCost: Number(totalCost.toFixed(2)),
