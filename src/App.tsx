@@ -796,6 +796,12 @@ function DashboardPage({
     useEffect(() => {
         if (!showSums && chartType === 'money') setChartType('paidWeight');
     }, [showSums]);
+    useEffect(() => {
+        if (!showSums) {
+            setStripShowAsPercent(true);
+            setDeliveryStripShowAsPercent(true);
+        }
+    }, [showSums]);
 
     // При выключении служебного режима сбрасываем вкладку «Заказчик»
     useEffect(() => {
@@ -2083,11 +2089,11 @@ function DashboardPage({
                                     )}
                                     <Typography.Body
                                         component="span"
-                                        style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}
-                                        onClick={(e) => { e.stopPropagation(); setStripShowAsPercent(p => !p); }}
-                                        title={stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}
+                                        style={{ flexShrink: 0, fontWeight: 600, cursor: showSums ? 'pointer' : 'default', userSelect: 'none' }}
+                                        onClick={(e) => { e.stopPropagation(); if (!showSums) return; setStripShowAsPercent(p => !p); }}
+                                        title={showSums ? (stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах') : 'Финансовые значения скрыты'}
                                     >
-                                        {stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
+                                        {!showSums || stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
                                     </Typography.Body>
                                 </div>
                             ))}
@@ -2112,11 +2118,11 @@ function DashboardPage({
                                     )}
                                     <Typography.Body
                                         component="span"
-                                        style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: 'pointer', userSelect: 'none' }}
-                                        onClick={(e) => { e.stopPropagation(); setStripShowAsPercent(p => !p); }}
-                                        title={stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}
+                                        style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: showSums ? 'pointer' : 'default', userSelect: 'none' }}
+                                        onClick={(e) => { e.stopPropagation(); if (!showSums) return; setStripShowAsPercent(p => !p); }}
+                                        title={showSums ? (stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах') : 'Финансовые значения скрыты'}
                                     >
-                                        {stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
+                                        {!showSums || stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
                                     </Typography.Body>
                                 </div>
                             ))}
@@ -2141,11 +2147,11 @@ function DashboardPage({
                                     )}
                                     <Typography.Body
                                         component="span"
-                                        style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: 'pointer', userSelect: 'none' }}
-                                        onClick={(e) => { e.stopPropagation(); setStripShowAsPercent(p => !p); }}
-                                        title={stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}
+                                        style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: showSums ? 'pointer' : 'default', userSelect: 'none' }}
+                                        onClick={(e) => { e.stopPropagation(); if (!showSums) return; setStripShowAsPercent(p => !p); }}
+                                        title={showSums ? (stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах') : 'Финансовые значения скрыты'}
                                     >
-                                        {stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
+                                        {!showSums || stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
                                     </Typography.Body>
                                 </div>
                             ))}
@@ -2170,11 +2176,11 @@ function DashboardPage({
                                     )}
                                     <Typography.Body
                                         component="span"
-                                        style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: 'pointer', userSelect: 'none' }}
-                                        onClick={(e) => { e.stopPropagation(); setStripShowAsPercent(p => !p); }}
-                                        title={stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}
+                                        style={{ flexShrink: 0, fontWeight: 600, minWidth: 36, cursor: showSums ? 'pointer' : 'default', userSelect: 'none' }}
+                                        onClick={(e) => { e.stopPropagation(); if (!showSums) return; setStripShowAsPercent(p => !p); }}
+                                        title={showSums ? (stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах') : 'Финансовые значения скрыты'}
                                     >
-                                        {stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
+                                        {!showSums || stripShowAsPercent ? `${row.percent}%` : (chartType === 'money' ? formatCurrency(row.value, true) : chartType === 'paidWeight' || chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
                                     </Typography.Body>
                                 </div>
                             ))}
