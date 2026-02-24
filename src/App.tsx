@@ -699,6 +699,10 @@ function DashboardPage({
         return { year: n.getFullYear(), month: n.getMonth() + 1 };
     });
     const [paymentCalendarSelectedDate, setPaymentCalendarSelectedDate] = useState<string | null>(null);
+    const [timesheetDashboardPeriod, setTimesheetDashboardPeriod] = useState<{ year: number; month: number }>(() => {
+        const n = new Date();
+        return { year: n.getFullYear(), month: n.getMonth() + 1 };
+    });
     const [timesheetAnalyticsLoading, setTimesheetAnalyticsLoading] = useState(false);
     const [timesheetAnalyticsError, setTimesheetAnalyticsError] = useState<string | null>(null);
     const [timesheetAnalyticsData, setTimesheetAnalyticsData] = useState<{
@@ -758,6 +762,22 @@ function DashboardPage({
         const parsed = Number(normalized);
         return Number.isFinite(parsed) ? parsed : 0;
     };
+    const timesheetDashboardMonthKey = useMemo(() => {
+        return `${timesheetDashboardPeriod.year}-${String(timesheetDashboardPeriod.month).padStart(2, "0")}`;
+    }, [timesheetDashboardPeriod.month, timesheetDashboardPeriod.year]);
+    const timesheetDashboardDateRange = useMemo(() => {
+        const { year, month } = timesheetDashboardPeriod;
+        const lastDay = new Date(year, month, 0).getDate();
+        return {
+            dateFrom: `${year}-${String(month).padStart(2, "0")}-01`,
+            dateTo: `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+        };
+    }, [timesheetDashboardPeriod.month, timesheetDashboardPeriod.year]);
+    const timesheetDashboardYearOptions = useMemo(() => {
+        const nowYear = new Date().getFullYear();
+        const years = new Set<number>([nowYear - 2, nowYear - 1, nowYear, nowYear + 1, timesheetDashboardPeriod.year]);
+        return Array.from(years).sort((a, b) => b - a);
+    }, [timesheetDashboardPeriod.year]);
 
     const handleSlaTableSort = (column: string) => {
         if (slaTableSortColumn === column) {
@@ -981,22 +1001,13 @@ function DashboardPage({
         let cancelled = false;
         setTimesheetAnalyticsLoading(true);
         setTimesheetAnalyticsError(null);
-        const month = /^\d{4}-\d{2}-\d{2}$/.test(apiDateRange.dateFrom)
-            ? apiDateRange.dateFrom.slice(0, 7)
-            : "";
-        if (!month) {
-            setTimesheetAnalyticsError('Некорректный месяц для табеля');
-            setTimesheetAnalyticsData(null);
-            setTimesheetAnalyticsLoading(false);
-            return;
-        }
         fetch('/api/my-department-timesheet', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 login: auth.login,
                 password: auth.password,
-                month,
+                month: timesheetDashboardMonthKey,
             }),
         })
             .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
@@ -1103,7 +1114,7 @@ function DashboardPage({
         return () => {
             cancelled = true;
         };
-    }, [canViewTimesheetCostDashboard, auth?.login, auth?.password, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    }, [canViewTimesheetCostDashboard, auth?.login, auth?.password, timesheetDashboardMonthKey]);
 
     const unpaidCount = useMemo(() => {
         return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
@@ -1278,11 +1289,15 @@ function DashboardPage({
         return { sum, pw, w, vol, mest };
     }, [filteredItems]);
     const timesheetPaidWeight = useMemo(() => {
-        return filteredItems.reduce((acc, item) => {
+        return items.reduce((acc, item) => {
+            if (isReceivedInfoStatus(item.State)) return acc;
+            const dateRaw = item.DatePrih || item.DateVr || "";
+            const date = String(dateRaw).slice(0, 10);
+            if (!date || date < timesheetDashboardDateRange.dateFrom || date > timesheetDashboardDateRange.dateTo) return acc;
             const pw = typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
             return acc + pw;
         }, 0);
-    }, [filteredItems]);
+    }, [items, timesheetDashboardDateRange.dateFrom, timesheetDashboardDateRange.dateTo]);
     const companyTimesheetSummary = useMemo(() => ({
         totalHours: Number(timesheetAnalyticsData?.totalHours || 0),
         totalShifts: Number(timesheetAnalyticsData?.totalShifts || 0),
@@ -2718,8 +2733,40 @@ function DashboardPage({
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
                         В разрезе стоимости на 1 кг платного веса за выбранный период
                     </Typography.Body>
+                    <Flex align="center" gap="0.5rem" wrap="wrap" style={{ marginTop: '-0.25rem', marginBottom: '0.55rem' }}>
+                        <select
+                            className="admin-form-input"
+                            value={timesheetDashboardPeriod.month}
+                            onChange={(e) => {
+                                const month = Number(e.target.value);
+                                if (!Number.isFinite(month) || month < 1 || month > 12) return;
+                                setTimesheetDashboardPeriod((prev) => ({ ...prev, month }));
+                            }}
+                            style={{ padding: '0 0.5rem', minWidth: '10rem' }}
+                            aria-label="Месяц ФОТ"
+                        >
+                            {MONTH_NAMES.map((name, idx) => (
+                                <option key={`timesheet-dashboard-month-${idx + 1}`} value={idx + 1}>{name.charAt(0).toUpperCase() + name.slice(1)}</option>
+                            ))}
+                        </select>
+                        <select
+                            className="admin-form-input"
+                            value={timesheetDashboardPeriod.year}
+                            onChange={(e) => {
+                                const year = Number(e.target.value);
+                                if (!Number.isFinite(year)) return;
+                                setTimesheetDashboardPeriod((prev) => ({ ...prev, year }));
+                            }}
+                            style={{ padding: '0 0.5rem', minWidth: '6.5rem' }}
+                            aria-label="Год ФОТ"
+                        >
+                            {timesheetDashboardYearOptions.map((year) => (
+                                <option key={`timesheet-dashboard-year-${year}`} value={year}>{year}</option>
+                            ))}
+                        </select>
+                    </Flex>
                     <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: '-0.35rem', marginBottom: '0.75rem' }}>
-                        Расчетный период: <DateText value={apiDateRange.dateFrom} /> – <DateText value={apiDateRange.dateTo} />
+                        Расчетный период: <DateText value={timesheetDashboardDateRange.dateFrom} /> – <DateText value={timesheetDashboardDateRange.dateTo} />
                     </Typography.Body>
                     {timesheetAnalyticsLoading ? (
                         <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка аналитики табеля...</Typography.Body></Flex>
