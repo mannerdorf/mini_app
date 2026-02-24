@@ -1970,6 +1970,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
                                 const transportType = getSendingTransportType(vehicle);
                                 const transitHours = getSendingTransitHours(row);
+                                const transitDays = transitHours == null ? null : Math.round((transitHours / 24) * 10) / 10;
                                 const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
@@ -1996,7 +1997,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                 ) : '—'}
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                                {transitHours == null ? '—' : Number.isInteger(transitHours) ? transitHours : transitHours.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                                {transitHours == null ? '—' : (
+                                                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.15 }}>
+                                                        <span>{Number.isInteger(transitHours) ? transitHours : transitHours.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ч</span>
+                                                        <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.75rem' }}>
+                                                            {(transitDays != null && Number.isInteger(transitDays) ? transitDays : (transitDays ?? 0).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 }))} д
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
