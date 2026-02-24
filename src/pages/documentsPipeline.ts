@@ -381,7 +381,10 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
   let res = [...items];
   const normalizedActiveInn = normalizeInn(activeInn);
   if (!useServiceRequest && normalizedActiveInn) {
-    res = res.filter((i) => getItemInn(i) === normalizedActiveInn);
+    res = res.filter((i) => {
+      const orderInn = normalizeInn(i?.ЗаказчикИНН ?? i?.CustomerINN ?? i?.CustomerInn ?? i?.customerInn ?? i?.INNCustomer ?? i?.InnCustomer);
+      return (orderInn || getItemInn(i)) === normalizedActiveInn;
+    });
   }
   if (customerFilter) {
     res = res.filter((i) => ((i.Customer ?? i.customer ?? i.ЗаказчикНаименование ?? i.Заказчик ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);

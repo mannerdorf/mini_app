@@ -6492,7 +6492,7 @@ function ProfilePage({
                         <Typography.Body style={{ fontSize: '0.8rem' }}>• «Что в работе?» / «Что у меня в работе?» — одна фраза: в пути N перевозок, к оплате M.</Typography.Body>
                         <Typography.Body style={{ fontSize: '0.8rem' }}>• «Сводка за день» / «Сводка за сегодня» / «Сводка на сегодня» — ответ принято, в пути, на доставке, доставлено, счета на оплату (кол-во и сумма).</Typography.Body>
                         <Typography.Body style={{ fontSize: '0.8rem' }}>• «Сколько перевозок за сегодня?» / «на этой неделе?» / «за неделю?» — число перевозок за период.</Typography.Body>
-                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Статус перевозки 135702» / «Перевозка 135702» / «Груз 135702» — детали по одной перевозке.</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.8rem' }}>• «Статус перевозки 135702» / «Консолидация 135702» / «Груз 135702» — детали по одной перевозке.</Typography.Body>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600 }}>Управление</Typography.Body>
@@ -7363,7 +7363,7 @@ function CargoDetailsModal({
                                 setDownloading("share");
                                 try {
                                     const lines: string[] = [];
-                                    lines.push(`Перевозка: ${item.Number}`);
+                                    lines.push(`Консолидация: ${item.Number}`);
                                     if (item.State) lines.push(`Статус: ${normalizeStatus(item.State)}`);
                                     if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
                                     lines.push(`Доставка: ${getFilterKeyByStatus(item.State) === 'delivered' && item.DateVr ? formatDate(item.DateVr) : '-'}`);
@@ -7449,6 +7449,10 @@ function CargoDetailsModal({
                     })()} /> {/* Используем DateVr */}
                     {useServiceRequest && (
                         <>
+                            <DetailItem
+                                label="Заказчик"
+                                value={stripOoo(String(item.Customer ?? (item as any).customer ?? (item as any).Заказчик ?? (item as any).Contractor ?? (item as any).Organization ?? '').trim()) || '-'}
+                            />
                             <DetailItem
                                 label="Транспортное средство"
                                 value={String(item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? '-').trim() || '-'}

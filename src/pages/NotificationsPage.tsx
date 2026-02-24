@@ -189,7 +189,7 @@ export function NotificationsPage({
                         {!telegramLinked ? (
                             <>
                                 <Typography.Body style={{ fontSize: "0.9rem" }}>
-                                    Привяжите Telegram, чтобы получать уведомления в боте по образцу: «Создана Перевозка №…», «В пути», «Доставлено», «Счёт по перевозке № … оплачен».
+                                    Привяжите Telegram, чтобы получать уведомления в боте по образцу: «Создана Консолидация №…», «В пути», «Доставлено», «Счёт по перевозке № … оплачен».
                                 </Typography.Body>
                                 {onOpenTelegramBot && (
                                     <Button

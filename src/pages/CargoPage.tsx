@@ -349,7 +349,7 @@ export function CargoPage({
     const handleShareCargo = useCallback(async (item: CargoItem) => {
         if (!item.Number || !primaryAuth) return;
         const lines: string[] = [];
-        lines.push(`Перевозка: ${item.Number}`);
+        lines.push(`Консолидация: ${item.Number}`);
         if (item.State) lines.push(`Статус: ${normalizeStatus(item.State)}`);
         if (item.DatePrih) lines.push(`Приход: ${formatDate(item.DatePrih)}`);
         lines.push(`Доставка: ${getFilterKeyByStatus(item.State) === 'delivered' && item.DateVr ? formatDate(item.DateVr) : '-'}`);

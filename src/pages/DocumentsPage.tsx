@@ -96,6 +96,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [customerFilter, setCustomerFilter] = useState<string>('');
     const [orderReceiverFilter, setOrderReceiverFilter] = useState<string>('');
+    const [orderSenderFilter, setOrderSenderFilter] = useState<string>('');
+    const [orderRouteFilter, setOrderRouteFilter] = useState<string>('all');
     const [actCustomerFilter, setActCustomerFilter] = useState<string>('');
     const [edoStatusFilterSet, setEdoStatusFilterSet] = useState<Set<string>>(() => new Set());
     const [statusFilterSet, setStatusFilterSet] = useState<Set<string>>(() => new Set());
@@ -103,6 +105,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [routeFilter, setRouteFilter] = useState<'all' | 'MSK-KGD' | 'KGD-MSK'>('all');
     const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
     const [isReceiverDropdownOpen, setIsReceiverDropdownOpen] = useState(false);
+    const [isOrderSenderDropdownOpen, setIsOrderSenderDropdownOpen] = useState(false);
+    const [isOrderRouteDropdownOpen, setIsOrderRouteDropdownOpen] = useState(false);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
@@ -110,6 +114,10 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [selectedAct, setSelectedAct] = useState<any | null>(null);
     const [sortBy, setSortBy] = useState<'date' | null>('date');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [ordersSortColumn, setOrdersSortColumn] = useState<'date' | 'number' | 'clientNumber' | 'pickupDate' | 'cargo' | 'sender' | 'receiver' | 'route' | 'customer' | 'comment'>('date');
+    const [ordersSortOrder, setOrdersSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [ordersParcelsSortColumn, setOrdersParcelsSortColumn] = useState<'parcel' | 'cargo' | 'tmc' | 'consolidation' | 'count' | 'cost'>('parcel');
+    const [ordersParcelsSortOrder, setOrdersParcelsSortOrder] = useState<'asc' | 'desc'>('asc');
     const DOCS_TABLE_MODE_KEY = 'haulz.docs.tableMode';
     const DOCS_SECTION_KEY = 'haulz.docs.section';
     const [tableModeByCustomer, setTableModeByCustomer] = useState<boolean>(() => {
@@ -159,7 +167,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [innerTableActSortOrder, setInnerTableActSortOrder] = useState<'asc' | 'desc'>('desc');
     const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'vehicle' | 'comment'>('date');
     const [sendingsSortOrder, setSendingsSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [sendingsDetailsView, setSendingsDetailsView] = useState<'general' | 'summary'>('general');
+    const [sendingsDetailsView, setSendingsDetailsView] = useState<'general' | 'byCargo' | 'byCustomer'>('general');
     const [sendingsSummarySortColumn, setSendingsSummarySortColumn] = useState<'index' | 'cargo' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer'>('index');
     const [sendingsSummarySortOrder, setSendingsSummarySortOrder] = useState<'asc' | 'desc'>('asc');
     const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
@@ -180,6 +188,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const dateButtonRef = useRef<HTMLDivElement | null>(null);
     const customerButtonRef = useRef<HTMLDivElement | null>(null);
     const receiverButtonRef = useRef<HTMLDivElement | null>(null);
+    const orderSenderButtonRef = useRef<HTMLDivElement | null>(null);
+    const orderRouteButtonRef = useRef<HTMLDivElement | null>(null);
     const statusButtonRef = useRef<HTMLDivElement | null>(null);
     const typeButtonRef = useRef<HTMLDivElement | null>(null);
     const routeButtonRef = useRef<HTMLDivElement | null>(null);
@@ -232,6 +242,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         setCustomerFilter('');
         setActCustomerFilter('');
         setTransportFilter('');
+        setOrderRouteFilter('all');
         setIsCustomerDropdownOpen(false);
         setIsActCustomerDropdownOpen(false);
         setIsTransportDropdownOpen(false);
@@ -300,11 +311,28 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     }, [perevozkiItems, normCargoKey]);
 
     const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
-    const uniqueOrderCustomers = useMemo(() => [...new Set((ordersItems || []).map((i: any) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [ordersItems]);
+    const uniqueOrderCustomers = useMemo(
+        () => [...new Set((ordersItems || []).map((i: any) => String(i?.ЗаказчикНаименование ?? i?.Заказчик ?? i?.Customer ?? i?.customer ?? i?.Контрагент ?? i?.Contractor ?? i?.Organization ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
+        [ordersItems]
+    );
     const uniqueOrderReceivers = useMemo(
         () => [...new Set((ordersItems || []).map((i: any) => String(i?.ПолучательНаименование ?? i?.Получатель ?? i?.Receiver ?? i?.receiver ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
         [ordersItems]
     );
+    const uniqueOrderSenders = useMemo(
+        () => [...new Set((ordersItems || []).map((i: any) => String(i?.ОтправительНаименование ?? i?.Отправитель ?? i?.Sender ?? i?.sender ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
+        [ordersItems]
+    );
+    const uniqueOrderRoutes = useMemo(() => {
+        const set = new Set<string>();
+        (ordersItems || []).forEach((item: any) => {
+            const fromRaw = String(item?.ПунктОтправкиНаименование ?? item?.ПунктОтправленияНаименование ?? item?.ПунктОтправки ?? item?.ПунктОтправления ?? item?.CitySender ?? '').trim();
+            const toRaw = String(item?.ПунктНазначенияНаименование ?? item?.ПунктПолученияНаименование ?? item?.ПунктНазначения ?? item?.ПунктДоставки ?? item?.CityReceiver ?? '').trim();
+            const route = [cityToCode(fromRaw) || fromRaw, cityToCode(toRaw) || toRaw].filter(Boolean).join(' – ');
+            if (route) set.add(route);
+        });
+        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+    }, [ordersItems]);
     const uniqueSendingCustomers = useMemo(() => [...new Set((sendingsItems || []).map((i: any) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [sendingsItems]);
 
     const uniqueActCustomers = useMemo(() => [...new Set((actsItems || []).map((a: any) => ((a.Customer ?? a.customer ?? a.Контрагент ?? a.Contractor ?? a.Organization ?? '').trim())).filter(Boolean))].sort(), [actsItems]);
@@ -436,16 +464,23 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             routeFilter,
             deliveryStatusFilterSet,
             routeFilterCargo,
-            transportFilter,
+            transportFilter: '',
             searchText: effectiveSearchText,
             sortBy,
             sortOrder,
         });
-        if (!effectiveServiceMode && orderReceiverFilter) {
-            return base.filter((i: any) => String(i?.ПолучательНаименование ?? i?.Получатель ?? i?.Receiver ?? i?.receiver ?? '').trim() === orderReceiverFilter);
-        }
-        return base;
-    }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, typeFilter, routeFilter, deliveryStatusFilterSet, routeFilterCargo, transportFilter, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter]);
+        return base.filter((i: any) => {
+            if (orderReceiverFilter && String(i?.ПолучательНаименование ?? i?.Получатель ?? i?.Receiver ?? i?.receiver ?? '').trim() !== orderReceiverFilter) return false;
+            if (orderSenderFilter && String(i?.ОтправительНаименование ?? i?.Отправитель ?? i?.Sender ?? i?.sender ?? '').trim() !== orderSenderFilter) return false;
+            if (orderRouteFilter !== 'all') {
+                const fromRaw = String(i?.ПунктОтправкиНаименование ?? i?.ПунктОтправленияНаименование ?? i?.ПунктОтправки ?? i?.ПунктОтправления ?? i?.CitySender ?? '').trim();
+                const toRaw = String(i?.ПунктНазначенияНаименование ?? i?.ПунктПолученияНаименование ?? i?.ПунктНазначения ?? i?.ПунктДоставки ?? i?.CityReceiver ?? '').trim();
+                const route = [cityToCode(fromRaw) || fromRaw, cityToCode(toRaw) || toRaw].filter(Boolean).join(' – ');
+                if (route !== orderRouteFilter) return false;
+            }
+            return true;
+        });
+    }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, typeFilter, routeFilter, deliveryStatusFilterSet, routeFilterCargo, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter, orderSenderFilter, orderRouteFilter]);
     const ordersSummary = useMemo(() => buildDocsSummary(filteredOrders), [filteredOrders]);
     const filteredSendings = useMemo(() => {
         return buildFilteredOrders({
@@ -646,11 +681,44 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const tableModeEffective = isRequestJournalSection ? true : tableModeByCustomer;
     const orderRowsSorted = useMemo(() => {
         const getDate = (row: any) => String(row?.Дата ?? row?.DateZayavki ?? row?.Date ?? row?.date ?? "");
+        const getNumber = (row: any) => String(row?.НомерЗаявки ?? row?.Номер ?? row?.Number ?? row?.number ?? row?.N ?? "");
+        const getClientNumber = (row: any) => String(row?.НомерЗаявкиКлиента ?? row?.ClientRequestNumber ?? "");
+        const getPickupDate = (row: any) => String(row?.ДатаЗабораПлан ?? row?.PickupDatePlan ?? "");
+        const getSender = (row: any) => String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.Sender ?? row?.sender ?? "");
+        const getReceiver = (row: any) => String(row?.ПолучательНаименование ?? row?.Получатель ?? row?.Receiver ?? row?.receiver ?? "");
+        const getCustomer = (row: any) => String(row?.ЗаказчикНаименование ?? row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? "");
+        const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
+        const getCargo = (row: any) => {
+            const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
+            const firstParcel = Array.isArray(rawParcels)
+                ? rawParcels[0]
+                : (rawParcels && typeof rawParcels === 'object'
+                    ? Object.values(rawParcels as Record<string, any>)[0]
+                    : undefined);
+            return String(row?.НомерПеревозки ?? row?.Перевозка ?? row?.CargoNumber ?? row?.NumberPerevozki ?? (firstParcel as any)?.Перевозка ?? "");
+        };
+        const getRoute = (row: any) => {
+            const from = String(row?.ПунктОтправкиНаименование ?? row?.ПунктОтправленияНаименование ?? row?.ПунктОтправки ?? row?.ПунктОтправления ?? row?.CitySender ?? '').trim();
+            const to = String(row?.ПунктНазначенияНаименование ?? row?.ПунктПолученияНаименование ?? row?.ПунктНазначения ?? row?.ПунктДоставки ?? row?.CityReceiver ?? '').trim();
+            return [cityToCode(from) || from, cityToCode(to) || to].filter(Boolean).join(' – ');
+        };
         return [...filteredOrders].sort((a, b) => {
-            const cmp = getDate(a).localeCompare(getDate(b));
-            return sortOrder === 'asc' ? cmp : -cmp;
+            let cmp = 0;
+            switch (ordersSortColumn) {
+                case 'date': cmp = getDate(a).localeCompare(getDate(b)); break;
+                case 'number': cmp = getNumber(a).localeCompare(getNumber(b), undefined, { numeric: true }); break;
+                case 'clientNumber': cmp = getClientNumber(a).localeCompare(getClientNumber(b), undefined, { numeric: true }); break;
+                case 'pickupDate': cmp = getPickupDate(a).localeCompare(getPickupDate(b)); break;
+                case 'cargo': cmp = getCargo(a).localeCompare(getCargo(b), undefined, { numeric: true }); break;
+                case 'sender': cmp = getSender(a).localeCompare(getSender(b)); break;
+                case 'receiver': cmp = getReceiver(a).localeCompare(getReceiver(b)); break;
+                case 'route': cmp = getRoute(a).localeCompare(getRoute(b)); break;
+                case 'customer': cmp = getCustomer(a).localeCompare(getCustomer(b)); break;
+                case 'comment': cmp = getComment(a).localeCompare(getComment(b)); break;
+            }
+            return ordersSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [filteredOrders, sortOrder]);
+    }, [filteredOrders, ordersSortColumn, ordersSortOrder]);
     const sendingRowsSorted = useMemo(() => {
         const getDate = (row: any) => String(row?.Дата ?? row?.Date ?? row?.date ?? "");
         const getNumber = (row: any) => String(row?.Номер ?? row?.Number ?? row?.number ?? "");
@@ -707,6 +775,22 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         setSendingsSummarySortColumn(column);
         setSendingsSummarySortOrder(column === 'index' ? 'asc' : 'desc');
     }, [sendingsSummarySortColumn]);
+    const handleOrdersSort = useCallback((column: 'date' | 'number' | 'clientNumber' | 'pickupDate' | 'cargo' | 'sender' | 'receiver' | 'route' | 'customer' | 'comment') => {
+        if (ordersSortColumn === column) {
+            setOrdersSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+            return;
+        }
+        setOrdersSortColumn(column);
+        setOrdersSortOrder(column === 'date' || column === 'pickupDate' ? 'desc' : 'asc');
+    }, [ordersSortColumn]);
+    const handleOrdersParcelsSort = useCallback((column: 'parcel' | 'cargo' | 'tmc' | 'consolidation' | 'count' | 'cost') => {
+        if (ordersParcelsSortColumn === column) {
+            setOrdersParcelsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+            return;
+        }
+        setOrdersParcelsSortColumn(column);
+        setOrdersParcelsSortOrder('asc');
+    }, [ordersParcelsSortColumn]);
     const getRequestParcels = useCallback((row: any): any[] => {
         const raw = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
         if (Array.isArray(raw)) return raw;
@@ -719,6 +803,30 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             }
         }
         return [];
+    }, []);
+    const getParcelSearchText = useCallback((parcel: any): string => {
+        const parts: string[] = [];
+        const seen = new WeakSet<object>();
+        const collect = (value: unknown, depth = 0) => {
+            if (value == null || depth > 8) return;
+            if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+                const s = String(value).trim();
+                if (s) parts.push(s);
+                return;
+            }
+            if (Array.isArray(value)) {
+                value.forEach((item) => collect(item, depth + 1));
+                return;
+            }
+            if (typeof value === 'object') {
+                const obj = value as Record<string, unknown>;
+                if (seen.has(obj)) return;
+                seen.add(obj);
+                Object.values(obj).forEach((v) => collect(v, depth + 1));
+            }
+        };
+        collect(parcel);
+        return parts.join(' ').toLowerCase();
     }, []);
     const getSendingTransportType = useCallback((vehicleText: string): 'ferry' | 'auto' | '' => {
         const s = String(vehicleText ?? '').toUpperCase().trim();
@@ -882,7 +990,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         {(docSection === 'Счета' || docSection === 'Заявки') && effectiveServiceMode && (
                             <>
                                 <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                         Заказчик: {customerFilter ? stripOoo(customerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -894,10 +1002,10 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 </FilterDropdownPortal>
                             </>
                         )}
-                        {docSection === 'Заявки' && !effectiveServiceMode && (
+                        {docSection === 'Заявки' && (
                             <>
                                 <div ref={receiverButtonRef} style={{ display: 'inline-flex' }}>
-                                    <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                    <Button className="filter-button" onClick={() => { setIsReceiverDropdownOpen(!isReceiverDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                         Получатель: {orderReceiverFilter ? stripOoo(orderReceiverFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
                                     </Button>
                                 </div>
@@ -906,6 +1014,32 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     {uniqueOrderReceivers.map((receiver) => (
                                         <div key={receiver} className="dropdown-item" onClick={() => { setOrderReceiverFilter(receiver); setIsReceiverDropdownOpen(false); }}>
                                             <Typography.Body>{stripOoo(receiver)}</Typography.Body>
+                                        </div>
+                                    ))}
+                                </FilterDropdownPortal>
+                                <div ref={orderSenderButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => { setIsOrderSenderDropdownOpen(!isOrderSenderDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderRouteDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                        Отправитель: {orderSenderFilter ? stripOoo(orderSenderFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                                    </Button>
+                                </div>
+                                <FilterDropdownPortal triggerRef={orderSenderButtonRef} isOpen={isOrderSenderDropdownOpen} onClose={() => setIsOrderSenderDropdownOpen(false)}>
+                                    <div className="dropdown-item" onClick={() => { setOrderSenderFilter(''); setIsOrderSenderDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                                    {uniqueOrderSenders.map((sender) => (
+                                        <div key={sender} className="dropdown-item" onClick={() => { setOrderSenderFilter(sender); setIsOrderSenderDropdownOpen(false); }}>
+                                            <Typography.Body>{stripOoo(sender)}</Typography.Body>
+                                        </div>
+                                    ))}
+                                </FilterDropdownPortal>
+                                <div ref={orderRouteButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => { setIsOrderRouteDropdownOpen(!isOrderRouteDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsOrderSenderDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                        Маршрут: {orderRouteFilter === 'all' ? 'Все' : orderRouteFilter} <ChevronDown className="w-4 h-4"/>
+                                    </Button>
+                                </div>
+                                <FilterDropdownPortal triggerRef={orderRouteButtonRef} isOpen={isOrderRouteDropdownOpen} onClose={() => setIsOrderRouteDropdownOpen(false)}>
+                                    <div className="dropdown-item" onClick={() => { setOrderRouteFilter('all'); setIsOrderRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                                    {uniqueOrderRoutes.map((route) => (
+                                        <div key={route} className="dropdown-item" onClick={() => { setOrderRouteFilter(route); setIsOrderRouteDropdownOpen(false); }}>
+                                            <Typography.Body>{route}</Typography.Body>
                                         </div>
                                     ))}
                                 </FilterDropdownPortal>
@@ -960,7 +1094,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         </FilterDropdownPortal>
                         </>
                         )}
-                        {(effectiveServiceMode || docSection === 'Отправки') && (
+                        {((effectiveServiceMode && docSection !== 'Заявки') || docSection === 'Отправки') && (
                         <>
                         <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
@@ -1333,12 +1467,16 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Номер заявки</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Номер перевозки</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Получатель</th>
-                                {effectiveServiceMode && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>}
-                                {effectiveServiceMode && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Комментарий</th>}
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('date')} title="Сортировка">Дата {ordersSortColumn === 'date' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('number')} title="Сортировка">Номер заявки {ordersSortColumn === 'number' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('clientNumber')} title="Сортировка">Номер заявки клиента {ordersSortColumn === 'clientNumber' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('pickupDate')} title="Сортировка">Дата забора план {ordersSortColumn === 'pickupDate' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('cargo')} title="Сортировка">Номер перевозки {ordersSortColumn === 'cargo' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('sender')} title="Сортировка">Отправитель {ordersSortColumn === 'sender' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('receiver')} title="Сортировка">Получатель {ordersSortColumn === 'receiver' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('route')} title="Сортировка">Маршрут {ordersSortColumn === 'route' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                {effectiveServiceMode && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('customer')} title="Сортировка">Заказчик {ordersSortColumn === 'customer' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                                {effectiveServiceMode && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('comment')} title="Сортировка">Комментарий {ordersSortColumn === 'comment' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -1346,6 +1484,40 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const rawDate = row?.Дата ?? row?.DateZayavki ?? row?.Date ?? row?.date ?? '';
                                 const requestNumber = String(row?.НомерЗаявки ?? row?.Номер ?? row?.Number ?? row?.number ?? row?.N ?? '');
                                 const parcels = getRequestParcels(row);
+                                const searchLower = effectiveSearchText.trim().toLowerCase();
+                                const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
+                                const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
+                                const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
+                                const sortedParcelsToRender = [...parcelsToRender].sort((a: any, b: any) => {
+                                    const goodsA = Array.isArray(a?.Товары) ? (a.Товары[0] ?? {}) : (a?.Товары && typeof a.Товары === 'object' ? a.Товары : a);
+                                    const goodsB = Array.isArray(b?.Товары) ? (b.Товары[0] ?? {}) : (b?.Товары && typeof b.Товары === 'object' ? b.Товары : b);
+                                    const toNumber = (v: unknown) => {
+                                        const n = Number(String(v ?? '').replace(',', '.'));
+                                        return Number.isFinite(n) ? n : 0;
+                                    };
+                                    let cmp = 0;
+                                    switch (ordersParcelsSortColumn) {
+                                        case 'parcel':
+                                            cmp = String(a?.ПосылкаНаименование ?? a?.Посылка ?? a?.ИДОтправления ?? '').localeCompare(String(b?.ПосылкаНаименование ?? b?.Посылка ?? b?.ИДОтправления ?? ''), undefined, { numeric: true });
+                                            break;
+                                        case 'cargo':
+                                            cmp = String(a?.Перевозка ?? '').localeCompare(String(b?.Перевозка ?? ''), undefined, { numeric: true });
+                                            break;
+                                        case 'tmc':
+                                            cmp = String(goodsA?.ТМЦ ?? '').localeCompare(String(goodsB?.ТМЦ ?? ''));
+                                            break;
+                                        case 'consolidation':
+                                            cmp = String(goodsA?.ИДОтправления ?? '').localeCompare(String(goodsB?.ИДОтправления ?? ''), undefined, { numeric: true });
+                                            break;
+                                        case 'count':
+                                            cmp = toNumber(goodsA?.Количество) - toNumber(goodsB?.Количество);
+                                            break;
+                                        case 'cost':
+                                            cmp = toNumber(goodsA?.ОбъявленнаяСтоимостьТовараДляПечати ?? goodsA?.ОбъявленнаяСтоимостьТовара) - toNumber(goodsB?.ОбъявленнаяСтоимостьТовараДляПечати ?? goodsB?.ОбъявленнаяСтоимостьТовара);
+                                            break;
+                                    }
+                                    return ordersParcelsSortOrder === 'asc' ? cmp : -cmp;
+                                });
                                 const cargoNumber = String(
                                     row?.НомерПеревозки ??
                                     row?.Перевозка ??
@@ -1356,12 +1528,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 );
                                 const customer = String(row?.ЗаказчикНаименование ?? row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '');
                                 const receiver = String(row?.ПолучательНаименование ?? row?.Получатель ?? row?.Receiver ?? row?.receiver ?? '');
+                                const sender = String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.Sender ?? row?.sender ?? '');
                                 const comment = String(row?.Комментарий ?? row?.Comment ?? '');
+                                const customerRequestNumber = String(row?.НомерЗаявкиКлиента ?? row?.ClientRequestNumber ?? '');
+                                const pickupDate = String(row?.ДатаЗабораПлан ?? row?.PickupDatePlan ?? '');
                                 const rowKey = `${requestNumber || 'row'}-${cargoNumber || idx}`;
                                 const expanded = expandedOrderRow === rowKey;
                                 const senderPoint = String(row?.ПунктОтправкиНаименование ?? row?.ПунктОтправки ?? row?.ПунктОтправления ?? row?.АдресОтправки ?? row?.SenderPoint ?? '');
-                                const sender = String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.Sender ?? row?.sender ?? '');
                                 const destinationPoint = String(row?.ПунктНазначенияНаименование ?? row?.ПунктНазначения ?? row?.ПунктДоставки ?? row?.ReceiverPoint ?? row?.DestinationPoint ?? '');
+                                const route = [cityToCode(senderPoint) || senderPoint, cityToCode(destinationPoint) || destinationPoint].filter(Boolean).join(' – ') || '—';
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
@@ -1371,14 +1546,22 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         >
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={rawDate ? String(rawDate) : undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{requestNumber ? formatInvoiceNumber(requestNumber) : '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{customerRequestNumber || '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={pickupDate || undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{cargoNumber ? formatInvoiceNumber(cargoNumber) : '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.4rem' }}>{sender || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{receiver || '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.4rem' }}>
+                                                <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>
+                                                    {route}
+                                                </span>
+                                            </td>
                                             {effectiveServiceMode && <td style={{ padding: '0.5rem 0.4rem' }}>{customer || '—'}</td>}
                                             {effectiveServiceMode && <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>}
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={effectiveServiceMode ? 6 : 4} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={effectiveServiceMode ? 10 : 8} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--color-border)' }}>
                                                         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(170px, 220px) 1fr', gap: '0.35rem 0.75rem', fontSize: '0.85rem' }}>
                                                             <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Заказчик:</Typography.Body>
@@ -1394,36 +1577,36 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                         </div>
                                                     </div>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
-                                                        {parcels.length === 0 ? (
+                                                        {parcelsToRender.length === 0 ? (
                                                             <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '0.5rem 0.25rem' }}>Нет данных по посылкам</Typography.Body>
                                                         ) : (
                                                             <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                                 <thead>
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Посылка</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Объем</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>ТМЦ</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>ИД отправления</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Кол-во</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Стоимость</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('parcel'); }} title="Сортировка">Посылка {ordersParcelsSortColumn === 'parcel' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('cargo'); }} title="Сортировка">Консолидация {ordersParcelsSortColumn === 'cargo' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('tmc'); }} title="Сортировка">ТМЦ {ordersParcelsSortColumn === 'tmc' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('consolidation'); }} title="Сортировка">Консолидация {ordersParcelsSortColumn === 'consolidation' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('count'); }} title="Сортировка">Кол-во {ordersParcelsSortColumn === 'count' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('cost'); }} title="Сортировка">Стоимость {ordersParcelsSortColumn === 'cost' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
-                                                                    {parcels.map((parcel: any, parcelIdx: number) => {
+                                                                    {sortedParcelsToRender.map((parcel: any, parcelIdx: number) => {
                                                                         const goodsRaw = parcel?.Товары;
                                                                         const goods = Array.isArray(goodsRaw)
                                                                             ? (goodsRaw[0] ?? {})
                                                                             : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : parcel);
                                                                         return (
-                                                                            <tr key={`${rowKey}-parcel-${parcel?.Посылка ?? parcelIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                            <tr
+                                                                                key={`${rowKey}-parcel-${parcel?.Посылка ?? parcelIdx}`}
+                                                                                style={{
+                                                                                    borderBottom: '1px solid var(--color-border)',
+                                                                                    background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
+                                                                                }}
+                                                                            >
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? parcel?.ИДОтправления ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.Перевозка ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ВесДляОтчета ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ПлатныйВес ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ОбъемДляОтчета ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{goods?.ИДОтправления ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
@@ -1474,6 +1657,10 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const comment = String(row?.Комментарий ?? row?.Comment ?? '');
                                 const rowKey = number || `${idx}`;
                                 const parcels = getRequestParcels(row);
+                                const searchLower = effectiveSearchText.trim().toLowerCase();
+                                const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
+                                const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
+                                const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
                                 const transportType = getSendingTransportType(vehicle);
                                 const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
@@ -1517,13 +1704,25 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                             </Button>
                                                             <Button
                                                                 className="filter-button"
-                                                                style={{ padding: '0.35rem 0.6rem', minWidth: 'auto', background: sendingsDetailsView === 'summary' ? 'var(--color-primary-blue, #2563eb)' : undefined, color: sendingsDetailsView === 'summary' ? '#fff' : undefined }}
-                                                                onClick={(e) => { e.stopPropagation(); setSendingsDetailsView('summary'); }}
+                                                                style={{ padding: '0.35rem 0.6rem', minWidth: 'auto', background: sendingsDetailsView === 'byCargo' ? 'var(--color-primary-blue, #2563eb)' : undefined, color: sendingsDetailsView === 'byCargo' ? '#fff' : undefined }}
+                                                                onClick={(e) => { e.stopPropagation(); setSendingsDetailsView('byCargo'); }}
                                                             >
-                                                                Сводный
+                                                                По перевозкам
+                                                            </Button>
+                                                            <Button
+                                                                className="filter-button"
+                                                                style={{ padding: '0.35rem 0.6rem', minWidth: 'auto', background: sendingsDetailsView === 'byCustomer' ? 'var(--color-primary-blue, #2563eb)' : undefined, color: sendingsDetailsView === 'byCustomer' ? '#fff' : undefined }}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSendingsDetailsView('byCustomer');
+                                                                    setSendingsSummarySortColumn('customer');
+                                                                    setSendingsSummarySortOrder('asc');
+                                                                }}
+                                                            >
+                                                                По заказчику
                                                             </Button>
                                                         </div>
-                                                        {parcels.length === 0 ? (
+                                                        {parcelsToRender.length === 0 ? (
                                                             <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '0.5rem 0.25rem' }}>Нет данных по посылкам</Typography.Body>
                                                         ) : sendingsDetailsView === 'general' ? (
                                                             <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
@@ -1532,7 +1731,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>№ пп</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Консолидация</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Посылка</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Консолидация</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Объем</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
@@ -1542,11 +1741,17 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
-                                                                    {parcels.map((parcel: any, parcelIdx: number) => {
+                                                                    {parcelsToRender.map((parcel: any, parcelIdx: number) => {
                                                                         const goodsRaw = parcel?.Товары;
                                                                         const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : {});
                                                                         return (
-                                                                            <tr key={`${rowKey}-parcel-${parcel?.Посылка ?? parcelIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                            <tr
+                                                                                key={`${rowKey}-parcel-${parcel?.Посылка ?? parcelIdx}`}
+                                                                                style={{
+                                                                                    borderBottom: '1px solid var(--color-border)',
+                                                                                    background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
+                                                                                }}
+                                                                            >
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{goods?.ИДОтправления ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? '—'}</td>
@@ -1562,12 +1767,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                     })}
                                                                 </tbody>
                                                             </table>
-                                                        ) : (
+                                                        ) : sendingsDetailsView === 'byCargo' ? (
                                                             <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                                 <thead>
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('index')} title="Сортировка">№ пп {sendingsSummarySortColumn === 'index' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('cargo')} title="Сортировка">Перевозка {sendingsSummarySortColumn === 'cargo' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('cargo')} title="Сортировка">Консолидация {sendingsSummarySortColumn === 'cargo' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('count')} title="Сортировка">Кол-во {sendingsSummarySortColumn === 'count' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('volume')} title="Сортировка">Объем {sendingsSummarySortColumn === 'volume' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -1588,7 +1793,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                             return fixed.replace(/\.?0+$/, '');
                                                                         };
                                                                         const byCargo = new Map<string, { cargo: string; count: number; volume: number; weight: number; paidWeight: number }>();
-                                                                        parcels.forEach((parcel: any) => {
+                                                                        parcelsToRender.forEach((parcel: any) => {
                                                                             const cargo = String(parcel?.Перевозка ?? '').trim() || '—';
                                                                             const prev = byCargo.get(cargo) ?? { cargo, count: 0, volume: 0, weight: 0, paidWeight: 0 };
                                                                             prev.count += 1;
@@ -1644,7 +1849,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                             <>
                                                                                 {sortedSummaryRows.map((summary, parcelIdx: number) => {
                                                                                     return (
-                                                                                        <tr key={`${rowKey}-summary-${summary.cargo}-${parcelIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                        <tr
+                                                                                            key={`${rowKey}-summary-${summary.cargo}-${parcelIdx}`}
+                                                                                            style={{
+                                                                                                borderBottom: '1px solid var(--color-border)',
+                                                                                                background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
+                                                                                            }}
+                                                                                        >
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>
                                                                                                 {summary.cargo && summary.cargo !== '—' ? (
@@ -1673,6 +1884,110 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.weight)}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.paidWeight)}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', fontWeight: 700 }}>—</td>
+                                                                                </tr>
+                                                                            </>
+                                                                        );
+                                                                    })()}
+                                                                </tbody>
+                                                            </table>
+                                                        ) : (
+                                                            <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                                <thead>
+                                                                    <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('index')} title="Сортировка">№ пп {sendingsSummarySortColumn === 'index' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('customer')} title="Сортировка">Заказчик {sendingsSummarySortColumn === 'customer' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('count')} title="Сортировка">Кол-во {sendingsSummarySortColumn === 'count' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('volume')} title="Сортировка">Объем {sendingsSummarySortColumn === 'volume' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('paidWeight')} title="Сортировка">Платный вес {sendingsSummarySortColumn === 'paidWeight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {(() => {
+                                                                        const toNumber = (v: unknown) => {
+                                                                            const raw = String(v ?? '').trim().replace(',', '.');
+                                                                            const n = Number(raw);
+                                                                            return Number.isFinite(n) ? n : 0;
+                                                                        };
+                                                                        const formatNum = (n: number) => {
+                                                                            if (!Number.isFinite(n)) return '—';
+                                                                            const fixed = n.toFixed(3);
+                                                                            return fixed.replace(/\.?0+$/, '');
+                                                                        };
+                                                                        const rowDefaultCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '').trim() || '—';
+                                                                        const byCustomer = new Map<string, { customer: string; count: number; volume: number; weight: number; paidWeight: number }>();
+                                                                        parcelsToRender.forEach((parcel: any) => {
+                                                                            const cargo = String(parcel?.Перевозка ?? '').trim();
+                                                                            const customerFromParcel = String(parcel?.ЗаказчикНаименование ?? parcel?.Заказчик ?? parcel?.Customer ?? parcel?.customer ?? '').trim();
+                                                                            const customerFromCargo = cargo ? String(cargoCustomerByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
+                                                                            const customer = customerFromParcel || customerFromCargo || rowDefaultCustomer;
+                                                                            const prev = byCustomer.get(customer) ?? { customer, count: 0, volume: 0, weight: 0, paidWeight: 0 };
+                                                                            prev.count += 1;
+                                                                            prev.volume += toNumber(parcel?.ОбъемДляОтчета);
+                                                                            prev.weight += toNumber(parcel?.ВесДляОтчета);
+                                                                            prev.paidWeight += toNumber(parcel?.ПлатныйВес);
+                                                                            byCustomer.set(customer, prev);
+                                                                        });
+                                                                        const summaryRows = Array.from(byCustomer.values()).map((summary, index) => ({ ...summary, _index: index + 1 }));
+                                                                        const sortedSummaryRows = [...summaryRows].sort((a, b) => {
+                                                                            let cmp = 0;
+                                                                            switch (sendingsSummarySortColumn) {
+                                                                                case 'index':
+                                                                                    cmp = a._index - b._index;
+                                                                                    break;
+                                                                                case 'count':
+                                                                                    cmp = a.count - b.count;
+                                                                                    break;
+                                                                                case 'volume':
+                                                                                    cmp = a.volume - b.volume;
+                                                                                    break;
+                                                                                case 'weight':
+                                                                                    cmp = a.weight - b.weight;
+                                                                                    break;
+                                                                                case 'paidWeight':
+                                                                                    cmp = a.paidWeight - b.paidWeight;
+                                                                                    break;
+                                                                                case 'cargo':
+                                                                                case 'customer':
+                                                                                    cmp = String(a.customer || '').localeCompare(String(b.customer || ''));
+                                                                                    break;
+                                                                            }
+                                                                            return sendingsSummarySortOrder === 'asc' ? cmp : -cmp;
+                                                                        });
+                                                                        const totals = summaryRows.reduce(
+                                                                            (acc, s) => {
+                                                                                acc.count += s.count;
+                                                                                acc.volume += s.volume;
+                                                                                acc.weight += s.weight;
+                                                                                acc.paidWeight += s.paidWeight;
+                                                                                return acc;
+                                                                            },
+                                                                            { count: 0, volume: 0, weight: 0, paidWeight: 0 }
+                                                                        );
+                                                                        return (
+                                                                            <>
+                                                                                {sortedSummaryRows.map((summary, parcelIdx: number) => (
+                                                                                    <tr
+                                                                                        key={`${rowKey}-summary-customer-${summary.customer}-${parcelIdx}`}
+                                                                                        style={{
+                                                                                            borderBottom: '1px solid var(--color-border)',
+                                                                                            background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
+                                                                                        }}
+                                                                                    >
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{summary.customer || '—'}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.volume)}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
+                                                                                    </tr>
+                                                                                ))}
+                                                                                <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 700 }} colSpan={2}>Итого</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{totals.count}</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.volume)}</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.weight)}</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.paidWeight)}</td>
                                                                                 </tr>
                                                                             </>
                                                                         );

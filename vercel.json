@@ -1,7 +1,7 @@
 {
   "crons": [
     {"path": "/api/cron/refresh-cache", "schedule": "*/5 * * * *"},
-    {"path": "/api/cron/refresh-orders-cache", "schedule": "*/5 * * * *"},
+    {"path": "/api/cron/refresh-orders-cache", "schedule": "*/15 * * * *"},
     {"path": "/api/notification-daily-summary", "schedule": "0 10 * * *"}
   ],
   "functions": {
