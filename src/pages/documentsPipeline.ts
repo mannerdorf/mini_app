@@ -5,9 +5,20 @@ import type { StatusFilter } from "../types";
 export const INVOICE_FAVORITES_VALUE = "__favorites__";
 
 function normalizeTransportName(value: unknown): string {
-  const s = String(value ?? "").trim();
+  const s = String(value ?? "").toUpperCase().trim();
   if (!s) return "";
-  return s
+  const normalizedSpaces = s.replace(/\s+/g, " ");
+  const container = normalizedSpaces.match(/([A-ZА-Я]{4})\s*([0-9]{7})$/u);
+  if (container) return `${container[1]} ${container[2]}`;
+  const vehicle = normalizedSpaces.match(/([A-ZА-Я][0-9]{3}[A-ZА-Я]{2})(\s*\/?\s*([0-9]{2,3}))?$/u);
+  if (vehicle) {
+    const base = vehicle[1];
+    const region = vehicle[3] ?? "";
+    if (!region) return base;
+    const rawTail = vehicle[2] ?? "";
+    return rawTail.includes("/") ? `${base}/${region}` : `${base}${region}`;
+  }
+  return normalizedSpaces
     .replace(/\bнаименование\s*тс\b[:\-]?\s*/giu, "")
     .replace(/\bконтейнер\b[:\-]?\s*/giu, "")
     .replace(/\s{2,}/g, " ")
@@ -26,6 +37,8 @@ function getItemInn(item: any): string {
     item?.INN ??
       item?.Inn ??
       item?.inn ??
+      item?.ЗаказчикИНН ??
+      item?.ПолучательИНН ??
       item?.CustomerINN ??
       item?.CustomerInn ??
       item?.customerInn ??
@@ -342,7 +355,7 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
     res = res.filter((i) => getItemInn(i) === normalizedActiveInn);
   }
   if (customerFilter) {
-    res = res.filter((i) => ((i.Customer ?? i.customer ?? i.Заказчик ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);
+    res = res.filter((i) => ((i.Customer ?? i.customer ?? i.ЗаказчикНаименование ?? i.Заказчик ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);
   }
   if (typeFilter === "ferry") res = res.filter((i) => i?.AK === true || i?.AK === "true" || i?.AK === "1" || i?.AK === 1);
   if (typeFilter === "auto") res = res.filter((i) => !(i?.AK === true || i?.AK === "true" || i?.AK === "1" || i?.AK === 1));
@@ -352,7 +365,12 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
     res = res.filter((i) => deliveryStatusFilterSet.has(getFilterKeyByStatus(i.State)));
   }
   if (routeFilterCargo !== "all") {
-    res = res.filter((i) => ([cityToCode(i.CitySender), cityToCode(i.CityReceiver)].filter(Boolean).join(" – ") || "") === routeFilterCargo);
+    res = res.filter((i) => {
+      const from = cityToCode(i.CitySender ?? i.ПунктОтправленияГородАэропорт ?? i.ГородОтправления);
+      const to = cityToCode(i.CityReceiver ?? i.ПунктНазначенияГородАэропорт ?? i.ГородНазначения);
+      const route = [from, to].filter(Boolean).join(" – ") || "";
+      return route === routeFilterCargo;
+    });
   }
   if (transportFilter) {
     res = res.filter((i) => normalizeTransportName(i.AutoReg ?? i.autoReg ?? i.АвтомобильCMRНаименование ?? "") === transportFilter);
