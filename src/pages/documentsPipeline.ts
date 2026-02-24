@@ -382,8 +382,11 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
   const normalizedActiveInn = normalizeInn(activeInn);
   if (!useServiceRequest && normalizedActiveInn) {
     res = res.filter((i) => {
-      const orderInn = normalizeInn(i?.ЗаказчикИНН ?? i?.CustomerINN ?? i?.CustomerInn ?? i?.customerInn ?? i?.INNCustomer ?? i?.InnCustomer);
-      return (orderInn || getItemInn(i)) === normalizedActiveInn;
+      const customerInn = normalizeInn(i?.ЗаказчикИНН ?? i?.CustomerINN ?? i?.CustomerInn ?? i?.customerInn ?? i?.INNCustomer ?? i?.InnCustomer);
+      const receiverInn = normalizeInn(i?.ПолучательИНН ?? i?.ReceiverINN ?? i?.ReceiverInn ?? i?.INNReceiver ?? i?.InnReceiver);
+      const senderInn = normalizeInn(i?.ОтправительИНН ?? i?.SenderINN ?? i?.SenderInn ?? i?.INNSender ?? i?.InnSender);
+      const fallbackInn = getItemInn(i);
+      return [customerInn, receiverInn, senderInn, fallbackInn].some((inn) => inn === normalizedActiveInn);
     });
   }
   if (customerFilter) {
