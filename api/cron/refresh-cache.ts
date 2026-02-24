@@ -30,6 +30,34 @@ function getStr(el: any, ...keys: string[]): string {
   return "";
 }
 
+function extractArrayFromAnyPayload(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== "object") return [];
+  const obj = raw as Record<string, unknown>;
+  const known = [
+    obj.items,
+    obj.Items,
+    obj.zayavki,
+    obj.Zayavki,
+    obj.otpravki,
+    obj.Otpravki,
+    obj.data,
+    obj.Data,
+    obj.result,
+    obj.Result,
+    obj.rows,
+    obj.Rows,
+  ];
+  for (const candidate of known) {
+    if (Array.isArray(candidate)) return candidate;
+  }
+  // Fallback: first array-like field in payload.
+  for (const value of Object.values(obj)) {
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
+
 function normalizeCacheCustomers(raw: unknown): { inn: string; customer_name: string; email: string }[] {
   const arr = extractCustomerArray(raw);
   const byInn = new Map<string, { inn: string; customer_name: string; email: string }>();
@@ -136,10 +164,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         try {
           const json = JSON.parse(ordersText);
           if (json && typeof json === "object" && json.Success !== false) {
-            const list = Array.isArray(json)
-              ? json
-              : (json.items ?? json.Items ?? json.zayavki ?? json.Zayavki ?? json.data ?? json.Data ?? []);
-            ordersList = Array.isArray(list) ? list : [];
+            ordersList = extractArrayFromAnyPayload(json);
           }
         } catch {
           // ignore
@@ -177,10 +202,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         try {
           const json = JSON.parse(sendingsText);
           if (json && typeof json === "object" && json.Success !== false) {
-            const list = Array.isArray(json)
-              ? json
-              : (json.items ?? json.Items ?? json.otpravki ?? json.Otpravki ?? json.data ?? json.Data ?? []);
-            sendingsList = Array.isArray(list) ? list : [];
+            sendingsList = extractArrayFromAnyPayload(json);
           }
         } catch {
           // ignore

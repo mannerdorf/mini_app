@@ -31,14 +31,21 @@ function orderInn(item: any): string {
     "INNCustomer",
     "InnCustomer",
     "КонтрагентИНН",
+    "ИНН",
+    "ИННЗаказчика",
+    "INN_CUSTOMER",
   ]);
 }
 
 function extractItems(raw: any): any[] {
   if (Array.isArray(raw)) return raw;
   if (!raw || typeof raw !== "object") return [];
-  const list = raw.items ?? raw.Items ?? raw.zayavki ?? raw.Zayavki ?? raw.data ?? raw.Data ?? [];
-  return Array.isArray(list) ? list : [];
+  const list = raw.items ?? raw.Items ?? raw.zayavki ?? raw.Zayavki ?? raw.data ?? raw.Data ?? raw.result ?? raw.Result ?? raw.rows ?? raw.Rows ?? [];
+  if (Array.isArray(list)) return list;
+  for (const value of Object.values(raw)) {
+    if (Array.isArray(value)) return value;
+  }
+  return [];
 }
 
 function normalizeDateOnly(raw: unknown): string {
@@ -55,7 +62,7 @@ function normalizeDateOnly(raw: unknown): string {
 }
 
 function orderDate(item: any): string {
-  const d = item?.DateZayavki ?? item?.DateDoc ?? item?.Date ?? item?.date ?? "";
+  const d = item?.DateZayavki ?? item?.DateRequest ?? item?.DateDoc ?? item?.Date ?? item?.date ?? item?.ДатаЗаявки ?? item?.Дата ?? "";
   return normalizeDateOnly(d);
 }
 
@@ -137,9 +144,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!finalInns.has(itemInnVal)) return false;
           }
           const d = orderDate(item);
-          return d >= dateFrom && d <= dateTo;
+          return !d || (d >= dateFrom && d <= dateTo);
         });
-        return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+        if (filtered.length > 0) return res.status(200).json(filtered);
       }
       return res.status(200).json([]);
     } catch (e) {
@@ -182,10 +189,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!finalInns.has(itemInnVal)) return false;
         }
         const d = orderDate(item);
-        return d >= dateFrom && d <= dateTo;
+        return !d || (d >= dateFrom && d <= dateTo);
       });
-      if (isService || (finalInns && finalInns.size > 0)) {
-        return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+      if ((isService || (finalInns && finalInns.size > 0)) && filtered.length > 0) {
+        return res.status(200).json(filtered);
       }
     }
   } catch {

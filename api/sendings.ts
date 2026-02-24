@@ -29,6 +29,9 @@ function pickInn(item: any): string {
     item?.INNSender,
     item?.SenderInn,
     item?.senderInn,
+    item?.ИННОтправителя,
+    item?.ИННОтправитель,
+    item?.INN_SENDER,
     item?.INN,
     item?.Inn,
     item?.inn,
@@ -44,9 +47,13 @@ function pickDate(item: any): string {
   const dateValue =
     item?.DateOtpr ??
     item?.DateSend ??
+    item?.DateShipment ??
+    item?.ShipmentDate ??
     item?.DateDoc ??
     item?.Date ??
     item?.date ??
+    item?.ДатаОтправки ??
+    item?.Дата ??
     item?.DatePrih ??
     item?.DateVr ??
     "";
@@ -62,6 +69,13 @@ function extractItems(raw: any): any[] {
   if (Array.isArray(raw.Otpravki)) return raw.Otpravki;
   if (Array.isArray(raw.data)) return raw.data;
   if (Array.isArray(raw.Data)) return raw.Data;
+  if (Array.isArray(raw.result)) return raw.result;
+  if (Array.isArray(raw.Result)) return raw.Result;
+  if (Array.isArray(raw.rows)) return raw.rows;
+  if (Array.isArray(raw.Rows)) return raw.Rows;
+  for (const value of Object.values(raw)) {
+    if (Array.isArray(value)) return value;
+  }
   return [];
 }
 
@@ -106,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!finalInns.has(itemInn)) return false;
       }
       const d = pickDate(item);
-      return d >= dateFrom && d <= dateTo;
+      return !d || (d >= dateFrom && d <= dateTo);
     });
 
   if (isRegisteredUser) {
@@ -181,8 +195,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           : allowed;
       }
       const list = Array.isArray(cacheRow.rows[0].data) ? (cacheRow.rows[0].data as any[]) : [];
-      if (isService || (finalInns && finalInns.size > 0)) {
-        return res.status(200).json(filterCachedItems(list, finalInns));
+      const filtered = filterCachedItems(list, finalInns);
+      if ((isService || (finalInns && finalInns.size > 0)) && filtered.length > 0) {
+        return res.status(200).json(filtered);
       }
     }
   } catch {
