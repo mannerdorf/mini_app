@@ -8,6 +8,8 @@ import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
  */
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetZayavki";
+const GETAPI_URL =
+  "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const CACHE_FRESH_MINUTES = 15;
@@ -199,46 +201,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // БД недоступна/кэш пустой — идем в 1С
   }
 
-  const url = new URL(BASE_URL);
-  url.searchParams.set("DateB", dateFrom);
-  url.searchParams.set("DateE", dateTo);
-  if (!serviceMode) {
-    if (inn && String(inn).trim()) url.searchParams.set("INN", String(inn).trim());
-  }
+  const buildUpstreamUrls = () => {
+    const direct = new URL(BASE_URL);
+    direct.searchParams.set("DateB", dateFrom);
+    direct.searchParams.set("DateE", dateTo);
+    if (!serviceMode && inn && String(inn).trim()) direct.searchParams.set("INN", String(inn).trim());
 
-  try {
-    const upstream = await fetch(url.toString(), {
+    const api = new URL(GETAPI_URL);
+    api.searchParams.set("metod", "GetZayavki");
+    api.searchParams.set("DateB", dateFrom);
+    api.searchParams.set("DateE", dateTo);
+    if (!serviceMode && inn && String(inn).trim()) api.searchParams.set("INN", String(inn).trim());
+
+    return [direct.toString(), api.toString()];
+  };
+
+  const fetchFromUpstream = async (url: string) => {
+    const upstream = await fetch(url, {
       method: "GET",
       headers: {
         Auth: `Basic ${login}:${password}`,
         Authorization: SERVICE_AUTH,
       },
     });
-
     const text = await upstream.text();
-    if (!upstream.ok) {
+    return { upstream, text };
+  };
+
+  try {
+    let lastError: { status: number; payload: any } | null = null;
+    const urls = buildUpstreamUrls();
+    for (const upstreamUrl of urls) {
+      const { upstream, text } = await fetchFromUpstream(upstreamUrl);
+      if (!upstream.ok) {
+        try {
+          const errJson = JSON.parse(text) as Record<string, unknown>;
+          const message = (errJson?.Error ?? errJson?.error ?? errJson?.message) as string | undefined;
+          const errorText = typeof message === "string" && message.trim() ? message.trim() : text || upstream.statusText;
+          lastError = { status: upstream.status, payload: { error: errorText } };
+        } catch {
+          lastError = { status: upstream.status, payload: text || upstream.statusText };
+        }
+        continue;
+      }
+
       try {
-        const errJson = JSON.parse(text) as Record<string, unknown>;
-        const message = (errJson?.Error ?? errJson?.error ?? errJson?.message) as string | undefined;
-        const errorText = typeof message === "string" && message.trim() ? message.trim() : text || upstream.statusText;
-        return res.status(upstream.status).json({ error: errorText });
+        const json = JSON.parse(text);
+        if (json && typeof json === "object" && json.Success === false) {
+          const message = (json.Error ?? json.error ?? json.message) as string | undefined;
+          const errorText = typeof message === "string" && message.trim() ? message.trim() : "Ошибка авторизации";
+          lastError = { status: 401, payload: { error: errorText } };
+          continue;
+        }
+        const list = extractItems(json);
+        if (Array.isArray(list) && list.length > 0) {
+          return res.status(200).json(list);
+        }
       } catch {
-        return res.status(upstream.status).send(text || upstream.statusText);
+        if (text.trim()) return res.status(200).send(text);
       }
     }
 
-    try {
-      const json = JSON.parse(text);
-      if (json && typeof json === "object" && json.Success === false) {
-        const message = (json.Error ?? json.error ?? json.message) as string | undefined;
-        const errorText = typeof message === "string" && message.trim() ? message.trim() : "Ошибка авторизации";
-        return res.status(401).json({ error: errorText });
-      }
-      const list = extractItems(json);
-      return res.status(200).json(Array.isArray(list) ? list : []);
-    } catch {
-      return res.status(200).send(text);
+    if (lastError) {
+      if (typeof lastError.payload === "string") return res.status(lastError.status).send(lastError.payload);
+      return res.status(lastError.status).json(lastError.payload);
     }
+    return res.status(200).json([]);
   } catch (e: any) {
     console.error("Orders proxy error:", e);
     return res.status(500).json({ error: "Proxy error", details: e?.message || String(e) });

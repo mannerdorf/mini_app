@@ -151,6 +151,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return json;
   };
+  const fetchOrdersWithFallback = async () => {
+    const errors: string[] = [];
+
+    try {
+      const directJson = await fetchServiceJson(`${ZAYAVKI_URL}?DateB=${dateFrom}&DateE=${dateTo}`);
+      const directList = extractArrayFromAnyPayload(directJson);
+      if (directList.length > 0) return { list: directList, source: "GetZayavki" };
+      errors.push("GetZayavki returned 0");
+    } catch (e: any) {
+      errors.push(`GetZayavki: ${e?.message || String(e)}`);
+    }
+
+    try {
+      const apiJson = await fetchServiceJson(`${GETAPI_URL}?metod=GetZayavki&DateB=${dateFrom}&DateE=${dateTo}`);
+      const apiList = extractArrayFromAnyPayload(apiJson);
+      if (apiList.length > 0) return { list: apiList, source: "GETAPI?metod=GetZayavki" };
+      errors.push("GETAPI GetZayavki returned 0");
+    } catch (e: any) {
+      errors.push(`GETAPI GetZayavki: ${e?.message || String(e)}`);
+    }
+
+    return { list: [] as unknown[], source: errors.join(" | ") || "orders fallback exhausted" };
+  };
 
   let perevozkiList: unknown[] = [];
   let ordersList: unknown[] = [];
@@ -188,10 +211,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const json = await fetchServiceJson(`${ZAYAVKI_URL}?DateB=${dateFrom}&DateE=${dateTo}`);
-    ordersList = extractArrayFromAnyPayload(json);
+    const { list, source } = await fetchOrdersWithFallback();
+    ordersList = list;
     await pool.query("update cache_orders set data = $1, fetched_at = now() where id = 1", [JSON.stringify(ordersList)]);
-    markStep("orders", true, ordersList.length);
+    markStep("orders", true, ordersList.length, source);
   } catch (e: any) {
     console.error("refresh-cache orders error:", e?.message || e);
     markStep("orders", false, 0, e?.message || String(e));
