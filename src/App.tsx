@@ -5351,7 +5351,7 @@ function ProfilePage({
                                                     : `База: ${baseShiftRate.toLocaleString('ru-RU')} ₽`)
                                                 : `База за день: ${(baseShiftRate / WORK_DAYS_IN_MONTH).toLocaleString('ru-RU')} ₽`;
                                             return (
-                                                <td key={key} style={{ borderBottom: '1px solid var(--color-border)', padding: shiftMark === "Я" && isPaidDate ? '0.2rem 0.2rem 0.72rem 0.2rem' : '0.2rem' }}>
+                                                <td key={key} style={{ borderBottom: '1px solid var(--color-border)', padding: isPaidDate ? '0.2rem 0.2rem 0.72rem 0.2rem' : '0.2rem' }}>
                                                     {isMarkAccrual ? (
                                                         <div style={{ display: 'grid', justifyItems: 'center', rowGap: '0.12rem' }}>
                                                             <button
@@ -5451,7 +5451,7 @@ function ProfilePage({
                                                                 title={isPaidDate ? `Этот день уже оплачен. ${shiftRateHint}` : (shiftMark ? `Статус: ${shiftMark}. ${shiftRateHint}` : `Нажмите для Я, удерживайте для выбора. ${shiftRateHint}`)}
                                                             >
                                                                 {shiftMark || '○'}
-                                                                {shiftMark === "Я" && isPaidDate ? (
+                                                                {isPaidDate ? (
                                                                     <span
                                                                         style={{
                                                                             position: 'absolute',
@@ -5596,6 +5596,8 @@ function ProfilePage({
                                                                     appearance: 'none',
                                                                     display: 'block',
                                                                     margin: '0 auto',
+                                                                    position: 'relative',
+                                                                    overflow: 'visible',
                                                                     cursor: departmentTimesheetIsEditableMonth && !isPaidDate ? 'pointer' : 'default',
                                                                     opacity: departmentTimesheetIsEditableMonth && !isPaidDate ? 1 : 0.85,
                                                                 }}
@@ -5603,6 +5605,27 @@ function ProfilePage({
                                                                 title={isPaidDate ? 'Этот день уже оплачен' : (hourlyMark ? `Статус: ${hourlyMark}` : 'Сначала отметьте статус')}
                                                             >
                                                                 {hourlyMark || 'В'}
+                                                                {isPaidDate ? (
+                                                                    <span
+                                                                        style={{
+                                                                            position: 'absolute',
+                                                                            left: '50%',
+                                                                            bottom: '-0.68rem',
+                                                                            transform: 'translateX(-50%)',
+                                                                            fontSize: '0.58rem',
+                                                                            fontWeight: 700,
+                                                                            lineHeight: 1,
+                                                                            padding: '0.07rem 0.22rem',
+                                                                            borderRadius: 999,
+                                                                            border: '1px solid #15803d',
+                                                                            color: '#15803d',
+                                                                            background: '#dcfce7',
+                                                                            whiteSpace: 'nowrap',
+                                                                        }}
+                                                                    >
+                                                                        опл
+                                                                    </span>
+                                                                ) : null}
                                                             </button>
                                                             {departmentTimesheetMobilePicker ? (
                                                                 <select

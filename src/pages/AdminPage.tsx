@@ -4818,7 +4818,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                           void saveTimesheetPaymentMark(emp.id, d.iso, nextPaid);
                                         }}
                                         style={{
-                                          padding: shiftMark === "Я" && isPaidDate ? "0.2rem 0.2rem 0.72rem 0.2rem" : "0.2rem",
+                                          padding: isPaidDate ? "0.2rem 0.2rem 0.72rem 0.2rem" : "0.2rem",
                                           borderBottom: "1px solid var(--color-border)",
                                           background: isMarkedForPayment ? "#fff7d6" : (d.isWeekend ? "var(--color-bg-hover)" : "transparent"),
                                           boxShadow: isMarkedForPayment ? "inset 0 0 0 1px #f59e0b" : (isPaidDate ? "inset 0 0 0 1px #16a34a" : undefined),
@@ -4909,7 +4909,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                               aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : "Нажмите для Я, удерживайте для выбора статуса"}
                                             >
                                               {shiftMark || "○"}
-                                              {shiftMark === "Я" && isPaidDate ? (
+                                              {isPaidDate ? (
                                                 <span
                                                   style={{
                                                     position: "absolute",
@@ -5001,12 +5001,35 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                 fontSize: hourlyMark ? "0.82rem" : "1rem",
                                                 WebkitAppearance: "none",
                                                 appearance: "none",
+                                                position: "relative",
+                                                overflow: "visible",
                                                 cursor: isPayoutExpanded || isPaidDate ? "default" : "pointer",
                                                 opacity: isPayoutExpanded || isPaidDate ? 0.9 : 1,
                                               }}
                                               aria-label={hourlyMark ? `Статус ${hourlyMark}. Нажмите для Я/В, удерживайте для выбора` : "Нажмите для Я, удерживайте для выбора статуса"}
                                             >
                                               {hourlyMark || "В"}
+                                              {isPaidDate ? (
+                                                <span
+                                                  style={{
+                                                    position: "absolute",
+                                                    left: "50%",
+                                                    bottom: "-0.68rem",
+                                                    transform: "translateX(-50%)",
+                                                    fontSize: "0.58rem",
+                                                    fontWeight: 700,
+                                                    lineHeight: 1,
+                                                    padding: "0.07rem 0.22rem",
+                                                    borderRadius: 999,
+                                                    border: "1px solid #15803d",
+                                                    color: "#15803d",
+                                                    background: "#dcfce7",
+                                                    whiteSpace: "nowrap",
+                                                  }}
+                                                >
+                                                  опл
+                                                </span>
+                                              ) : null}
                                             </button>
                                             {timesheetMobilePicker ? (
                                               <select
