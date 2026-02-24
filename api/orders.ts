@@ -3,11 +3,11 @@ import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 
 /**
- * Прокси для GETAPI?metod=GetZayavki в разделе "Заявки".
+ * Прокси для GetZayavki в разделе "Заявки".
  * Использует отдельный кэш cache_orders (обновляется кроном раз в 15 минут).
  */
 const BASE_URL =
-  "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
+  "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetZayavki";
 
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const CACHE_FRESH_MINUTES = 15;
@@ -200,7 +200,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const url = new URL(BASE_URL);
-  url.searchParams.set("metod", "GetZayavki");
   url.searchParams.set("DateB", dateFrom);
   url.searchParams.set("DateE", dateTo);
   if (!serviceMode) {

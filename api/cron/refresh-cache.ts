@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
+const ZAYAVKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetZayavki";
 const INVOICES_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices";
 const ACTS_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetActs";
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -56,6 +57,15 @@ function extractArrayFromAnyPayload(raw: unknown): unknown[] {
     if (Array.isArray(value)) return value;
   }
   return [];
+}
+
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function normalizeCacheCustomers(raw: unknown): { inn: string; customer_name: string; email: string }[] {
@@ -115,69 +125,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>БД недоступна</title></head><body style="font-family:sans-serif;padding:2rem;"><h1 style="color:#c00;">БД недоступна</h1><p>${String(msg).replace(/</g, "&lt;")}</p><p>Проверьте DATABASE_URL в Vercel.</p></body></html>`);
   }
 
-  try {
-    // 1) Запрос перевозок за весь период (без INN — все данные сервисного аккаунта)
-    const perevozkiUrl = `${PEREVOZKI_URL}?DateB=${dateFrom}&DateE=${dateTo}`;
-    const perevozkiRes = await fetch(perevozkiUrl, {
+  const stepStatuses: Array<{ name: string; ok: boolean; count?: number; detail?: string }> = [];
+  const markStep = (name: string, ok: boolean, count?: number, detail?: string) => {
+    stepStatuses.push({ name, ok, count, detail });
+  };
+  const fetchServiceJson = async (url: string) => {
+    const response = await fetch(url, {
       method: "GET",
       headers: {
         Auth: `Basic ${login}:${password}`,
         Authorization: SERVICE_AUTH,
       },
     });
-    const perevozkiText = await perevozkiRes.text();
-    let perevozkiList: unknown[] = [];
-    if (perevozkiRes.ok) {
-      try {
-        const json = JSON.parse(perevozkiText);
-        if (json && typeof json === "object" && json.Success !== false) {
-          perevozkiList = Array.isArray(json) ? json : json.items || [];
-        }
-      } catch {
-        // ignore
-      }
+    const text = await response.text();
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
+    let json: any;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error(`Invalid JSON: ${text.slice(0, 200)}`);
     }
+    if (json && typeof json === "object" && json.Success === false) {
+      const err = String(json.Error ?? json.error ?? json.message ?? "Success=false");
+      throw new Error(err);
+    }
+    return json;
+  };
 
-    await pool.query(
-      "update cache_perevozki set data = $1, fetched_at = now() where id = 1",
-      [JSON.stringify(perevozkiList)]
-    );
+  let perevozkiList: unknown[] = [];
+  let ordersList: unknown[] = [];
+  let sendingsList: unknown[] = [];
+  let invoicesList: unknown[] = [];
+  let actsList: unknown[] = [];
+  let customersCount = 0;
+
+  try {
     await pool.query(
       "create table if not exists cache_orders (id int primary key default 1 check (id = 1), data jsonb not null default '[]', fetched_at timestamptz not null default now())"
     );
     await pool.query(
       "insert into cache_orders (id, data, fetched_at) values (1, '[]', '1970-01-01') on conflict (id) do nothing"
-    );
-    // 1.0) Запрос заявок через GETAPI/GetZayavki
-    let ordersList: unknown[] = [];
-    try {
-      const ordersUrl = `${GETAPI_URL}?metod=GetZayavki&DateB=${dateFrom}&DateE=${dateTo}`;
-      const ordersRes = await fetch(ordersUrl, {
-        method: "GET",
-        headers: {
-          Auth: `Basic ${login}:${password}`,
-          Authorization: SERVICE_AUTH,
-        },
-      });
-      const ordersText = await ordersRes.text();
-      if (ordersRes.ok) {
-        try {
-          const json = JSON.parse(ordersText);
-          if (json && typeof json === "object" && json.Success !== false) {
-            ordersList = extractArrayFromAnyPayload(json);
-          }
-        } catch {
-          // ignore
-        }
-      } else {
-        console.warn("refresh-cache orders non-ok:", ordersRes.status, ordersText.slice(0, 200));
-      }
-    } catch (e: any) {
-      console.error("refresh-cache orders fetch error:", e?.message || e);
-    }
-    await pool.query(
-      "update cache_orders set data = $1, fetched_at = now() where id = 1",
-      [JSON.stringify(Array.isArray(ordersList) ? ordersList : [])]
     );
     await pool.query(
       "create table if not exists cache_sendings (id int primary key default 1 check (id = 1), data jsonb not null default '[]', fetched_at timestamptz not null default now())"
@@ -185,156 +172,94 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await pool.query(
       "insert into cache_sendings (id, data, fetched_at) values (1, '[]', '1970-01-01') on conflict (id) do nothing"
     );
-
-    // 1.1) Запрос отправок через GETAPI/Getotpravki
-    let sendingsList: unknown[] = [];
-    try {
-      const sendingsUrl = `${GETAPI_URL}?metod=Getotpravki&DateB=${dateFrom}&DateE=${dateTo}`;
-      const sendingsRes = await fetch(sendingsUrl, {
-        method: "GET",
-        headers: {
-          Auth: `Basic ${login}:${password}`,
-          Authorization: SERVICE_AUTH,
-        },
-      });
-      const sendingsText = await sendingsRes.text();
-      if (sendingsRes.ok) {
-        try {
-          const json = JSON.parse(sendingsText);
-          if (json && typeof json === "object" && json.Success !== false) {
-            sendingsList = extractArrayFromAnyPayload(json);
-          }
-        } catch {
-          // ignore
-        }
-      } else {
-        console.warn("refresh-cache sendings non-ok:", sendingsRes.status, sendingsText.slice(0, 200));
-      }
-    } catch (e: any) {
-      console.error("refresh-cache sendings fetch error:", e?.message || e);
-    }
-    await pool.query(
-      "update cache_sendings set data = $1, fetched_at = now() where id = 1",
-      [JSON.stringify(Array.isArray(sendingsList) ? sendingsList : [])]
-    );
-
-    // 2) Запрос счетов за весь период (отдельный try — при ошибке всё равно обновляем fetched_at)
-    let invoicesList: unknown[] = [];
-    try {
-      const invoicesUrl = `${INVOICES_URL}?DateB=${dateFrom}&DateE=${dateTo}`;
-      const invoicesRes = await fetch(invoicesUrl, {
-        method: "GET",
-        headers: {
-          Auth: `Basic ${login}:${password}`,
-          Authorization: SERVICE_AUTH,
-        },
-      });
-      const invoicesText = await invoicesRes.text();
-      if (invoicesRes.ok) {
-        try {
-          const json = JSON.parse(invoicesText);
-          if (json && typeof json === "object" && json.Success !== false) {
-            invoicesList = Array.isArray(json) ? json : json.items ?? json.Invoices ?? json.invoices ?? [];
-          }
-        } catch {
-          // ignore
-        }
-      } else {
-        console.warn("refresh-cache invoices non-ok:", invoicesRes.status, invoicesText.slice(0, 200));
-      }
-    } catch (e: any) {
-      console.error("refresh-cache invoices fetch error:", e?.message || e);
-    }
-    await pool.query(
-      "update cache_invoices set data = $1, fetched_at = now() where id = 1",
-      [JSON.stringify(Array.isArray(invoicesList) ? invoicesList : [])]
-    );
-
-    // 3) Запрос УПД за весь период
-    let actsList: unknown[] = [];
-    try {
-      const actsUrl = `${ACTS_URL}?DateB=${dateFrom}&DateE=${dateTo}`;
-      const actsRes = await fetch(actsUrl, {
-        method: "GET",
-        headers: {
-          Auth: `Basic ${login}:${password}`,
-          Authorization: SERVICE_AUTH,
-        },
-      });
-      const actsText = await actsRes.text();
-      if (actsRes.ok) {
-        try {
-          const json = JSON.parse(actsText);
-          if (json && typeof json === "object" && json.Success !== false) {
-            actsList = Array.isArray(json) ? json : json.items ?? json.Acts ?? json.acts ?? [];
-          }
-        } catch {
-          // ignore
-        }
-      } else {
-        console.warn("refresh-cache acts non-ok:", actsRes.status, actsText.slice(0, 200));
-      }
-    } catch (e: any) {
-      console.error("refresh-cache acts fetch error:", e?.message || e);
-    }
-    await pool.query(
-      "update cache_acts set data = $1, fetched_at = now() where id = 1",
-      [JSON.stringify(Array.isArray(actsList) ? actsList : [])]
-    );
-
-    // 4) Заказчики из Getcustomers (ИНН, Заказчик, email). Пакетная вставка в БД.
-    let customersCount = 0;
-    try {
-      const customersUrl = `${GETAPI_URL}?metod=Getcustomers`;
-      const customersRes = await fetch(customersUrl, {
-        method: "GET",
-        headers: {
-          Auth: `Basic ${login}:${password}`,
-          Authorization: SERVICE_AUTH,
-        },
-      });
-      const customersText = await customersRes.text();
-      if (customersRes.ok) {
-        try {
-          const json = JSON.parse(customersText);
-          const rows = json?.Success === false ? [] : normalizeCacheCustomers(json);
-          await pool.query("delete from cache_customers");
-          if (rows.length > 0) {
-            const inns = rows.map((r) => r.inn);
-            const names = rows.map((r) => r.customer_name);
-            const emails = rows.map((r) => r.email);
-            await pool.query(
-              `insert into cache_customers (inn, customer_name, email, fetched_at)
-               select inn, customer_name, email, now()
-               from unnest($1::text[], $2::text[], $3::text[]) as t(inn, customer_name, email)
-               on conflict (inn) do update set customer_name = excluded.customer_name, email = excluded.email, fetched_at = now()`,
-              [inns, names, emails]
-            );
-          }
-          customersCount = rows.length;
-        } catch {
-          // ignore
-        }
-      } else {
-        console.warn("refresh-cache Getcustomers non-ok:", customersRes.status, customersText.slice(0, 200));
-      }
-    } catch (e: any) {
-      console.error("refresh-cache Getcustomers fetch error:", e?.message || e);
-    }
-
-    const perevozkiCount = perevozkiList.length;
-    const sendingsCount = Array.isArray(sendingsList) ? sendingsList.length : 0;
-    const ordersCount = Array.isArray(ordersList) ? ordersList.length : 0;
-    const invoicesCount = Array.isArray(invoicesList) ? invoicesList.length : 0;
-    const actsCount = Array.isArray(actsList) ? actsList.length : 0;
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:40rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiCount}</strong></p><p>Заявок: <strong>${ordersCount}</strong></p><p>Отправок: <strong>${sendingsCount}</strong></p><p>Счетов: <strong>${invoicesCount}</strong></p><p>УПД: <strong>${actsCount}</strong></p><p>Заказчиков (Getcustomers): <strong>${customersCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p></body></html>`;
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(200).send(html);
+    markStep("tables", true);
   } catch (e: any) {
-    console.error("refresh-cache error:", e);
-    const msg = e?.message || String(e);
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ошибка</title></head><body style="font-family:sans-serif;padding:2rem;"><h1 style="color:#c00;">Ошибка обновления кэша</h1><p>${msg.replace(/</g, "&lt;")}</p></body></html>`;
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(500).send(html);
+    markStep("tables", false, undefined, e?.message || String(e));
   }
+
+  try {
+    const json = await fetchServiceJson(`${PEREVOZKI_URL}?DateB=${dateFrom}&DateE=${dateTo}`);
+    perevozkiList = Array.isArray(json) ? json : json.items || [];
+    await pool.query("update cache_perevozki set data = $1, fetched_at = now() where id = 1", [JSON.stringify(perevozkiList)]);
+    markStep("perevozki", true, perevozkiList.length);
+  } catch (e: any) {
+    console.error("refresh-cache perevozki error:", e?.message || e);
+    markStep("perevozki", false, 0, e?.message || String(e));
+  }
+
+  try {
+    const json = await fetchServiceJson(`${ZAYAVKI_URL}?DateB=${dateFrom}&DateE=${dateTo}`);
+    ordersList = extractArrayFromAnyPayload(json);
+    await pool.query("update cache_orders set data = $1, fetched_at = now() where id = 1", [JSON.stringify(ordersList)]);
+    markStep("orders", true, ordersList.length);
+  } catch (e: any) {
+    console.error("refresh-cache orders error:", e?.message || e);
+    markStep("orders", false, 0, e?.message || String(e));
+  }
+
+  try {
+    const json = await fetchServiceJson(`${GETAPI_URL}?metod=Getotpravki&DateB=${dateFrom}&DateE=${dateTo}`);
+    sendingsList = extractArrayFromAnyPayload(json);
+    await pool.query("update cache_sendings set data = $1, fetched_at = now() where id = 1", [JSON.stringify(sendingsList)]);
+    markStep("sendings", true, sendingsList.length);
+  } catch (e: any) {
+    console.error("refresh-cache sendings error:", e?.message || e);
+    markStep("sendings", false, 0, e?.message || String(e));
+  }
+
+  try {
+    const json = await fetchServiceJson(`${INVOICES_URL}?DateB=${dateFrom}&DateE=${dateTo}`);
+    invoicesList = Array.isArray(json) ? json : json.items ?? json.Invoices ?? json.invoices ?? [];
+    await pool.query("update cache_invoices set data = $1, fetched_at = now() where id = 1", [JSON.stringify(invoicesList)]);
+    markStep("invoices", true, invoicesList.length);
+  } catch (e: any) {
+    console.error("refresh-cache invoices error:", e?.message || e);
+    markStep("invoices", false, 0, e?.message || String(e));
+  }
+
+  try {
+    const json = await fetchServiceJson(`${ACTS_URL}?DateB=${dateFrom}&DateE=${dateTo}`);
+    actsList = Array.isArray(json) ? json : json.items ?? json.Acts ?? json.acts ?? [];
+    await pool.query("update cache_acts set data = $1, fetched_at = now() where id = 1", [JSON.stringify(actsList)]);
+    markStep("acts", true, actsList.length);
+  } catch (e: any) {
+    console.error("refresh-cache acts error:", e?.message || e);
+    markStep("acts", false, 0, e?.message || String(e));
+  }
+
+  try {
+    const json = await fetchServiceJson(`${GETAPI_URL}?metod=Getcustomers`);
+    const rows = normalizeCacheCustomers(json);
+    await pool.query("delete from cache_customers");
+    if (rows.length > 0) {
+      const inns = rows.map((r) => r.inn);
+      const names = rows.map((r) => r.customer_name);
+      const emails = rows.map((r) => r.email);
+      await pool.query(
+        `insert into cache_customers (inn, customer_name, email, fetched_at)
+         select inn, customer_name, email, now()
+         from unnest($1::text[], $2::text[], $3::text[]) as t(inn, customer_name, email)
+         on conflict (inn) do update set customer_name = excluded.customer_name, email = excluded.email, fetched_at = now()`,
+        [inns, names, emails]
+      );
+    }
+    customersCount = rows.length;
+    markStep("customers", true, customersCount);
+  } catch (e: any) {
+    console.error("refresh-cache customers error:", e?.message || e);
+    markStep("customers", false, 0, e?.message || String(e));
+  }
+
+  const stepsHtml = stepStatuses
+    .map((s) => {
+      const color = s.ok ? "#16a34a" : "#dc2626";
+      const countPart = typeof s.count === "number" ? `, count=${s.count}` : "";
+      const detailPart = s.detail ? ` — ${escapeHtml(s.detail)}` : "";
+      return `<li><span style="color:${color};font-weight:600;">${s.ok ? "OK" : "ERR"}</span> ${escapeHtml(s.name)}${countPart}${detailPart}</li>`;
+    })
+    .join("");
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:48rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiList.length}</strong></p><p>Заявок: <strong>${ordersList.length}</strong></p><p>Отправок: <strong>${sendingsList.length}</strong></p><p>Счетов: <strong>${invoicesList.length}</strong></p><p>УПД: <strong>${actsList.length}</strong></p><p>Заказчиков (Getcustomers): <strong>${customersCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p><h3 style="margin-top:1.5rem;">Диагностика шагов</h3><ul style="line-height:1.55;">${stepsHtml}</ul></body></html>`;
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.status(200).send(html);
 }

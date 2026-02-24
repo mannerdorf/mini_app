@@ -1,6 +1,6 @@
 {
   "crons": [
-    {"path": "/api/cron/refresh-cache", "schedule": "*/15 * * * *"},
+    {"path": "/api/cron/refresh-cache", "schedule": "*/3 * * * *"},
     {"path": "/api/notification-daily-summary", "schedule": "0 10 * * *"}
   ],
   "functions": {
