@@ -2,7 +2,6 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
-const ZAYAVKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetZayavki";
 const INVOICES_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices";
 const ACTS_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetActs";
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -151,44 +150,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return json;
   };
-  const fetchOrdersWithFallback = async () => {
-    const errors: string[] = [];
-
-    try {
-      const directJson = await fetchServiceJson(`${ZAYAVKI_URL}?DateB=${dateFrom}&DateE=${dateTo}`);
-      const directList = extractArrayFromAnyPayload(directJson);
-      if (directList.length > 0) return { list: directList, source: "GetZayavki" };
-      errors.push("GetZayavki returned 0");
-    } catch (e: any) {
-      errors.push(`GetZayavki: ${e?.message || String(e)}`);
-    }
-
-    try {
-      const apiJson = await fetchServiceJson(`${GETAPI_URL}?metod=GetZayavki&DateB=${dateFrom}&DateE=${dateTo}`);
-      const apiList = extractArrayFromAnyPayload(apiJson);
-      if (apiList.length > 0) return { list: apiList, source: "GETAPI?metod=GetZayavki" };
-      errors.push("GETAPI GetZayavki returned 0");
-    } catch (e: any) {
-      errors.push(`GETAPI GetZayavki: ${e?.message || String(e)}`);
-    }
-
-    return { list: [] as unknown[], source: errors.join(" | ") || "orders fallback exhausted" };
-  };
-
   let perevozkiList: unknown[] = [];
-  let ordersList: unknown[] = [];
   let sendingsList: unknown[] = [];
   let invoicesList: unknown[] = [];
   let actsList: unknown[] = [];
   let customersCount = 0;
 
   try {
-    await pool.query(
-      "create table if not exists cache_orders (id int primary key default 1 check (id = 1), data jsonb not null default '[]', fetched_at timestamptz not null default now())"
-    );
-    await pool.query(
-      "insert into cache_orders (id, data, fetched_at) values (1, '[]', '1970-01-01') on conflict (id) do nothing"
-    );
     await pool.query(
       "create table if not exists cache_sendings (id int primary key default 1 check (id = 1), data jsonb not null default '[]', fetched_at timestamptz not null default now())"
     );
@@ -208,16 +176,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (e: any) {
     console.error("refresh-cache perevozki error:", e?.message || e);
     markStep("perevozki", false, 0, e?.message || String(e));
-  }
-
-  try {
-    const { list, source } = await fetchOrdersWithFallback();
-    ordersList = list;
-    await pool.query("update cache_orders set data = $1, fetched_at = now() where id = 1", [JSON.stringify(ordersList)]);
-    markStep("orders", true, ordersList.length, source);
-  } catch (e: any) {
-    console.error("refresh-cache orders error:", e?.message || e);
-    markStep("orders", false, 0, e?.message || String(e));
   }
 
   try {
@@ -282,7 +240,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
     .join("");
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:48rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiList.length}</strong></p><p>Заявок: <strong>${ordersList.length}</strong></p><p>Отправок: <strong>${sendingsList.length}</strong></p><p>Счетов: <strong>${invoicesList.length}</strong></p><p>УПД: <strong>${actsList.length}</strong></p><p>Заказчиков (Getcustomers): <strong>${customersCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p><h3 style="margin-top:1.5rem;">Диагностика шагов</h3><ul style="line-height:1.55;">${stepsHtml}</ul></body></html>`;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:48rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiList.length}</strong></p><p>Отправок: <strong>${sendingsList.length}</strong></p><p>Счетов: <strong>${invoicesList.length}</strong></p><p>УПД: <strong>${actsList.length}</strong></p><p>Заказчиков (Getcustomers): <strong>${customersCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p><p style="color:#666;font-size:0.9rem;">Заявки обновляются отдельным кроном <code>/api/cron/refresh-orders-cache</code>.</p><h3 style="margin-top:1.5rem;">Диагностика шагов</h3><ul style="line-height:1.55;">${stepsHtml}</ul></body></html>`;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   return res.status(200).send(html);
 }

@@ -4,6 +4,16 @@ import type { StatusFilter } from "../types";
 
 export const INVOICE_FAVORITES_VALUE = "__favorites__";
 
+function normalizeTransportName(value: unknown): string {
+  const s = String(value ?? "").trim();
+  if (!s) return "";
+  return s
+    .replace(/\bнаименование\s*тс\b[:\-]?\s*/giu, "")
+    .replace(/\bконтейнер\b[:\-]?\s*/giu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function normalizeInn(value: unknown): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
@@ -215,7 +225,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   if (transportFilter) {
     res = res.filter((i) => {
       const cargoNum = getFirstCargoNumberFromInvoice(i);
-      const transport = cargoNum ? cargoTransportByNumber.get(normCargoKey(cargoNum)) : "";
+      const transport = cargoNum ? normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum))) : "";
       return transport === transportFilter;
     });
   }
@@ -288,7 +298,7 @@ export function buildFilteredActs(params: FilterActsParams) {
   if (transportFilter) {
     res = res.filter((a) => {
       const cargoNum = getFirstCargoNumberFromInvoice(a);
-      const transport = cargoNum ? cargoTransportByNumber.get(normCargoKey(cargoNum)) : "";
+      const transport = cargoNum ? normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum))) : "";
       return transport === transportFilter;
     });
   }
@@ -345,7 +355,7 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
     res = res.filter((i) => ([cityToCode(i.CitySender), cityToCode(i.CityReceiver)].filter(Boolean).join(" – ") || "") === routeFilterCargo);
   }
   if (transportFilter) {
-    res = res.filter((i) => String(i.AutoReg ?? i.autoReg ?? i.АвтомобильCMRНаименование ?? "").trim() === transportFilter);
+    res = res.filter((i) => normalizeTransportName(i.AutoReg ?? i.autoReg ?? i.АвтомобильCMRНаименование ?? "") === transportFilter);
   }
   if (searchText.trim()) {
     const lower = searchText.trim().toLowerCase();

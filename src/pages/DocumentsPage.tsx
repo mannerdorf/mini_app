@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { Calendar, ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2 } from "lucide-react";
+import { Calendar, ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
@@ -252,6 +252,43 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         () => buildCargoTransportByNumber(perevozkiItems || []),
         [perevozkiItems]
     );
+    const cargoTypeByNumber = useMemo(() => {
+        const m = new Map<string, 'ferry' | 'auto'>();
+        (perevozkiItems || []).forEach((c: any) => {
+            const raw = String(c?.Number ?? c?.number ?? '').replace(/^0000-/, '').trim();
+            if (!raw) return;
+            const key = normCargoKey(raw);
+            const ak = c?.AK === true || c?.AK === 'true' || c?.AK === '1' || c?.AK === 1;
+            const transitRaw = String(c?.TypeOfTransit ?? c?.TypeOfTranzit ?? c?.Транспорт ?? '').toLowerCase();
+            const isFerry = ak || transitRaw.includes('паром');
+            const type: 'ferry' | 'auto' = isFerry ? 'ferry' : 'auto';
+            m.set(key, type);
+            if (key !== raw) m.set(raw, type);
+        });
+        return m;
+    }, [perevozkiItems, normCargoKey]);
+    const normalizeTransportDisplay = useCallback((value: unknown): string => {
+        const s = String(value ?? '').trim();
+        if (!s) return '';
+        return s
+            .replace(/\bнаименование\s*тс\b[:\-]?\s*/giu, '')
+            .replace(/\bконтейнер\b[:\-]?\s*/giu, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+    }, []);
+    const cargoCustomerByNumber = useMemo(() => {
+        const m = new Map<string, string>();
+        (perevozkiItems || []).forEach((c: any) => {
+            const raw = String(c?.Number ?? c?.number ?? '').replace(/^0000-/, '').trim();
+            if (!raw) return;
+            const key = normCargoKey(raw);
+            const customer = String(c?.Customer ?? c?.customer ?? c?.Заказчик ?? c?.Контрагент ?? c?.Contractor ?? c?.Organization ?? '').trim();
+            if (!customer) return;
+            m.set(key, customer);
+            if (key !== raw) m.set(raw, customer);
+        });
+        return m;
+    }, [perevozkiItems, normCargoKey]);
 
     const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
     const uniqueOrderCustomers = useMemo(() => [...new Set((ordersItems || []).map((i: any) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [ordersItems]);
@@ -271,26 +308,27 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const uniqueTransportVehicles = useMemo(() => {
         const set = new Set<string>();
         cargoTransportByNumber.forEach((v) => {
-            if (v) set.add(v);
+            const normalized = normalizeTransportDisplay(v);
+            if (normalized) set.add(normalized);
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [cargoTransportByNumber]);
+    }, [cargoTransportByNumber, normalizeTransportDisplay]);
     const uniqueOrderTransportVehicles = useMemo(() => {
         const set = new Set<string>();
         (ordersItems || []).forEach((item: any) => {
-            const v = String(item?.AutoReg ?? item?.autoReg ?? '').trim();
+            const v = normalizeTransportDisplay(item?.АвтомобильCMRНаименование ?? item?.AutoReg ?? item?.autoReg ?? item?.AutoType ?? '');
             if (v) set.add(v);
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [ordersItems]);
+    }, [ordersItems, normalizeTransportDisplay]);
     const uniqueSendingTransportVehicles = useMemo(() => {
         const set = new Set<string>();
         (sendingsItems || []).forEach((item: any) => {
-            const v = String(item?.AutoReg ?? item?.autoReg ?? '').trim();
+            const v = normalizeTransportDisplay(item?.АвтомобильCMRНаименование ?? item?.AutoReg ?? item?.autoReg ?? item?.AutoType ?? '');
             if (v) set.add(v);
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [sendingsItems]);
+    }, [sendingsItems, normalizeTransportDisplay]);
 
     const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
         if (!invNum) return;
@@ -589,7 +627,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const sendingRowsSorted = useMemo(() => {
         const getDate = (row: any) => String(row?.Дата ?? row?.Date ?? row?.date ?? "");
         const getNumber = (row: any) => String(row?.Номер ?? row?.Number ?? row?.number ?? "");
-        const getVehicle = (row: any) => String(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
+        const getVehicle = (row: any) => normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
         const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
         return [...filteredSendings].sort((a, b) => {
             let cmp = 0;
@@ -609,7 +647,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             }
             return sendingsSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [filteredSendings, sendingsSortColumn, sendingsSortOrder]);
+    }, [filteredSendings, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay]);
     const handleSendingsSort = useCallback((column: 'date' | 'number' | 'vehicle' | 'comment') => {
         if (sendingsSortColumn === column) {
             setSendingsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -631,6 +669,20 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         }
         return [];
     }, []);
+    const getSendingTransportType = useCallback((parcels: any[]): 'ferry' | 'auto' | '' => {
+        if (!Array.isArray(parcels) || parcels.length === 0) return '';
+        const cargoNumbers = parcels
+            .map((p) => String(p?.Перевозка ?? '').trim())
+            .filter(Boolean)
+            .map((n) => normCargoKey(n));
+        if (cargoNumbers.length < 2) return '';
+        for (let i = 0; i + 1 < cargoNumbers.length; i += 2) {
+            const t1 = cargoTypeByNumber.get(cargoNumbers[i]);
+            const t2 = cargoTypeByNumber.get(cargoNumbers[i + 1]);
+            if (t1 && t2 && t1 === t2) return t1;
+        }
+        return '';
+    }, [cargoTypeByNumber, normCargoKey]);
 
     return (
         <div className="w-full">
@@ -1322,6 +1374,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('date')} title="Сортировка">Дата {sendingsSortColumn === 'date' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('number')} title="Сортировка">Номер {sendingsSortColumn === 'number' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center', fontWeight: 600 }}>Тип</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
@@ -1330,12 +1384,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             {sendingRowsSorted.map((row: any, idx: number) => {
                                 const rawDate = row?.Дата ?? row?.Date ?? row?.date ?? '';
                                 const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '');
-                                const vehicle = String(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
+                                const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
                                 const comment = String(row?.Комментарий ?? row?.Comment ?? '');
                                 const rowKey = number || `${idx}`;
                                 const parcels = getRequestParcels(row);
+                                const transportType = getSendingTransportType(parcels);
+                                const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
+                                const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
+                                const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const expanded = expandedSendingRow === rowKey;
-                                const sendingCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '');
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
@@ -1345,12 +1402,24 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         >
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={rawDate ? String(rawDate) : undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{number ? formatInvoiceNumber(number) : '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.4rem' }}>
+                                                <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>
+                                                    {route}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '0.5rem 0.4rem', textAlign: 'center' }}>
+                                                {transportType === 'ferry' ? (
+                                                    <Ship className="w-4 h-4" style={{ color: 'var(--color-primary-blue)', display: 'inline-block' }} title="Паром" />
+                                                ) : transportType === 'auto' ? (
+                                                    <Truck className="w-4 h-4" style={{ color: 'var(--color-text-secondary)', display: 'inline-block' }} title="Авто" />
+                                                ) : '—'}
+                                            </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={4} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={6} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button
@@ -1442,19 +1511,45 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                             prev.paidWeight += toNumber(parcel?.ПлатныйВес);
                                                                             byCargo.set(cargo, prev);
                                                                         });
-                                                                        return Array.from(byCargo.values()).map((summary, parcelIdx: number) => {
-                                                                        return (
-                                                                            <tr key={`${rowKey}-summary-${summary.cargo}-${parcelIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{summary.cargo}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.volume)}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem' }}>{sendingCustomer || '—'}</td>
-                                                                            </tr>
+                                                                        const summaryRows = Array.from(byCargo.values());
+                                                                        const totals = summaryRows.reduce(
+                                                                            (acc, s) => {
+                                                                                acc.count += s.count;
+                                                                                acc.volume += s.volume;
+                                                                                acc.weight += s.weight;
+                                                                                acc.paidWeight += s.paidWeight;
+                                                                                return acc;
+                                                                            },
+                                                                            { count: 0, volume: 0, weight: 0, paidWeight: 0 }
                                                                         );
-                                                                        });
+                                                                        return (
+                                                                            <>
+                                                                                {summaryRows.map((summary, parcelIdx: number) => {
+                                                                                    const cargoKey = normCargoKey(summary.cargo);
+                                                                                    const sendingCustomer = cargoCustomerByNumber.get(cargoKey)
+                                                                                        || String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '');
+                                                                                    return (
+                                                                                        <tr key={`${rowKey}-summary-${summary.cargo}-${parcelIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
+                                                                                            <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{summary.cargo}</td>
+                                                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
+                                                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.volume)}</td>
+                                                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
+                                                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
+                                                                                            <td style={{ padding: '0.35rem 0.3rem' }}>{sendingCustomer || '—'}</td>
+                                                                                        </tr>
+                                                                                    );
+                                                                                })}
+                                                                                <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 700 }} colSpan={2}>Итого</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{totals.count}</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.volume)}</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.weight)}</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.paidWeight)}</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', fontWeight: 700 }}>—</td>
+                                                                                </tr>
+                                                                            </>
+                                                                        );
                                                                     })()}
                                                                 </tbody>
                                                             </table>
