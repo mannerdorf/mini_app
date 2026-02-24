@@ -165,7 +165,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
     const [innerTableActSortColumn, setInnerTableActSortColumn] = useState<'number' | 'date' | 'invoice' | 'sum'>('date');
     const [innerTableActSortOrder, setInnerTableActSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'vehicle' | 'comment'>('date');
+    const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment'>('date');
     const [sendingsSortOrder, setSendingsSortOrder] = useState<'asc' | 'desc'>('desc');
     const [sendingsDetailsView, setSendingsDetailsView] = useState<'general' | 'byCargo' | 'byCustomer'>('general');
     const [sendingsSummarySortColumn, setSendingsSummarySortColumn] = useState<'index' | 'cargo' | 'status' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density'>('index');
@@ -296,6 +296,60 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             .replace(/\s{2,}/g, ' ')
             .trim();
     }, []);
+    const parseDateTimeValue = useCallback((value: unknown): Date | null => {
+        const source = String(value ?? '').trim();
+        if (!source) return null;
+        const iso = source.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2})(?::(\d{2}))?(?::(\d{2}))?)?/);
+        if (iso) {
+            const year = Number(iso[1]);
+            const month = Number(iso[2]) - 1;
+            const day = Number(iso[3]);
+            const hours = Number(iso[4] ?? 0);
+            const minutes = Number(iso[5] ?? 0);
+            const seconds = Number(iso[6] ?? 0);
+            const date = new Date(year, month, day, hours, minutes, seconds);
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+        const ru = source.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:[ ,T](\d{2})(?::(\d{2}))?(?::(\d{2}))?)?/);
+        if (ru) {
+            const day = Number(ru[1]);
+            const month = Number(ru[2]) - 1;
+            const year = Number(ru[3]);
+            const hours = Number(ru[4] ?? 0);
+            const minutes = Number(ru[5] ?? 0);
+            const seconds = Number(ru[6] ?? 0);
+            const date = new Date(year, month, day, hours, minutes, seconds);
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+        const fallback = new Date(source);
+        return Number.isNaN(fallback.getTime()) ? null : fallback;
+    }, []);
+    const getSendingTransitHours = useCallback((row: any): number | null => {
+        const start = parseDateTimeValue(
+            row?.DateOtpr
+            ?? row?.DateSend
+            ?? row?.DateShipment
+            ?? row?.ShipmentDate
+            ?? row?.ДатаОтправки
+            ?? row?.ДатаОтгрузки
+            ?? row?.DateDoc
+            ?? row?.Date
+            ?? row?.date
+            ?? row?.Дата
+        );
+        if (!start) return null;
+        const end = parseDateTimeValue(
+            row?.DatePrih
+            ?? row?.DateVr
+            ?? row?.DateDelivery
+            ?? row?.DeliveryDate
+            ?? row?.ДатаДоставки
+            ?? row?.ДатаПрибытия
+        ) ?? new Date();
+        const diffMs = end.getTime() - start.getTime();
+        if (!Number.isFinite(diffMs) || diffMs < 0) return null;
+        return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+    }, [parseDateTimeValue]);
     const cargoCustomerByNumber = useMemo(() => {
         const m = new Map<string, string>();
         (perevozkiItems || []).forEach((c: any) => {
@@ -763,6 +817,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const hasPlate = /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase());
             return hasPlate ? 'авто' : 'паром';
         };
+        const getTransitHours = (row: any) => getSendingTransitHours(row) ?? -1;
         const getVehicle = (row: any) => normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
         const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
         return [...statusFilteredRows].sort((a, b) => {
@@ -780,6 +835,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 case 'type':
                     cmp = getType(a).localeCompare(getType(b));
                     break;
+                case 'transitHours':
+                    cmp = getTransitHours(a) - getTransitHours(b);
+                    break;
                 case 'vehicle':
                     cmp = getVehicle(a).localeCompare(getVehicle(b));
                     break;
@@ -789,7 +847,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             }
             return sendingsSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [filteredSendings, deliveryStatusFilterSet, getSendingStatusKey, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay]);
+    }, [filteredSendings, deliveryStatusFilterSet, getSendingStatusKey, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay, getSendingTransitHours]);
     const sendingsInfographic = useMemo(() => {
         let ferry = 0;
         let auto = 0;
@@ -829,7 +887,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             .sort((a, b) => b.count - a.count || a.route.localeCompare(b.route, 'ru'));
         return { ferry, auto, routes, statusBadges };
     }, [sendingRowsSorted, normalizeTransportDisplay, getSendingStatusKey]);
-    const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'vehicle' | 'comment') => {
+    const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment') => {
         if (sendingsSortColumn === column) {
             setSendingsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
             return;
@@ -1836,6 +1894,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('number')} title="Сортировка">Номер {sendingsSortColumn === 'number' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('route')} title="Сортировка">Маршрут {sendingsSortColumn === 'route' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('type')} title="Сортировка">Тип {sendingsSortColumn === 'type' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('transitHours')} title="Сортировка">В пути, ч {sendingsSortColumn === 'transitHours' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
@@ -1853,6 +1912,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
                                 const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
                                 const transportType = getSendingTransportType(vehicle);
+                                const transitHours = getSendingTransitHours(row);
                                 const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
@@ -1878,12 +1938,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                     <Truck className="w-4 h-4" style={{ color: 'var(--color-text-secondary)', display: 'inline-block' }} title="Авто" />
                                                 ) : '—'}
                                             </td>
+                                            <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                {transitHours == null ? '—' : Number.isInteger(transitHours) ? transitHours : transitHours.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                                            </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={6} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={7} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button
