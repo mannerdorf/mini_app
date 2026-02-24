@@ -1673,6 +1673,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                     })}
                                                                 </tbody>
                                                             </table>
+                                                            </>
                                                         )}
                                                     </div>
                                             </td>
@@ -1948,6 +1949,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                 </tbody>
                                                             </table>
                                                         ) : (
+                                                            <>
                                                             <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                                 <thead>
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
