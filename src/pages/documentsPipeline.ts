@@ -8,7 +8,7 @@ function normalizeTransportName(value: unknown): string {
   const s = String(value ?? "").toUpperCase().trim();
   if (!s) return "";
   const normalizedSpaces = s.replace(/\s+/g, " ");
-  const container = normalizedSpaces.match(/([A-ZА-Я]{4})\s*([0-9]{7})$/u);
+  const container = normalizedSpaces.match(/([A-ZА-Я]{4})[\s\-]*([0-9]{7})$/u);
   if (container) return `${container[1]} ${container[2]}`;
   const vehicle = normalizedSpaces.match(/([A-ZА-Я][0-9]{3}[A-ZА-Я]{2})(\s*\/?\s*([0-9]{2,3}))?$/u);
   if (vehicle) {
@@ -17,6 +17,13 @@ function normalizeTransportName(value: unknown): string {
     if (!region) return base;
     const rawTail = vehicle[2] ?? "";
     return rawTail.includes("/") ? `${base}/${region}` : `${base}${region}`;
+  }
+  const looseVehicle = normalizedSpaces.match(/([A-ZА-Я])[\s\-]*([0-9]{3})[\s\-]*([A-ZА-Я]{2})(?:[\s\-]*\/?[\s\-]*([0-9]{2,3}))?$/u);
+  if (looseVehicle) {
+    const base = `${looseVehicle[1]}${looseVehicle[2]}${looseVehicle[3]}`;
+    const region = looseVehicle[4] ?? "";
+    if (!region) return base;
+    return normalizedSpaces.includes("/") ? `${base}/${region}` : `${base}${region}`;
   }
   return normalizedSpaces
     .replace(/\bнаименование\s*тс\b[:\-]?\s*/giu, "")
@@ -74,6 +81,27 @@ export function getActSearchText(act: any): string {
 }
 
 export function getOrderSearchText(order: any): string {
+  const deepParts: string[] = [];
+  const seen = new WeakSet<object>();
+  const collectDeepValues = (value: unknown, depth = 0) => {
+    if (value == null || depth > 8) return;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      const s = String(value).trim();
+      if (s) deepParts.push(s);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => collectDeepValues(item, depth + 1));
+      return;
+    }
+    if (typeof value === "object") {
+      const obj = value as Record<string, unknown>;
+      if (seen.has(obj)) return;
+      seen.add(obj);
+      Object.values(obj).forEach((v) => collectDeepValues(v, depth + 1));
+    }
+  };
+  collectDeepValues(order);
   const parts: string[] = [
     String(order?.Number ?? order?.number ?? order?.Номер ?? order?.N ?? ""),
     String(order?.НомерЗаявки ?? ""),
@@ -86,6 +114,7 @@ export function getOrderSearchText(order: any): string {
     String(order?.ПломбаCMR ?? ""),
     String(order?.Комментарий ?? order?.Comment ?? ""),
     String(order?.Sum ?? order?.sum ?? order?.Сумма ?? order?.Amount ?? ""),
+    ...deepParts,
   ];
   return parts.join(" ").toLowerCase();
 }

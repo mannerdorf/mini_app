@@ -262,7 +262,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         const s = String(value ?? '').toUpperCase().trim();
         if (!s) return '';
         const normalizedSpaces = s.replace(/\s+/g, ' ');
-        const container = normalizedSpaces.match(/([A-ZА-Я]{4})\s*([0-9]{7})$/u);
+        const container = normalizedSpaces.match(/([A-ZА-Я]{4})[\s\-]*([0-9]{7})$/u);
         if (container) return `${container[1]} ${container[2]}`;
         const vehicle = normalizedSpaces.match(/([A-ZА-Я][0-9]{3}[A-ZА-Я]{2})(\s*\/?\s*([0-9]{2,3}))?$/u);
         if (vehicle) {
@@ -271,6 +271,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             if (!region) return base;
             const rawTail = vehicle[2] ?? '';
             return rawTail.includes('/') ? `${base}/${region}` : `${base}${region}`;
+        }
+        const looseVehicle = normalizedSpaces.match(/([A-ZА-Я])[\s\-]*([0-9]{3})[\s\-]*([A-ZА-Я]{2})(?:[\s\-]*\/?[\s\-]*([0-9]{2,3}))?$/u);
+        if (looseVehicle) {
+            const base = `${looseVehicle[1]}${looseVehicle[2]}${looseVehicle[3]}`;
+            const region = looseVehicle[4] ?? '';
+            if (!region) return base;
+            return normalizedSpaces.includes('/') ? `${base}/${region}` : `${base}${region}`;
         }
         return normalizedSpaces
             .replace(/\bнаименование\s*тс\b[:\-]?\s*/giu, '')
