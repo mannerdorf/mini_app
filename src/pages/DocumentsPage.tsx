@@ -156,6 +156,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [innerTableActSortOrder, setInnerTableActSortOrder] = useState<'asc' | 'desc'>('desc');
     const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'vehicle' | 'comment'>('date');
     const [sendingsSortOrder, setSendingsSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [sendingsDetailsView, setSendingsDetailsView] = useState<'general' | 'summary'>('general');
     const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
     const [routeFilterCargo, setRouteFilterCargo] = useState<string>('all');
     const [transportFilter, setTransportFilter] = useState<string>('');
@@ -1334,6 +1335,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const rowKey = number || `${idx}`;
                                 const parcels = getRequestParcels(row);
                                 const expanded = expandedSendingRow === rowKey;
+                                const sendingCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '');
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
@@ -1350,19 +1352,36 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             <tr>
                                                 <td colSpan={4} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
+                                                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                                            <Button
+                                                                className="filter-button"
+                                                                style={{ padding: '0.35rem 0.6rem', minWidth: 'auto', background: sendingsDetailsView === 'general' ? 'var(--color-primary-blue, #2563eb)' : undefined, color: sendingsDetailsView === 'general' ? '#fff' : undefined }}
+                                                                onClick={(e) => { e.stopPropagation(); setSendingsDetailsView('general'); }}
+                                                            >
+                                                                Общий
+                                                            </Button>
+                                                            <Button
+                                                                className="filter-button"
+                                                                style={{ padding: '0.35rem 0.6rem', minWidth: 'auto', background: sendingsDetailsView === 'summary' ? 'var(--color-primary-blue, #2563eb)' : undefined, color: sendingsDetailsView === 'summary' ? '#fff' : undefined }}
+                                                                onClick={(e) => { e.stopPropagation(); setSendingsDetailsView('summary'); }}
+                                                            >
+                                                                Сводный
+                                                            </Button>
+                                                        </div>
                                                         {parcels.length === 0 ? (
                                                             <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '0.5rem 0.25rem' }}>Нет данных по посылкам</Typography.Body>
-                                                        ) : (
+                                                        ) : sendingsDetailsView === 'general' ? (
                                                             <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                                 <thead>
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>№ пп</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Консолидация</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Посылка</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Объем</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>ТМЦ</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>ИД отправления</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Кол-во</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Стоимость</th>
                                                                     </tr>
@@ -1373,18 +1392,70 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                         const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : {});
                                                                         return (
                                                                             <tr key={`${rowKey}-parcel-${parcel?.Посылка ?? parcelIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{goods?.ИДОтправления ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.Перевозка ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ВесДляОтчета ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ПлатныйВес ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ОбъемДляОтчета ?? '—'}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcel?.ПлатныйВес ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
-                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{goods?.ИДОтправления ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.ОбъявленнаяСтоимостьТовараДляПечати ?? goods?.ОбъявленнаяСтоимостьТовара ?? '—'}</td>
                                                                             </tr>
                                                                         );
                                                                     })}
+                                                                </tbody>
+                                                            </table>
+                                                        ) : (
+                                                            <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                                <thead>
+                                                                    <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>№ пп</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Кол-во</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Объем</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
+                                                                    </tr>
+                                                                </thead>
+                                                                <tbody>
+                                                                    {(() => {
+                                                                        const toNumber = (v: unknown) => {
+                                                                            const raw = String(v ?? '').trim().replace(',', '.');
+                                                                            const n = Number(raw);
+                                                                            return Number.isFinite(n) ? n : 0;
+                                                                        };
+                                                                        const formatNum = (n: number) => {
+                                                                            if (!Number.isFinite(n)) return '—';
+                                                                            const fixed = n.toFixed(3);
+                                                                            return fixed.replace(/\.?0+$/, '');
+                                                                        };
+                                                                        const byCargo = new Map<string, { cargo: string; count: number; volume: number; weight: number; paidWeight: number }>();
+                                                                        parcels.forEach((parcel: any) => {
+                                                                            const cargo = String(parcel?.Перевозка ?? '').trim() || '—';
+                                                                            const prev = byCargo.get(cargo) ?? { cargo, count: 0, volume: 0, weight: 0, paidWeight: 0 };
+                                                                            prev.count += 1;
+                                                                            prev.volume += toNumber(parcel?.ОбъемДляОтчета);
+                                                                            prev.weight += toNumber(parcel?.ВесДляОтчета);
+                                                                            prev.paidWeight += toNumber(parcel?.ПлатныйВес);
+                                                                            byCargo.set(cargo, prev);
+                                                                        });
+                                                                        return Array.from(byCargo.values()).map((summary, parcelIdx: number) => {
+                                                                        return (
+                                                                            <tr key={`${rowKey}-summary-${summary.cargo}-${parcelIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{summary.cargo}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.volume)}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
+                                                                                <td style={{ padding: '0.35rem 0.3rem' }}>{sendingCustomer || '—'}</td>
+                                                                            </tr>
+                                                                        );
+                                                                        });
+                                                                    })()}
                                                                 </tbody>
                                                             </table>
                                                         )}
