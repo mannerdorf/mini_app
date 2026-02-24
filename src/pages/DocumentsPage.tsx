@@ -1269,7 +1269,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                             </table>
                                                         )}
                                                     </div>
-                                                </div>
                                             </td>
                                         </tr>
                                     )}
