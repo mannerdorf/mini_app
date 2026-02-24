@@ -822,6 +822,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             { key: 'delivering', label: STATUS_MAP.delivering, count: statusCounts.delivering, color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
             { key: 'delivered', label: STATUS_MAP.delivered, count: statusCounts.delivered, color: '#16a34a', bg: 'rgba(22,163,74,0.12)' },
         ]
+            .filter((s) => s.count > 0)
             .map((s) => ({ ...s, percent: Math.round((s.count / total) * 1000) / 10 }));
         const routes = [...byRoute.entries()]
             .map(([route, count]) => ({ route, count }))
