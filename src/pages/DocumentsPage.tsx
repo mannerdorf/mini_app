@@ -324,6 +324,49 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         const fallback = new Date(source);
         return Number.isNaN(fallback.getTime()) ? null : fallback;
     }, []);
+    const cargoStopDateByNumber = useMemo(() => {
+        const m = new Map<string, Date>();
+        (perevozkiItems || []).forEach((cargo: any) => {
+            const raw = String(cargo?.Number ?? cargo?.number ?? '').replace(/^0000-/, '').trim();
+            if (!raw) return;
+            const statusKey = getFilterKeyByStatus(String(cargo?.State ?? cargo?.state ?? cargo?.Статус ?? ''));
+            if (statusKey !== 'ready' && statusKey !== 'delivered') return;
+            const stopDate = parseDateTimeValue(
+                cargo?.DateVr
+                ?? cargo?.DatePrih
+                ?? cargo?.DateDelivery
+                ?? cargo?.DeliveryDate
+                ?? cargo?.ДатаДоставки
+                ?? cargo?.ДатаПрибытия
+                ?? cargo?.Дата
+            );
+            if (!stopDate) return;
+            const key = normCargoKey(raw);
+            const prev = m.get(key);
+            if (!prev || stopDate.getTime() < prev.getTime()) m.set(key, stopDate);
+            if (key !== raw) {
+                const prevRaw = m.get(raw);
+                if (!prevRaw || stopDate.getTime() < prevRaw.getTime()) m.set(raw, stopDate);
+            }
+        });
+        return m;
+    }, [perevozkiItems, parseDateTimeValue, normCargoKey]);
+    const getSendingCargoNumbers = useCallback((row: any): string[] => {
+        const numbers: string[] = [];
+        const direct = String(row?.НомерПеревозки ?? row?.Перевозка ?? row?.CargoNumber ?? row?.NumberPerevozki ?? '').trim();
+        if (direct) numbers.push(direct);
+        const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
+        const parcels = Array.isArray(rawParcels)
+            ? rawParcels
+            : (rawParcels && typeof rawParcels === 'object'
+                ? Object.values(rawParcels as Record<string, any>)
+                : []);
+        parcels.forEach((parcel: any) => {
+            const parcelCargo = String(parcel?.Перевозка ?? parcel?.CargoNumber ?? '').trim();
+            if (parcelCargo) numbers.push(parcelCargo);
+        });
+        return Array.from(new Set(numbers));
+    }, []);
     const getSendingTransitHours = useCallback((row: any): number | null => {
         const start = parseDateTimeValue(
             row?.DateOtpr
@@ -338,18 +381,32 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             ?? row?.Дата
         );
         if (!start) return null;
-        const end = parseDateTimeValue(
+        const explicitEnd = parseDateTimeValue(
             row?.DatePrih
             ?? row?.DateVr
             ?? row?.DateDelivery
             ?? row?.DeliveryDate
             ?? row?.ДатаДоставки
             ?? row?.ДатаПрибытия
-        ) ?? new Date();
+        );
+        const cargoNumbers = getSendingCargoNumbers(row);
+        let hasStopStatus = false;
+        let stopDateByCargo: Date | null = null;
+        cargoNumbers.forEach((cargoNumber) => {
+            const statusKey = getFilterKeyByStatus(String(cargoStateByNumber.get(normCargoKey(cargoNumber)) ?? ''));
+            if (statusKey !== 'ready' && statusKey !== 'delivered') return;
+            hasStopStatus = true;
+            const cargoStopDate = cargoStopDateByNumber.get(normCargoKey(cargoNumber)) ?? cargoStopDateByNumber.get(cargoNumber);
+            if (!cargoStopDate) return;
+            if (!stopDateByCargo || cargoStopDate.getTime() < stopDateByCargo.getTime()) stopDateByCargo = cargoStopDate;
+        });
+        const end = hasStopStatus
+            ? (stopDateByCargo ?? explicitEnd ?? new Date())
+            : (explicitEnd ?? new Date());
         const diffMs = end.getTime() - start.getTime();
         if (!Number.isFinite(diffMs) || diffMs < 0) return null;
         return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
-    }, [parseDateTimeValue]);
+    }, [parseDateTimeValue, getSendingCargoNumbers, cargoStateByNumber, normCargoKey, cargoStopDateByNumber]);
     const cargoCustomerByNumber = useMemo(() => {
         const m = new Map<string, string>();
         (perevozkiItems || []).forEach((c: any) => {
