@@ -763,23 +763,32 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         let ferry = 0;
         let auto = 0;
         const byRoute = new Map<string, number>();
-        const statusCounts: Record<'in_transit' | 'ready' | 'delivering' | 'delivered' | 'other', number> = {
+        const statusCounts: Record<'in_transit' | 'ready' | 'delivering' | 'delivered', number> = {
             in_transit: 0,
             ready: 0,
             delivering: 0,
             delivered: 0,
-            other: 0,
         };
         sendingRowsSorted.forEach((row: any) => {
             const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
             const hasPlate = /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase());
             if (hasPlate) auto += 1;
             else ferry += 1;
-            const statusKey = getFilterKeyByStatus(row?.State ?? row?.state ?? row?.Статус);
+            const cargoNumber = String(row?.Номер ?? row?.Number ?? row?.ShipmentNumber ?? '').trim();
+            const cargoStatus = cargoNumber ? cargoStateByNumber.get(normCargoKey(cargoNumber)) : undefined;
+            const statusKey = getFilterKeyByStatus(
+                String(
+                    cargoStatus
+                    ?? row?.State
+                    ?? row?.state
+                    ?? row?.Статус
+                    ?? row?.Status
+                    ?? row?.StatusName
+                    ?? ''
+                )
+            );
             if (statusKey === 'in_transit' || statusKey === 'ready' || statusKey === 'delivering' || statusKey === 'delivered') {
                 statusCounts[statusKey] += 1;
-            } else {
-                statusCounts.other += 1;
             }
             const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
             const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
@@ -792,7 +801,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             { key: 'ready', label: STATUS_MAP.ready, count: statusCounts.ready, color: '#7c3aed', bg: 'rgba(124,58,237,0.12)' },
             { key: 'delivering', label: STATUS_MAP.delivering, count: statusCounts.delivering, color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
             { key: 'delivered', label: STATUS_MAP.delivered, count: statusCounts.delivered, color: '#16a34a', bg: 'rgba(22,163,74,0.12)' },
-            { key: 'other', label: 'Прочее', count: statusCounts.other, color: 'var(--color-text-secondary)', bg: 'var(--color-bg-hover)' },
         ]
             .filter((s) => s.count > 0)
             .map((s) => ({ ...s, percent: Math.round((s.count / total) * 1000) / 10 }));
@@ -800,7 +808,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             .map(([route, count]) => ({ route, count }))
             .sort((a, b) => b.count - a.count || a.route.localeCompare(b.route, 'ru'));
         return { ferry, auto, routes, statusBadges };
-    }, [sendingRowsSorted, normalizeTransportDisplay]);
+    }, [sendingRowsSorted, normalizeTransportDisplay, cargoStateByNumber, normCargoKey]);
     const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'vehicle' | 'comment') => {
         if (sendingsSortColumn === column) {
             setSendingsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -1752,18 +1760,18 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             {!sendingsLoading && !sendingsError && sendingRowsSorted.length > 0 && (
                 <>
                 <div className="cargo-card" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem 0.5rem', marginBottom: '0.35rem' }}>
-                        <span className="role-badge" style={{ fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(37,99,235,0.12)', color: 'var(--color-primary-blue)', border: '1px solid rgba(37,99,235,0.35)' }}>Паром: {sendingsInfographic.ferry}</span>
-                        <span className="role-badge" style={{ fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(17,24,39,0.08)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>Авто: {sendingsInfographic.auto}</span>
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem 0.45rem', marginBottom: '0.35rem' }}>
+                    <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '0.35rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+                        <span className="role-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(37,99,235,0.12)', color: 'var(--color-primary-blue)', border: '1px solid rgba(37,99,235,0.35)' }}>
+                            <Ship className="w-3 h-3" /> {sendingsInfographic.ferry}
+                        </span>
+                        <span className="role-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(17,24,39,0.08)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
+                            <Truck className="w-3 h-3" /> {sendingsInfographic.auto}
+                        </span>
                         {sendingsInfographic.statusBadges.map((item) => (
                             <span key={item.key} className="role-badge" style={{ fontSize: '0.72rem', padding: '0.12rem 0.42rem', borderRadius: '999px', background: item.bg, color: item.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap' }}>
                                 {item.label}: {item.percent}% ({item.count})
                             </span>
                         ))}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem 0.45rem' }}>
                         {sendingsInfographic.routes.map((item) => (
                             <span key={item.route} className="role-badge" style={{ fontSize: '0.72rem', padding: '0.12rem 0.42rem', borderRadius: '999px', background: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', whiteSpace: 'nowrap' }}>
                                 {item.route}: {item.count}
