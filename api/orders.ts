@@ -14,6 +14,13 @@ const GETAPI_URL =
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const CACHE_FRESH_MINUTES = 15;
 
+function normalizeInn(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "");
+  return digits || raw;
+}
+
 function getFirstNonEmpty(item: any, keys: string[]): string {
   for (const key of keys) {
     const v = item?.[key];
@@ -23,7 +30,7 @@ function getFirstNonEmpty(item: any, keys: string[]): string {
 }
 
 function orderInn(item: any): string {
-  return getFirstNonEmpty(item, [
+  return normalizeInn(getFirstNonEmpty(item, [
     "INN",
     "Inn",
     "inn",
@@ -36,7 +43,17 @@ function orderInn(item: any): string {
     "ИНН",
     "ИННЗаказчика",
     "INN_CUSTOMER",
-  ]);
+    "ПолучательИНН",
+    "ReceiverINN",
+    "ReceiverInn",
+    "INNReceiver",
+    "InnReceiver",
+    "ОтправительИНН",
+    "SenderINN",
+    "SenderInn",
+    "INNSender",
+    "InnSender",
+  ]));
 }
 
 function extractItems(raw: any): any[] {
@@ -119,7 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
       }
       if (cacheRow.rows.length > 0) {
-        const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+        const requestedInn = normalizeInn(inn);
         const isService = !!serviceMode;
         let filterInns: Set<string> | null = null;
         if (!isService && !verified.accessAllInns) {
@@ -127,9 +144,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             "SELECT inn FROM account_companies WHERE login = $1",
             [String(login).trim().toLowerCase()]
           );
-          const allowed = new Set(acRows.rows.map((r) => r.inn.trim()).filter(Boolean));
-          if (verified.inn?.trim()) allowed.add(verified.inn.trim());
-          filterInns = allowed.size > 0 ? allowed : (verified.inn ? new Set([verified.inn]) : null);
+          const allowed = new Set(acRows.rows.map((r) => normalizeInn(r.inn)).filter(Boolean));
+          const verifiedInn = normalizeInn(verified.inn);
+          if (verifiedInn) allowed.add(verifiedInn);
+          filterInns = allowed.size > 0 ? allowed : (verifiedInn ? new Set([verifiedInn]) : null);
         }
         const finalInns = isService
           ? null
@@ -169,7 +187,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
     if (cacheRow.rows.length > 0) {
-      const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
+      const requestedInn = normalizeInn(inn);
       const isService = !!serviceMode;
       let filterInns: Set<string> | null = null;
       if (!isService) {
@@ -177,7 +195,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           "SELECT inn FROM account_companies WHERE login = $1",
           [String(login).trim().toLowerCase()]
         );
-        const allowedInns = new Set(userInnsRow.rows.map((r) => r.inn.trim()).filter(Boolean));
+        const allowedInns = new Set(userInnsRow.rows.map((r) => normalizeInn(r.inn)).filter(Boolean));
         filterInns = requestedInn
           ? (allowedInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
           : allowedInns;

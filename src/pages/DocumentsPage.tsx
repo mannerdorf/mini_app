@@ -1554,41 +1554,59 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                     style={{
                                                         padding: '0.5rem 0.4rem',
                                                         maxWidth: 220,
-                                                        overflow: 'hidden',
-                                                        display: '-webkit-box',
-                                                        WebkitLineClamp: 2,
-                                                        WebkitBoxOrient: 'vertical',
+                                                        verticalAlign: 'top',
                                                     }}
                                                     title={customer || '—'}
                                                 >
-                                                    {customer || '—'}
+                                                    <div
+                                                        style={{
+                                                            overflow: 'hidden',
+                                                            display: '-webkit-box',
+                                                            WebkitLineClamp: 2,
+                                                            WebkitBoxOrient: 'vertical',
+                                                        }}
+                                                    >
+                                                        {customer || '—'}
+                                                    </div>
                                                 </td>
                                             )}
                                             <td
                                                 style={{
                                                     padding: '0.5rem 0.4rem',
                                                     maxWidth: 220,
-                                                    overflow: 'hidden',
-                                                    display: '-webkit-box',
-                                                    WebkitLineClamp: 2,
-                                                    WebkitBoxOrient: 'vertical',
+                                                    verticalAlign: 'top',
                                                 }}
                                                 title={sender || '—'}
                                             >
-                                                {sender || '—'}
+                                                <div
+                                                    style={{
+                                                        overflow: 'hidden',
+                                                        display: '-webkit-box',
+                                                        WebkitLineClamp: 2,
+                                                        WebkitBoxOrient: 'vertical',
+                                                    }}
+                                                >
+                                                    {sender || '—'}
+                                                </div>
                                             </td>
                                             <td
                                                 style={{
                                                     padding: '0.5rem 0.4rem',
                                                     maxWidth: 220,
-                                                    overflow: 'hidden',
-                                                    display: '-webkit-box',
-                                                    WebkitLineClamp: 2,
-                                                    WebkitBoxOrient: 'vertical',
+                                                    verticalAlign: 'top',
                                                 }}
                                                 title={receiver || '—'}
                                             >
-                                                {receiver || '—'}
+                                                <div
+                                                    style={{
+                                                        overflow: 'hidden',
+                                                        display: '-webkit-box',
+                                                        WebkitLineClamp: 2,
+                                                        WebkitBoxOrient: 'vertical',
+                                                    }}
+                                                >
+                                                    {receiver || '—'}
+                                                </div>
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>
                                                 <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap', display: 'inline-block' }}>
@@ -1938,6 +1956,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('volume')} title="Сортировка">Объем {sendingsSummarySortColumn === 'volume' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('paidWeight')} title="Сортировка">Платный вес {sendingsSummarySortColumn === 'paidWeight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Плотность</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -1951,6 +1970,17 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                             if (!Number.isFinite(n)) return '—';
                                                                             const fixed = n.toFixed(3);
                                                                             return fixed.replace(/\.?0+$/, '');
+                                                                        };
+                                                                        const densityOf = (weight: number, volume: number) => {
+                                                                            if (!Number.isFinite(weight) || !Number.isFinite(volume) || volume <= 0) return '—';
+                                                                            return formatNum(weight / volume);
+                                                                        };
+                                                                        const densityColor = (weight: number, volume: number) => {
+                                                                            if (!Number.isFinite(weight) || !Number.isFinite(volume) || volume <= 0) return 'var(--color-text-secondary)';
+                                                                            const density = weight / volume;
+                                                                            if (density >= 180 && density <= 220) return '#16a34a';
+                                                                            if ((density >= 150 && density < 180) || (density > 220 && density <= 260)) return '#ca8a04';
+                                                                            return '#dc2626';
                                                                         };
                                                                         const rowDefaultCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '').trim() || '—';
                                                                         const byCustomer = new Map<string, { customer: string; count: number; volume: number; weight: number; paidWeight: number }>();
@@ -2018,6 +2048,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.volume)}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', color: densityColor(summary.weight, summary.volume), fontWeight: 600 }}>{densityOf(summary.weight, summary.volume)}</td>
                                                                                     </tr>
                                                                                 ))}
                                                                                 <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
@@ -2026,12 +2057,26 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.volume)}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.weight)}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.paidWeight)}</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700, color: densityColor(totals.weight, totals.volume) }}>{densityOf(totals.weight, totals.volume)}</td>
                                                                                 </tr>
                                                                             </>
                                                                         );
                                                                     })()}
                                                                 </tbody>
                                                             </table>
+                                                            <Typography.Label
+                                                                style={{
+                                                                    display: 'block',
+                                                                    marginTop: '0.5rem',
+                                                                    fontSize: '0.75rem',
+                                                                    color: 'var(--color-text-secondary)',
+                                                                }}
+                                                            >
+                                                                Плотность (идеал 200):{' '}
+                                                                <span style={{ color: '#16a34a', fontWeight: 600 }}>зелёный 180-220</span>,{' '}
+                                                                <span style={{ color: '#ca8a04', fontWeight: 600 }}>жёлтый 150-179 / 221-260</span>,{' '}
+                                                                <span style={{ color: '#dc2626', fontWeight: 600 }}>красный &lt;150 / &gt;260</span>
+                                                            </Typography.Label>
                                                         )}
                                                     </div>
                                                 </td>
