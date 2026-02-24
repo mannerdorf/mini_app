@@ -1636,6 +1636,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                         {parcelsToRender.length === 0 ? (
                                                             <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '0.5rem 0.25rem' }}>Нет данных по посылкам</Typography.Body>
                                                         ) : (
+                                                            <>
                                                             <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                                 <thead>
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
@@ -2077,6 +2078,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                 <span style={{ color: '#ca8a04', fontWeight: 600 }}>жёлтый 150-179 / 221-260</span>,{' '}
                                                                 <span style={{ color: '#dc2626', fontWeight: 600 }}>красный &lt;150 / &gt;260</span>
                                                             </Typography.Label>
+                                                            </>
                                                         )}
                                                     </div>
                                                 </td>
