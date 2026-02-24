@@ -4124,11 +4124,14 @@ function ProfilePage({
         const month = String(now.getMonth() + 1).padStart(2, "0");
         return `${now.getFullYear()}-${month}`;
     });
-    const departmentTimesheetCurrentMonthKey = useMemo(() => {
+    const departmentTimesheetEditableMonthKeys = useMemo(() => {
         const now = new Date();
-        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const previousMonthKey = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
+        return new Set([currentMonthKey, previousMonthKey]);
     }, []);
-    const departmentTimesheetIsEditableMonth = departmentTimesheetMonth === departmentTimesheetCurrentMonthKey;
+    const departmentTimesheetIsEditableMonth = departmentTimesheetEditableMonthKeys.has(departmentTimesheetMonth);
     const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
     const [departmentTimesheetPayoutsByEmployee, setDepartmentTimesheetPayoutsByEmployee] = useState<Record<string, number>>({});
     const [departmentTimesheetPaidDayMarks, setDepartmentTimesheetPaidDayMarks] = useState<Record<string, boolean>>({});
@@ -4434,7 +4437,7 @@ function ProfilePage({
         if (!activeAccount?.login || !activeAccount?.password) return;
         if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return;
         if (!departmentTimesheetIsEditableMonth) {
-            setDepartmentTimesheetError('Редактирование доступно только для текущего месяца');
+            setDepartmentTimesheetError('Редактирование доступно только для текущего и предыдущего месяца');
             return;
         }
         const dayNormalized = String(day).padStart(2, "0");
@@ -4463,7 +4466,7 @@ function ProfilePage({
         if (!activeAccount?.login || !activeAccount?.password) return;
         if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return;
         if (!departmentTimesheetIsEditableMonth) {
-            setDepartmentTimesheetError('Редактирование доступно только для текущего месяца');
+            setDepartmentTimesheetError('Редактирование доступно только для текущего и предыдущего месяца');
             return;
         }
         const dayNormalized = String(day).padStart(2, "0");
@@ -4493,11 +4496,11 @@ function ProfilePage({
     const removeDepartmentEmployeeFromMonth = useCallback(async (employeeId: number) => {
         if (!activeAccount?.login || !activeAccount?.password) return;
         if (!departmentTimesheetIsEditableMonth) {
-            setDepartmentTimesheetError('Редактирование доступно только для текущего месяца');
+            setDepartmentTimesheetError('Редактирование доступно только для текущего и предыдущего месяца');
             return;
         }
         const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
-        const confirmed = typeof window !== 'undefined' ? window.confirm('Удалить сотрудника из табеля текущего месяца?') : true;
+        const confirmed = typeof window !== 'undefined' ? window.confirm('Удалить сотрудника из табеля выбранного месяца?') : true;
         if (!confirmed) return;
         try {
             const res = await fetch(`${origin}/api/my-department-timesheet`, {
@@ -4521,7 +4524,7 @@ function ProfilePage({
     const addExistingDepartmentTimesheetEmployee = useCallback(async () => {
         if (!activeAccount?.login || !activeAccount?.password) return;
         if (!departmentTimesheetIsEditableMonth) {
-            setDepartmentTimesheetError('Редактирование доступно только для текущего месяца');
+            setDepartmentTimesheetError('Редактирование доступно только для текущего и предыдущего месяца');
             return;
         }
         const selectedId = Number(departmentTimesheetSelectedEmployeeId);
@@ -4557,7 +4560,7 @@ function ProfilePage({
     const addDepartmentTimesheetEmployee = useCallback(async () => {
         if (!activeAccount?.login || !activeAccount?.password) return;
         if (!departmentTimesheetIsEditableMonth) {
-            setDepartmentTimesheetError('Редактирование доступно только для текущего месяца');
+            setDepartmentTimesheetError('Редактирование доступно только для текущего и предыдущего месяца');
             return;
         }
         if (!departmentTimesheetEmployeeFullName.trim()) {
@@ -5029,7 +5032,7 @@ function ProfilePage({
                     </Flex>
                     {!departmentTimesheetIsEditableMonth ? (
                         <Typography.Body style={{ marginTop: '0.55rem', fontSize: '0.78rem', color: '#b45309' }}>
-                            Редактирование доступно только для текущего месяца.
+                            Редактирование доступно только для текущего и предыдущего месяца.
                         </Typography.Body>
                     ) : null}
                 </Panel>
@@ -5226,8 +5229,8 @@ function ProfilePage({
                                                     className="filter-button"
                                                     disabled={!departmentTimesheetIsEditableMonth}
                                                     style={{ padding: '0.25rem' }}
-                                                    aria-label="Удалить сотрудника из текущего месяца"
-                                                    title="Удалить из текущего месяца"
+                                                    aria-label="Удалить сотрудника из выбранного месяца"
+                                                    title="Удалить из выбранного месяца"
                                                     onClick={() => void removeDepartmentEmployeeFromMonth(emp.id)}
                                                 >
                                                     <Trash2 className="w-4 h-4" style={{ color: 'var(--color-error)' }} />
