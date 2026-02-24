@@ -7415,15 +7415,20 @@ function CargoDetailsModal({
                         return '-';
                     })()} /> {/* Используем DateVr */}
                     {useServiceRequest && (
-                        <DetailItem
-                            label="Авторег - тип транспортного средства"
-                            value={(() => {
-                                const autoReg = String(item.AutoReg ?? (item as any).autoReg ?? '').trim();
-                                const autoType = String((item as any).AutoType ?? item.TypeOfTranzit ?? item.TypeOfTransit ?? '').trim();
-                                const merged = [autoReg, autoType].filter(Boolean).join(' - ');
-                                return merged || '-';
-                            })()}
-                        />
+                        <>
+                            <DetailItem
+                                label="AutoReg"
+                                value={String(item.AutoReg ?? (item as any).autoReg ?? '-').trim() || '-'}
+                            />
+                            <DetailItem
+                                label="AutoType"
+                                value={String((item as any).AutoType ?? item.TypeOfTranzit ?? item.TypeOfTransit ?? '-').trim() || '-'}
+                            />
+                            <DetailItem
+                                label="Driver"
+                                value={String((item as any).Driver ?? '-').trim() || '-'}
+                            />
+                        </>
                     )}
                     <DetailItem label="Отправитель" value={stripOoo(item.Sender) || '-'} />
                     <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? item.receiver) || '-'} />
