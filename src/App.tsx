@@ -1033,8 +1033,6 @@ function DashboardPage({
                 })).filter((x: any) =>
                     Number.isFinite(x.employeeId)
                     && x.employeeId > 0
-                    && x.active !== false
-                    && String(x.fullName || "").trim().length > 0
                 );
                 const entriesByEmployee = new Map<number, Array<{ date: string; value: string }>>();
                 for (const [entryKey, entryValue] of Object.entries(entriesRaw)) {
