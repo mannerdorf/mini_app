@@ -13,6 +13,12 @@ SELECT
 FROM cache_perevozki WHERE id = 1
 UNION ALL
 SELECT
+  'cache_sendings',
+  fetched_at,
+  jsonb_array_length(data)::bigint
+FROM cache_sendings WHERE id = 1
+UNION ALL
+SELECT
   'cache_invoices',
   fetched_at,
   jsonb_array_length(data)::bigint
@@ -46,11 +52,13 @@ LIMIT 5;
 -- 4. Свежесть: все кэши обновлены не более 20 минут назад?
 SELECT
   (SELECT max(fetched_at) FROM cache_perevozki) AS perevozki_at,
+  (SELECT max(fetched_at) FROM cache_sendings) AS sendings_at,
   (SELECT max(fetched_at) FROM cache_invoices) AS invoices_at,
   (SELECT max(fetched_at) FROM cache_acts) AS acts_at,
   (SELECT max(fetched_at) FROM cache_customers) AS customers_at,
   CASE
     WHEN (SELECT max(fetched_at) FROM cache_perevozki) > now() - interval '20 minutes'
+     AND (SELECT max(fetched_at) FROM cache_sendings) > now() - interval '20 minutes'
      AND (SELECT max(fetched_at) FROM cache_customers) > now() - interval '20 minutes'
     THEN 'OK: кэш свежий'
     ELSE 'Внимание: кэш старше 20 мин или пуст'

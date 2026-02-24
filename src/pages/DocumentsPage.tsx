@@ -43,11 +43,12 @@ import { DocumentsSummaryCard, DocumentsStateBlocks } from "./documentsViewBlock
 
 const INVOICE_STATUS_OPTIONS = ['Оплачен', 'Не оплачен', 'Оплачен частично'] as const;
 
-type DocSectionKey = 'Счета' | 'УПД' | 'Заявки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
+type DocSectionKey = 'Счета' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
 const DOC_SECTIONS: { key: DocSectionKey; label: string }[] = [
     { key: 'Счета', label: 'Счета' },
     { key: 'УПД', label: 'УПД' },
     { key: 'Заявки', label: 'Заявки' },
+    { key: 'Отправки', label: 'Отправки' },
     { key: 'Претензии', label: 'Претензии' },
     { key: 'Договоры', label: 'Договоры' },
     { key: 'Акты сверок', label: 'Акты сверок' },
@@ -58,6 +59,7 @@ const DOC_SECTION_TO_PERMISSION: Record<DocSectionKey, keyof AccountPermissions>
     'Счета': 'doc_invoices',
     'УПД': 'doc_acts',
     'Заявки': 'doc_orders',
+    'Отправки': 'doc_orders',
     'Претензии': 'doc_claims',
     'Договоры': 'doc_contracts',
     'Акты сверок': 'doc_acts_settlement',
@@ -196,6 +198,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         ordersItems,
         ordersError,
         ordersLoading,
+        sendingsItems,
+        sendingsError,
+        sendingsLoading,
         perevozkiItems,
         perevozkiLoading,
     } = useDocumentsDataLoad({
@@ -241,6 +246,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
 
     const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
     const uniqueOrderCustomers = useMemo(() => [...new Set((ordersItems || []).map((i: any) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [ordersItems]);
+    const uniqueSendingCustomers = useMemo(() => [...new Set((sendingsItems || []).map((i: any) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [sendingsItems]);
 
     const uniqueActCustomers = useMemo(() => [...new Set((actsItems || []).map((a: any) => ((a.Customer ?? a.customer ?? a.Контрагент ?? a.Contractor ?? a.Organization ?? '').trim())).filter(Boolean))].sort(), [actsItems]);
 
@@ -268,6 +274,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [ordersItems]);
+    const uniqueSendingTransportVehicles = useMemo(() => {
+        const set = new Set<string>();
+        (sendingsItems || []).forEach((item: any) => {
+            const v = String(item?.AutoReg ?? item?.autoReg ?? '').trim();
+            if (v) set.add(v);
+        });
+        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+    }, [sendingsItems]);
 
     const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
         if (!invNum) return;
@@ -359,6 +373,23 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         });
     }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, typeFilter, routeFilter, deliveryStatusFilterSet, routeFilterCargo, transportFilter, effectiveSearchText, sortBy, sortOrder]);
     const ordersSummary = useMemo(() => buildDocsSummary(filteredOrders), [filteredOrders]);
+    const filteredSendings = useMemo(() => {
+        return buildFilteredOrders({
+            items: sendingsItems || [],
+            activeInn: effectiveActiveInn,
+            useServiceRequest: effectiveServiceMode,
+            customerFilter,
+            typeFilter,
+            routeFilter,
+            deliveryStatusFilterSet,
+            routeFilterCargo,
+            transportFilter,
+            searchText: effectiveSearchText,
+            sortBy,
+            sortOrder,
+        });
+    }, [sendingsItems, effectiveActiveInn, effectiveServiceMode, customerFilter, typeFilter, routeFilter, deliveryStatusFilterSet, routeFilterCargo, transportFilter, effectiveSearchText, sortBy, sortOrder]);
+    const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
 
     const groupedByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
@@ -435,6 +466,30 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return tableSortOrder === 'asc' ? cmp : -cmp;
         });
     }, [groupedOrdersByCustomer, tableSortColumn, tableSortOrder]);
+    const groupedSendingsByCustomer = useMemo(() => {
+        const map = new Map<string, { customer: string; items: any[]; sum: number }>();
+        filteredSendings.forEach((sending: any) => {
+            const key = (sending.Customer ?? sending.customer ?? sending.Контрагент ?? sending.Contractor ?? sending.Organization ?? '').trim() || '—';
+            const v = sending.Sum ?? sending.sum ?? sending.Сумма ?? sending.Amount ?? 0;
+            const sum = typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
+            const existing = map.get(key);
+            if (existing) {
+                existing.items.push(sending);
+                existing.sum += sum;
+            } else map.set(key, { customer: key, items: [sending], sum });
+        });
+        return Array.from(map.entries()).map(([, v]) => v);
+    }, [filteredSendings]);
+    const sortedGroupedSendingsByCustomer = useMemo(() => {
+        const key = (row: { customer: string; sum: number; items: any[] }) =>
+            tableSortColumn === 'customer' ? (stripOoo(row.customer) || '').toLowerCase() : tableSortColumn === 'sum' ? row.sum : row.items.length;
+        return [...groupedSendingsByCustomer].sort((a, b) => {
+            const va = key(a);
+            const vb = key(b);
+            const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
+            return tableSortOrder === 'asc' ? cmp : -cmp;
+        });
+    }, [groupedSendingsByCustomer, tableSortColumn, tableSortOrder]);
 
     const handleTableSort = (column: 'customer' | 'sum' | 'count') => {
         if (tableSortColumn === column) setTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
@@ -496,7 +551,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     }, [innerTableSortColumn, innerTableSortOrder, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, normCargoKey]);
     const sortOrders = useCallback((items: any[]) => {
         const getNum = (row: any) => (row.Number ?? row.number ?? row.Номер ?? row.N ?? '').toString().replace(/^0000-/, '');
-        const getDate = (row: any) => (row.DatePrih ?? row.DateVr ?? row.Date ?? row.date ?? '').toString();
+        const getDate = (row: any) => (row.DateZayavki ?? row.DateOtpr ?? row.DateSend ?? row.DatePrih ?? row.DateVr ?? row.DateDoc ?? row.Date ?? row.date ?? '').toString();
         const getStatus = (row: any) => normalizeStatus(row.State ?? row.state ?? row.Статус ?? '');
         const getSum = (row: any) => Number(row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0) || 0;
         const getRoute = (row: any) => [cityToCode(row.CitySender), cityToCode(row.CityReceiver)].filter(Boolean).join(' – ') || '';
@@ -513,6 +568,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return innerTableSortOrder === 'asc' ? cmp : -cmp;
         });
     }, [innerTableSortColumn, innerTableSortOrder]);
+    const isRequestDocsSection = docSection === 'Заявки' || docSection === 'Отправки';
+    const currentRequestLabel = docSection === 'Отправки' ? 'Отправка' : 'Заявка';
+    const currentRequestLabelPlural = docSection === 'Отправки' ? 'Отправок' : 'Заявок';
+    const currentRequestItems = docSection === 'Отправки' ? filteredSendings : filteredOrders;
+    const currentRequestSummary = docSection === 'Отправки' ? sendingsSummary : ordersSummary;
+    const currentRequestLoading = docSection === 'Отправки' ? sendingsLoading : ordersLoading;
+    const currentRequestError = docSection === 'Отправки' ? sendingsError : ordersError;
+    const currentRequestGroupedByCustomer = docSection === 'Отправки' ? sortedGroupedSendingsByCustomer : sortedGroupedOrdersByCustomer;
 
     return (
         <div className="w-full">
@@ -579,7 +642,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         })}
                     </Flex>
                 </div>
-                {(docSection === 'Счета' || docSection === 'УПД' || docSection === 'Заявки') && (
+                {(docSection === 'Счета' || docSection === 'УПД' || docSection === 'Заявки' || docSection === 'Отправки') && (
                 <div className="filters-container filters-row-scroll">
                     <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
                         <Button className="filter-button" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={() => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); }} title={sortOrder === 'desc' ? 'Дата по убыванию' : 'Дата по возрастанию'}>
@@ -664,7 +727,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 })
                             )}
                         </FilterDropdownPortal>
-                        {(docSection === 'Счета' || docSection === 'Заявки') && effectiveServiceMode && (
+                        {(docSection === 'Счета' || docSection === 'Заявки' || docSection === 'Отправки') && effectiveServiceMode && (
                             <>
                                 <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
                                     <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
@@ -673,7 +736,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 </div>
                                 <FilterDropdownPortal triggerRef={customerButtonRef} isOpen={isCustomerDropdownOpen} onClose={() => setIsCustomerDropdownOpen(false)}>
                                     <div className="dropdown-item" onClick={() => { setCustomerFilter(''); setIsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {(docSection === 'Заявки' ? uniqueOrderCustomers : uniqueCustomers).map(c => (
+                                    {(docSection === 'Заявки' ? uniqueOrderCustomers : docSection === 'Отправки' ? uniqueSendingCustomers : uniqueCustomers).map(c => (
                                         <div key={c} className="dropdown-item" onClick={() => { setCustomerFilter(c); setIsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
                                     ))}
                                 </FilterDropdownPortal>
@@ -730,7 +793,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 />
                             </div>
                             <div className="dropdown-item" onClick={() => { setTransportFilter(''); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>Все</Typography.Body></div>
-                            {(docSection === 'Заявки' ? uniqueOrderTransportVehicles : uniqueTransportVehicles)
+                            {(docSection === 'Заявки' ? uniqueOrderTransportVehicles : docSection === 'Отправки' ? uniqueSendingTransportVehicles : uniqueTransportVehicles)
                                 .filter(v => !transportSearchQuery.trim() || v.toLowerCase().includes(transportSearchQuery.trim().toLowerCase()))
                                 .map(v => (
                                     <div key={v} className="dropdown-item" onClick={() => { setTransportFilter(v); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>{v}</Typography.Body></div>
@@ -1076,30 +1139,30 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             )}
             </>
             )}
-            {docSection === 'Заявки' && (
+            {isRequestDocsSection && (
             <>
-            {!ordersLoading && !ordersError && filteredOrders.length > 0 && (
+            {!currentRequestLoading && !currentRequestError && currentRequestItems.length > 0 && (
                 <DocumentsSummaryCard
-                    sum={ordersSummary.sum}
-                    count={ordersSummary.count}
+                    sum={currentRequestSummary.sum}
+                    count={currentRequestSummary.count}
                     showSums={showSums}
                 />
             )}
-            {(ordersLoading || !!ordersError) && <DocumentsStateBlocks loading={ordersLoading} error={ordersError} emptyText="" />}
-            {!ordersLoading && !ordersError && tableModeByCustomer && sortedGroupedOrdersByCustomer.length > 0 && (
+            {(currentRequestLoading || !!currentRequestError) && <DocumentsStateBlocks loading={currentRequestLoading} error={currentRequestError} emptyText="" />}
+            {!currentRequestLoading && !currentRequestError && tableModeByCustomer && currentRequestGroupedByCustomer.length > 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка">Заявок {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка">{currentRequestLabelPlural} {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {sortedGroupedOrdersByCustomer.map((row, i) => (
+                            {currentRequestGroupedByCustomer.map((row, i) => (
                                 <React.Fragment key={i}>
-                                    <tr style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }} onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)} title={expandedTableCustomer === row.customer ? 'Свернуть' : 'Показать заявки'}>
+                                    <tr style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }} onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)} title={expandedTableCustomer === row.customer ? 'Свернуть' : `Показать ${currentRequestLabelPlural.toLowerCase()}`}>
                                         <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
                                         {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
                                         <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
@@ -1121,7 +1184,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                         <tbody>
                                                             {sortOrders(row.items).map((order: any, j: number) => {
                                                                 const num = order.Number ?? order.number ?? order.Номер ?? order.N ?? '';
-                                                                const dateRaw = order.DatePrih ?? order.DateVr ?? order.Date ?? order.date ?? '';
+                                                                const dateRaw = order.DateZayavki ?? order.DateOtpr ?? order.DateSend ?? order.DatePrih ?? order.DateVr ?? order.DateDoc ?? order.Date ?? order.date ?? '';
                                                                 const sum = order.Sum ?? order.sum ?? order.Сумма ?? order.Amount ?? 0;
                                                                 const route = [cityToCode(order.CitySender), cityToCode(order.CityReceiver)].filter(Boolean).join(' – ') || '—';
                                                                 return (
@@ -1146,11 +1209,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     </table>
                 </div>
             )}
-            {!ordersLoading && !ordersError && filteredOrders.length > 0 && !tableModeByCustomer && (
+            {!currentRequestLoading && !currentRequestError && currentRequestItems.length > 0 && !tableModeByCustomer && (
                 <div className="cargo-list">
-                    {filteredOrders.map((row: any, idx: number) => {
+                    {currentRequestItems.map((row: any, idx: number) => {
                         const num = row.Number ?? row.number ?? row.Номер ?? row.N ?? '';
-                        const dt = row.DatePrih ?? row.DateVr ?? row.Date ?? row.date ?? '';
+                        const dt = row.DateZayavki ?? row.DateOtpr ?? row.DateSend ?? row.DatePrih ?? row.DateVr ?? row.DateDoc ?? row.Date ?? row.date ?? '';
                         const cust = row.Customer ?? row.customer ?? row.Контрагент ?? row.Contractor ?? row.Organization ?? '';
                         const sum = row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0;
                         return (
@@ -1160,7 +1223,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{formatInvoiceNumber(String(num))}</Typography.Body>
                                     </Flex>
                                     <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
-                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); const lines = [`Заявка: ${formatInvoiceNumber(String(num))}`, cust && `Заказчик: ${stripOoo(String(cust))}`, sum != null && `Сумма: ${formatCurrency(sum)}`, dt && `Дата: ${typeof dt === 'string' ? dt : String(dt)}`].filter(Boolean); const text = lines.join('\n'); if (typeof navigator !== 'undefined' && (navigator as any).share) { (navigator as any).share({ title: `Заявка ${formatInvoiceNumber(String(num))}`, text }).catch(() => {}); } else { try { navigator.clipboard?.writeText(text); } catch {} } }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
+                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); const lines = [`${currentRequestLabel}: ${formatInvoiceNumber(String(num))}`, cust && `Заказчик: ${stripOoo(String(cust))}`, sum != null && `Сумма: ${formatCurrency(sum)}`, dt && `Дата: ${typeof dt === 'string' ? dt : String(dt)}`].filter(Boolean); const text = lines.join('\n'); if (typeof navigator !== 'undefined' && (navigator as any).share) { (navigator as any).share({ title: `${currentRequestLabel} ${formatInvoiceNumber(String(num))}`, text }).catch(() => {}); } else { try { navigator.clipboard?.writeText(text); } catch {} } }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
                                         <Calendar className="w-4 h-4 text-theme-secondary" />
                                         <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
                                             <DateText value={typeof dt === 'string' ? dt : dt ? String(dt) : undefined} />
@@ -1183,12 +1246,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     })}
                 </div>
             )}
-            {!ordersLoading && !ordersError && filteredOrders.length === 0 && (
-                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет заявок за выбранный период</Typography.Body>
+            {!currentRequestLoading && !currentRequestError && currentRequestItems.length === 0 && (
+                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет {currentRequestLabelPlural.toLowerCase()} за выбранный период</Typography.Body>
             )}
             </>
             )}
-            {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && (
+            {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>

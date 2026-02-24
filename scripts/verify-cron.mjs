@@ -68,9 +68,9 @@ if (!res.ok) {
   process.exit(1);
 }
 
-// Парсим HTML успешного ответа: Перевозок, Счетов, УПД, Заказчиков
+// Парсим HTML успешного ответа: Перевозок, Заявок, Отправок, Счетов, УПД, Заказчиков
 const numbers = {};
-for (const label of ["Перевозок", "Счетов", "УПД", "Заказчиков"]) {
+for (const label of ["Перевозок", "Заявок", "Отправок", "Счетов", "УПД", "Заказчиков"]) {
   const m = text.match(new RegExp(`${label}[^<]*<strong>([^<]+)</strong>`));
   if (m) numbers[label] = m[1].trim();
 }
@@ -79,6 +79,8 @@ if (periodMatch) numbers["Период"] = `${periodMatch[1].trim()} — ${perio
 
 console.log("Результат:");
 console.log("  Перевозок:", numbers["Перевозок"] ?? "—");
+console.log("  Заявок:", numbers["Заявок"] ?? "—");
+console.log("  Отправок:", numbers["Отправок"] ?? "—");
 console.log("  Счетов:", numbers["Счетов"] ?? "—");
 console.log("  УПД:", numbers["УПД"] ?? "—");
 console.log("  Заказчиков (Getcustomers):", numbers["Заказчиков"] ?? "—");

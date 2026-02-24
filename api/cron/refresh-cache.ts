@@ -120,9 +120,80 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await pool.query(
       "insert into cache_orders (id, data, fetched_at) values (1, '[]', '1970-01-01') on conflict (id) do nothing"
     );
+    // 1.0) Запрос заявок через GETAPI/GetZayavki
+    let ordersList: unknown[] = [];
+    try {
+      const ordersUrl = `${GETAPI_URL}?metod=GetZayavki&DateB=${dateFrom}&DateE=${dateTo}`;
+      const ordersRes = await fetch(ordersUrl, {
+        method: "GET",
+        headers: {
+          Auth: `Basic ${login}:${password}`,
+          Authorization: SERVICE_AUTH,
+        },
+      });
+      const ordersText = await ordersRes.text();
+      if (ordersRes.ok) {
+        try {
+          const json = JSON.parse(ordersText);
+          if (json && typeof json === "object" && json.Success !== false) {
+            const list = Array.isArray(json)
+              ? json
+              : (json.items ?? json.Items ?? json.zayavki ?? json.Zayavki ?? json.data ?? json.Data ?? []);
+            ordersList = Array.isArray(list) ? list : [];
+          }
+        } catch {
+          // ignore
+        }
+      } else {
+        console.warn("refresh-cache orders non-ok:", ordersRes.status, ordersText.slice(0, 200));
+      }
+    } catch (e: any) {
+      console.error("refresh-cache orders fetch error:", e?.message || e);
+    }
     await pool.query(
       "update cache_orders set data = $1, fetched_at = now() where id = 1",
-      [JSON.stringify(perevozkiList)]
+      [JSON.stringify(Array.isArray(ordersList) ? ordersList : [])]
+    );
+    await pool.query(
+      "create table if not exists cache_sendings (id int primary key default 1 check (id = 1), data jsonb not null default '[]', fetched_at timestamptz not null default now())"
+    );
+    await pool.query(
+      "insert into cache_sendings (id, data, fetched_at) values (1, '[]', '1970-01-01') on conflict (id) do nothing"
+    );
+
+    // 1.1) Запрос отправок через GETAPI/Getotpravki
+    let sendingsList: unknown[] = [];
+    try {
+      const sendingsUrl = `${GETAPI_URL}?metod=Getotpravki&DateB=${dateFrom}&DateE=${dateTo}`;
+      const sendingsRes = await fetch(sendingsUrl, {
+        method: "GET",
+        headers: {
+          Auth: `Basic ${login}:${password}`,
+          Authorization: SERVICE_AUTH,
+        },
+      });
+      const sendingsText = await sendingsRes.text();
+      if (sendingsRes.ok) {
+        try {
+          const json = JSON.parse(sendingsText);
+          if (json && typeof json === "object" && json.Success !== false) {
+            const list = Array.isArray(json)
+              ? json
+              : (json.items ?? json.Items ?? json.otpravki ?? json.Otpravki ?? json.data ?? json.Data ?? []);
+            sendingsList = Array.isArray(list) ? list : [];
+          }
+        } catch {
+          // ignore
+        }
+      } else {
+        console.warn("refresh-cache sendings non-ok:", sendingsRes.status, sendingsText.slice(0, 200));
+      }
+    } catch (e: any) {
+      console.error("refresh-cache sendings fetch error:", e?.message || e);
+    }
+    await pool.query(
+      "update cache_sendings set data = $1, fetched_at = now() where id = 1",
+      [JSON.stringify(Array.isArray(sendingsList) ? sendingsList : [])]
     );
 
     // 2) Запрос счетов за весь период (отдельный try — при ошибке всё равно обновляем fetched_at)
@@ -230,9 +301,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const perevozkiCount = perevozkiList.length;
+    const sendingsCount = Array.isArray(sendingsList) ? sendingsList.length : 0;
+    const ordersCount = Array.isArray(ordersList) ? ordersList.length : 0;
     const invoicesCount = Array.isArray(invoicesList) ? invoicesList.length : 0;
     const actsCount = Array.isArray(actsList) ? actsList.length : 0;
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:40rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiCount}</strong></p><p>Счетов: <strong>${invoicesCount}</strong></p><p>УПД: <strong>${actsCount}</strong></p><p>Заказчиков (Getcustomers): <strong>${customersCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p></body></html>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:40rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiCount}</strong></p><p>Заявок: <strong>${ordersCount}</strong></p><p>Отправок: <strong>${sendingsCount}</strong></p><p>Счетов: <strong>${invoicesCount}</strong></p><p>УПД: <strong>${actsCount}</strong></p><p>Заказчиков (Getcustomers): <strong>${customersCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p></body></html>`;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(html);
   } catch (e: any) {

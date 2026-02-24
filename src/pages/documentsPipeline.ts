@@ -54,7 +54,7 @@ export function getOrderSearchText(order: any): string {
   const parts: string[] = [
     String(order?.Number ?? order?.number ?? order?.Номер ?? order?.N ?? ""),
     stripOoo(String(order?.Customer ?? order?.customer ?? order?.Контрагент ?? order?.Contractor ?? order?.Organization ?? "")),
-    String(order?.DatePrih ?? order?.DateVr ?? order?.Date ?? order?.date ?? ""),
+    String(order?.DateZayavki ?? order?.DateOtpr ?? order?.DateSend ?? order?.DatePrih ?? order?.DateVr ?? order?.DateDoc ?? order?.Date ?? order?.date ?? ""),
     String(order?.State ?? order?.state ?? order?.Статус ?? ""),
     String(order?.AutoReg ?? order?.autoReg ?? ""),
     String(order?.Sum ?? order?.sum ?? order?.Сумма ?? order?.Amount ?? ""),
@@ -347,7 +347,7 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
     res = res.filter((i) => getOrderSearchText(i).includes(lower));
   }
   if (sortBy === "date") {
-    const getDate = (r: any) => (r.DatePrih ?? r.DateVr ?? r.Date ?? r.date ?? "").toString();
+    const getDate = (r: any) => (r.DateZayavki ?? r.DateOtpr ?? r.DateSend ?? r.DatePrih ?? r.DateVr ?? r.DateDoc ?? r.Date ?? r.date ?? "").toString();
     res.sort((a, b) => {
       const da = getDate(a);
       const db = getDate(b);

@@ -5,7 +5,7 @@
 import useSWR from "swr";
 import { useCallback } from "react";
 import { apiFetchJson } from "../utils";
-import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL, PROXY_API_ACTS_URL, PROXY_API_ORDERS_URL } from "../constants/config";
+import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_INVOICES_URL, PROXY_API_ACTS_URL, PROXY_API_ORDERS_URL, PROXY_API_SENDINGS_URL } from "../constants/config";
 import type { AuthData, CargoItem, PerevozkiRole } from "../types";
 
 /** SWR config: 60s consider fresh, 5min cache */
@@ -325,12 +325,60 @@ type OrdersParams = {
     dateTo: string;
     activeInn?: string;
     useServiceRequest?: boolean;
+    mode?: "Customer" | "Sender" | "Receiver";
 };
 
 async function fetcherOrders(params: OrdersParams): Promise<unknown[]> {
-    const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, mode } = params;
     if (!auth?.login || !auth?.password) return [];
     const data = await apiFetchJson<{ items?: unknown[] } | unknown[]>(PROXY_API_ORDERS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            login: auth.login,
+            password: auth.password,
+            dateFrom,
+            dateTo,
+            inn: activeInn || undefined,
+            mode: mode || undefined,
+            serviceMode: useServiceRequest,
+            ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
+        }),
+    });
+    const list = Array.isArray(data) ? data : (data && typeof data === "object" ? (data as Record<string, unknown>).items ?? [] : []);
+    return Array.isArray(list) ? list : [];
+}
+
+export function useOrders(params: OrdersParams) {
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest, mode } = params;
+    const key = auth?.login && auth?.password
+        ? ["orders", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest, mode ?? ""]
+        : null;
+    const { data, error, isLoading, mutate } = useSWR<unknown[]>(
+        key,
+        () => fetcherOrders(params),
+        SWR_OPTIONS
+    );
+    return {
+        items: data ?? [],
+        error: error?.message ?? null,
+        loading: isLoading,
+        mutate,
+    };
+}
+
+type SendingsParams = {
+    auth: AuthData | null;
+    dateFrom: string;
+    dateTo: string;
+    activeInn?: string;
+    useServiceRequest?: boolean;
+};
+
+async function fetcherSendings(params: SendingsParams): Promise<unknown[]> {
+    const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
+    if (!auth?.login || !auth?.password) return [];
+    const data = await apiFetchJson<{ items?: unknown[] } | unknown[]>(PROXY_API_SENDINGS_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -347,14 +395,14 @@ async function fetcherOrders(params: OrdersParams): Promise<unknown[]> {
     return Array.isArray(list) ? list : [];
 }
 
-export function useOrders(params: OrdersParams) {
+export function useSendings(params: SendingsParams) {
     const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
     const key = auth?.login && auth?.password
-        ? ["orders", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest]
+        ? ["sendings", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest]
         : null;
     const { data, error, isLoading, mutate } = useSWR<unknown[]>(
         key,
-        () => fetcherOrders(params),
+        () => fetcherSendings(params),
         SWR_OPTIONS
     );
     return {
