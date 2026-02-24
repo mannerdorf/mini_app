@@ -490,15 +490,43 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             customerFilter,
             typeFilter,
             routeFilter,
-            deliveryStatusFilterSet,
+            deliveryStatusFilterSet: new Set<StatusFilter>(),
             routeFilterCargo,
             transportFilter,
             searchText: effectiveSearchText,
             sortBy,
             sortOrder,
         });
-    }, [sendingsItems, effectiveActiveInn, customerFilter, typeFilter, routeFilter, deliveryStatusFilterSet, routeFilterCargo, transportFilter, effectiveSearchText, sortBy, sortOrder]);
+    }, [sendingsItems, effectiveActiveInn, customerFilter, typeFilter, routeFilter, routeFilterCargo, transportFilter, effectiveSearchText, sortBy, sortOrder]);
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
+    const getSendingStatusKey = useCallback((row: any): StatusFilter => {
+        const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
+        const firstParcel = Array.isArray(rawParcels)
+            ? rawParcels[0]
+            : (rawParcels && typeof rawParcels === 'object'
+                ? Object.values(rawParcels as Record<string, any>)[0]
+                : undefined);
+        const cargoNumber = String(
+            row?.НомерПеревозки
+            ?? row?.Перевозка
+            ?? row?.CargoNumber
+            ?? row?.NumberPerevozki
+            ?? (firstParcel as any)?.Перевозка
+            ?? ''
+        ).trim();
+        const cargoStatus = cargoNumber ? cargoStateByNumber.get(normCargoKey(cargoNumber)) : undefined;
+        return getFilterKeyByStatus(
+            String(
+                cargoStatus
+                ?? row?.State
+                ?? row?.state
+                ?? row?.Статус
+                ?? row?.Status
+                ?? row?.StatusName
+                ?? ''
+            )
+        );
+    }, [cargoStateByNumber, normCargoKey]);
 
     const groupedByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
@@ -720,6 +748,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         });
     }, [filteredOrders, ordersSortColumn, ordersSortOrder]);
     const sendingRowsSorted = useMemo(() => {
+        const statusFilteredRows = deliveryStatusFilterSet.size > 0
+            ? filteredSendings.filter((row: any) => deliveryStatusFilterSet.has(getSendingStatusKey(row)))
+            : filteredSendings;
         const getDate = (row: any) => String(row?.Дата ?? row?.Date ?? row?.date ?? "");
         const getNumber = (row: any) => String(row?.Номер ?? row?.Number ?? row?.number ?? "");
         const getRoute = (row: any) => {
@@ -734,7 +765,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         };
         const getVehicle = (row: any) => normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
         const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
-        return [...filteredSendings].sort((a, b) => {
+        return [...statusFilteredRows].sort((a, b) => {
             let cmp = 0;
             switch (sendingsSortColumn) {
                 case 'date':
@@ -758,7 +789,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             }
             return sendingsSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [filteredSendings, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay]);
+    }, [filteredSendings, deliveryStatusFilterSet, getSendingStatusKey, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay]);
     const sendingsInfographic = useMemo(() => {
         let ferry = 0;
         let auto = 0;
@@ -774,32 +805,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const hasPlate = /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase());
             if (hasPlate) auto += 1;
             else ferry += 1;
-            const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
-            const firstParcel = Array.isArray(rawParcels)
-                ? rawParcels[0]
-                : (rawParcels && typeof rawParcels === 'object'
-                    ? Object.values(rawParcels as Record<string, any>)[0]
-                    : undefined);
-            const cargoNumber = String(
-                row?.НомерПеревозки
-                ?? row?.Перевозка
-                ?? row?.CargoNumber
-                ?? row?.NumberPerevozki
-                ?? (firstParcel as any)?.Перевозка
-                ?? ''
-            ).trim();
-            const cargoStatus = cargoNumber ? cargoStateByNumber.get(normCargoKey(cargoNumber)) : undefined;
-            const statusKey = getFilterKeyByStatus(
-                String(
-                    cargoStatus
-                    ?? row?.State
-                    ?? row?.state
-                    ?? row?.Статус
-                    ?? row?.Status
-                    ?? row?.StatusName
-                    ?? ''
-                )
-            );
+            const statusKey = getSendingStatusKey(row);
             if (statusKey === 'in_transit' || statusKey === 'ready' || statusKey === 'delivering' || statusKey === 'delivered') {
                 statusCounts[statusKey] += 1;
             }
@@ -821,7 +827,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             .map(([route, count]) => ({ route, count }))
             .sort((a, b) => b.count - a.count || a.route.localeCompare(b.route, 'ru'));
         return { ferry, auto, routes, statusBadges };
-    }, [sendingRowsSorted, normalizeTransportDisplay, cargoStateByNumber, normCargoKey]);
+    }, [sendingRowsSorted, normalizeTransportDisplay, getSendingStatusKey]);
     const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'vehicle' | 'comment') => {
         if (sendingsSortColumn === column) {
             setSendingsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -1773,23 +1779,52 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             {!sendingsLoading && !sendingsError && sendingRowsSorted.length > 0 && (
                 <>
                 <div className="cargo-card" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '0.35rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
-                        <span className="role-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(37,99,235,0.12)', color: 'var(--color-primary-blue)', border: '1px solid rgba(37,99,235,0.35)' }}>
+                        <span className="role-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(37,99,235,0.12)', color: 'var(--color-primary-blue)', border: '1px solid rgba(37,99,235,0.35)', flex: '0 0 auto' }}>
                             <Ship className="w-3 h-3" /> {sendingsInfographic.ferry}
                         </span>
-                        <span className="role-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(17,24,39,0.08)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>
+                        <span className="role-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(17,24,39,0.08)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)', flex: '0 0 auto' }}>
                             <Truck className="w-3 h-3" /> {sendingsInfographic.auto}
                         </span>
-                        {sendingsInfographic.statusBadges.map((item) => (
-                            <span key={item.key} className="role-badge" style={{ fontSize: '0.72rem', padding: '0.12rem 0.42rem', borderRadius: '999px', background: item.bg, color: item.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap' }}>
-                                {item.label}: {item.percent}% ({item.count})
-                            </span>
-                        ))}
                         {sendingsInfographic.routes.map((item) => (
-                            <span key={item.route} className="role-badge" style={{ fontSize: '0.72rem', padding: '0.12rem 0.42rem', borderRadius: '999px', background: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', whiteSpace: 'nowrap' }}>
+                            <span key={item.route} className="role-badge" style={{ fontSize: '0.72rem', padding: '0.12rem 0.42rem', borderRadius: '999px', background: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', whiteSpace: 'nowrap', flex: '0 0 auto' }}>
                                 {item.route}: {item.count}
                             </span>
                         ))}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '0.35rem', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+                        {sendingsInfographic.statusBadges.map((item) => {
+                            const isActive = deliveryStatusFilterSet.has(item.key as StatusFilter);
+                            return (
+                                <button
+                                    key={item.key}
+                                    type="button"
+                                    className="role-badge"
+                                    onClick={() => {
+                                        setDeliveryStatusFilterSet((prev) => {
+                                            if (prev.size === 1 && prev.has(item.key as StatusFilter)) return new Set<StatusFilter>();
+                                            return new Set<StatusFilter>([item.key as StatusFilter]);
+                                        });
+                                    }}
+                                    style={{
+                                        fontSize: '0.72rem',
+                                        padding: '0.12rem 0.42rem',
+                                        borderRadius: '999px',
+                                        background: item.bg,
+                                        color: item.color,
+                                        border: isActive ? `1px solid ${item.color}` : '1px solid var(--color-border)',
+                                        whiteSpace: 'nowrap',
+                                        flex: '0 0 auto',
+                                        cursor: 'pointer',
+                                        opacity: isActive || deliveryStatusFilterSet.size === 0 ? 1 : 0.75,
+                                    }}
+                                >
+                                    {item.label}: {item.percent}% ({item.count})
+                                </button>
+                            );
+                        })}
+                    </div>
                     </div>
                 </div>
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
