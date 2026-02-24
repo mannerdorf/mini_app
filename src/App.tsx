@@ -7000,6 +7000,11 @@ function getTimelineStepColor(label: string): 'success' | 'warning' | 'danger' |
 type PerevozkaDetailsResult = {
     steps: PerevozkaTimelineStep[] | null;
     nomenclature: Record<string, unknown>[];
+    meta: {
+        autoReg: string;
+        autoType: string;
+        driver: string;
+    };
 };
 
 const STEPS_KEYS = ['items', 'Steps', 'stages', 'Statuses'];
@@ -7080,7 +7085,32 @@ async function fetchPerevozkaDetails(auth: AuthData, number: string, item: Cargo
         .sort((a, b) => a.key - b.key)
         .map((x) => x.s);
     const nomenclature = extractNomenclatureFromPerevozka(data);
-    return { steps: sorted.length ? sorted : null, nomenclature };
+    const tryReadField = (fieldNames: string[]): string => {
+        const candidates: any[] = [
+            data,
+            data?.Response,
+            data?.Data,
+            data?.Result,
+            data?.result,
+            data?.data,
+            Array.isArray(data?.items) ? data.items[0] : null,
+        ];
+        for (const candidate of candidates) {
+            if (!candidate || typeof candidate !== 'object') continue;
+            for (const field of fieldNames) {
+                const raw = (candidate as any)[field];
+                const value = String(raw ?? '').trim();
+                if (value) return value;
+            }
+        }
+        return '';
+    };
+    const meta = {
+        autoReg: tryReadField(['AutoReg', 'autoReg', 'AutoREG']),
+        autoType: tryReadField(['AutoType', 'autoType', 'TypeOfTranzit', 'TypeOfTransit']),
+        driver: tryReadField(['Driver', 'driver', 'DriverFio', 'DriverName']),
+    };
+    return { steps: sorted.length ? sorted : null, nomenclature, meta };
 }
 
 /** Загрузка только таймлайна (для дашборда — обратная совместимость) */
@@ -7115,6 +7145,7 @@ function CargoDetailsModal({
     const [pdfViewer, setPdfViewer] = useState<{ url: string; name: string; docType: string; blob?: Blob; downloadFileName?: string } | null>(null);
     const [perevozkaTimeline, setPerevozkaTimeline] = useState<PerevozkaTimelineStep[] | null>(null);
     const [perevozkaNomenclature, setPerevozkaNomenclature] = useState<Record<string, unknown>[]>([]);
+    const [perevozkaMeta, setPerevozkaMeta] = useState<{ autoReg: string; autoType: string; driver: string }>({ autoReg: '', autoType: '', driver: '' });
     const [nomenclatureOpen, setNomenclatureOpen] = useState(false);
     const [perevozkaLoading, setPerevozkaLoading] = useState(false);
     const [perevozkaError, setPerevozkaError] = useState<string | null>(null);
@@ -7124,6 +7155,7 @@ function CargoDetailsModal({
         if (!isOpen || !item?.Number || !auth?.login || !auth?.password) {
             setPerevozkaTimeline(null);
             setPerevozkaNomenclature([]);
+            setPerevozkaMeta({ autoReg: '', autoType: '', driver: '' });
             setPerevozkaError(null);
             return;
         }
@@ -7131,10 +7163,11 @@ function CargoDetailsModal({
         setPerevozkaLoading(true);
         setPerevozkaError(null);
         fetchPerevozkaDetails(auth, item.Number, item)
-            .then(({ steps, nomenclature }) => {
+            .then(({ steps, nomenclature, meta }) => {
                 if (!cancelled) {
                     setPerevozkaTimeline(steps);
                     setPerevozkaNomenclature(nomenclature || []);
+                    setPerevozkaMeta(meta || { autoReg: '', autoType: '', driver: '' });
                 }
             })
             .catch((e: any) => { if (!cancelled) setPerevozkaError(e?.message || 'Не удалось загрузить статусы'); })
@@ -7418,15 +7451,15 @@ function CargoDetailsModal({
                         <>
                             <DetailItem
                                 label="AutoReg"
-                                value={String(item.AutoReg ?? (item as any).autoReg ?? '-').trim() || '-'}
+                                value={String(item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? '-').trim() || '-'}
                             />
                             <DetailItem
                                 label="AutoType"
-                                value={String((item as any).AutoType ?? item.TypeOfTranzit ?? item.TypeOfTransit ?? '-').trim() || '-'}
+                                value={String((item as any).AutoType ?? item.TypeOfTranzit ?? item.TypeOfTransit ?? perevozkaMeta.autoType ?? '-').trim() || '-'}
                             />
                             <DetailItem
                                 label="Driver"
-                                value={String((item as any).Driver ?? '-').trim() || '-'}
+                                value={String((item as any).Driver ?? perevozkaMeta.driver ?? '-').trim() || '-'}
                             />
                         </>
                     )}
