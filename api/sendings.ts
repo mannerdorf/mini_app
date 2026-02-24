@@ -13,7 +13,8 @@ function normalizeDateOnly(raw: unknown): string {
   if (!s) return "";
   const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-  const ruMatch = s.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  // 24.02.2026 and 24.02.2026 15:30:00
+  const ruMatch = s.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\D.*)?$/);
   if (ruMatch) return `${ruMatch[3]}-${ruMatch[2]}-${ruMatch[1]}`;
   const parsed = new Date(s);
   if (Number.isNaN(parsed.getTime())) return "";
