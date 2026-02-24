@@ -53,10 +53,15 @@ export function getActSearchText(act: any): string {
 export function getOrderSearchText(order: any): string {
   const parts: string[] = [
     String(order?.Number ?? order?.number ?? order?.Номер ?? order?.N ?? ""),
-    stripOoo(String(order?.Customer ?? order?.customer ?? order?.Контрагент ?? order?.Contractor ?? order?.Organization ?? "")),
-    String(order?.DateZayavki ?? order?.DateOtpr ?? order?.DateSend ?? order?.DatePrih ?? order?.DateVr ?? order?.DateDoc ?? order?.Date ?? order?.date ?? ""),
+    String(order?.НомерЗаявки ?? ""),
+    String(order?.НомерПеревозки ?? order?.Перевозка ?? ""),
+    stripOoo(String(order?.Customer ?? order?.customer ?? order?.Заказчик ?? order?.Контрагент ?? order?.Contractor ?? order?.Organization ?? "")),
+    String(order?.Получатель ?? order?.Receiver ?? ""),
+    String(order?.DateZayavki ?? order?.DateOtpr ?? order?.DateSend ?? order?.DatePrih ?? order?.DateVr ?? order?.DateDoc ?? order?.Дата ?? order?.Date ?? order?.date ?? ""),
     String(order?.State ?? order?.state ?? order?.Статус ?? ""),
-    String(order?.AutoReg ?? order?.autoReg ?? ""),
+    String(order?.AutoReg ?? order?.autoReg ?? order?.АвтомобильCMRНаименование ?? ""),
+    String(order?.ПломбаCMR ?? ""),
+    String(order?.Комментарий ?? order?.Comment ?? ""),
     String(order?.Sum ?? order?.sum ?? order?.Сумма ?? order?.Amount ?? ""),
   ];
   return parts.join(" ").toLowerCase();
@@ -327,7 +332,7 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
     res = res.filter((i) => getItemInn(i) === normalizedActiveInn);
   }
   if (customerFilter) {
-    res = res.filter((i) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);
+    res = res.filter((i) => ((i.Customer ?? i.customer ?? i.Заказчик ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);
   }
   if (typeFilter === "ferry") res = res.filter((i) => i?.AK === true || i?.AK === "true" || i?.AK === "1" || i?.AK === 1);
   if (typeFilter === "auto") res = res.filter((i) => !(i?.AK === true || i?.AK === "true" || i?.AK === "1" || i?.AK === 1));
@@ -340,14 +345,14 @@ export function buildFilteredOrders(params: FilterOrdersParams) {
     res = res.filter((i) => ([cityToCode(i.CitySender), cityToCode(i.CityReceiver)].filter(Boolean).join(" – ") || "") === routeFilterCargo);
   }
   if (transportFilter) {
-    res = res.filter((i) => String(i.AutoReg ?? i.autoReg ?? "").trim() === transportFilter);
+    res = res.filter((i) => String(i.AutoReg ?? i.autoReg ?? i.АвтомобильCMRНаименование ?? "").trim() === transportFilter);
   }
   if (searchText.trim()) {
     const lower = searchText.trim().toLowerCase();
     res = res.filter((i) => getOrderSearchText(i).includes(lower));
   }
   if (sortBy === "date") {
-    const getDate = (r: any) => (r.DateZayavki ?? r.DateOtpr ?? r.DateSend ?? r.DatePrih ?? r.DateVr ?? r.DateDoc ?? r.Date ?? r.date ?? "").toString();
+    const getDate = (r: any) => (r.DateZayavki ?? r.DateOtpr ?? r.DateSend ?? r.DatePrih ?? r.DateVr ?? r.DateDoc ?? r.Дата ?? r.Date ?? r.date ?? "").toString();
     res.sort((a, b) => {
       const da = getDate(a);
       const db = getDate(b);

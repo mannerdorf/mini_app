@@ -7450,16 +7450,8 @@ function CargoDetailsModal({
                     {useServiceRequest && (
                         <>
                             <DetailItem
-                                label="AutoReg"
+                                label="Транспортное средство"
                                 value={String(item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? '-').trim() || '-'}
-                            />
-                            <DetailItem
-                                label="AutoType"
-                                value={String((item as any).AutoType ?? item.TypeOfTranzit ?? item.TypeOfTransit ?? perevozkaMeta.autoType ?? '-').trim() || '-'}
-                            />
-                            <DetailItem
-                                label="Driver"
-                                value={String((item as any).Driver ?? perevozkaMeta.driver ?? '-').trim() || '-'}
                             />
                         </>
                     )}
@@ -9596,6 +9588,7 @@ export default function App() {
                     doc_invoices: true,
                     doc_acts: true,
                     doc_orders: false,
+                    doc_sendings: false,
                     doc_claims: false,
                     doc_contracts: false,
                     doc_acts_settlement: false,
