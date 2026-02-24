@@ -47,7 +47,7 @@ function getMonthBounds(dateIso: string): { from: string; to: string } {
   return { from, to };
 }
 
-type ShiftMarkCode = "Я" | "ПР" | "Б" | "ОГ" | "ОТ" | "УВ";
+type ShiftMarkCode = "Я" | "ПР" | "Б" | "В" | "ОГ" | "ОТ" | "УВ";
 
 function normalizeShiftMark(rawValue: string): ShiftMarkCode | "" {
   const raw = String(rawValue || "").trim().toUpperCase();
@@ -55,6 +55,7 @@ function normalizeShiftMark(rawValue: string): ShiftMarkCode | "" {
   if (raw === "Я") return "Я";
   if (raw === "ПР") return "ПР";
   if (raw === "Б") return "Б";
+  if (raw === "В") return "В";
   if (raw === "ОГ") return "ОГ";
   if (raw === "ОТ") return "ОТ";
   if (raw === "УВ") return "УВ";

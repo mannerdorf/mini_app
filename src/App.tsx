@@ -4155,7 +4155,7 @@ function ProfilePage({
     ] as const;
     const SHIFT_MARK_CODES = SHIFT_MARK_OPTIONS.map((x) => x.code);
     type ShiftMarkCode = typeof SHIFT_MARK_OPTIONS[number]["code"];
-    const [departmentShiftPicker, setDepartmentShiftPicker] = useState<{ key: string; employeeId: number; day: number; x: number; y: number } | null>(null);
+    const [departmentShiftPicker, setDepartmentShiftPicker] = useState<{ key: string; employeeId: number; day: number; x: number; y: number; isShift: boolean } | null>(null);
     const departmentShiftHoldTimerRef = useRef<number | null>(null);
     const departmentShiftHoldTriggeredRef = useRef(false);
     const normalizeShiftMark = (rawValue: string): ShiftMarkCode | "" => {
@@ -4193,6 +4193,23 @@ function ProfilePage({
         if (!Number.isFinite(parsed)) return '0.0';
         const normalized = Math.max(0, Math.min(24, parsed));
         return (Math.round(normalized * 2) / 2).toFixed(1);
+    };
+    const parseHourValue = (rawValue: string): number => {
+        const raw = String(rawValue || '').trim();
+        if (!raw) return 0;
+        const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+        if (hhmm) {
+            const h = Number(hhmm[1]);
+            const m = Number(hhmm[2]);
+            if (Number.isFinite(h) && Number.isFinite(m) && m >= 0 && m < 60) return h + m / 60;
+        }
+        const parsed = Number(raw.replace(',', '.'));
+        return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const getHourlyCellMark = (rawValue: string): ShiftMarkCode | "" => {
+        const mark = normalizeShiftMark(rawValue);
+        if (mark) return mark;
+        return parseHourValue(rawValue) > 0 ? "Я" : "В";
     };
     const departmentTimesheetHalfHourOptions = useMemo(() => {
         return Array.from({ length: 49 }, (_, idx) => {
@@ -5245,7 +5262,12 @@ function ProfilePage({
                                             const isShift = isShiftAccrual(emp.accrualType);
                                             const shiftMark = normalizeShiftMark(value);
                                             const shiftMarkStyle = getShiftMarkStyle(shiftMark);
-                                            const hourPickerValue = toHalfHourValue(value || '0');
+                                            const hourlyMark = isShift ? shiftMark : getHourlyCellMark(value);
+                                            const hourlyMarkStyle = getShiftMarkStyle(hourlyMark);
+                                            const hourValue = parseHourValue(value);
+                                            const hourInputValue = hourValue > 0 ? String(hourValue) : '';
+                                            const hourPickerValue = toHalfHourValue(hourInputValue || '0');
+                                            const hourlyHoursEnabled = isShift ? false : hourlyMark === 'Я';
                                             const isPaidDate = departmentTimesheetPaidDayMarks[key] === true;
                                             const baseShiftRate = Number(emp.accrualRate || 0);
                                             const overrideShiftRate = Number(departmentTimesheetShiftRateOverrides[key]);
@@ -5290,7 +5312,7 @@ function ProfilePage({
                                                                     const { clientX, clientY } = e;
                                                                     departmentShiftHoldTimerRef.current = window.setTimeout(() => {
                                                                         departmentShiftHoldTriggeredRef.current = true;
-                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: clientX, y: clientY });
+                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: clientX, y: clientY, isShift: true });
                                                                     }, 450);
                                                                 }}
                                                                 onMouseUp={() => {
@@ -5317,7 +5339,7 @@ function ProfilePage({
                                                                     const touch = e.touches[0];
                                                                     departmentShiftHoldTimerRef.current = window.setTimeout(() => {
                                                                         departmentShiftHoldTriggeredRef.current = true;
-                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: touch.clientX, y: touch.clientY });
+                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: touch.clientX, y: touch.clientY, isShift: true });
                                                                     }, 450);
                                                                 }}
                                                                 onTouchEnd={() => {
@@ -5427,40 +5449,125 @@ function ProfilePage({
                                                             ) : null}
                                                         </div>
                                                     ) : (
-                                                        departmentTimesheetMobilePicker ? (
-                                                            <select
-                                                                value={hourPickerValue}
-                                                                disabled={!departmentTimesheetIsEditableMonth || isPaidDate}
-                                                                onChange={(e) => {
+                                                        <div style={{ display: 'grid', justifyItems: 'center', rowGap: '0.12rem' }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
                                                                     if (isPaidDate) return;
                                                                     if (!departmentTimesheetIsEditableMonth) return;
-                                                                    const nextValue = e.target.value;
+                                                                    if (departmentShiftHoldTriggeredRef.current) {
+                                                                        departmentShiftHoldTriggeredRef.current = false;
+                                                                        return;
+                                                                    }
+                                                                    const nextMark = hourlyMark === 'Я' ? 'В' : 'Я';
+                                                                    const nextValue = nextMark === 'Я' ? (hourInputValue || 'Я') : 'В';
                                                                     setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
                                                                     void saveDepartmentTimesheetCell(emp.id, day, nextValue);
                                                                 }}
-                                                                style={{ width: '4.3rem', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0 0.2rem', textAlign: 'center', display: 'block', margin: '0 auto' }}
-                                                                aria-label="Количество часов за день"
-                                                            >
-                                                                {departmentTimesheetHalfHourOptions.map((opt) => (
-                                                                    <option key={`${key}-opt-${opt.value}`} value={opt.value}>{opt.label}</option>
-                                                                ))}
-                                                            </select>
-                                                        ) : (
-                                                            <input
-                                                                value={value}
-                                                                disabled={!departmentTimesheetIsEditableMonth || isPaidDate}
-                                                                onChange={(e) => {
+                                                                onMouseDown={(e) => {
                                                                     if (isPaidDate) return;
                                                                     if (!departmentTimesheetIsEditableMonth) return;
-                                                                    const nextRaw = e.target.value;
-                                                                    const next = nextRaw.replace(/[^0-9.,]/g, '').replace(',', '.');
-                                                                    setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: next }));
-                                                                    void saveDepartmentTimesheetCell(emp.id, day, next);
+                                                                    if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                    departmentShiftHoldTriggeredRef.current = false;
+                                                                    const { clientX, clientY } = e;
+                                                                    departmentShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                                        departmentShiftHoldTriggeredRef.current = true;
+                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: clientX, y: clientY, isShift: false });
+                                                                    }, 450);
                                                                 }}
-                                                                placeholder="0"
-                                                                style={{ width: '100%', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0.2rem 0.25rem', textAlign: 'center' }}
-                                                            />
-                                                        )
+                                                                onMouseUp={() => {
+                                                                    if (departmentShiftHoldTimerRef.current) {
+                                                                        window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                        departmentShiftHoldTimerRef.current = null;
+                                                                    }
+                                                                }}
+                                                                onMouseLeave={() => {
+                                                                    if (departmentShiftHoldTimerRef.current) {
+                                                                        window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                        departmentShiftHoldTimerRef.current = null;
+                                                                    }
+                                                                }}
+                                                                onTouchStart={(e) => {
+                                                                    if (isPaidDate) return;
+                                                                    if (!departmentTimesheetIsEditableMonth) return;
+                                                                    if (departmentShiftHoldTimerRef.current) window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                    departmentShiftHoldTriggeredRef.current = false;
+                                                                    const touch = e.touches[0];
+                                                                    departmentShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                                        departmentShiftHoldTriggeredRef.current = true;
+                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: touch.clientX, y: touch.clientY, isShift: false });
+                                                                    }, 450);
+                                                                }}
+                                                                onTouchEnd={() => {
+                                                                    if (departmentShiftHoldTimerRef.current) {
+                                                                        window.clearTimeout(departmentShiftHoldTimerRef.current);
+                                                                        departmentShiftHoldTimerRef.current = null;
+                                                                    }
+                                                                }}
+                                                                style={{
+                                                                    width: '2.2rem',
+                                                                    height: '1.6rem',
+                                                                    minWidth: '2.2rem',
+                                                                    boxSizing: 'border-box',
+                                                                    border: hourlyMarkStyle.border,
+                                                                    borderRadius: 999,
+                                                                    background: hourlyMarkStyle.background,
+                                                                    color: hourlyMarkStyle.color,
+                                                                    padding: 0,
+                                                                    lineHeight: '1.6rem',
+                                                                    textAlign: 'center',
+                                                                    fontWeight: 600,
+                                                                    fontSize: hourlyMark ? '0.82rem' : '1rem',
+                                                                    WebkitAppearance: 'none',
+                                                                    appearance: 'none',
+                                                                    display: 'block',
+                                                                    margin: '0 auto',
+                                                                    cursor: departmentTimesheetIsEditableMonth && !isPaidDate ? 'pointer' : 'default',
+                                                                    opacity: departmentTimesheetIsEditableMonth && !isPaidDate ? 1 : 0.85,
+                                                                }}
+                                                                aria-label={hourlyMark ? `Статус ${hourlyMark}. Нажмите для Я/В, удерживайте для выбора` : 'Нажмите для Я, удерживайте для выбора статуса'}
+                                                                title={isPaidDate ? 'Этот день уже оплачен' : (hourlyMark ? `Статус: ${hourlyMark}` : 'Сначала отметьте статус')}
+                                                            >
+                                                                {hourlyMark || 'В'}
+                                                            </button>
+                                                            {departmentTimesheetMobilePicker ? (
+                                                                <select
+                                                                    value={hourPickerValue}
+                                                                    disabled={!departmentTimesheetIsEditableMonth || isPaidDate || !hourlyHoursEnabled}
+                                                                    onChange={(e) => {
+                                                                        if (isPaidDate) return;
+                                                                        if (!departmentTimesheetIsEditableMonth) return;
+                                                                        if (!hourlyHoursEnabled) return;
+                                                                        const nextValue = e.target.value;
+                                                                        setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
+                                                                        void saveDepartmentTimesheetCell(emp.id, day, nextValue);
+                                                                    }}
+                                                                    style={{ width: '4.3rem', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0 0.2rem', textAlign: 'center', display: 'block', margin: '0 auto' }}
+                                                                    aria-label="Количество часов за день"
+                                                                >
+                                                                    {departmentTimesheetHalfHourOptions.map((opt) => (
+                                                                        <option key={`${key}-opt-${opt.value}`} value={opt.value}>{opt.label}</option>
+                                                                    ))}
+                                                                </select>
+                                                            ) : (
+                                                                <input
+                                                                    value={hourInputValue}
+                                                                    disabled={!departmentTimesheetIsEditableMonth || isPaidDate || !hourlyHoursEnabled}
+                                                                    onChange={(e) => {
+                                                                        if (isPaidDate) return;
+                                                                        if (!departmentTimesheetIsEditableMonth) return;
+                                                                        if (!hourlyHoursEnabled) return;
+                                                                        const nextRaw = e.target.value;
+                                                                        const next = nextRaw.replace(/[^0-9.,]/g, '').replace(',', '.');
+                                                                        const nextValue = next.trim() === '' ? 'Я' : next;
+                                                                        setDepartmentTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
+                                                                        void saveDepartmentTimesheetCell(emp.id, day, nextValue);
+                                                                    }}
+                                                                    placeholder="0"
+                                                                    style={{ width: '100%', minWidth: 36, boxSizing: 'border-box', border: '1px solid var(--color-border)', borderRadius: 6, background: 'var(--color-bg)', padding: '0.2rem 0.25rem', textAlign: 'center' }}
+                                                                />
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </td>
                                             );
@@ -5565,9 +5672,13 @@ function ProfilePage({
                                     key={`dept-shift-mark-${opt.code}`}
                                     type="button"
                                     onClick={() => {
-                                        const nextValue = opt.code;
+                                        const currentValue = departmentTimesheetHours[departmentShiftPicker.key] || '';
+                                        const currentHours = parseHourValue(currentValue);
+                                        const nextValue = opt.code === 'Я' && !departmentShiftPicker.isShift
+                                            ? (currentHours > 0 ? String(currentHours) : 'Я')
+                                            : opt.code;
                                         setDepartmentTimesheetHours((prev) => ({ ...prev, [departmentShiftPicker.key]: nextValue }));
-                                        if (nextValue !== 'Я') {
+                                        if (departmentShiftPicker.isShift && nextValue !== 'Я') {
                                             setDepartmentTimesheetShiftRateOverrides((prev) => {
                                                 const next = { ...prev };
                                                 delete next[departmentShiftPicker.key];
@@ -5598,12 +5709,14 @@ function ProfilePage({
                                 type="button"
                                 onClick={() => {
                                     setDepartmentTimesheetHours((prev) => ({ ...prev, [departmentShiftPicker.key]: '' }));
-                                    setDepartmentTimesheetShiftRateOverrides((prev) => {
-                                        const next = { ...prev };
-                                        delete next[departmentShiftPicker.key];
-                                        return next;
-                                    });
-                                    void saveDepartmentTimesheetShiftRate(departmentShiftPicker.employeeId, departmentShiftPicker.day, '');
+                                    if (departmentShiftPicker.isShift) {
+                                        setDepartmentTimesheetShiftRateOverrides((prev) => {
+                                            const next = { ...prev };
+                                            delete next[departmentShiftPicker.key];
+                                            return next;
+                                        });
+                                        void saveDepartmentTimesheetShiftRate(departmentShiftPicker.employeeId, departmentShiftPicker.day, '');
+                                    }
                                     void saveDepartmentTimesheetCell(departmentShiftPicker.employeeId, departmentShiftPicker.day, '');
                                     setDepartmentShiftPicker(null);
                                 }}

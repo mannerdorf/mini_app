@@ -654,7 +654,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   ] as const;
   const SHIFT_MARK_CODES = SHIFT_MARK_OPTIONS.map((x) => x.code);
   type ShiftMarkCode = typeof SHIFT_MARK_OPTIONS[number]["code"];
-  const [adminShiftPicker, setAdminShiftPicker] = useState<{ key: string; employeeId: number; dateIso: string; x: number; y: number } | null>(null);
+  const [adminShiftPicker, setAdminShiftPicker] = useState<{ key: string; employeeId: number; dateIso: string; x: number; y: number; isShift: boolean } | null>(null);
   const adminShiftHoldTimerRef = useRef<number | null>(null);
   const adminShiftHoldTriggeredRef = useRef(false);
   const isShiftAccrualType = (value: unknown) => {
@@ -709,6 +709,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (!Number.isFinite(parsed)) return "0.0";
     const normalized = Math.max(0, Math.min(24, parsed));
     return (Math.round(normalized * 2) / 2).toFixed(1);
+  };
+  const getHourlyCellMark = (rawValue: string): ShiftMarkCode | "" => {
+    const mark = normalizeShiftMark(rawValue);
+    if (mark) return mark;
+    return parseTimesheetHoursValue(rawValue) > 0 ? "Я" : "В";
   };
   const timesheetHalfHourOptions = useMemo(() => {
     return Array.from({ length: 49 }, (_, idx) => {
@@ -4775,7 +4780,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     const fallback = "0";
                                     const shiftMark = normalizeShiftMark(value);
                                     const shiftMarkStyle = getShiftMarkStyle(shiftMark);
-                                    const hourPickerValue = toHalfHourValue(value || fallback);
+                                    const hourlyMark = isShiftAccrual ? shiftMark : getHourlyCellMark(value);
+                                    const hourlyMarkStyle = getShiftMarkStyle(hourlyMark);
+                                    const hourInputValue = parseTimesheetHoursValue(value) > 0 ? String(parseTimesheetHoursValue(value)) : "";
+                                    const hourPickerValue = toHalfHourValue(hourInputValue || fallback);
+                                    const hourlyHoursEnabled = isShiftAccrual ? false : hourlyMark === "Я";
                                     const isMarkedForPayment = timesheetPaymentMarks[key] === true;
                                     const isPaidDate = paidDatesSet.has(d.iso);
                                     return (
@@ -4822,7 +4831,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                 const { clientX, clientY } = e;
                                                 adminShiftHoldTimerRef.current = window.setTimeout(() => {
                                                   adminShiftHoldTriggeredRef.current = true;
-                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: clientX, y: clientY });
+                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: clientX, y: clientY, isShift: true });
                                                 }, 450);
                                               }}
                                               onMouseUp={() => {
@@ -4846,7 +4855,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                 const touch = e.touches[0];
                                                 adminShiftHoldTimerRef.current = window.setTimeout(() => {
                                                   adminShiftHoldTriggeredRef.current = true;
-                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: touch.clientX, y: touch.clientY });
+                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: touch.clientX, y: touch.clientY, isShift: true });
                                                 }, 450);
                                               }}
                                               onTouchEnd={() => {
@@ -4904,57 +4913,121 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                             </button>
                                           </div>
                                         ) : (
-                                          timesheetMobilePicker ? (
-                                            <select
-                                              value={hourPickerValue}
-                                              disabled={isPayoutExpanded || isPaidDate}
-                                              onChange={(e) => {
-                                                if (isPaidDate) return;
-                                                const nextValue = e.target.value;
-                                                setTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
-                                                void saveTimesheetCell(emp.id, d.iso, nextValue);
-                                              }}
-                                              className="admin-form-input"
-                                              style={{ width: "4.3rem", padding: "0 0.2rem", textAlign: "center", margin: "0 auto", display: "block" }}
-                                              aria-label="Количество часов за день"
-                                            >
-                                              {timesheetHalfHourOptions.map((opt) => (
-                                                <option key={`${key}-opt-${opt.value}`} value={opt.value}>
-                                                  {opt.label}
-                                                </option>
-                                              ))}
-                                            </select>
-                                          ) : (
-                                            <input
-                                              type="number"
-                                              min={0}
-                                              max={24}
-                                              step={0.5}
-                                              value={value || fallback}
-                                              disabled={isPayoutExpanded || isPaidDate}
-                                              onChange={(e) => {
-                                                if (isPaidDate) return;
-                                                const raw = e.target.value;
-                                                if (raw === "") {
-                                                  setTimesheetHours((prev) => {
-                                                    const next = { ...prev };
-                                                    delete next[key];
-                                                    return next;
-                                                  });
-                                                  void saveTimesheetCell(emp.id, d.iso, "");
+                                          <div style={{ display: "grid", justifyItems: "center", rowGap: "0.08rem" }}>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (isPayoutExpanded || isPaidDate) return;
+                                                if (adminShiftHoldTriggeredRef.current) {
+                                                  adminShiftHoldTriggeredRef.current = false;
                                                   return;
                                                 }
-                                                const parsed = Number(raw);
-                                                if (!Number.isFinite(parsed)) return;
-                                                const normalized = Math.max(0, Math.min(24, parsed));
-                                                const nextValue = String(normalized);
+                                                const nextMark = hourlyMark === "Я" ? "В" : "Я";
+                                                const nextValue = nextMark === "Я" ? (hourInputValue || "Я") : "В";
                                                 setTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
                                                 void saveTimesheetCell(emp.id, d.iso, nextValue);
                                               }}
-                                              className="admin-form-input"
-                                              style={{ width: "3rem", padding: "0 0.25rem", textAlign: "center", margin: "0 auto" }}
-                                            />
-                                          )
+                                              onMouseDown={(e) => {
+                                                if (isPayoutExpanded || isPaidDate) return;
+                                                if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                adminShiftHoldTriggeredRef.current = false;
+                                                const { clientX, clientY } = e;
+                                                adminShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                  adminShiftHoldTriggeredRef.current = true;
+                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: clientX, y: clientY, isShift: false });
+                                                }, 450);
+                                              }}
+                                              onMouseUp={() => {
+                                                if (adminShiftHoldTimerRef.current) {
+                                                  window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                  adminShiftHoldTimerRef.current = null;
+                                                }
+                                              }}
+                                              onMouseLeave={() => {
+                                                if (adminShiftHoldTimerRef.current) {
+                                                  window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                  adminShiftHoldTimerRef.current = null;
+                                                }
+                                              }}
+                                              onTouchStart={(e) => {
+                                                if (isPayoutExpanded || isPaidDate) return;
+                                                if (adminShiftHoldTimerRef.current) window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                adminShiftHoldTriggeredRef.current = false;
+                                                const touch = e.touches[0];
+                                                adminShiftHoldTimerRef.current = window.setTimeout(() => {
+                                                  adminShiftHoldTriggeredRef.current = true;
+                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: touch.clientX, y: touch.clientY, isShift: false });
+                                                }, 450);
+                                              }}
+                                              onTouchEnd={() => {
+                                                if (adminShiftHoldTimerRef.current) {
+                                                  window.clearTimeout(adminShiftHoldTimerRef.current);
+                                                  adminShiftHoldTimerRef.current = null;
+                                                }
+                                              }}
+                                              style={{
+                                                width: "2.2rem",
+                                                height: "1.6rem",
+                                                padding: 0,
+                                                textAlign: "center",
+                                                margin: "0 auto",
+                                                display: "block",
+                                                borderRadius: 999,
+                                                border: hourlyMarkStyle.border,
+                                                background: hourlyMarkStyle.background,
+                                                color: hourlyMarkStyle.color,
+                                                fontWeight: 600,
+                                                lineHeight: "1.6rem",
+                                                fontSize: hourlyMark ? "0.82rem" : "1rem",
+                                                WebkitAppearance: "none",
+                                                appearance: "none",
+                                                cursor: isPayoutExpanded || isPaidDate ? "default" : "pointer",
+                                                opacity: isPayoutExpanded || isPaidDate ? 0.9 : 1,
+                                              }}
+                                              aria-label={hourlyMark ? `Статус ${hourlyMark}. Нажмите для Я/В, удерживайте для выбора` : "Нажмите для Я, удерживайте для выбора статуса"}
+                                            >
+                                              {hourlyMark || "В"}
+                                            </button>
+                                            {timesheetMobilePicker ? (
+                                              <select
+                                                value={hourPickerValue}
+                                                disabled={isPayoutExpanded || isPaidDate || !hourlyHoursEnabled}
+                                                onChange={(e) => {
+                                                  if (isPaidDate || !hourlyHoursEnabled) return;
+                                                  const nextValue = e.target.value;
+                                                  setTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
+                                                  void saveTimesheetCell(emp.id, d.iso, nextValue);
+                                                }}
+                                                className="admin-form-input"
+                                                style={{ width: "4.3rem", padding: "0 0.2rem", textAlign: "center", margin: "0 auto", display: "block" }}
+                                                aria-label="Количество часов за день"
+                                              >
+                                                {timesheetHalfHourOptions.map((opt) => (
+                                                  <option key={`${key}-opt-${opt.value}`} value={opt.value}>
+                                                    {opt.label}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            ) : (
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                max={24}
+                                                step={0.5}
+                                                value={hourInputValue}
+                                                disabled={isPayoutExpanded || isPaidDate || !hourlyHoursEnabled}
+                                                onChange={(e) => {
+                                                  if (isPaidDate || !hourlyHoursEnabled) return;
+                                                  const raw = e.target.value;
+                                                  const nextValue = raw.trim() === "" ? "Я" : String(Math.max(0, Math.min(24, Number(raw) || 0)));
+                                                  setTimesheetHours((prev) => ({ ...prev, [key]: nextValue }));
+                                                  void saveTimesheetCell(emp.id, d.iso, nextValue);
+                                                }}
+                                                className="admin-form-input"
+                                                style={{ width: "3rem", padding: "0 0.25rem", textAlign: "center", margin: "0 auto" }}
+                                              />
+                                            )}
+                                          </div>
                                         )}
                                       </td>
                                     );
@@ -5215,7 +5288,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     type="button"
                     onClick={() => {
                       if (timesheetPaidDateKeys.has(adminShiftPicker.key)) return;
-                      const nextValue = opt.code;
+                      const currentValue = timesheetHours[adminShiftPicker.key] || "";
+                      const currentHours = parseTimesheetHoursValue(currentValue);
+                      const nextValue = opt.code === "Я" && !adminShiftPicker.isShift
+                        ? (currentHours > 0 ? String(currentHours) : "Я")
+                        : opt.code;
                       setTimesheetHours((prev) => ({ ...prev, [adminShiftPicker.key]: nextValue }));
                       void saveTimesheetCell(adminShiftPicker.employeeId, adminShiftPicker.dateIso, nextValue);
                       setAdminShiftPicker(null);

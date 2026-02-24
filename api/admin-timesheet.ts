@@ -24,10 +24,10 @@ function normalizeAccrualType(value: unknown): "hour" | "shift" {
   return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
 }
 
-function normalizeShiftMark(rawValue: string): "Я" | "ПР" | "Б" | "ОГ" | "ОТ" | "УВ" | "" {
+function normalizeShiftMark(rawValue: string): "Я" | "ПР" | "Б" | "В" | "ОГ" | "ОТ" | "УВ" | "" {
   const raw = String(rawValue || "").trim().toUpperCase();
   if (!raw) return "";
-  if (raw === "Я" || raw === "ПР" || raw === "Б" || raw === "ОГ" || raw === "ОТ" || raw === "УВ") return raw as any;
+  if (raw === "Я" || raw === "ПР" || raw === "Б" || raw === "В" || raw === "ОГ" || raw === "ОТ" || raw === "УВ") return raw as any;
   if (raw === "С" || raw === "C" || raw === "1" || raw === "TRUE" || raw === "ON" || raw === "YES") return "Я";
   if (raw.includes("СМЕН") || raw.includes("SHIFT")) return "Я";
   return "";
