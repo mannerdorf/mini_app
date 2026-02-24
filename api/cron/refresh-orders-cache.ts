@@ -69,7 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const now = new Date();
   const dateTo = now.toISOString().split("T")[0];
   const fromDate = new Date(now);
-  fromDate.setDate(fromDate.getDate() - 90);
+  fromDate.setDate(fromDate.getDate() - 10);
   const dateFrom = fromDate.toISOString().split("T")[0];
 
   const fetchServiceJson = async (url: string) => {
@@ -154,7 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
       .join("");
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш заявок обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:48rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш заявок обновлён</h1><p>Заявок: <strong>${ordersList.length}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo} (90 дней). Обновление отдельным кроном.</p><h3 style="margin-top:1.5rem;">Диагностика шагов</h3><ul style="line-height:1.55;">${stepsHtml}</ul></body></html>`;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш заявок обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:48rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш заявок обновлён</h1><p>Заявок: <strong>${ordersList.length}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo} (10 дней). Обновление отдельным кроном.</p><h3 style="margin-top:1.5rem;">Диагностика шагов</h3><ul style="line-height:1.55;">${stepsHtml}</ul></body></html>`;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(html);
   } catch (e: any) {
