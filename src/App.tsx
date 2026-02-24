@@ -4172,6 +4172,7 @@ function ProfilePage({
     const [departmentTimesheetLoading, setDepartmentTimesheetLoading] = useState(false);
     const [departmentTimesheetError, setDepartmentTimesheetError] = useState<string | null>(null);
     const [departmentTimesheetSearch, setDepartmentTimesheetSearch] = useState("");
+    const [departmentTimesheetManageExpanded, setDepartmentTimesheetManageExpanded] = useState(false);
     const [departmentTimesheetMonth, setDepartmentTimesheetMonth] = useState<string>(() => {
         const now = new Date();
         const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -5152,107 +5153,124 @@ function ProfilePage({
                     ) : null}
                 </Panel>
                 <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '0.75rem' }}>
-                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Добавить существующего сотрудника из подразделения</Typography.Body>
-                    <Flex align="center" gap="0.5rem" wrap="wrap">
-                        <select
-                            value={departmentTimesheetSelectedEmployeeId}
-                            onChange={(e) => { setDepartmentTimesheetSelectedEmployeeId(e.target.value); setDepartmentTimesheetError(null); }}
-                            style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '18rem' }}
-                            aria-label="Сотрудник подразделения"
-                        >
-                            <option value="">Выберите сотрудника</option>
-                            {departmentTimesheetAvailableEmployees.map((emp) => (
-                                <option key={`existing-dep-emp-${emp.id}`} value={String(emp.id)}>
-                                    {(emp.fullName || emp.login) + (emp.position ? ` — ${emp.position}` : "")}
-                                </option>
-                            ))}
-                        </select>
+                    <Flex align="center" justify="space-between" gap="0.6rem" wrap="wrap">
+                        <Typography.Body style={{ fontWeight: 600 }}>Управление сотрудниками табеля</Typography.Body>
                         <Button
                             type="button"
                             className="filter-button"
-                            disabled={!departmentTimesheetIsEditableMonth || departmentTimesheetEmployeeSaving || !departmentTimesheetAvailableEmployees.length}
-                            onClick={() => void addExistingDepartmentTimesheetEmployee()}
-                            style={{ height: '2.4rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                            onClick={() => setDepartmentTimesheetManageExpanded((prev) => !prev)}
+                            style={{ padding: '0.35rem 0.6rem' }}
                         >
-                            {departmentTimesheetEmployeeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                            Добавить выбранного
-                        </Button>
-                        {!departmentTimesheetAvailableEmployees.length ? (
-                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.82rem' }}>
-                                Нет скрытых сотрудников для этого месяца.
-                            </Typography.Body>
-                        ) : null}
-                    </Flex>
-                </Panel>
-                <Panel className="cargo-card" style={{ padding: '1rem', marginBottom: '0.75rem' }}>
-                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Добавить сотрудника в табель</Typography.Body>
-                    <Typography.Body style={{ marginBottom: '0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
-                        Новый сотрудник будет добавлен в ваше подразделение как сотрудник.
-                    </Typography.Body>
-                    <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="nowrap" align="center" style={{ overflowX: 'auto', paddingBottom: '0.1rem' }}>
-                        <Input
-                            type="text"
-                            placeholder="ФИО"
-                            value={departmentTimesheetEmployeeFullName}
-                            onChange={(e) => { setDepartmentTimesheetEmployeeFullName(e.target.value); setDepartmentTimesheetError(null); }}
-                            style={{ width: '14rem', minWidth: '12rem', height: '2.4rem', boxSizing: 'border-box' }}
-                            className="admin-form-input"
-                        />
-                        <Input
-                            type="text"
-                            placeholder="Должность"
-                            value={departmentTimesheetEmployeePosition}
-                            onChange={(e) => { setDepartmentTimesheetEmployeePosition(e.target.value); setDepartmentTimesheetError(null); }}
-                            style={{ width: '12rem', minWidth: '10rem', height: '2.4rem', boxSizing: 'border-box' }}
-                            className="admin-form-input"
-                        />
-                        <select
-                            value={departmentTimesheetEmployeeAccrualType}
-                            onChange={(e) => setDepartmentTimesheetEmployeeAccrualType(normalizeDepartmentAccrualType(e.target.value))}
-                            style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '9rem' }}
-                            aria-label="Тип начисления"
-                        >
-                            <option value="hour">Почасовая</option>
-                            <option value="shift">Сменная</option>
-                            <option value="month">Месячная (21 раб. дн.)</option>
-                        </select>
-                        <select
-                            value={departmentTimesheetEmployeeCooperationType}
-                            onChange={(e) => setDepartmentTimesheetEmployeeCooperationType(
-                                e.target.value === "self_employed" || e.target.value === "ip" ? e.target.value : "staff"
-                            )}
-                            style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '11rem' }}
-                            aria-label="Тип занятости"
-                        >
-                            {COOPERATION_TYPE_OPTIONS.map((opt) => (
-                                <option key={`cooperation-type-${opt.value}`} value={opt.value}>{opt.label}</option>
-                            ))}
-                        </select>
-                        <Input
-                            type="number"
-                            placeholder="Ставка"
-                            min={0}
-                            step={0.01}
-                            value={departmentTimesheetEmployeeAccrualRate}
-                            onChange={(e) => { setDepartmentTimesheetEmployeeAccrualRate(e.target.value); setDepartmentTimesheetError(null); }}
-                            style={{ width: '5.2rem', minWidth: '4.6rem', height: '2.4rem', boxSizing: 'border-box' }}
-                            className="admin-form-input"
-                        />
-                        <Button
-                            type="button"
-                            className="filter-button"
-                            disabled={!departmentTimesheetIsEditableMonth || departmentTimesheetEmployeeSaving}
-                            onClick={() => void addDepartmentTimesheetEmployee()}
-                            style={{ height: '2.4rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
-                        >
-                            {departmentTimesheetEmployeeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                            Добавить
+                            {departmentTimesheetManageExpanded ? 'Свернуть' : 'Развернуть'}
                         </Button>
                     </Flex>
-                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.4rem' }}>
-                        За {departmentTimesheetEmployeeAccrualType === "month" ? "месяц" : (departmentTimesheetEmployeeAccrualType === 'shift' ? 'смену' : 'час')}: {Number(departmentTimesheetEmployeeAccrualRate || 0).toLocaleString('ru-RU')} ₽ ·
-                        За месяц ({WORK_DAYS_IN_MONTH} раб. дн.): {Math.round(departmentTimesheetMonthlyEstimate).toLocaleString('ru-RU')} ₽
-                    </Typography.Body>
+                    {departmentTimesheetManageExpanded ? (
+                        <div style={{ marginTop: '0.75rem', display: 'grid', gap: '0.75rem' }}>
+                            <div>
+                                <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Добавить существующего сотрудника из подразделения</Typography.Body>
+                                <Flex align="center" gap="0.5rem" wrap="wrap">
+                                    <select
+                                        value={departmentTimesheetSelectedEmployeeId}
+                                        onChange={(e) => { setDepartmentTimesheetSelectedEmployeeId(e.target.value); setDepartmentTimesheetError(null); }}
+                                        style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '18rem' }}
+                                        aria-label="Сотрудник подразделения"
+                                    >
+                                        <option value="">Выберите сотрудника</option>
+                                        {departmentTimesheetAvailableEmployees.map((emp) => (
+                                            <option key={`existing-dep-emp-${emp.id}`} value={String(emp.id)}>
+                                                {(emp.fullName || emp.login) + (emp.position ? ` — ${emp.position}` : "")}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <Button
+                                        type="button"
+                                        className="filter-button"
+                                        disabled={!departmentTimesheetIsEditableMonth || departmentTimesheetEmployeeSaving || !departmentTimesheetAvailableEmployees.length}
+                                        onClick={() => void addExistingDepartmentTimesheetEmployee()}
+                                        style={{ height: '2.4rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                                    >
+                                        {departmentTimesheetEmployeeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                        Добавить выбранного
+                                    </Button>
+                                    {!departmentTimesheetAvailableEmployees.length ? (
+                                        <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.82rem' }}>
+                                            Нет скрытых сотрудников для этого месяца.
+                                        </Typography.Body>
+                                    ) : null}
+                                </Flex>
+                            </div>
+                            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem' }}>
+                                <Typography.Body style={{ fontWeight: 600, marginBottom: '0.5rem' }}>Добавить сотрудника в табель</Typography.Body>
+                                <Typography.Body style={{ marginBottom: '0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
+                                    Новый сотрудник будет добавлен в ваше подразделение как сотрудник.
+                                </Typography.Body>
+                                <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="nowrap" align="center" style={{ overflowX: 'auto', paddingBottom: '0.1rem' }}>
+                                    <Input
+                                        type="text"
+                                        placeholder="ФИО"
+                                        value={departmentTimesheetEmployeeFullName}
+                                        onChange={(e) => { setDepartmentTimesheetEmployeeFullName(e.target.value); setDepartmentTimesheetError(null); }}
+                                        style={{ width: '14rem', minWidth: '12rem', height: '2.4rem', boxSizing: 'border-box' }}
+                                        className="admin-form-input"
+                                    />
+                                    <Input
+                                        type="text"
+                                        placeholder="Должность"
+                                        value={departmentTimesheetEmployeePosition}
+                                        onChange={(e) => { setDepartmentTimesheetEmployeePosition(e.target.value); setDepartmentTimesheetError(null); }}
+                                        style={{ width: '12rem', minWidth: '10rem', height: '2.4rem', boxSizing: 'border-box' }}
+                                        className="admin-form-input"
+                                    />
+                                    <select
+                                        value={departmentTimesheetEmployeeAccrualType}
+                                        onChange={(e) => setDepartmentTimesheetEmployeeAccrualType(normalizeDepartmentAccrualType(e.target.value))}
+                                        style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '9rem' }}
+                                        aria-label="Тип начисления"
+                                    >
+                                        <option value="hour">Почасовая</option>
+                                        <option value="shift">Сменная</option>
+                                        <option value="month">Месячная (21 раб. дн.)</option>
+                                    </select>
+                                    <select
+                                        value={departmentTimesheetEmployeeCooperationType}
+                                        onChange={(e) => setDepartmentTimesheetEmployeeCooperationType(
+                                            e.target.value === "self_employed" || e.target.value === "ip" ? e.target.value : "staff"
+                                        )}
+                                        style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '11rem' }}
+                                        aria-label="Тип занятости"
+                                    >
+                                        {COOPERATION_TYPE_OPTIONS.map((opt) => (
+                                            <option key={`cooperation-type-${opt.value}`} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                    <Input
+                                        type="number"
+                                        placeholder="Ставка"
+                                        min={0}
+                                        step={0.01}
+                                        value={departmentTimesheetEmployeeAccrualRate}
+                                        onChange={(e) => { setDepartmentTimesheetEmployeeAccrualRate(e.target.value); setDepartmentTimesheetError(null); }}
+                                        style={{ width: '5.2rem', minWidth: '4.6rem', height: '2.4rem', boxSizing: 'border-box' }}
+                                        className="admin-form-input"
+                                    />
+                                    <Button
+                                        type="button"
+                                        className="filter-button"
+                                        disabled={!departmentTimesheetIsEditableMonth || departmentTimesheetEmployeeSaving}
+                                        onClick={() => void addDepartmentTimesheetEmployee()}
+                                        style={{ height: '2.4rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                                    >
+                                        {departmentTimesheetEmployeeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                        Добавить
+                                    </Button>
+                                </Flex>
+                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.4rem' }}>
+                                    За {departmentTimesheetEmployeeAccrualType === "month" ? "месяц" : (departmentTimesheetEmployeeAccrualType === 'shift' ? 'смену' : 'час')}: {Number(departmentTimesheetEmployeeAccrualRate || 0).toLocaleString('ru-RU')} ₽ ·
+                                    За месяц ({WORK_DAYS_IN_MONTH} раб. дн.): {Math.round(departmentTimesheetMonthlyEstimate).toLocaleString('ru-RU')} ₽
+                                </Typography.Body>
+                            </div>
+                        </div>
+                    ) : null}
                 </Panel>
                 {departmentTimesheetLoading ? (
                     <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка...</Typography.Body></Flex>
@@ -5268,7 +5286,7 @@ function ProfilePage({
                     </Panel>
                 ) : (
                     <>
-                    <div style={{ overflowX: 'auto' }}>
+                    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '70vh', WebkitOverflowScrolling: 'touch' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${340 + departmentTimesheetDays.length * 44 + SHIFT_MARK_CODES.length * 52}px` }}>
                             <thead>
                                 <tr>
