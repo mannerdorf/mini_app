@@ -705,6 +705,7 @@ function DashboardPage({
     });
     const [timesheetAnalyticsLoading, setTimesheetAnalyticsLoading] = useState(false);
     const [timesheetAnalyticsError, setTimesheetAnalyticsError] = useState<string | null>(null);
+    const [timesheetPaidWeight, setTimesheetPaidWeight] = useState(0);
     const [timesheetAnalyticsData, setTimesheetAnalyticsData] = useState<{
         totalHours: number;
         totalShifts: number;
@@ -1113,6 +1114,53 @@ function DashboardPage({
             cancelled = true;
         };
     }, [canViewTimesheetCostDashboard, auth?.login, auth?.password, timesheetDashboardMonthKey]);
+    useEffect(() => {
+        if (!canViewTimesheetCostDashboard || !auth?.login || !auth?.password) {
+            setTimesheetPaidWeight(0);
+            return;
+        }
+        let cancelled = false;
+        fetch('/api/perevozki', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                login: auth.login,
+                password: auth.password,
+                dateFrom: timesheetDashboardDateRange.dateFrom,
+                dateTo: timesheetDashboardDateRange.dateTo,
+                ...(useServiceRequest ? { serviceMode: true } : {}),
+                ...(!useServiceRequest && auth?.inn ? { inn: auth.inn } : {}),
+                ...(auth?.isRegisteredUser ? { isRegisteredUser: true } : {}),
+            }),
+        })
+            .then((r) => r.json().catch(() => ([])))
+            .then((data) => {
+                if (cancelled) return;
+                const list = Array.isArray(data) ? data : (Array.isArray((data as any)?.items) ? (data as any).items : []);
+                const totalPw = list.reduce((acc: number, item: any) => {
+                    if (isReceivedInfoStatus(item?.State)) return acc;
+                    const pwRaw = item?.PW;
+                    const pw = typeof pwRaw === 'string' ? parseFloat(pwRaw) || 0 : Number(pwRaw || 0);
+                    return acc + pw;
+                }, 0);
+                setTimesheetPaidWeight(Number(totalPw.toFixed(2)));
+            })
+            .catch(() => {
+                if (!cancelled) setTimesheetPaidWeight(0);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        canViewTimesheetCostDashboard,
+        auth?.login,
+        auth?.password,
+        auth?.inn,
+        auth?.isRegisteredUser,
+        useServiceRequest,
+        timesheetDashboardDateRange.dateFrom,
+        timesheetDashboardDateRange.dateTo,
+    ]);
 
     const unpaidCount = useMemo(() => {
         return items.filter(item => !isReceivedInfoStatus(item.State) && getPaymentFilterKey(item.StateBill) === "unpaid").length;
@@ -1286,16 +1334,6 @@ function DashboardPage({
         });
         return { sum, pw, w, vol, mest };
     }, [filteredItems]);
-    const timesheetPaidWeight = useMemo(() => {
-        return items.reduce((acc, item) => {
-            if (isReceivedInfoStatus(item.State)) return acc;
-            const dateRaw = item.DatePrih || item.DateVr || "";
-            const date = String(dateRaw).slice(0, 10);
-            if (!date || date < timesheetDashboardDateRange.dateFrom || date > timesheetDashboardDateRange.dateTo) return acc;
-            const pw = typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
-            return acc + pw;
-        }, 0);
-    }, [items, timesheetDashboardDateRange.dateFrom, timesheetDashboardDateRange.dateTo]);
     const companyTimesheetSummary = useMemo(() => ({
         totalHours: Number(timesheetAnalyticsData?.totalHours || 0),
         totalShifts: Number(timesheetAnalyticsData?.totalShifts || 0),
@@ -5204,7 +5242,8 @@ function ProfilePage({
                                 <Typography.Body style={{ marginBottom: '0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
                                     Новый сотрудник будет добавлен в ваше подразделение как сотрудник.
                                 </Typography.Body>
-                                <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="nowrap" align="center" style={{ overflowX: 'auto', paddingBottom: '0.1rem' }}>
+                                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '0.1rem' }}>
+                                <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="nowrap" align="center" style={{ width: 'max-content', minWidth: '100%' }}>
                                     <Input
                                         type="text"
                                         placeholder="ФИО"
@@ -5264,6 +5303,7 @@ function ProfilePage({
                                         Добавить
                                     </Button>
                                 </Flex>
+                                </div>
                                 <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.4rem' }}>
                                     За {departmentTimesheetEmployeeAccrualType === "month" ? "месяц" : (departmentTimesheetEmployeeAccrualType === 'shift' ? 'смену' : 'час')}: {Number(departmentTimesheetEmployeeAccrualRate || 0).toLocaleString('ru-RU')} ₽ ·
                                     За месяц ({WORK_DAYS_IN_MONTH} раб. дн.): {Math.round(departmentTimesheetMonthlyEstimate).toLocaleString('ru-RU')} ₽
@@ -7254,7 +7294,7 @@ function CargoDetailsModal({
 
 
     // Список явно отображаемых полей (из API примера). INN скрыт — используется для БД и проверки дублей, не показываем в карточке.
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', 'Driver', 'AutoType', 'DateArrival'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', 'Driver', 'AutoType', 'AutoReg', 'DateArrival'];
     const isCustomerRole = item._role === "Customer";
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
@@ -7374,6 +7414,17 @@ function CargoDetailsModal({
                         }
                         return '-';
                     })()} /> {/* Используем DateVr */}
+                    {useServiceRequest && (
+                        <DetailItem
+                            label="Авторег - тип транспортного средства"
+                            value={(() => {
+                                const autoReg = String(item.AutoReg ?? (item as any).autoReg ?? '').trim();
+                                const autoType = String((item as any).AutoType ?? item.TypeOfTranzit ?? item.TypeOfTransit ?? '').trim();
+                                const merged = [autoReg, autoType].filter(Boolean).join(' - ');
+                                return merged || '-';
+                            })()}
+                        />
+                    )}
                     <DetailItem label="Отправитель" value={stripOoo(item.Sender) || '-'} />
                     <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? item.receiver) || '-'} />
                     <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary"/>} />
