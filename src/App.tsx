@@ -4148,6 +4148,7 @@ function ProfilePage({
         { code: "Я", label: "Явка", bg: "#35c46a", color: "#ffffff", border: "#1f8f45" },
         { code: "ПР", label: "Прогул", bg: "#ef4444", color: "#ffffff", border: "#dc2626" },
         { code: "Б", label: "Болезнь", bg: "#f59e0b", color: "#111827", border: "#d97706" },
+        { code: "В", label: "Выходной", bg: "#94a3b8", color: "#ffffff", border: "#64748b" },
         { code: "ОГ", label: "Отгул", bg: "#8b5cf6", color: "#ffffff", border: "#7c3aed" },
         { code: "ОТ", label: "Отпуск", bg: "#3b82f6", color: "#ffffff", border: "#2563eb" },
         { code: "УВ", label: "Уволен", bg: "#6b7280", color: "#ffffff", border: "#4b5563" },
@@ -4163,6 +4164,7 @@ function ProfilePage({
         if (raw === "Я") return "Я";
         if (raw === "ПР") return "ПР";
         if (raw === "Б") return "Б";
+        if (raw === "В") return "В";
         if (raw === "ОГ") return "ОГ";
         if (raw === "ОТ") return "ОТ";
         if (raw === "УВ") return "УВ";
@@ -5494,6 +5496,7 @@ function ProfilePage({
                         <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>Я - Явка</Typography.Body>
                         <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>ПР - прогул</Typography.Body>
                         <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>Б - Болезнь</Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>В - Выходной</Typography.Body>
                         <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>ОГ - Отгул</Typography.Body>
                         <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>ОТ - отпуск</Typography.Body>
                         <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>УВ - Уволен</Typography.Body>
