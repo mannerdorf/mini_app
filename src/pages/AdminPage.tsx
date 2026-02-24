@@ -788,7 +788,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     return Array.from(grouped.entries())
       .map(([department, employees]) => ({
         department,
-        employees: [...employees].sort((a, b) => String(a.full_name || a.login).localeCompare(String(b.full_name || b.login), "ru")),
+        employees: [...employees].sort((a, b) => {
+          const posA = String(a.position || "").trim();
+          const posB = String(b.position || "").trim();
+          const posCmp = (posA || "\uffff").localeCompare((posB || "\uffff"), "ru");
+          if (posCmp !== 0) return posCmp;
+          return String(a.full_name || a.login).localeCompare(String(b.full_name || b.login), "ru");
+        }),
       }))
       .sort((a, b) => a.department.localeCompare(b.department, "ru"));
   }, [employeeDirectoryItems, timesheetSearch]);
@@ -4689,13 +4695,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
                           <thead>
                             <tr>
-                              <th style={{ textAlign: "left", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", left: 0, background: "var(--color-bg-card, #fff)", zIndex: 40, minWidth: "15rem", boxShadow: "2px 0 0 var(--color-border)" }}>
+                              <th style={{ textAlign: "left", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", top: 0, left: 0, background: "var(--color-bg-card, #fff)", zIndex: 40, minWidth: "15rem", boxShadow: "2px 0 0 var(--color-border)" }}>
                                 Сотрудник
                               </th>
                               {timesheetDays.map((d) => (
                                 <th
                                   key={`timesheet-head-${group.department}-${d.iso}`}
                                   style={{
+                                    position: "sticky",
+                                    top: 0,
+                                    zIndex: 20,
                                     textAlign: "center",
                                     padding: "0.35rem 0.25rem",
                                     borderBottom: "1px solid var(--color-border)",
@@ -4707,9 +4716,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                   <div style={{ fontSize: "0.68rem", color: d.isWeekend ? "#d93025" : "var(--color-text-secondary)" }}>{d.weekdayShort}</div>
                                 </th>
                               ))}
-                              <th style={{ textAlign: "center", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", minWidth: "4rem" }}>Итого</th>
+                              <th style={{ position: "sticky", top: 0, zIndex: 20, textAlign: "center", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", minWidth: "4rem", background: "var(--color-bg-card)" }}>Итого</th>
                               {SHIFT_MARK_CODES.map((code) => (
-                                <th key={`timesheet-legend-head-${code}`} style={{ textAlign: "center", padding: "0.35rem 0.25rem", borderBottom: "1px solid var(--color-border)", minWidth: "52px" }}>
+                                <th key={`timesheet-legend-head-${code}`} style={{ position: "sticky", top: 0, zIndex: 20, textAlign: "center", padding: "0.35rem 0.25rem", borderBottom: "1px solid var(--color-border)", minWidth: "52px", background: "var(--color-bg-card)" }}>
                                   {code}
                                 </th>
                               ))}
@@ -5129,6 +5138,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                 {showTaxColumns ? (
                                                   <th style={{ textAlign: "right", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Налог</th>
                                                 ) : null}
+                                                {showTaxColumns ? (
+                                                  <th style={{ textAlign: "right", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Сумма с налогом</th>
+                                                ) : null}
                                                 {isSuperAdmin ? (
                                                   <th style={{ textAlign: "right", padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)" }}>Действия</th>
                                                 ) : null}
@@ -5182,6 +5194,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                         {isEditing
                                                           ? `${Number(previewTax || 0).toLocaleString("ru-RU")} ₽`
                                                           : `${Number(payout.taxAmount || 0).toLocaleString("ru-RU")} ₽`}
+                                                      </td>
+                                                    ) : null}
+                                                    {showTaxColumns ? (
+                                                      <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right", fontWeight: 700, color: "#92400e" }}>
+                                                        {isEditing
+                                                          ? `${Number((Number.isFinite(editAmountNumber) ? editAmountNumber + Number(previewTax || 0) : Number(payout.amount || 0) + Number(payout.taxAmount || 0))).toLocaleString("ru-RU")} ₽`
+                                                          : `${Number(Number(payout.amount || 0) + Number(payout.taxAmount || 0)).toLocaleString("ru-RU")} ₽`}
                                                       </td>
                                                     ) : null}
                                                     {isSuperAdmin ? (

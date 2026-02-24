@@ -4171,6 +4171,7 @@ function ProfilePage({
     const [departmentTimesheetSelectedEmployeeId, setDepartmentTimesheetSelectedEmployeeId] = useState<string>("");
     const [departmentTimesheetLoading, setDepartmentTimesheetLoading] = useState(false);
     const [departmentTimesheetError, setDepartmentTimesheetError] = useState<string | null>(null);
+    const [departmentTimesheetSearch, setDepartmentTimesheetSearch] = useState("");
     const [departmentTimesheetMonth, setDepartmentTimesheetMonth] = useState<string>(() => {
         const now = new Date();
         const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -4189,6 +4190,27 @@ function ProfilePage({
     const [departmentTimesheetPaidDayMarks, setDepartmentTimesheetPaidDayMarks] = useState<Record<string, boolean>>({});
     const [departmentTimesheetShiftRateOverrides, setDepartmentTimesheetShiftRateOverrides] = useState<Record<string, number>>({});
     const [departmentTimesheetMobilePicker, setDepartmentTimesheetMobilePicker] = useState(false);
+    const sortedDepartmentTimesheetEmployees = useMemo(() => {
+        return [...departmentTimesheetEmployees].sort((a, b) => {
+            const posA = String(a.position || "").trim();
+            const posB = String(b.position || "").trim();
+            const posCmp = (posA || "\uffff").localeCompare((posB || "\uffff"), "ru");
+            if (posCmp !== 0) return posCmp;
+            const nameA = String(a.fullName || a.login || "").trim();
+            const nameB = String(b.fullName || b.login || "").trim();
+            return nameA.localeCompare(nameB, "ru");
+        });
+    }, [departmentTimesheetEmployees]);
+    const filteredDepartmentTimesheetEmployees = useMemo(() => {
+        const q = departmentTimesheetSearch.trim().toLowerCase();
+        if (!q) return sortedDepartmentTimesheetEmployees;
+        return sortedDepartmentTimesheetEmployees.filter((emp) => {
+            const haystack = [emp.fullName, emp.login, emp.position, emp.department]
+                .map((x) => String(x || "").toLowerCase())
+                .join(" ");
+            return haystack.includes(q);
+        });
+    }, [departmentTimesheetSearch, sortedDepartmentTimesheetEmployees]);
     const [departmentTimesheetEmployeeFullName, setDepartmentTimesheetEmployeeFullName] = useState("");
     const [departmentTimesheetEmployeePosition, setDepartmentTimesheetEmployeePosition] = useState("");
     const [departmentTimesheetEmployeeAccrualType, setDepartmentTimesheetEmployeeAccrualType] = useState<"hour" | "shift" | "month">("hour");
@@ -5115,6 +5137,14 @@ function ProfilePage({
                             </Button>
                         </Flex>
                     </Flex>
+                    <Input
+                        type="text"
+                        className="admin-form-input"
+                        value={departmentTimesheetSearch}
+                        onChange={(e) => setDepartmentTimesheetSearch(e.target.value)}
+                        placeholder="Поиск по сотруднику: ФИО, должность, логин"
+                        style={{ width: "100%", marginTop: "0.55rem", minHeight: "2.4rem", boxSizing: "border-box" }}
+                    />
                     {!departmentTimesheetIsEditableMonth ? (
                         <Typography.Body style={{ marginTop: '0.55rem', fontSize: '0.78rem', color: '#b45309' }}>
                             Редактирование доступно только для текущего и предыдущего месяца.
@@ -5232,33 +5262,37 @@ function ProfilePage({
                     <Panel className="cargo-card" style={{ padding: '1rem' }}>
                         <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>В вашем подразделении пока нет сотрудников.</Typography.Body>
                     </Panel>
+                ) : filteredDepartmentTimesheetEmployees.length === 0 ? (
+                    <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>По вашему фильтру сотрудники не найдены.</Typography.Body>
+                    </Panel>
                 ) : (
                     <>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${340 + departmentTimesheetDays.length * 44 + SHIFT_MARK_CODES.length * 52}px` }}>
                             <thead>
                                 <tr>
-                                    <th style={{ position: 'sticky', left: 0, zIndex: 40, background: 'var(--color-bg-card, #fff)', textAlign: 'left', borderBottom: '1px solid var(--color-border)', padding: '0.5rem', minWidth: '220px', boxShadow: '2px 0 0 var(--color-border)' }}>Сотрудник</th>
+                                    <th style={{ position: 'sticky', top: 0, left: 0, zIndex: 40, background: 'var(--color-bg-card, #fff)', textAlign: 'left', borderBottom: '1px solid var(--color-border)', padding: '0.5rem', minWidth: '220px', boxShadow: '2px 0 0 var(--color-border)' }}>Сотрудник</th>
                                     {departmentTimesheetDays.map((day) => {
                                         const dayMeta = departmentTimesheetWeekdayByDay[day];
                                         const isWeekend = !!dayMeta?.isWeekend;
                                         return (
-                                            <th key={day} style={{ textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.3rem 0.2rem', minWidth: '44px', background: isWeekend ? 'var(--color-bg-hover)' : 'transparent' }}>
+                                            <th key={day} style={{ position: 'sticky', top: 0, zIndex: 20, textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.3rem 0.2rem', minWidth: '44px', background: isWeekend ? 'var(--color-bg-hover)' : 'var(--color-bg-card, #fff)' }}>
                                                 <div style={{ fontSize: '0.76rem', color: isWeekend ? '#d93025' : 'inherit', fontWeight: isWeekend ? 600 : 500 }}>{day}</div>
                                                 <div style={{ fontSize: '0.68rem', color: isWeekend ? '#d93025' : 'var(--color-text-secondary)' }}>{dayMeta?.short || ''}</div>
                                             </th>
                                         );
                                     })}
-                                    <th style={{ textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.4rem', minWidth: '120px' }}>Итого</th>
+                                    <th style={{ position: 'sticky', top: 0, zIndex: 20, textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.4rem', minWidth: '120px', background: 'var(--color-bg-card, #fff)' }}>Итого</th>
                                     {SHIFT_MARK_CODES.map((code) => (
-                                        <th key={`legend-col-${code}`} style={{ textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.35rem 0.25rem', minWidth: '52px' }}>
+                                        <th key={`legend-col-${code}`} style={{ position: 'sticky', top: 0, zIndex: 20, textAlign: 'center', borderBottom: '1px solid var(--color-border)', padding: '0.35rem 0.25rem', minWidth: '52px', background: 'var(--color-bg-card, #fff)' }}>
                                             {code}
                                         </th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
-                                {departmentTimesheetEmployees.map((emp) => {
+                                {filteredDepartmentTimesheetEmployees.map((emp) => {
                                     const accrualType = normalizeDepartmentAccrualType(emp.accrualType);
                                     const isShift = accrualType === "shift";
                                     const isMarkAccrualType = accrualType === "shift" || accrualType === "month";
