@@ -10,7 +10,8 @@ const PERMISSION_KEYS = [
   { key: "cargo", label: "Грузы" },
   { key: "doc_invoices", label: "Счета" },
   { key: "doc_acts", label: "УПД" },
-  { key: "doc_orders", label: "Заявки / Отправки" },
+  { key: "doc_orders", label: "Заявки" },
+  { key: "doc_sendings", label: "Отправки" },
   { key: "doc_claims", label: "Претензии" },
   { key: "doc_contracts", label: "Договоры" },
   { key: "doc_acts_settlement", label: "Акты сверок" },
@@ -36,7 +37,8 @@ const PERMISSION_ROW2 = [
   { key: "cargo", label: "Грузы" },
   { key: "doc_invoices", label: "Счета" },
   { key: "doc_acts", label: "УПД" },
-  { key: "doc_orders", label: "Заявки / Отправки" },
+  { key: "doc_orders", label: "Заявки" },
+  { key: "doc_sendings", label: "Отправки" },
   { key: "doc_claims", label: "Претензии" },
   { key: "doc_contracts", label: "Договоры" },
   { key: "doc_acts_settlement", label: "Акты сверок" },
@@ -320,7 +322,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [bulkDeactivateConfirmOpen, setBulkDeactivateConfirmOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false,
   });
   const [bulkFinancial, setBulkFinancial] = useState(false);
   const [bulkAccessAllInns, setBulkAccessAllInns] = useState(false);
@@ -497,7 +499,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
   const [presetFormLabel, setPresetFormLabel] = useState("");
   const [presetFormPermissions, setPresetFormPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false,
   });
   const [presetFormFinancial, setPresetFormFinancial] = useState(false);
   const [presetFormServiceMode, setPresetFormServiceMode] = useState(false);
@@ -530,6 +532,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     doc_invoices: true,
     doc_acts: true,
     doc_orders: true,
+    doc_sendings: true,
     doc_claims: true,
     doc_contracts: true,
     doc_acts_settlement: true,
@@ -6063,7 +6066,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           const data = await res.json().catch(() => ({}));
                           if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка сохранения");
                           setPresetFormLabel("");
-                          setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false });
+                          setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false });
                           setPresetFormFinancial(false);
                           setPresetFormServiceMode(false);
                           setPresetEditingId(null);

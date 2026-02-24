@@ -220,6 +220,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         doc_invoices: false,
         doc_acts: false,
         doc_orders: false,
+        doc_sendings: false,
         doc_claims: false,
         doc_contracts: false,
         doc_acts_settlement: false,

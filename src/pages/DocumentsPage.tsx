@@ -59,7 +59,7 @@ const DOC_SECTION_TO_PERMISSION: Record<DocSectionKey, keyof AccountPermissions>
     'Счета': 'doc_invoices',
     'УПД': 'doc_acts',
     'Заявки': 'doc_orders',
-    'Отправки': 'doc_orders',
+    'Отправки': 'doc_sendings',
     'Претензии': 'doc_claims',
     'Договоры': 'doc_contracts',
     'Акты сверок': 'doc_acts_settlement',

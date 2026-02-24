@@ -14,6 +14,7 @@ const DEFAULT_PERMISSIONS = {
   doc_invoices: true,
   doc_acts: true,
   doc_orders: false,
+  doc_sendings: false,
   doc_claims: false,
   doc_contracts: false,
   doc_acts_settlement: false,

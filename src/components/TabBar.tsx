@@ -8,6 +8,7 @@ export type TabBarPermissions = {
   doc_invoices?: boolean;
   doc_acts?: boolean;
   doc_orders?: boolean;
+  doc_sendings?: boolean;
   doc_claims?: boolean;
   doc_contracts?: boolean;
   doc_acts_settlement?: boolean;
@@ -72,7 +73,7 @@ export function TabBar({
 }: TabBarProps) {
   const showCargo = permissions ? permissions.cargo !== false : true;
   const hasDocAccess = permissions
-    ? !!(permissions.doc_invoices || permissions.doc_acts || permissions.doc_orders || permissions.doc_claims || permissions.doc_contracts || permissions.doc_acts_settlement || permissions.doc_tariffs)
+    ? !!(permissions.doc_invoices || permissions.doc_acts || permissions.doc_orders || permissions.doc_sendings || permissions.doc_claims || permissions.doc_contracts || permissions.doc_acts_settlement || permissions.doc_tariffs)
     : true;
 
   if (showAllTabs) {

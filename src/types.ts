@@ -16,6 +16,7 @@ export type AccountPermissions = {
     doc_invoices?: boolean;
     doc_acts?: boolean;
     doc_orders?: boolean;
+    doc_sendings?: boolean;
     doc_claims?: boolean;
     doc_contracts?: boolean;
     doc_acts_settlement?: boolean;
