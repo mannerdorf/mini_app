@@ -774,7 +774,20 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const hasPlate = /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase());
             if (hasPlate) auto += 1;
             else ferry += 1;
-            const cargoNumber = String(row?.Номер ?? row?.Number ?? row?.ShipmentNumber ?? '').trim();
+            const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
+            const firstParcel = Array.isArray(rawParcels)
+                ? rawParcels[0]
+                : (rawParcels && typeof rawParcels === 'object'
+                    ? Object.values(rawParcels as Record<string, any>)[0]
+                    : undefined);
+            const cargoNumber = String(
+                row?.НомерПеревозки
+                ?? row?.Перевозка
+                ?? row?.CargoNumber
+                ?? row?.NumberPerevozki
+                ?? (firstParcel as any)?.Перевозка
+                ?? ''
+            ).trim();
             const cargoStatus = cargoNumber ? cargoStateByNumber.get(normCargoKey(cargoNumber)) : undefined;
             const statusKey = getFilterKeyByStatus(
                 String(
@@ -795,14 +808,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
             byRoute.set(route, (byRoute.get(route) ?? 0) + 1);
         });
-        const total = sendingRowsSorted.length || 1;
+        const knownTotal = statusCounts.in_transit + statusCounts.ready + statusCounts.delivering + statusCounts.delivered;
+        const total = knownTotal || 1;
         const statusBadges = [
             { key: 'in_transit', label: STATUS_MAP.in_transit, count: statusCounts.in_transit, color: '#2563eb', bg: 'rgba(37,99,235,0.12)' },
             { key: 'ready', label: STATUS_MAP.ready, count: statusCounts.ready, color: '#7c3aed', bg: 'rgba(124,58,237,0.12)' },
             { key: 'delivering', label: STATUS_MAP.delivering, count: statusCounts.delivering, color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
             { key: 'delivered', label: STATUS_MAP.delivered, count: statusCounts.delivered, color: '#16a34a', bg: 'rgba(22,163,74,0.12)' },
         ]
-            .filter((s) => s.count > 0)
             .map((s) => ({ ...s, percent: Math.round((s.count / total) * 1000) / 10 }));
         const routes = [...byRoute.entries()]
             .map(([route, count]) => ({ route, count }))
