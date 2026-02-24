@@ -4183,7 +4183,7 @@ function ProfilePage({
         const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
         const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const previousMonthKey = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
-        return new Set([currentMonthKey, previousMonthKey]);
+        return new Set([currentMonthKey, previousMonthKey, "2025-12"]);
     }, []);
     const departmentTimesheetIsEditableMonth = departmentTimesheetEditableMonthKeys.has(departmentTimesheetMonth);
     const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
@@ -4545,7 +4545,7 @@ function ProfilePage({
         if (!activeAccount?.login || !activeAccount?.password) return;
         if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return;
         if (!departmentTimesheetIsEditableMonth) {
-            setDepartmentTimesheetError('Редактирование доступно только для текущего и предыдущего месяца');
+            setDepartmentTimesheetError('Редактирование доступно только для текущего, предыдущего месяца и декабря 2025.');
             return;
         }
         const dayNormalized = String(day).padStart(2, "0");
@@ -4574,7 +4574,7 @@ function ProfilePage({
         if (!activeAccount?.login || !activeAccount?.password) return;
         if (!/^\d{4}-\d{2}$/.test(departmentTimesheetMonth)) return;
         if (!departmentTimesheetIsEditableMonth) {
-            setDepartmentTimesheetError('Редактирование доступно только для текущего и предыдущего месяца');
+            setDepartmentTimesheetError('Редактирование доступно только для текущего, предыдущего месяца и декабря 2025.');
             return;
         }
         const dayNormalized = String(day).padStart(2, "0");
@@ -4604,7 +4604,7 @@ function ProfilePage({
     const removeDepartmentEmployeeFromMonth = useCallback(async (employeeId: number) => {
         if (!activeAccount?.login || !activeAccount?.password) return;
         if (!departmentTimesheetIsEditableMonth) {
-            setDepartmentTimesheetError('Редактирование доступно только для текущего и предыдущего месяца');
+            setDepartmentTimesheetError('Редактирование доступно только для текущего, предыдущего месяца и декабря 2025.');
             return;
         }
         const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
@@ -4632,7 +4632,7 @@ function ProfilePage({
     const addExistingDepartmentTimesheetEmployee = useCallback(async () => {
         if (!activeAccount?.login || !activeAccount?.password) return;
         if (!departmentTimesheetIsEditableMonth) {
-            setDepartmentTimesheetError('Редактирование доступно только для текущего и предыдущего месяца');
+            setDepartmentTimesheetError('Редактирование доступно только для текущего, предыдущего месяца и декабря 2025.');
             return;
         }
         const selectedId = Number(departmentTimesheetSelectedEmployeeId);
@@ -4668,7 +4668,7 @@ function ProfilePage({
     const addDepartmentTimesheetEmployee = useCallback(async () => {
         if (!activeAccount?.login || !activeAccount?.password) return;
         if (!departmentTimesheetIsEditableMonth) {
-            setDepartmentTimesheetError('Редактирование доступно только для текущего и предыдущего месяца');
+            setDepartmentTimesheetError('Редактирование доступно только для текущего, предыдущего месяца и декабря 2025.');
             return;
         }
         if (!departmentTimesheetEmployeeFullName.trim()) {
@@ -5148,7 +5148,7 @@ function ProfilePage({
                     />
                     {!departmentTimesheetIsEditableMonth ? (
                         <Typography.Body style={{ marginTop: '0.55rem', fontSize: '0.78rem', color: '#b45309' }}>
-                            Редактирование доступно только для текущего и предыдущего месяца.
+                            Редактирование доступно только для текущего, предыдущего месяца и декабря 2025.
                         </Typography.Body>
                     ) : null}
                 </Panel>
