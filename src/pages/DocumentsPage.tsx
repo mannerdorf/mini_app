@@ -35,6 +35,7 @@ import {
     buildDocsSummary,
     buildFilteredActs,
     buildFilteredInvoices,
+    buildFilteredOrders,
     getEdoStatus,
     getFirstCargoNumberFromInvoice,
 } from "./documentsPipeline";
@@ -192,6 +193,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         actsItems,
         actsError,
         actsLoading,
+        ordersItems,
+        ordersError,
+        ordersLoading,
         perevozkiItems,
         perevozkiLoading,
     } = useDocumentsDataLoad({
@@ -236,6 +240,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     );
 
     const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
+    const uniqueOrderCustomers = useMemo(() => [...new Set((ordersItems || []).map((i: any) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [ordersItems]);
 
     const uniqueActCustomers = useMemo(() => [...new Set((actsItems || []).map((a: any) => ((a.Customer ?? a.customer ?? a.Контрагент ?? a.Contractor ?? a.Organization ?? '').trim())).filter(Boolean))].sort(), [actsItems]);
 
@@ -255,6 +260,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [cargoTransportByNumber]);
+    const uniqueOrderTransportVehicles = useMemo(() => {
+        const set = new Set<string>();
+        (ordersItems || []).forEach((item: any) => {
+            const v = String(item?.AutoReg ?? item?.autoReg ?? '').trim();
+            if (v) set.add(v);
+        });
+        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+    }, [ordersItems]);
 
     const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
         if (!invNum) return;
@@ -329,6 +342,23 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     }, [sortedActs, effectiveActiveInn, effectiveServiceMode, actCustomerFilter, effectiveSearchText, edoStatusFilterSet, transportFilter, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey]);
 
     const actsSummary = useMemo(() => buildActsSummary(filteredActs), [filteredActs]);
+    const filteredOrders = useMemo(() => {
+        return buildFilteredOrders({
+            items: ordersItems || [],
+            activeInn: effectiveActiveInn,
+            useServiceRequest: effectiveServiceMode,
+            customerFilter,
+            typeFilter,
+            routeFilter,
+            deliveryStatusFilterSet,
+            routeFilterCargo,
+            transportFilter,
+            searchText: effectiveSearchText,
+            sortBy,
+            sortOrder,
+        });
+    }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, typeFilter, routeFilter, deliveryStatusFilterSet, routeFilterCargo, transportFilter, effectiveSearchText, sortBy, sortOrder]);
+    const ordersSummary = useMemo(() => buildDocsSummary(filteredOrders), [filteredOrders]);
 
     const groupedByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
@@ -381,6 +411,30 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return tableSortOrder === 'asc' ? cmp : -cmp;
         });
     }, [groupedActsByCustomer, tableSortColumn, tableSortOrder]);
+    const groupedOrdersByCustomer = useMemo(() => {
+        const map = new Map<string, { customer: string; items: any[]; sum: number }>();
+        filteredOrders.forEach((order: any) => {
+            const key = (order.Customer ?? order.customer ?? order.Контрагент ?? order.Contractor ?? order.Organization ?? '').trim() || '—';
+            const v = order.Sum ?? order.sum ?? order.Сумма ?? order.Amount ?? 0;
+            const sum = typeof v === 'string' ? parseFloat(v) || 0 : (v || 0);
+            const existing = map.get(key);
+            if (existing) {
+                existing.items.push(order);
+                existing.sum += sum;
+            } else map.set(key, { customer: key, items: [order], sum });
+        });
+        return Array.from(map.entries()).map(([, v]) => v);
+    }, [filteredOrders]);
+    const sortedGroupedOrdersByCustomer = useMemo(() => {
+        const key = (row: { customer: string; sum: number; items: any[] }) =>
+            tableSortColumn === 'customer' ? (stripOoo(row.customer) || '').toLowerCase() : tableSortColumn === 'sum' ? row.sum : row.items.length;
+        return [...groupedOrdersByCustomer].sort((a, b) => {
+            const va = key(a);
+            const vb = key(b);
+            const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
+            return tableSortOrder === 'asc' ? cmp : -cmp;
+        });
+    }, [groupedOrdersByCustomer, tableSortColumn, tableSortOrder]);
 
     const handleTableSort = (column: 'customer' | 'sum' | 'count') => {
         if (tableSortColumn === column) setTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');
@@ -440,6 +494,25 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return innerTableSortOrder === 'asc' ? cmp : -cmp;
         });
     }, [innerTableSortColumn, innerTableSortOrder, getFirstCargoNumberFromInvoice, cargoStateByNumber, cargoRouteByNumber, normCargoKey]);
+    const sortOrders = useCallback((items: any[]) => {
+        const getNum = (row: any) => (row.Number ?? row.number ?? row.Номер ?? row.N ?? '').toString().replace(/^0000-/, '');
+        const getDate = (row: any) => (row.DatePrih ?? row.DateVr ?? row.Date ?? row.date ?? '').toString();
+        const getStatus = (row: any) => normalizeStatus(row.State ?? row.state ?? row.Статус ?? '');
+        const getSum = (row: any) => Number(row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0) || 0;
+        const getRoute = (row: any) => [cityToCode(row.CitySender), cityToCode(row.CityReceiver)].filter(Boolean).join(' – ') || '';
+        return [...items].sort((a, b) => {
+            let cmp = 0;
+            switch (innerTableSortColumn) {
+                case 'number': cmp = (getNum(a) || '').localeCompare(getNum(b) || '', undefined, { numeric: true }); break;
+                case 'date': cmp = (getDate(a) || '').localeCompare(getDate(b) || ''); break;
+                case 'status':
+                case 'deliveryStatus': cmp = (getStatus(a) || '').localeCompare(getStatus(b) || ''); break;
+                case 'sum': cmp = getSum(a) - getSum(b); break;
+                case 'route': cmp = (getRoute(a) || '').localeCompare(getRoute(b) || ''); break;
+            }
+            return innerTableSortOrder === 'asc' ? cmp : -cmp;
+        });
+    }, [innerTableSortColumn, innerTableSortOrder]);
 
     return (
         <div className="w-full">
@@ -506,7 +579,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         })}
                     </Flex>
                 </div>
-                {(docSection === 'Счета' || docSection === 'УПД') && (
+                {(docSection === 'Счета' || docSection === 'УПД' || docSection === 'Заявки') && (
                 <div className="filters-container filters-row-scroll">
                     <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
                         <Button className="filter-button" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={() => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); }} title={sortOrder === 'desc' ? 'Дата по убыванию' : 'Дата по возрастанию'}>
@@ -591,7 +664,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 })
                             )}
                         </FilterDropdownPortal>
-                        {docSection === 'Счета' && effectiveServiceMode && (
+                        {(docSection === 'Счета' || docSection === 'Заявки') && effectiveServiceMode && (
                             <>
                                 <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
                                     <Button className="filter-button" onClick={() => { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
@@ -600,7 +673,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 </div>
                                 <FilterDropdownPortal triggerRef={customerButtonRef} isOpen={isCustomerDropdownOpen} onClose={() => setIsCustomerDropdownOpen(false)}>
                                     <div className="dropdown-item" onClick={() => { setCustomerFilter(''); setIsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
-                                    {uniqueCustomers.map(c => (
+                                    {(docSection === 'Заявки' ? uniqueOrderCustomers : uniqueCustomers).map(c => (
                                         <div key={c} className="dropdown-item" onClick={() => { setCustomerFilter(c); setIsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
                                     ))}
                                 </FilterDropdownPortal>
@@ -621,6 +694,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 </FilterDropdownPortal>
                             </>
                         )}
+                        {(docSection === 'Счета' || docSection === 'УПД') && (
+                        <>
                         <div ref={edoStatusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsEdoStatusDropdownOpen(!isEdoStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                 Статус ЭДО: {edoStatusFilterSet.size === 0 ? 'Все' : edoStatusFilterSet.size === 1 ? [...edoStatusFilterSet][0] : `Выбрано: ${edoStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
@@ -634,6 +709,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 </div>
                             ))}
                         </FilterDropdownPortal>
+                        </>
+                        )}
                         {effectiveServiceMode && (
                         <>
                         <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
@@ -653,7 +730,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 />
                             </div>
                             <div className="dropdown-item" onClick={() => { setTransportFilter(''); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>Все</Typography.Body></div>
-                            {uniqueTransportVehicles
+                            {(docSection === 'Заявки' ? uniqueOrderTransportVehicles : uniqueTransportVehicles)
                                 .filter(v => !transportSearchQuery.trim() || v.toLowerCase().includes(transportSearchQuery.trim().toLowerCase()))
                                 .map(v => (
                                     <div key={v} className="dropdown-item" onClick={() => { setTransportFilter(v); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>{v}</Typography.Body></div>
@@ -999,7 +1076,119 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             )}
             </>
             )}
-            {docSection !== 'Счета' && docSection !== 'УПД' && (
+            {docSection === 'Заявки' && (
+            <>
+            {!ordersLoading && !ordersError && filteredOrders.length > 0 && (
+                <DocumentsSummaryCard
+                    sum={ordersSummary.sum}
+                    count={ordersSummary.count}
+                    showSums={showSums}
+                />
+            )}
+            {(ordersLoading || !!ordersError) && <DocumentsStateBlocks loading={ordersLoading} error={ordersError} emptyText="" />}
+            {!ordersLoading && !ordersError && tableModeByCustomer && sortedGroupedOrdersByCustomer.length > 0 && (
+                <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('customer')} title="Сортировка">Заказчик {tableSortColumn === 'customer' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('sum')} title="Сортировка">Сумма {tableSortColumn === 'sum' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleTableSort('count')} title="Сортировка">Заявок {tableSortColumn === 'count' && (tableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortedGroupedOrdersByCustomer.map((row, i) => (
+                                <React.Fragment key={i}>
+                                    <tr style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expandedTableCustomer === row.customer ? 'var(--color-bg-hover)' : undefined }} onClick={() => setExpandedTableCustomer(prev => prev === row.customer ? null : row.customer)} title={expandedTableCustomer === row.customer ? 'Свернуть' : 'Показать заявки'}>
+                                        <td style={{ padding: '0.5rem 0.4rem', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(row.customer)}>{stripOoo(row.customer)}</td>
+                                        {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
+                                        <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{row.items.length}</td>
+                                    </tr>
+                                    {expandedTableCustomer === row.customer && (
+                                        <tr key={`${i}-detail`}>
+                                            <td colSpan={showSums ? 3 : 2} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
+                                                    <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                        <thead>
+                                                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('number'); }} title="Сортировка">Номер {innerTableSortColumn === 'number' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} className="doc-inner-table-date" onClick={(e) => { e.stopPropagation(); handleInnerTableSort('date'); }} title="Сортировка">Дата {innerTableSortColumn === 'date' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('status'); }} title="Сортировка">Статус {innerTableSortColumn === 'status' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} className="doc-inner-table-route" onClick={(e) => { e.stopPropagation(); handleInnerTableSort('route'); }} title="Сортировка">Маршрут {innerTableSortColumn === 'route' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                {showSums && <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleInnerTableSort('sum'); }} title="Сортировка">Сумма {innerTableSortColumn === 'sum' && (innerTableSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {sortOrders(row.items).map((order: any, j: number) => {
+                                                                const num = order.Number ?? order.number ?? order.Номер ?? order.N ?? '';
+                                                                const dateRaw = order.DatePrih ?? order.DateVr ?? order.Date ?? order.date ?? '';
+                                                                const sum = order.Sum ?? order.sum ?? order.Сумма ?? order.Amount ?? 0;
+                                                                const route = [cityToCode(order.CitySender), cityToCode(order.CityReceiver)].filter(Boolean).join(' – ') || '—';
+                                                                return (
+                                                                    <tr key={num || j} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={(ev) => { ev.stopPropagation(); if (num) onOpenCargo?.(String(num)); }} title="Открыть перевозку">
+                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{formatInvoiceNumber(String(num))}</td>
+                                                                        <td className="doc-inner-table-date" style={{ padding: '0.35rem 0.3rem' }}><DateText value={typeof dateRaw === 'string' ? dateRaw : dateRaw ? String(dateRaw) : undefined} /></td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem' }}><StatusBadge status={order.State} /></td>
+                                                                        <td className="doc-inner-table-route" style={{ padding: '0.35rem 0.3rem' }}><span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)' }}>{route}</span></td>
+                                                                        {showSums && <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right' }}>{sum != null ? formatCurrency(sum) : '—'}</td>}
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            {!ordersLoading && !ordersError && filteredOrders.length > 0 && !tableModeByCustomer && (
+                <div className="cargo-list">
+                    {filteredOrders.map((row: any, idx: number) => {
+                        const num = row.Number ?? row.number ?? row.Номер ?? row.N ?? '';
+                        const dt = row.DatePrih ?? row.DateVr ?? row.Date ?? row.date ?? '';
+                        const cust = row.Customer ?? row.customer ?? row.Контрагент ?? row.Contractor ?? row.Organization ?? '';
+                        const sum = row.Sum ?? row.sum ?? row.Сумма ?? row.Amount ?? 0;
+                        return (
+                            <Panel key={num || idx} className="cargo-card" onClick={() => { if (num) onOpenCargo?.(String(num)); }} style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}>
+                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
+                                    <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '60%' }}>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{formatInvoiceNumber(String(num))}</Typography.Body>
+                                    </Flex>
+                                    <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                                        <Button style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={e => { e.stopPropagation(); const lines = [`Заявка: ${formatInvoiceNumber(String(num))}`, cust && `Заказчик: ${stripOoo(String(cust))}`, sum != null && `Сумма: ${formatCurrency(sum)}`, dt && `Дата: ${typeof dt === 'string' ? dt : String(dt)}`].filter(Boolean); const text = lines.join('\n'); if (typeof navigator !== 'undefined' && (navigator as any).share) { (navigator as any).share({ title: `Заявка ${formatInvoiceNumber(String(num))}`, text }).catch(() => {}); } else { try { navigator.clipboard?.writeText(text); } catch {} } }} title="Поделиться"><Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} /></Button>
+                                        <Calendar className="w-4 h-4 text-theme-secondary" />
+                                        <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
+                                            <DateText value={typeof dt === 'string' ? dt : dt ? String(dt) : undefined} />
+                                        </Typography.Label>
+                                    </Flex>
+                                </Flex>
+                                <Flex justify="space-between" align="center" style={{ marginBottom: '0.5rem' }}>
+                                    <StatusBadge status={row.State} />
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{sum != null ? formatCurrency(sum) : '—'}</Typography.Body>
+                                </Flex>
+                                <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                    <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }} title={stripOoo(String(cust || ''))}>{stripOoo(String(cust || '—'))}</Typography.Label>
+                                    {(row.AK === true || row.AK === 'true' || row.AK === '1' || row.AK === 1) && <Ship className="w-4 h-4" style={{ flexShrink: 0, color: 'var(--color-primary-blue)' }} title="Паром" />}
+                                    {!(row?.AK === true || row?.AK === 'true' || row?.AK === '1' || row?.AK === 1) && (row.CitySender || row.CityReceiver) && (
+                                        <Typography.Label style={{ fontSize: '0.85rem' }}>{[cityToCode(row.CitySender), cityToCode(row.CityReceiver)].filter(Boolean).join(' – ') || ''}</Typography.Label>
+                                    )}
+                                </Flex>
+                            </Panel>
+                        );
+                    })}
+                </div>
+            )}
+            {!ordersLoading && !ordersError && filteredOrders.length === 0 && (
+                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет заявок за выбранный период</Typography.Body>
+            )}
+            </>
+            )}
+            {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>

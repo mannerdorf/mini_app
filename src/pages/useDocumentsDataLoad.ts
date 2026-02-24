@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useActs, useInvoices, usePerevozki } from "../hooks/useApi";
+import { useActs, useInvoices, useOrders, usePerevozki } from "../hooks/useApi";
 import type { AuthData } from "../types";
 
 type Params = {
@@ -40,6 +40,19 @@ export function useDocumentsDataLoad(params: Params) {
   });
 
   const {
+    items: ordersItems,
+    error: ordersError,
+    loading: ordersLoading,
+    mutate: mutateOrders,
+  } = useOrders({
+    auth,
+    dateFrom: apiDateRange.dateFrom,
+    dateTo: apiDateRange.dateTo,
+    activeInn: activeInn || undefined,
+    useServiceRequest,
+  });
+
+  const {
     items: perevozkiItems,
     loading: perevozkiLoading,
     mutate: mutatePerevozki,
@@ -57,10 +70,11 @@ export function useDocumentsDataLoad(params: Params) {
       void mutateInvoices(undefined, { revalidate: true });
       void mutatePerevozki(undefined, { revalidate: true });
       void mutateActs(undefined, { revalidate: true });
+      void mutateOrders(undefined, { revalidate: true });
     };
     window.addEventListener("haulz-service-refresh", handler);
     return () => window.removeEventListener("haulz-service-refresh", handler);
-  }, [useServiceRequest, mutateInvoices, mutatePerevozki, mutateActs]);
+  }, [useServiceRequest, mutateInvoices, mutatePerevozki, mutateActs, mutateOrders]);
 
   return {
     items,
@@ -69,11 +83,15 @@ export function useDocumentsDataLoad(params: Params) {
     actsItems,
     actsError,
     actsLoading,
+    ordersItems,
+    ordersError,
+    ordersLoading,
     perevozkiItems,
     perevozkiLoading,
     mutateInvoices,
     mutatePerevozki,
     mutateActs,
+    mutateOrders,
   };
 }
 

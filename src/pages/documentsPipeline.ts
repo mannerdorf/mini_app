@@ -50,6 +50,18 @@ export function getActSearchText(act: any): string {
   return parts.join(" ").toLowerCase();
 }
 
+export function getOrderSearchText(order: any): string {
+  const parts: string[] = [
+    String(order?.Number ?? order?.number ?? order?.Номер ?? order?.N ?? ""),
+    stripOoo(String(order?.Customer ?? order?.customer ?? order?.Контрагент ?? order?.Contractor ?? order?.Organization ?? "")),
+    String(order?.DatePrih ?? order?.DateVr ?? order?.Date ?? order?.date ?? ""),
+    String(order?.State ?? order?.state ?? order?.Статус ?? ""),
+    String(order?.AutoReg ?? order?.autoReg ?? ""),
+    String(order?.Sum ?? order?.sum ?? order?.Сумма ?? order?.Amount ?? ""),
+  ];
+  return parts.join(" ").toLowerCase();
+}
+
 export function getEdoStatus(item: any): string {
   const v = item?.EdoStatus ?? item?.edoStatus ?? item?.EdoState ?? item?.EDO ?? item?.StatusEDO ?? item?.ЭДО ?? item?.DocumentStatus ?? item?.documentStatus ?? "";
   return String(v ?? "").trim() || "";
@@ -273,6 +285,74 @@ export function buildFilteredActs(params: FilterActsParams) {
       const cargoNum = getFirstCargoNumberFromInvoice(a);
       const transport = cargoNum ? cargoTransportByNumber.get(normCargoKey(cargoNum)) : "";
       return transport === transportFilter;
+    });
+  }
+  return res;
+}
+
+type FilterOrdersParams = {
+  items: any[];
+  activeInn?: string;
+  useServiceRequest: boolean;
+  customerFilter: string;
+  typeFilter: "all" | "ferry" | "auto";
+  routeFilter: "all" | "MSK-KGD" | "KGD-MSK";
+  deliveryStatusFilterSet: Set<StatusFilter>;
+  routeFilterCargo: string;
+  transportFilter: string;
+  searchText: string;
+  sortBy: "date" | null;
+  sortOrder: "asc" | "desc";
+};
+
+export function buildFilteredOrders(params: FilterOrdersParams) {
+  const {
+    items,
+    activeInn,
+    useServiceRequest,
+    customerFilter,
+    typeFilter,
+    routeFilter,
+    deliveryStatusFilterSet,
+    routeFilterCargo,
+    transportFilter,
+    searchText,
+    sortBy,
+    sortOrder,
+  } = params;
+
+  let res = [...items];
+  const normalizedActiveInn = normalizeInn(activeInn);
+  if (!useServiceRequest && normalizedActiveInn) {
+    res = res.filter((i) => getItemInn(i) === normalizedActiveInn);
+  }
+  if (customerFilter) {
+    res = res.filter((i) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? "").trim()) === customerFilter);
+  }
+  if (typeFilter === "ferry") res = res.filter((i) => i?.AK === true || i?.AK === "true" || i?.AK === "1" || i?.AK === 1);
+  if (typeFilter === "auto") res = res.filter((i) => !(i?.AK === true || i?.AK === "true" || i?.AK === "1" || i?.AK === 1));
+  if (routeFilter === "MSK-KGD") res = res.filter((i) => cityToCode(i.CitySender) === "MSK" && cityToCode(i.CityReceiver) === "KGD");
+  if (routeFilter === "KGD-MSK") res = res.filter((i) => cityToCode(i.CitySender) === "KGD" && cityToCode(i.CityReceiver) === "MSK");
+  if (deliveryStatusFilterSet.size > 0) {
+    res = res.filter((i) => deliveryStatusFilterSet.has(getFilterKeyByStatus(i.State)));
+  }
+  if (routeFilterCargo !== "all") {
+    res = res.filter((i) => ([cityToCode(i.CitySender), cityToCode(i.CityReceiver)].filter(Boolean).join(" – ") || "") === routeFilterCargo);
+  }
+  if (transportFilter) {
+    res = res.filter((i) => String(i.AutoReg ?? i.autoReg ?? "").trim() === transportFilter);
+  }
+  if (searchText.trim()) {
+    const lower = searchText.trim().toLowerCase();
+    res = res.filter((i) => getOrderSearchText(i).includes(lower));
+  }
+  if (sortBy === "date") {
+    const getDate = (r: any) => (r.DatePrih ?? r.DateVr ?? r.Date ?? r.date ?? "").toString();
+    res.sort((a, b) => {
+      const da = getDate(a);
+      const db = getDate(b);
+      const cmp = da.localeCompare(db);
+      return sortOrder === "desc" ? -cmp : cmp;
     });
   }
   return res;
