@@ -386,7 +386,7 @@ async function fetcherSendings(params: SendingsParams): Promise<unknown[]> {
             password: auth.password,
             dateFrom,
             dateTo,
-            inn: activeInn || undefined,
+            inn: useServiceRequest ? undefined : (activeInn || undefined),
             serviceMode: useServiceRequest,
             ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         }),
