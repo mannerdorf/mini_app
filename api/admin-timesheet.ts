@@ -101,6 +101,19 @@ async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
   await pool.query("ALTER TABLE employee_timesheet_payouts ADD COLUMN IF NOT EXISTS paid_dates jsonb NOT NULL DEFAULT '[]'::jsonb");
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_payouts_employee_idx ON employee_timesheet_payouts(employee_id)");
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_payouts_period_month_idx ON employee_timesheet_payouts(period_month)");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS employee_timesheet_shift_rate_overrides (
+      id bigserial PRIMARY KEY,
+      employee_id bigint NOT NULL REFERENCES registered_users(id) ON DELETE CASCADE,
+      work_date date NOT NULL,
+      shift_rate numeric(12,2) NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (employee_id, work_date)
+    )
+  `);
+  await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_shift_rate_overrides_work_date_idx ON employee_timesheet_shift_rate_overrides(work_date)");
+  await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_shift_rate_overrides_employee_id_idx ON employee_timesheet_shift_rate_overrides(employee_id)");
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
@@ -135,6 +148,16 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const paymentMarks: Record<string, boolean> = {};
     for (const row of paymentRes.rows) {
       paymentMarks[`${row.employee_id}__${row.work_date}`] = true;
+    }
+    const shiftRateRes = await pool.query<{ employee_id: number; work_date: string; shift_rate: number }>(
+      `SELECT employee_id, work_date::text as work_date, shift_rate
+       FROM employee_timesheet_shift_rate_overrides
+       WHERE work_date >= $1::date AND work_date < $2::date`,
+      [monthInfo.start, monthInfo.next]
+    );
+    const shiftRateOverrides: Record<string, number> = {};
+    for (const row of shiftRateRes.rows) {
+      shiftRateOverrides[`${row.employee_id}__${row.work_date}`] = Number(row.shift_rate || 0);
     }
     const payoutRes = await pool.query<{
       id: number;
@@ -173,7 +196,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         createdAt: row.created_at,
       });
     }
-    return res.status(200).json({ ok: true, month: monthInfo.month, entries, paymentMarks, payoutsByEmployee });
+    return res.status(200).json({ ok: true, month: monthInfo.month, entries, paymentMarks, shiftRateOverrides, payoutsByEmployee });
   }
 
   if (req.method === "PUT") {
@@ -305,9 +328,46 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const employeeId = Number(body?.employeeId);
     const date = String(body?.date || "").trim();
     const paid = Boolean(body?.paid);
+    const hasShiftRatePayload = Object.prototype.hasOwnProperty.call(body, "shiftRate");
     if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "date обязателен в формате YYYY-MM-DD" });
     if (!date.startsWith(`${monthInfo.month}-`)) return res.status(400).json({ error: "Дата не соответствует выбранному месяцу" });
+
+    if (hasShiftRatePayload) {
+      const paidDateRes = await pool.query<{ work_date: string }>(
+        `SELECT d.value as work_date
+         FROM employee_timesheet_payouts p
+         CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(p.paid_dates, '[]'::jsonb)) d(value)
+         WHERE p.employee_id = $1
+           AND p.period_month = $2::date
+           AND d.value = $3
+         LIMIT 1`,
+        [employeeId, monthInfo.start, date]
+      );
+      if (paidDateRes.rows[0]) {
+        return res.status(409).json({ error: `День ${date} уже оплачен. Изменение или отмена запрещены.` });
+      }
+      const rawShiftRate = body.shiftRate;
+      if (rawShiftRate === null || rawShiftRate === undefined || String(rawShiftRate).trim() === "") {
+        await pool.query(
+          "DELETE FROM employee_timesheet_shift_rate_overrides WHERE employee_id = $1 AND work_date = $2::date",
+          [employeeId, date]
+        );
+        return res.status(200).json({ ok: true });
+      }
+      const shiftRate = Number(String(rawShiftRate).replace(",", "."));
+      if (!Number.isFinite(shiftRate) || shiftRate < 0) {
+        return res.status(400).json({ error: "Укажите корректную стоимость смены" });
+      }
+      await pool.query(
+        `INSERT INTO employee_timesheet_shift_rate_overrides(employee_id, work_date, shift_rate)
+         VALUES ($1, $2::date, $3)
+         ON CONFLICT (employee_id, work_date)
+         DO UPDATE SET shift_rate = EXCLUDED.shift_rate, updated_at = now()`,
+        [employeeId, date, Number(shiftRate.toFixed(2))]
+      );
+      return res.status(200).json({ ok: true });
+    }
 
     if (!paid) {
       await pool.query("DELETE FROM employee_timesheet_payment_marks WHERE employee_id = $1 AND work_date = $2::date", [employeeId, date]);
@@ -401,11 +461,31 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const entryByDate = new Map<string, string>();
     for (const row of entriesRes.rows) entryByDate.set(row.work_date, String(row.value_text || ""));
+    const shiftRateOverrideRes = await pool.query<{ work_date: string; shift_rate: number }>(
+      `SELECT work_date::text as work_date, shift_rate
+       FROM employee_timesheet_shift_rate_overrides
+       WHERE employee_id = $1
+         AND work_date >= $2::date
+         AND work_date <= $3::date`,
+      [employeeId, periodFrom, periodTo]
+    );
+    const shiftRateByDate = new Map<string, number>();
+    for (const row of shiftRateOverrideRes.rows) {
+      shiftRateByDate.set(row.work_date, Number(row.shift_rate || 0));
+    }
 
     let units = 0;
+    let shiftAmountWithOverrides = 0;
     if (accrualType === "shift" || accrualType === "month") {
       for (const date of markedDates) {
-        if (normalizeShiftMark(entryByDate.get(date) || "") === "Я") units += 1;
+        if (normalizeShiftMark(entryByDate.get(date) || "") === "Я") {
+          units += 1;
+          if (accrualType === "shift") {
+            const override = Number(shiftRateByDate.get(date));
+            const dayRate = Number.isFinite(override) ? override : rate;
+            shiftAmountWithOverrides += dayRate;
+          }
+        }
       }
     } else {
       for (const date of markedDates) {
@@ -413,7 +493,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
     const unitRate = accrualType === "month" ? rate / 21 : rate;
-    const amount = Number((units * unitRate).toFixed(2));
+    const amount = accrualType === "shift"
+      ? Number(shiftAmountWithOverrides.toFixed(2))
+      : Number((units * unitRate).toFixed(2));
     const taxAmount = cooperationType === "ip" || cooperationType === "self_employed"
       ? Number((amount / 0.94 - amount).toFixed(2))
       : 0;

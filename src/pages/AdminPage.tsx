@@ -597,6 +597,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [timesheetSearch, setTimesheetSearch] = useState("");
   const [timesheetHours, setTimesheetHours] = useState<Record<string, string>>({});
   const [timesheetPaymentMarks, setTimesheetPaymentMarks] = useState<Record<string, boolean>>({});
+  const [timesheetShiftRateOverrides, setTimesheetShiftRateOverrides] = useState<Record<string, number>>({});
   const [timesheetExpandedEmployeeId, setTimesheetExpandedEmployeeId] = useState<number | null>(null);
   const [timesheetPayoutsByEmployee, setTimesheetPayoutsByEmployee] = useState<Record<string, Array<{
     id: number;
@@ -807,6 +808,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       let totalPaid = 0;
       for (const emp of group.employees) {
         const accrualType = normalizeAccrualType(emp.accrual_type);
+        const isShiftAccrual = accrualType === "shift";
         const isMarkAccrual = isMarkAccrualType(accrualType);
         const rate = Number(emp.accrual_rate ?? 0);
         const employeePaid = (timesheetPayoutsByEmployee[String(emp.id)] || []).reduce((acc, payout) => {
@@ -823,11 +825,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             if (!timesheetPaymentMarks[key]) return acc;
             return acc + (normalizeShiftMark(timesheetHours[key] || "") === "Я" ? 1 : 0);
           }, 0);
-          const dayRate = getDayRateByAccrualType(rate, accrualType);
+          const totalShiftMoney = isShiftAccrual
+            ? timesheetDays.reduce((acc, d) => {
+                const key = `${emp.id}__${d.iso}`;
+                if (normalizeShiftMark(timesheetHours[key] || "") !== "Я") return acc;
+                const override = Number(timesheetShiftRateOverrides[key]);
+                const dayRate = Number.isFinite(override) ? override : rate;
+                return acc + dayRate;
+              }, 0)
+            : shifts * getDayRateByAccrualType(rate, accrualType);
+          const paidShiftMoney = isShiftAccrual
+            ? timesheetDays.reduce((acc, d) => {
+                const key = `${emp.id}__${d.iso}`;
+                if (!timesheetPaymentMarks[key]) return acc;
+                if (normalizeShiftMark(timesheetHours[key] || "") !== "Я") return acc;
+                const override = Number(timesheetShiftRateOverrides[key]);
+                const dayRate = Number.isFinite(override) ? override : rate;
+                return acc + dayRate;
+              }, 0)
+            : paidShifts * getDayRateByAccrualType(rate, accrualType);
           totalShifts += shifts;
           totalHours += shifts * 8;
-          totalMoney += shifts * dayRate;
-          totalMoneyToPay += paidShifts * dayRate;
+          totalMoney += totalShiftMoney;
+          totalMoneyToPay += paidShiftMoney;
         } else {
           const hours = timesheetDays.reduce((acc, d) => {
             const key = `${emp.id}__${d.iso}`;
@@ -853,7 +873,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         totalOutstanding: Math.max(0, Number((totalMoney - totalPaid).toFixed(2))),
       };
     });
-  }, [timesheetEmployeesByDepartment, timesheetDays, timesheetHours, timesheetPaymentMarks, timesheetPayoutsByEmployee]);
+  }, [timesheetEmployeesByDepartment, timesheetDays, timesheetHours, timesheetPaymentMarks, timesheetShiftRateOverrides, timesheetPayoutsByEmployee]);
   const timesheetCompanySummary = useMemo(() => {
     const totalHours = timesheetDepartmentSummaries.reduce((acc, x) => acc + x.totalHours, 0);
     const totalShifts = timesheetDepartmentSummaries.reduce((acc, x) => acc + x.totalShifts, 0);
@@ -1503,11 +1523,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       if (!res.ok) throw new Error(data?.error || "Ошибка загрузки табеля");
       setTimesheetHours(data?.entries && typeof data.entries === "object" ? data.entries : {});
       setTimesheetPaymentMarks(data?.paymentMarks && typeof data.paymentMarks === "object" ? data.paymentMarks : {});
+      setTimesheetShiftRateOverrides(data?.shiftRateOverrides && typeof data.shiftRateOverrides === "object" ? data.shiftRateOverrides : {});
       setTimesheetPayoutsByEmployee(data?.payoutsByEmployee && typeof data.payoutsByEmployee === "object" ? data.payoutsByEmployee : {});
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка загрузки табеля");
       setTimesheetHours({});
       setTimesheetPaymentMarks({});
+      setTimesheetShiftRateOverrides({});
       setTimesheetPayoutsByEmployee({});
     }
   }, [adminToken, isSuperAdmin, timesheetMonth]);
@@ -1566,6 +1588,36 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         if (!res.ok) throw new Error(data?.error || "Ошибка сохранения оплаты");
       } catch (e: unknown) {
         setError((e as Error)?.message || "Ошибка сохранения оплаты");
+        await fetchTimesheetEntries();
+      }
+    },
+    [adminToken, isSuperAdmin, timesheetMonth, fetchTimesheetEntries]
+  );
+  const saveTimesheetShiftRate = useCallback(
+    async (employeeId: number, dateIso: string, shiftRate: string) => {
+      if (!adminToken || !isSuperAdmin) return;
+      try {
+        const res = await fetch("/api/admin-timesheet", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({
+            month: timesheetMonth,
+            employeeId,
+            date: dateIso,
+            shiftRate,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          onLogoutRef.current?.("expired");
+          return;
+        }
+        if (!res.ok) throw new Error(data?.error || "Ошибка сохранения стоимости смены");
+      } catch (e: unknown) {
+        setError((e as Error)?.message || "Ошибка сохранения стоимости смены");
         await fetchTimesheetEntries();
       }
     },
@@ -4691,7 +4743,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
                         Подразделение: {group.department}
                       </Typography.Body>
-                      <div style={{ overflowX: "auto" }}>
+                      <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh", WebkitOverflowScrolling: "touch" }}>
                         <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
                           <thead>
                             <tr>
@@ -4727,6 +4779,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           <tbody>
                             {group.employees.map((emp) => {
                               const accrualType = normalizeAccrualType(emp.accrual_type);
+                              const isShiftAccrual = accrualType === "shift";
                               const isMarkAccrual = isMarkAccrualType(accrualType);
                               const hourlyRate = Number(emp.accrual_rate ?? 0);
                               const shiftHours = 8;
@@ -4741,9 +4794,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     const key = `${emp.id}__${d.iso}`;
                                     return acc + parseTimesheetHoursValue(timesheetHours[key] || "");
                                   }, 0);
-                              const dayRate = getDayRateByAccrualType(hourlyRate, accrualType);
                               const totalMoney = isMarkAccrual
-                                ? totalShifts * dayRate
+                                ? (isShiftAccrual
+                                    ? timesheetDays.reduce((acc, d) => {
+                                        const key = `${emp.id}__${d.iso}`;
+                                        if (normalizeShiftMark(timesheetHours[key] || "") !== "Я") return acc;
+                                        const override = Number(timesheetShiftRateOverrides[key]);
+                                        const dayRate = Number.isFinite(override) ? override : hourlyRate;
+                                        return acc + dayRate;
+                                      }, 0)
+                                    : totalShifts * getDayRateByAccrualType(hourlyRate, accrualType))
                                 : totalHours * hourlyRate;
                               const paidShifts = isMarkAccrual
                                 ? timesheetDays.reduce((acc, d) => {
@@ -4760,7 +4820,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     return acc + parseTimesheetHoursValue(timesheetHours[key] || "");
                                   }, 0);
                               const totalMoneyToPay = isMarkAccrual
-                                ? paidShifts * dayRate
+                                ? (isShiftAccrual
+                                    ? timesheetDays.reduce((acc, d) => {
+                                        const key = `${emp.id}__${d.iso}`;
+                                        if (!timesheetPaymentMarks[key]) return acc;
+                                        if (normalizeShiftMark(timesheetHours[key] || "") !== "Я") return acc;
+                                        const override = Number(timesheetShiftRateOverrides[key]);
+                                        const dayRate = Number.isFinite(override) ? override : hourlyRate;
+                                        return acc + dayRate;
+                                      }, 0)
+                                    : paidShifts * getDayRateByAccrualType(hourlyRate, accrualType))
                                 : paidHours * hourlyRate;
                               const totalPrimaryText = isMarkAccrual
                                 ? `${totalShifts} ${timesheetMobilePicker ? "смены" : "смен"}`
@@ -4816,6 +4885,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     const hourlyHoursEnabled = isMarkAccrual ? false : hourlyMark === "Я";
                                     const isMarkedForPayment = timesheetPaymentMarks[key] === true;
                                     const isPaidDate = paidDatesSet.has(d.iso);
+                                    const baseShiftRate = Number(emp.accrual_rate || 0);
+                                    const overrideShiftRate = Number(timesheetShiftRateOverrides[key]);
+                                    const hasOverrideShiftRate = Number.isFinite(overrideShiftRate);
+                                    const effectiveShiftRate = hasOverrideShiftRate ? overrideShiftRate : baseShiftRate;
+                                    const shiftRateHint = hasOverrideShiftRate
+                                      ? `База: ${baseShiftRate.toLocaleString("ru-RU")} ₽ · Ручная: ${overrideShiftRate.toLocaleString("ru-RU")} ₽`
+                                      : `База: ${baseShiftRate.toLocaleString("ru-RU")} ₽`;
                                     return (
                                       <td
                                         key={`timesheet-cell-${emp.id}-${d.iso}`}
@@ -4851,6 +4927,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                   ...prev,
                                                   [key]: nextValue,
                                                 }));
+                                                if (isShiftAccrual && nextValue !== "Я") {
+                                                  setTimesheetShiftRateOverrides((prev) => {
+                                                    const next = { ...prev };
+                                                    delete next[key];
+                                                    return next;
+                                                  });
+                                                  void saveTimesheetShiftRate(emp.id, d.iso, "");
+                                                }
                                                 void saveTimesheetCell(emp.id, d.iso, nextValue);
                                               }}
                                               onMouseDown={(e) => {
@@ -4860,7 +4944,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                 const { clientX, clientY } = e;
                                                 adminShiftHoldTimerRef.current = window.setTimeout(() => {
                                                   adminShiftHoldTriggeredRef.current = true;
-                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: clientX, y: clientY, isShift: true });
+                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: clientX, y: clientY, isShift: isShiftAccrual });
                                                 }, 450);
                                               }}
                                               onMouseUp={() => {
@@ -4884,7 +4968,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                 const touch = e.touches[0];
                                                 adminShiftHoldTimerRef.current = window.setTimeout(() => {
                                                   adminShiftHoldTriggeredRef.current = true;
-                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: touch.clientX, y: touch.clientY, isShift: true });
+                                                  setAdminShiftPicker({ key, employeeId: emp.id, dateIso: d.iso, x: touch.clientX, y: touch.clientY, isShift: isShiftAccrual });
                                                 }, 450);
                                               }}
                                               onTouchEnd={() => {
@@ -4916,6 +5000,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                 opacity: isPayoutExpanded || isPaidDate ? 0.9 : 1,
                                               }}
                                               aria-label={shiftMark ? `Статус ${shiftMark}. Нажмите для Я/○, удерживайте для выбора` : "Нажмите для Я, удерживайте для выбора статуса"}
+                                              title={isPaidDate ? `Этот день уже оплачен. ${shiftRateHint}` : (shiftMark ? `Статус: ${shiftMark}. ${shiftRateHint}` : `Нажмите для Я, удерживайте для выбора. ${shiftRateHint}`)}
                                             >
                                               {shiftMark || "○"}
                                               {isPaidDate ? (
@@ -4940,6 +5025,54 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                 </span>
                                               ) : null}
                                             </button>
+                                            {isShiftAccrual && shiftMark === "Я" ? (
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                step={1}
+                                                value={
+                                                  Number.isFinite(timesheetShiftRateOverrides[key])
+                                                    ? String(timesheetShiftRateOverrides[key])
+                                                    : ""
+                                                }
+                                                placeholder={String(Number(emp.accrual_rate || 0))}
+                                                disabled={isPayoutExpanded || isPaidDate}
+                                                onChange={(e) => {
+                                                  if (isPayoutExpanded || isPaidDate) return;
+                                                  const nextRaw = e.target.value;
+                                                  if (nextRaw.trim() === "") {
+                                                    setTimesheetShiftRateOverrides((prev) => {
+                                                      const next = { ...prev };
+                                                      delete next[key];
+                                                      return next;
+                                                    });
+                                                    void saveTimesheetShiftRate(emp.id, d.iso, "");
+                                                    return;
+                                                  }
+                                                  const parsed = Number(String(nextRaw).replace(",", "."));
+                                                  if (!Number.isFinite(parsed) || parsed < 0) return;
+                                                  setTimesheetShiftRateOverrides((prev) => ({
+                                                    ...prev,
+                                                    [key]: Number(parsed.toFixed(2)),
+                                                  }));
+                                                  void saveTimesheetShiftRate(emp.id, d.iso, String(parsed));
+                                                }}
+                                                style={{
+                                                  width: "3.4rem",
+                                                  minWidth: "3.4rem",
+                                                  boxSizing: "border-box",
+                                                  border: "1px solid var(--color-border)",
+                                                  borderRadius: 6,
+                                                  background: "var(--color-bg)",
+                                                  padding: "0.08rem 0.2rem",
+                                                  textAlign: "center",
+                                                  fontSize: "0.68rem",
+                                                  lineHeight: 1.1,
+                                                }}
+                                                aria-label="Ручная стоимость смены"
+                                                title={`Стоимость смены (переопределение). ${shiftRateHint}. Факт: ${effectiveShiftRate.toLocaleString("ru-RU")} ₽`}
+                                              />
+                                            ) : null}
                                           </div>
                                         ) : (
                                           <div style={{ display: "grid", justifyItems: "center", rowGap: "0.08rem" }}>
@@ -5356,6 +5489,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         ? (currentHours > 0 ? String(currentHours) : "Я")
                         : opt.code;
                       setTimesheetHours((prev) => ({ ...prev, [adminShiftPicker.key]: nextValue }));
+                      if (adminShiftPicker.isShift && nextValue !== "Я") {
+                        setTimesheetShiftRateOverrides((prev) => {
+                          const next = { ...prev };
+                          delete next[adminShiftPicker.key];
+                          return next;
+                        });
+                        void saveTimesheetShiftRate(adminShiftPicker.employeeId, adminShiftPicker.dateIso, "");
+                      }
                       void saveTimesheetCell(adminShiftPicker.employeeId, adminShiftPicker.dateIso, nextValue);
                       setAdminShiftPicker(null);
                     }}
@@ -5380,6 +5521,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   onClick={() => {
                     if (timesheetPaidDateKeys.has(adminShiftPicker.key)) return;
                     setTimesheetHours((prev) => ({ ...prev, [adminShiftPicker.key]: "" }));
+                    if (adminShiftPicker.isShift) {
+                      setTimesheetShiftRateOverrides((prev) => {
+                        const next = { ...prev };
+                        delete next[adminShiftPicker.key];
+                        return next;
+                      });
+                      void saveTimesheetShiftRate(adminShiftPicker.employeeId, adminShiftPicker.dateIso, "");
+                    }
                     void saveTimesheetCell(adminShiftPicker.employeeId, adminShiftPicker.dateIso, "");
                     setAdminShiftPicker(null);
                   }}
