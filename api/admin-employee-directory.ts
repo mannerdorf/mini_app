@@ -5,7 +5,7 @@ import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 
 const EMPLOYEE_ROLES = new Set(["employee", "department_head"]);
-const ACCRUAL_TYPES = new Set(["hour", "shift"]);
+const ACCRUAL_TYPES = new Set(["hour", "shift", "month"]);
 const COOPERATION_TYPES = new Set(["self_employed", "ip", "staff"]);
 
 type ColumnName = { column_name: string };
@@ -21,11 +21,13 @@ function parseMonth(value: unknown): { month: string; start: string } | null {
   return { month, start };
 }
 
-function normalizeAccrualType(value: unknown): "hour" | "shift" {
+function normalizeAccrualType(value: unknown): "hour" | "shift" | "month" {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return "hour";
   if (raw === "shift" || raw === "смена") return "shift";
+  if (raw === "month" || raw === "месяц" || raw === "monthly") return "month";
   if (raw === "hour" || raw === "часы" || raw === "час") return "hour";
+  if (raw.includes("month") || raw.includes("месяц")) return "month";
   return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
 }
 
@@ -110,7 +112,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       full_name: string | null;
       department: string | null;
       position: string | null;
-      accrual_type: "hour" | "shift" | null;
+      accrual_type: "hour" | "shift" | "month" | null;
       accrual_rate: number | null;
       cooperation_type: "self_employed" | "ip" | "staff" | null;
       employee_role: "employee" | "department_head" | null;
@@ -327,7 +329,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       full_name: string | null;
       department: string | null;
       position: string | null;
-      accrual_type: "hour" | "shift" | null;
+      accrual_type: "hour" | "shift" | "month" | null;
       accrual_rate: number | null;
       cooperation_type: "self_employed" | "ip" | "staff" | null;
       employee_role: "employee" | "department_head" | null;

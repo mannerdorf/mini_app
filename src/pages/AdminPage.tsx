@@ -118,7 +118,7 @@ type EmployeeDirectoryRow = {
   full_name: string;
   department: string;
   position: string;
-  accrual_type: "hour" | "shift" | null;
+  accrual_type: "hour" | "shift" | "month" | null;
   accrual_rate: number | null;
   cooperation_type: "self_employed" | "ip" | "staff" | null;
   employee_role: "employee" | "department_head";
@@ -126,6 +126,8 @@ type EmployeeDirectoryRow = {
   invited_with_preset_label: string | null;
   created_at: string;
 };
+
+type AccrualType = "hour" | "shift" | "month";
 
 const EMPLOYEE_DEPARTMENTS = [
   "Склад Москва",
@@ -573,7 +575,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryFullName, setEmployeeDirectoryFullName] = useState("");
   const [employeeDirectoryDepartment, setEmployeeDirectoryDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
   const [employeeDirectoryPosition, setEmployeeDirectoryPosition] = useState("");
-  const [employeeDirectoryAccrualType, setEmployeeDirectoryAccrualType] = useState<"hour" | "shift">("hour");
+  const [employeeDirectoryAccrualType, setEmployeeDirectoryAccrualType] = useState<AccrualType>("hour");
   const [employeeDirectoryAccrualRate, setEmployeeDirectoryAccrualRate] = useState("0");
   const [employeeDirectoryCooperationType, setEmployeeDirectoryCooperationType] = useState<CooperationType>("staff");
   const [employeeDirectoryRole, setEmployeeDirectoryRole] = useState<"employee" | "department_head">("employee");
@@ -582,7 +584,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryEditFullName, setEmployeeDirectoryEditFullName] = useState("");
   const [employeeDirectoryEditDepartment, setEmployeeDirectoryEditDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
   const [employeeDirectoryEditPosition, setEmployeeDirectoryEditPosition] = useState("");
-  const [employeeDirectoryEditAccrualType, setEmployeeDirectoryEditAccrualType] = useState<"hour" | "shift">("hour");
+  const [employeeDirectoryEditAccrualType, setEmployeeDirectoryEditAccrualType] = useState<AccrualType>("hour");
   const [employeeDirectoryEditAccrualRate, setEmployeeDirectoryEditAccrualRate] = useState("0");
   const [employeeDirectoryEditCooperationType, setEmployeeDirectoryEditCooperationType] = useState<CooperationType>("staff");
   const [employeeDirectoryEditRole, setEmployeeDirectoryEditRole] = useState<"employee" | "department_head">("employee");
@@ -657,9 +659,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [adminShiftPicker, setAdminShiftPicker] = useState<{ key: string; employeeId: number; dateIso: string; x: number; y: number; isShift: boolean } | null>(null);
   const adminShiftHoldTimerRef = useRef<number | null>(null);
   const adminShiftHoldTriggeredRef = useRef(false);
-  const isShiftAccrualType = (value: unknown) => {
+  const normalizeAccrualType = (value: unknown): AccrualType => {
     const raw = String(value ?? "").trim().toLowerCase();
-    return raw === "shift" || raw === "смена" || raw.includes("shift") || raw.includes("смен");
+    if (!raw) return "hour";
+    if (raw === "month" || raw === "месяц" || raw === "monthly" || raw.includes("month") || raw.includes("месяц")) return "month";
+    if (raw === "shift" || raw === "смена" || raw.includes("shift") || raw.includes("смен")) return "shift";
+    return "hour";
+  };
+  const isShiftAccrualType = (value: unknown) => {
+    return normalizeAccrualType(value) === "shift";
+  };
+  const isMarkAccrualType = (value: unknown) => {
+    const accrualType = normalizeAccrualType(value);
+    return accrualType === "shift" || accrualType === "month";
+  };
+  const getDayRateByAccrualType = (rate: number, accrualType: AccrualType) => {
+    return accrualType === "month" ? rate / WORK_DAYS_IN_MONTH : rate;
   };
   const normalizeShiftMark = (rawValue: string): ShiftMarkCode | "" => {
     const raw = String(rawValue || "").trim().toUpperCase();
@@ -679,9 +694,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (!option) return { border: "1px solid var(--color-border)", background: "var(--color-bg)", color: "var(--color-text-secondary)" };
     return { border: `1px solid ${option.border}`, background: option.bg, color: option.color };
   };
-  const calcMonthlyByRate = (rateRaw: string, accrualType: "hour" | "shift"): number => {
+  const calcMonthlyByRate = (rateRaw: string, accrualType: AccrualType): number => {
     const rate = Number(String(rateRaw || "").replace(",", "."));
     if (!Number.isFinite(rate) || rate < 0) return 0;
+    if (accrualType === "month") return rate;
     return accrualType === "shift" ? rate * WORK_DAYS_IN_MONTH : rate * 8 * WORK_DAYS_IN_MONTH;
   };
   const parseTimesheetHoursValue = (rawValue: string): number => {
@@ -784,13 +800,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       let totalMoneyToPay = 0;
       let totalPaid = 0;
       for (const emp of group.employees) {
-        const isShiftAccrual = isShiftAccrualType(emp.accrual_type);
+        const accrualType = normalizeAccrualType(emp.accrual_type);
+        const isMarkAccrual = isMarkAccrualType(accrualType);
         const rate = Number(emp.accrual_rate ?? 0);
         const employeePaid = (timesheetPayoutsByEmployee[String(emp.id)] || []).reduce((acc, payout) => {
           return acc + Number(payout.amount || 0);
         }, 0);
         totalPaid += employeePaid;
-        if (isShiftAccrual) {
+        if (isMarkAccrual) {
           const shifts = timesheetDays.reduce((acc, d) => {
             const key = `${emp.id}__${d.iso}`;
             return acc + (normalizeShiftMark(timesheetHours[key] || "") === "Я" ? 1 : 0);
@@ -800,10 +817,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             if (!timesheetPaymentMarks[key]) return acc;
             return acc + (normalizeShiftMark(timesheetHours[key] || "") === "Я" ? 1 : 0);
           }, 0);
+          const dayRate = getDayRateByAccrualType(rate, accrualType);
           totalShifts += shifts;
           totalHours += shifts * 8;
-          totalMoney += shifts * rate;
-          totalMoneyToPay += paidShifts * rate;
+          totalMoney += shifts * dayRate;
+          totalMoneyToPay += paidShifts * dayRate;
         } else {
           const hours = timesheetDays.reduce((acc, d) => {
             const key = `${emp.id}__${d.iso}`;
@@ -4699,7 +4717,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           </thead>
                           <tbody>
                             {group.employees.map((emp) => {
-                              const isShiftAccrual = isShiftAccrualType(emp.accrual_type);
+                              const accrualType = normalizeAccrualType(emp.accrual_type);
+                              const isMarkAccrual = isMarkAccrualType(accrualType);
                               const hourlyRate = Number(emp.accrual_rate ?? 0);
                               const shiftHours = 8;
                               const totalShifts = timesheetDays.reduce((acc, d) => {
@@ -4707,33 +4726,34 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 const val = timesheetHours[key] || "";
                                 return acc + (normalizeShiftMark(val) === "Я" ? 1 : 0);
                               }, 0);
-                              const totalHours = isShiftAccrual
+                              const totalHours = isMarkAccrual
                                 ? totalShifts * shiftHours
                                 : timesheetDays.reduce((acc, d) => {
                                     const key = `${emp.id}__${d.iso}`;
                                     return acc + parseTimesheetHoursValue(timesheetHours[key] || "");
                                   }, 0);
-                              const totalMoney = isShiftAccrual
-                                ? totalShifts * hourlyRate
+                              const dayRate = getDayRateByAccrualType(hourlyRate, accrualType);
+                              const totalMoney = isMarkAccrual
+                                ? totalShifts * dayRate
                                 : totalHours * hourlyRate;
-                              const paidShifts = isShiftAccrual
+                              const paidShifts = isMarkAccrual
                                 ? timesheetDays.reduce((acc, d) => {
                                     const key = `${emp.id}__${d.iso}`;
                                     if (!timesheetPaymentMarks[key]) return acc;
                                     return acc + (normalizeShiftMark(timesheetHours[key] || "") === "Я" ? 1 : 0);
                                   }, 0)
                                 : 0;
-                              const paidHours = isShiftAccrual
+                              const paidHours = isMarkAccrual
                                 ? paidShifts * shiftHours
                                 : timesheetDays.reduce((acc, d) => {
                                     const key = `${emp.id}__${d.iso}`;
                                     if (!timesheetPaymentMarks[key]) return acc;
                                     return acc + parseTimesheetHoursValue(timesheetHours[key] || "");
                                   }, 0);
-                              const totalMoneyToPay = isShiftAccrual
-                                ? paidShifts * hourlyRate
+                              const totalMoneyToPay = isMarkAccrual
+                                ? paidShifts * dayRate
                                 : paidHours * hourlyRate;
-                              const totalPrimaryText = isShiftAccrual
+                              const totalPrimaryText = isMarkAccrual
                                 ? `${totalShifts} ${timesheetMobilePicker ? "смены" : "смен"}`
                                 : `${Number(totalHours.toFixed(1))} ${timesheetMobilePicker ? "часы" : "ч"}`;
                               const legendCounts = SHIFT_MARK_CODES.reduce<Record<string, number>>((acc, code) => {
@@ -4780,11 +4800,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     const fallback = "0";
                                     const shiftMark = normalizeShiftMark(value);
                                     const shiftMarkStyle = getShiftMarkStyle(shiftMark);
-                                    const hourlyMark = isShiftAccrual ? shiftMark : getHourlyCellMark(value);
+                                    const hourlyMark = isMarkAccrual ? shiftMark : getHourlyCellMark(value);
                                     const hourlyMarkStyle = getShiftMarkStyle(hourlyMark);
                                     const hourInputValue = parseTimesheetHoursValue(value) > 0 ? String(parseTimesheetHoursValue(value)) : "";
                                     const hourPickerValue = toHalfHourValue(hourInputValue || fallback);
-                                    const hourlyHoursEnabled = isShiftAccrual ? false : hourlyMark === "Я";
+                                    const hourlyHoursEnabled = isMarkAccrual ? false : hourlyMark === "Я";
                                     const isMarkedForPayment = timesheetPaymentMarks[key] === true;
                                     const isPaidDate = paidDatesSet.has(d.iso);
                                     return (
@@ -4807,7 +4827,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                         }}
                                         title={isPaidDate ? "Этот день уже оплачен, повторная оплата запрещена" : undefined}
                                       >
-                                        {isShiftAccrual ? (
+                                        {isMarkAccrual ? (
                                           <div style={{ display: "grid", justifyItems: "center", rowGap: "0.08rem" }}>
                                             <button
                                               type="button"
@@ -6059,11 +6079,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <select
               className="admin-form-input"
               value={employeeDirectoryAccrualType}
-              onChange={(e) => setEmployeeDirectoryAccrualType(e.target.value as "hour" | "shift")}
+              onChange={(e) => setEmployeeDirectoryAccrualType(normalizeAccrualType(e.target.value))}
               style={{ padding: "0 0.5rem" }}
             >
               <option value="hour">Начисление по часам</option>
               <option value="shift">Начисление по сменам</option>
+              <option value="month">Начисление за месяц (21 раб. дн.)</option>
             </select>
             <input
               type="number"
@@ -6071,7 +6092,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               step={0.01}
               className="admin-form-input"
               value={employeeDirectoryAccrualRate}
-              placeholder={employeeDirectoryAccrualType === "shift" ? "Ставка за смену" : "Ставка за час"}
+              placeholder={employeeDirectoryAccrualType === "month" ? "Ставка за месяц" : (employeeDirectoryAccrualType === "shift" ? "Ставка за смену" : "Ставка за час")}
               onChange={(e) => setEmployeeDirectoryAccrualRate(e.target.value)}
               style={{ width: "100%" }}
             />
@@ -6086,7 +6107,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             </select>
           </div>
           <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)", marginTop: "-0.25rem", marginBottom: "0.55rem" }}>
-            За {employeeDirectoryAccrualType === "shift" ? "смену" : "час"}: {Number(employeeDirectoryAccrualRate || 0).toLocaleString("ru-RU")} ₽ ·
+            За {employeeDirectoryAccrualType === "month" ? "месяц" : (employeeDirectoryAccrualType === "shift" ? "смену" : "час")}: {Number(employeeDirectoryAccrualRate || 0).toLocaleString("ru-RU")} ₽ ·
             За месяц ({WORK_DAYS_IN_MONTH} раб. дн.): {Math.round(employeeDirectoryMonthlyEstimate).toLocaleString("ru-RU")} ₽
           </Typography.Body>
 
@@ -6154,7 +6175,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
                     setEmployeeDirectoryEditPosition(emp.position || "");
                     setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
-                    setEmployeeDirectoryEditAccrualType(isShiftAccrualType(emp.accrual_type) ? "shift" : "hour");
+                    setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
                     setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
                     setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
                   }}
@@ -6169,7 +6190,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
                       setEmployeeDirectoryEditPosition(emp.position || "");
                       setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
-                      setEmployeeDirectoryEditAccrualType(isShiftAccrualType(emp.accrual_type) ? "shift" : "hour");
+                      setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
                       setEmployeeDirectoryEditAccrualRate(String(emp.accrual_rate ?? 0));
                       setEmployeeDirectoryEditRole(emp.employee_role === "department_head" ? "department_head" : "employee");
                     }
@@ -6181,7 +6202,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <div>
                       <Typography.Body style={{ fontWeight: 600 }}>{emp.full_name || emp.login}</Typography.Body>
                       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                        Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Тип сотрудничества: {cooperationTypeLabel(emp.cooperation_type)} · Начисление: {isShiftAccrualType(emp.accrual_type) ? "Смена" : "Часы"} · Ставка: {emp.accrual_rate ?? 0} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
+                        Подразделение: {emp.department || "—"} · Должность: {emp.position || "—"} · Тип сотрудничества: {cooperationTypeLabel(emp.cooperation_type)} · Начисление: {normalizeAccrualType(emp.accrual_type) === "month" ? "Месяц" : (isShiftAccrualType(emp.accrual_type) ? "Смена" : "Часы")} · Ставка: {emp.accrual_rate ?? 0} · Роль: {emp.employee_role === "department_head" ? "Руководитель подразделения" : "Сотрудник"} · Логин: {emp.login}
                       </Typography.Body>
                     </div>
                     <Flex align="center" gap="0.45rem" onClick={(e) => e.stopPropagation()}>
@@ -6273,11 +6294,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <select
                           className="admin-form-input"
                           value={employeeDirectoryEditAccrualType}
-                          onChange={(e) => setEmployeeDirectoryEditAccrualType(e.target.value as "hour" | "shift")}
+                          onChange={(e) => setEmployeeDirectoryEditAccrualType(normalizeAccrualType(e.target.value))}
                           style={{ padding: "0 0.5rem" }}
                         >
                           <option value="hour">Начисление по часам</option>
                           <option value="shift">Начисление по сменам</option>
+                          <option value="month">Начисление за месяц (21 раб. дн.)</option>
                         </select>
                         <input
                           type="number"
@@ -6285,7 +6307,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           step={0.01}
                           className="admin-form-input"
                           value={employeeDirectoryEditAccrualRate}
-                          placeholder={employeeDirectoryEditAccrualType === "shift" ? "Ставка за смену" : "Ставка за час"}
+                          placeholder={employeeDirectoryEditAccrualType === "month" ? "Ставка за месяц" : (employeeDirectoryEditAccrualType === "shift" ? "Ставка за смену" : "Ставка за час")}
                           onChange={(e) => setEmployeeDirectoryEditAccrualRate(e.target.value)}
                           onClick={(e) => e.stopPropagation()}
                           style={{ width: "100%" }}
@@ -6302,7 +6324,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         </select>
                       </div>
                       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginTop: "0.35rem" }}>
-                        За {employeeDirectoryEditAccrualType === "shift" ? "смену" : "час"}: {Number(employeeDirectoryEditAccrualRate || 0).toLocaleString("ru-RU")} ₽ ·
+                        За {employeeDirectoryEditAccrualType === "month" ? "месяц" : (employeeDirectoryEditAccrualType === "shift" ? "смену" : "час")}: {Number(employeeDirectoryEditAccrualRate || 0).toLocaleString("ru-RU")} ₽ ·
                         За месяц ({WORK_DAYS_IN_MONTH} раб. дн.): {Math.round(employeeDirectoryEditMonthlyEstimate).toLocaleString("ru-RU")} ₽
                       </Typography.Body>
                       <Flex align="center" gap="0.5rem" style={{ marginTop: "0.55rem" }}>

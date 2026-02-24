@@ -712,7 +712,7 @@ function DashboardPage({
             fullName: string;
             department: string;
             position: string;
-            accrualType: "hour" | "shift";
+            accrualType: "hour" | "shift" | "month";
             accrualRate: number;
             active?: boolean;
             totalHours: number;
@@ -722,11 +722,13 @@ function DashboardPage({
             totalOutstanding: number;
         }>;
     } | null>(null);
-    const normalizeDashboardAccrualType = (value: unknown): "hour" | "shift" => {
+    const normalizeDashboardAccrualType = (value: unknown): "hour" | "shift" | "month" => {
         const raw = String(value ?? "").trim().toLowerCase();
         if (!raw) return "hour";
+        if (raw === "month" || raw === "месяц" || raw === "monthly") return "month";
         if (raw === "shift" || raw === "смена") return "shift";
         if (raw === "hour" || raw === "часы" || raw === "час") return "hour";
+        if (raw.includes("month") || raw.includes("месяц")) return "month";
         return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
     };
     const normalizeDashboardShiftMark = (rawValue: string): "Я" | "ПР" | "Б" | "ОГ" | "ОТ" | "УВ" | "" => {
@@ -1042,19 +1044,24 @@ function DashboardPage({
                     const values = entriesByEmployee.get(employee.employeeId) || [];
                     const hasShiftMarks = values.some((v) => normalizeDashboardShiftMark(v.value) !== "");
                     const hasNumericHours = values.some((v) => parseDashboardHoursValue(v.value) > 0);
-                    const resolvedAccrualType: "hour" | "shift" =
-                        employee.accrualType === "shift" || (hasShiftMarks && !hasNumericHours) ? "shift" : "hour";
+                    const resolvedAccrualType: "hour" | "shift" | "month" =
+                        employee.accrualType === "month"
+                            ? "month"
+                            : (employee.accrualType === "shift" || (hasShiftMarks && !hasNumericHours) ? "shift" : "hour");
                     let employeeShifts = 0;
                     let employeeHours = 0;
                     let employeeCost = 0;
-                    if (resolvedAccrualType === "shift") {
+                    if (resolvedAccrualType === "shift" || resolvedAccrualType === "month") {
                         employeeShifts = values.reduce((acc, v) => acc + (normalizeDashboardShiftMark(v.value) === "Я" ? 1 : 0), 0);
                         employeeHours = employeeShifts * 8;
                         employeeCost = values.reduce((acc, v) => {
                             if (normalizeDashboardShiftMark(v.value) !== "Я") return acc;
                             const overrideKey = `${employee.employeeId}__${v.date}`;
                             const overrideRate = Number(shiftRateOverridesRaw[overrideKey]);
-                            const dayRate = Number.isFinite(overrideRate) ? overrideRate : Number(employee.accrualRate || 0);
+                            const baseRate = Number(employee.accrualRate || 0);
+                            const dayRate = resolvedAccrualType === "month"
+                                ? baseRate / 21
+                                : (Number.isFinite(overrideRate) ? overrideRate : baseRate);
                             return acc + dayRate;
                         }, 0);
                     } else {
@@ -4105,7 +4112,7 @@ function ProfilePage({
         position: string;
         cooperationType?: "self_employed" | "ip" | "staff" | string;
         employeeRole: "employee" | "department_head";
-        accrualType: "hour" | "shift";
+        accrualType: "hour" | "shift" | "month";
         accrualRate: number;
         active: boolean;
     }>>([]);
@@ -4139,7 +4146,7 @@ function ProfilePage({
     const [departmentTimesheetMobilePicker, setDepartmentTimesheetMobilePicker] = useState(false);
     const [departmentTimesheetEmployeeFullName, setDepartmentTimesheetEmployeeFullName] = useState("");
     const [departmentTimesheetEmployeePosition, setDepartmentTimesheetEmployeePosition] = useState("");
-    const [departmentTimesheetEmployeeAccrualType, setDepartmentTimesheetEmployeeAccrualType] = useState<"hour" | "shift">("hour");
+    const [departmentTimesheetEmployeeAccrualType, setDepartmentTimesheetEmployeeAccrualType] = useState<"hour" | "shift" | "month">("hour");
     const [departmentTimesheetEmployeeAccrualRate, setDepartmentTimesheetEmployeeAccrualRate] = useState("0");
     const [departmentTimesheetEmployeeCooperationType, setDepartmentTimesheetEmployeeCooperationType] = useState<"self_employed" | "ip" | "staff">("staff");
     const [departmentTimesheetEmployeeSaving, setDepartmentTimesheetEmployeeSaving] = useState(false);
@@ -4179,13 +4186,23 @@ function ProfilePage({
         }
         return { border: `1px solid ${option.border}`, background: option.bg, color: option.color };
     };
-    const isShiftAccrual = (value: string) => {
+    const normalizeDepartmentAccrualType = (value: unknown): "hour" | "shift" | "month" => {
         const raw = String(value || '').trim().toLowerCase();
-        return raw === 'shift' || raw === 'смена' || raw.includes('shift') || raw.includes('смен');
+        if (!raw) return "hour";
+        if (raw === "month" || raw === "месяц" || raw === "monthly" || raw.includes("month") || raw.includes("месяц")) return "month";
+        if (raw === "shift" || raw === "смена" || raw.includes("shift") || raw.includes("смен")) return "shift";
+        return "hour";
+    };
+    const isShiftAccrual = (value: string) => {
+        return normalizeDepartmentAccrualType(value) === "shift";
+    };
+    const getDayRateByAccrualType = (rate: number, accrualType: "hour" | "shift" | "month") => {
+        return accrualType === "month" ? rate / WORK_DAYS_IN_MONTH : rate;
     };
     const departmentTimesheetMonthlyEstimate = useMemo(() => {
         const rate = Number(String(departmentTimesheetEmployeeAccrualRate || '').replace(',', '.'));
         if (!Number.isFinite(rate) || rate < 0) return 0;
+        if (departmentTimesheetEmployeeAccrualType === "month") return rate;
         return departmentTimesheetEmployeeAccrualType === 'shift' ? rate * WORK_DAYS_IN_MONTH : rate * 8 * WORK_DAYS_IN_MONTH;
     }, [departmentTimesheetEmployeeAccrualRate, departmentTimesheetEmployeeAccrualType]);
     const toHalfHourValue = (raw: string) => {
@@ -4300,9 +4317,11 @@ function ProfilePage({
         let totalMoney = 0;
         let totalPaid = 0;
         for (const emp of employees) {
-            const isShift = isShiftAccrual(emp.accrualType);
+            const accrualType = normalizeDepartmentAccrualType(emp.accrualType);
+            const isShift = accrualType === "shift";
+            const isMarkAccrualType = accrualType === "shift" || accrualType === "month";
             const rate = Number(emp.accrualRate ?? 0);
-            if (isShift) {
+            if (isMarkAccrualType) {
                 const shifts = departmentTimesheetDays.reduce((acc, day) => {
                     const key = `${emp.id}:${day}`;
                     return acc + (normalizeShiftMark(departmentTimesheetHours[key] || '') === 'Я' ? 1 : 0);
@@ -4310,8 +4329,10 @@ function ProfilePage({
                 const shiftMoney = departmentTimesheetDays.reduce((acc, day) => {
                     const key = `${emp.id}:${day}`;
                     if (normalizeShiftMark(departmentTimesheetHours[key] || '') !== 'Я') return acc;
-                    const override = departmentTimesheetShiftRateOverrides[key];
-                    const dayRate = Number.isFinite(override) ? override : rate;
+                    const override = Number(departmentTimesheetShiftRateOverrides[key]);
+                    const dayRate = isShift
+                        ? (Number.isFinite(override) ? override : rate)
+                        : getDayRateByAccrualType(rate, accrualType);
                     return acc + dayRate;
                 }, 0);
                 totalShifts += shifts;
@@ -5112,12 +5133,13 @@ function ProfilePage({
                         />
                         <select
                             value={departmentTimesheetEmployeeAccrualType}
-                            onChange={(e) => setDepartmentTimesheetEmployeeAccrualType(e.target.value === 'shift' ? 'shift' : 'hour')}
+                            onChange={(e) => setDepartmentTimesheetEmployeeAccrualType(normalizeDepartmentAccrualType(e.target.value))}
                             style={{ padding: '0 0.6rem', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-bg)', fontSize: '0.9rem', height: '2.4rem', boxSizing: 'border-box', minWidth: '9rem' }}
                             aria-label="Тип начисления"
                         >
                             <option value="hour">Почасовая</option>
                             <option value="shift">Сменная</option>
+                            <option value="month">Месячная (21 раб. дн.)</option>
                         </select>
                         <select
                             value={departmentTimesheetEmployeeCooperationType}
@@ -5153,7 +5175,7 @@ function ProfilePage({
                         </Button>
                     </Flex>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.4rem' }}>
-                        За {departmentTimesheetEmployeeAccrualType === 'shift' ? 'смену' : 'час'}: {Number(departmentTimesheetEmployeeAccrualRate || 0).toLocaleString('ru-RU')} ₽ ·
+                        За {departmentTimesheetEmployeeAccrualType === "month" ? "месяц" : (departmentTimesheetEmployeeAccrualType === 'shift' ? 'смену' : 'час')}: {Number(departmentTimesheetEmployeeAccrualRate || 0).toLocaleString('ru-RU')} ₽ ·
                         За месяц ({WORK_DAYS_IN_MONTH} раб. дн.): {Math.round(departmentTimesheetMonthlyEstimate).toLocaleString('ru-RU')} ₽
                     </Typography.Body>
                 </Panel>
@@ -5192,13 +5214,15 @@ function ProfilePage({
                             </thead>
                             <tbody>
                                 {departmentTimesheetEmployees.map((emp) => {
-                                    const isShift = isShiftAccrual(emp.accrualType);
+                                    const accrualType = normalizeDepartmentAccrualType(emp.accrualType);
+                                    const isShift = accrualType === "shift";
+                                    const isMarkAccrualType = accrualType === "shift" || accrualType === "month";
                                     const rate = Number(emp.accrualRate ?? 0);
                                     const totalShiftCount = departmentTimesheetDays.reduce((acc, day) => {
                                         const key = `${emp.id}:${day}`;
                                         return acc + (normalizeShiftMark(departmentTimesheetHours[key] || '') === 'Я' ? 1 : 0);
                                     }, 0);
-                                    const totalHours = isShift
+                                    const totalHours = isMarkAccrualType
                                         ? totalShiftCount * 8
                                         : departmentTimesheetDays.reduce((acc, day) => {
                                             const key = `${emp.id}:${day}`;
@@ -5206,18 +5230,20 @@ function ProfilePage({
                                             const num = Number(value);
                                             return acc + (Number.isFinite(num) ? num : 0);
                                         }, 0);
-                                    const totalMoney = isShift
+                                    const totalMoney = isMarkAccrualType
                                         ? departmentTimesheetDays.reduce((acc, day) => {
                                             const key = `${emp.id}:${day}`;
                                             if (normalizeShiftMark(departmentTimesheetHours[key] || '') !== 'Я') return acc;
-                                            const override = departmentTimesheetShiftRateOverrides[key];
-                                            const dayRate = Number.isFinite(override) ? override : rate;
+                                            const override = Number(departmentTimesheetShiftRateOverrides[key]);
+                                            const dayRate = isShift
+                                                ? (Number.isFinite(override) ? override : rate)
+                                                : getDayRateByAccrualType(rate, accrualType);
                                             return acc + dayRate;
                                         }, 0)
                                         : totalHours * rate;
                                     const totalPaid = Number(departmentTimesheetPayoutsByEmployee[String(emp.id)] || 0);
                                     const totalOutstanding = Math.max(0, Number((totalMoney - totalPaid).toFixed(2)));
-                                    const totalPrimaryText = isShift
+                                    const totalPrimaryText = isMarkAccrualType
                                         ? `${totalShiftCount} ${departmentTimesheetMobilePicker ? 'смены' : 'смен'}`
                                         : `${Number(totalHours.toFixed(2))} ${departmentTimesheetMobilePicker ? 'часы' : 'ч'}`;
                                     const legendCounts = SHIFT_MARK_CODES.reduce<Record<string, number>>((acc, code) => {
@@ -5240,7 +5266,7 @@ function ProfilePage({
                                                         {cooperationTypeLabel(emp.cooperationType)}
                                                     </Typography.Body>
                                                     <Typography.Body style={{ display: 'block', fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
-                                                        {isShiftAccrual(emp.accrualType) ? 'Смена' : 'Часы'}
+                                                        {accrualType === "month" ? "Месяц" : (isShift ? 'Смена' : 'Часы')}
                                                     </Typography.Body>
                                                 </div>
                                                 <Button
@@ -5259,26 +5285,29 @@ function ProfilePage({
                                         {departmentTimesheetDays.map((day) => {
                                             const key = `${emp.id}:${day}`;
                                             const value = departmentTimesheetHours[key] || '';
-                                            const isShift = isShiftAccrual(emp.accrualType);
+                                            const isShift = accrualType === "shift";
+                                            const isMarkAccrual = accrualType === "shift" || accrualType === "month";
                                             const shiftMark = normalizeShiftMark(value);
                                             const shiftMarkStyle = getShiftMarkStyle(shiftMark);
-                                            const hourlyMark = isShift ? shiftMark : getHourlyCellMark(value);
+                                            const hourlyMark = isMarkAccrual ? shiftMark : getHourlyCellMark(value);
                                             const hourlyMarkStyle = getShiftMarkStyle(hourlyMark);
                                             const hourValue = parseHourValue(value);
                                             const hourInputValue = hourValue > 0 ? String(hourValue) : '';
                                             const hourPickerValue = toHalfHourValue(hourInputValue || '0');
-                                            const hourlyHoursEnabled = isShift ? false : hourlyMark === 'Я';
+                                            const hourlyHoursEnabled = isMarkAccrual ? false : hourlyMark === 'Я';
                                             const isPaidDate = departmentTimesheetPaidDayMarks[key] === true;
                                             const baseShiftRate = Number(emp.accrualRate || 0);
                                             const overrideShiftRate = Number(departmentTimesheetShiftRateOverrides[key]);
                                             const hasOverrideShiftRate = Number.isFinite(overrideShiftRate);
                                             const effectiveShiftRate = hasOverrideShiftRate ? overrideShiftRate : baseShiftRate;
-                                            const shiftRateHint = hasOverrideShiftRate
-                                                ? `База: ${baseShiftRate.toLocaleString('ru-RU')} ₽ · Ручная: ${overrideShiftRate.toLocaleString('ru-RU')} ₽`
-                                                : `База: ${baseShiftRate.toLocaleString('ru-RU')} ₽`;
+                                            const shiftRateHint = isShift
+                                                ? (hasOverrideShiftRate
+                                                    ? `База: ${baseShiftRate.toLocaleString('ru-RU')} ₽ · Ручная: ${overrideShiftRate.toLocaleString('ru-RU')} ₽`
+                                                    : `База: ${baseShiftRate.toLocaleString('ru-RU')} ₽`)
+                                                : `База за день: ${(baseShiftRate / WORK_DAYS_IN_MONTH).toLocaleString('ru-RU')} ₽`;
                                             return (
                                                 <td key={key} style={{ borderBottom: '1px solid var(--color-border)', padding: shiftMark === "Я" && isPaidDate ? '0.2rem 0.2rem 0.72rem 0.2rem' : '0.2rem' }}>
-                                                    {isShift ? (
+                                                    {isMarkAccrual ? (
                                                         <div style={{ display: 'grid', justifyItems: 'center', rowGap: '0.12rem' }}>
                                                             <button
                                                                 type="button"
@@ -5294,7 +5323,7 @@ function ProfilePage({
                                                                         ...prev,
                                                                         [key]: nextValue,
                                                                     }));
-                                                                    if (nextValue !== 'Я') {
+                                                                    if (isShift && nextValue !== 'Я') {
                                                                         setDepartmentTimesheetShiftRateOverrides((prev) => {
                                                                             const next = { ...prev };
                                                                             delete next[key];
@@ -5312,7 +5341,7 @@ function ProfilePage({
                                                                     const { clientX, clientY } = e;
                                                                     departmentShiftHoldTimerRef.current = window.setTimeout(() => {
                                                                         departmentShiftHoldTriggeredRef.current = true;
-                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: clientX, y: clientY, isShift: true });
+                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: clientX, y: clientY, isShift });
                                                                     }, 450);
                                                                 }}
                                                                 onMouseUp={() => {
@@ -5339,7 +5368,7 @@ function ProfilePage({
                                                                     const touch = e.touches[0];
                                                                     departmentShiftHoldTimerRef.current = window.setTimeout(() => {
                                                                         departmentShiftHoldTriggeredRef.current = true;
-                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: touch.clientX, y: touch.clientY, isShift: true });
+                                                                        setDepartmentShiftPicker({ key, employeeId: emp.id, day, x: touch.clientX, y: touch.clientY, isShift });
                                                                     }, 450);
                                                                 }}
                                                                 onTouchEnd={() => {
@@ -5399,7 +5428,7 @@ function ProfilePage({
                                                                     </span>
                                                                 ) : null}
                                                             </button>
-                                                            {shiftMark === 'Я' ? (
+                                                            {isShift && shiftMark === 'Я' ? (
                                                                 <input
                                                                     type="number"
                                                                     min={0}

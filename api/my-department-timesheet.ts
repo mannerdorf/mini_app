@@ -13,18 +13,20 @@ type Body = {
   fullName?: string;
   department?: string;
   position?: string;
-  accrualType?: "hour" | "shift" | string;
+  accrualType?: "hour" | "shift" | "month" | string;
   accrualRate?: number | string;
   cooperationType?: "self_employed" | "ip" | "staff" | string;
   employeeRole?: "employee" | "department_head" | string;
   existingEmployeeId?: number | string;
 };
 
-function normalizeAccrualType(value: unknown): "hour" | "shift" {
+function normalizeAccrualType(value: unknown): "hour" | "shift" | "month" {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return "hour";
   if (raw === "shift" || raw === "смена") return "shift";
+  if (raw === "month" || raw === "месяц" || raw === "monthly") return "month";
   if (raw === "hour" || raw === "часы" || raw === "час") return "hour";
+  if (raw.includes("month") || raw.includes("месяц")) return "month";
   return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
 }
 
@@ -409,7 +411,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       full_name: string | null;
       position: string | null;
       employee_role: "employee" | "department_head" | null;
-      accrual_type: "hour" | "shift" | null;
+      accrual_type: "hour" | "shift" | "month" | null;
       accrual_rate: number | null;
       cooperation_type: "self_employed" | "ip" | "staff" | null;
       active: boolean;

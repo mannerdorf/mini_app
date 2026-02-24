@@ -16,11 +16,13 @@ function parseMonth(value: unknown): { month: string; start: string; next: strin
   return { month, start, next };
 }
 
-function normalizeAccrualType(value: unknown): "hour" | "shift" {
+function normalizeAccrualType(value: unknown): "hour" | "shift" | "month" {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return "hour";
   if (raw === "shift" || raw === "смена") return "shift";
+  if (raw === "month" || raw === "месяц" || raw === "monthly") return "month";
   if (raw === "hour" || raw === "часы" || raw === "час") return "hour";
+  if (raw.includes("month") || raw.includes("месяц")) return "month";
   return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
 }
 
@@ -401,7 +403,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     for (const row of entriesRes.rows) entryByDate.set(row.work_date, String(row.value_text || ""));
 
     let units = 0;
-    if (accrualType === "shift") {
+    if (accrualType === "shift" || accrualType === "month") {
       for (const date of markedDates) {
         if (normalizeShiftMark(entryByDate.get(date) || "") === "Я") units += 1;
       }
@@ -410,7 +412,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         units += parseHoursValue(entryByDate.get(date) || "");
       }
     }
-    const amount = Number((units * rate).toFixed(2));
+    const unitRate = accrualType === "month" ? rate / 21 : rate;
+    const amount = Number((units * unitRate).toFixed(2));
     const taxAmount = cooperationType === "ip" || cooperationType === "self_employed"
       ? Number((amount / 0.94 - amount).toFixed(2))
       : 0;

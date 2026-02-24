@@ -21,11 +21,13 @@ function parseBody(req: VercelRequest): Body {
   return (body as Body) || {};
 }
 
-function normalizeAccrualType(value: unknown): "hour" | "shift" {
+function normalizeAccrualType(value: unknown): "hour" | "shift" | "month" {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return "hour";
   if (raw === "shift" || raw === "смена") return "shift";
+  if (raw === "month" || raw === "месяц" || raw === "monthly") return "month";
   if (raw === "hour" || raw === "часы" || raw === "час") return "hour";
+  if (raw.includes("month") || raw.includes("месяц")) return "month";
   return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
 }
 
@@ -226,10 +228,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       let employeeShifts = 0;
       const hasShiftMarks = entries.some((e) => normalizeShiftMark(e.value) !== "");
       const hasNumericHours = entries.some((e) => parseHoursValue(e.value) > 0);
-      const resolvedAccrualType: "hour" | "shift" =
-        employee.accrualType === "shift" || (hasShiftMarks && !hasNumericHours) ? "shift" : "hour";
+      const resolvedAccrualType: "hour" | "shift" | "month" =
+        employee.accrualType === "month"
+          ? "month"
+          : (employee.accrualType === "shift" || (hasShiftMarks && !hasNumericHours) ? "shift" : "hour");
 
-      if (resolvedAccrualType === "shift") {
+      if (resolvedAccrualType === "shift" || resolvedAccrualType === "month") {
         // Начисление в сменном графике только по отметке "Я".
         employeeShifts = entries.reduce((acc, e) => acc + (normalizeShiftMark(e.value) === "Я" ? 1 : 0), 0);
         employeeHours = employeeShifts * 8;
@@ -239,7 +243,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const employeeCost = resolvedAccrualType === "shift"
         ? employeeShifts * employee.accrualRate
-        : employeeHours * employee.accrualRate;
+        : resolvedAccrualType === "month"
+          ? employeeShifts * (employee.accrualRate / 21)
+          : employeeHours * employee.accrualRate;
 
       totalHours += employeeHours;
       totalShifts += employeeShifts;
