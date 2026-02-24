@@ -168,7 +168,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'vehicle' | 'comment'>('date');
     const [sendingsSortOrder, setSendingsSortOrder] = useState<'asc' | 'desc'>('desc');
     const [sendingsDetailsView, setSendingsDetailsView] = useState<'general' | 'byCargo' | 'byCustomer'>('general');
-    const [sendingsSummarySortColumn, setSendingsSummarySortColumn] = useState<'index' | 'cargo' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer'>('index');
+    const [sendingsSummarySortColumn, setSendingsSummarySortColumn] = useState<'index' | 'cargo' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density'>('index');
     const [sendingsSummarySortOrder, setSendingsSummarySortOrder] = useState<'asc' | 'desc'>('asc');
     const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
     const [routeFilterCargo, setRouteFilterCargo] = useState<string>('all');
@@ -312,15 +312,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
 
     const uniqueCustomers = useMemo(() => [...new Set(items.map(i => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [items]);
     const uniqueOrderCustomers = useMemo(
-        () => [...new Set((ordersItems || []).map((i: any) => String(i?.ЗаказчикНаименование ?? i?.Заказчик ?? i?.Customer ?? i?.customer ?? i?.Контрагент ?? i?.Contractor ?? i?.Organization ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
+        () => [...new Set((ordersItems || []).map((i: any) => String(i?.ЗаказчикНаименование ?? i?.Заказчик ?? i?.Customer ?? i?.customer ?? i?.Контрагент ?? i?.Contractor ?? i?.Organization ?? i?.ПлательщикНаименование ?? i?.PayerName ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
         [ordersItems]
     );
     const uniqueOrderReceivers = useMemo(
-        () => [...new Set((ordersItems || []).map((i: any) => String(i?.ПолучательНаименование ?? i?.Получатель ?? i?.Receiver ?? i?.receiver ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
+        () => [...new Set((ordersItems || []).map((i: any) => String(i?.ПолучательНаименование ?? i?.Получатель ?? i?.ГрузополучательНаименование ?? i?.Грузополучатель ?? i?.Receiver ?? i?.receiver ?? i?.Consignee ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
         [ordersItems]
     );
     const uniqueOrderSenders = useMemo(
-        () => [...new Set((ordersItems || []).map((i: any) => String(i?.ОтправительНаименование ?? i?.Отправитель ?? i?.Sender ?? i?.sender ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
+        () => [...new Set((ordersItems || []).map((i: any) => String(i?.ОтправительНаименование ?? i?.Отправитель ?? i?.ГрузоотправительНаименование ?? i?.Грузоотправитель ?? i?.Sender ?? i?.sender ?? i?.Shipper ?? i?.Consignor ?? '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
         [ordersItems]
     );
     const uniqueOrderRoutes = useMemo(() => {
@@ -470,8 +470,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             sortOrder,
         });
         return base.filter((i: any) => {
-            if (orderReceiverFilter && String(i?.ПолучательНаименование ?? i?.Получатель ?? i?.Receiver ?? i?.receiver ?? '').trim() !== orderReceiverFilter) return false;
-            if (orderSenderFilter && String(i?.ОтправительНаименование ?? i?.Отправитель ?? i?.Sender ?? i?.sender ?? '').trim() !== orderSenderFilter) return false;
+            if (orderReceiverFilter && String(i?.ПолучательНаименование ?? i?.Получатель ?? i?.ГрузополучательНаименование ?? i?.Грузополучатель ?? i?.Receiver ?? i?.receiver ?? i?.Consignee ?? '').trim() !== orderReceiverFilter) return false;
+            if (orderSenderFilter && String(i?.ОтправительНаименование ?? i?.Отправитель ?? i?.ГрузоотправительНаименование ?? i?.Грузоотправитель ?? i?.Sender ?? i?.sender ?? i?.Shipper ?? i?.Consignor ?? '').trim() !== orderSenderFilter) return false;
             if (orderRouteFilter !== 'all') {
                 const fromRaw = String(i?.ПунктОтправкиНаименование ?? i?.ПунктОтправленияНаименование ?? i?.ПунктОтправки ?? i?.ПунктОтправления ?? i?.CitySender ?? '').trim();
                 const toRaw = String(i?.ПунктНазначенияНаименование ?? i?.ПунктПолученияНаименование ?? i?.ПунктНазначения ?? i?.ПунктДоставки ?? i?.CityReceiver ?? '').trim();
@@ -684,10 +684,10 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         const getNumber = (row: any) => String(row?.НомерЗаявки ?? row?.Номер ?? row?.Number ?? row?.number ?? row?.N ?? "");
         const getClientNumber = (row: any) => String(row?.НомерЗаявкиКлиента ?? row?.ClientRequestNumber ?? "");
         const getPickupDate = (row: any) => String(row?.ДатаЗабораПлан ?? row?.PickupDatePlan ?? "");
-        const getSender = (row: any) => String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.Sender ?? row?.sender ?? "");
-        const getReceiver = (row: any) => String(row?.ПолучательНаименование ?? row?.Получатель ?? row?.Receiver ?? row?.receiver ?? "");
-        const getCustomer = (row: any) => String(row?.ЗаказчикНаименование ?? row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? "");
-        const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
+        const getSender = (row: any) => String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.ГрузоотправительНаименование ?? row?.Грузоотправитель ?? row?.Sender ?? row?.sender ?? row?.Shipper ?? row?.Consignor ?? "");
+        const getReceiver = (row: any) => String(row?.ПолучательНаименование ?? row?.Получатель ?? row?.ГрузополучательНаименование ?? row?.Грузополучатель ?? row?.Receiver ?? row?.receiver ?? row?.Consignee ?? "");
+        const getCustomer = (row: any) => String(row?.ЗаказчикНаименование ?? row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? row?.ПлательщикНаименование ?? row?.PayerName ?? "");
+        const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? row?.Примечание ?? row?.Note ?? "");
         const getCargo = (row: any) => {
             const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
             const firstParcel = Array.isArray(rawParcels)
@@ -767,7 +767,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         setSendingsSortColumn(column);
         setSendingsSortOrder(column === 'date' ? 'desc' : 'asc');
     }, [sendingsSortColumn]);
-    const handleSendingsSummarySort = useCallback((column: 'index' | 'cargo' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer') => {
+    const handleSendingsSummarySort = useCallback((column: 'index' | 'cargo' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density') => {
         if (sendingsSummarySortColumn === column) {
             setSendingsSummarySortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
             return;
@@ -1526,10 +1526,10 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     parcels?.[0]?.Перевозка ??
                                     ''
                                 );
-                                const customer = String(row?.ЗаказчикНаименование ?? row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '');
-                                const receiver = String(row?.ПолучательНаименование ?? row?.Получатель ?? row?.Receiver ?? row?.receiver ?? '');
-                                const sender = String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.Sender ?? row?.sender ?? '');
-                                const comment = String(row?.Комментарий ?? row?.Comment ?? '');
+                                const customer = String(row?.ЗаказчикНаименование ?? row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? row?.ПлательщикНаименование ?? row?.PayerName ?? '');
+                                const receiver = String(row?.ПолучательНаименование ?? row?.Получатель ?? row?.ГрузополучательНаименование ?? row?.Грузополучатель ?? row?.Receiver ?? row?.receiver ?? row?.Consignee ?? '');
+                                const sender = String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.ГрузоотправительНаименование ?? row?.Грузоотправитель ?? row?.Sender ?? row?.sender ?? row?.Shipper ?? row?.Consignor ?? '');
+                                const comment = String(row?.Комментарий ?? row?.Comment ?? row?.Примечание ?? row?.Note ?? '');
                                 const customerRequestNumber = String(row?.НомерЗаявкиКлиента ?? row?.ClientRequestNumber ?? '');
                                 const pickupDate = String(row?.ДатаЗабораПлан ?? row?.PickupDatePlan ?? '');
                                 const rowKey = `${requestNumber || 'row'}-${cargoNumber || idx}`;
@@ -1887,6 +1887,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                 case 'paidWeight':
                                                                                     cmp = a.paidWeight - b.paidWeight;
                                                                                     break;
+                                                                                case 'density': {
+                                                                                    const dA = a.volume > 0 ? a.weight / a.volume : -Infinity;
+                                                                                    const dB = b.volume > 0 ? b.weight / b.volume : -Infinity;
+                                                                                    cmp = dA - dB;
+                                                                                    break;
+                                                                                }
                                                                                 case 'customer':
                                                                                     cmp = String(a.customer || '').localeCompare(String(b.customer || ''));
                                                                                     break;
@@ -1959,7 +1965,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('volume')} title="Сортировка">Объем {sendingsSummarySortColumn === 'volume' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('paidWeight')} title="Сортировка">Платный вес {sendingsSummarySortColumn === 'paidWeight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Плотность</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('density')} title="Сортировка">Плотность {sendingsSummarySortColumn === 'density' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -2018,6 +2024,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                 case 'paidWeight':
                                                                                     cmp = a.paidWeight - b.paidWeight;
                                                                                     break;
+                                                                                case 'density': {
+                                                                                    const dA = a.volume > 0 ? a.weight / a.volume : -Infinity;
+                                                                                    const dB = b.volume > 0 ? b.weight / b.volume : -Infinity;
+                                                                                    cmp = dA - dB;
+                                                                                    break;
+                                                                                }
                                                                                 case 'cargo':
                                                                                 case 'customer':
                                                                                     cmp = String(a.customer || '').localeCompare(String(b.customer || ''));
