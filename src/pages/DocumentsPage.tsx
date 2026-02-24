@@ -8,7 +8,7 @@ import { InvoiceDetailModal } from "../components/modals/InvoiceDetailModal";
 import { ActDetailModal } from "../components/modals/ActDetailModal";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
-import { normalizeStatus, STATUS_MAP } from "../lib/statusUtils";
+import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus } from "../lib/statusUtils";
 import { StatusBadge } from "../components/shared/StatusBadges";
 import {
     loadDateFilterState,
@@ -168,7 +168,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'vehicle' | 'comment'>('date');
     const [sendingsSortOrder, setSendingsSortOrder] = useState<'asc' | 'desc'>('desc');
     const [sendingsDetailsView, setSendingsDetailsView] = useState<'general' | 'byCargo' | 'byCustomer'>('general');
-    const [sendingsSummarySortColumn, setSendingsSummarySortColumn] = useState<'index' | 'cargo' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density'>('index');
+    const [sendingsSummarySortColumn, setSendingsSummarySortColumn] = useState<'index' | 'cargo' | 'status' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density'>('index');
     const [sendingsSummarySortOrder, setSendingsSummarySortOrder] = useState<'asc' | 'desc'>('asc');
     const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
     const [routeFilterCargo, setRouteFilterCargo] = useState<string>('all');
@@ -759,6 +759,48 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return sendingsSortOrder === 'asc' ? cmp : -cmp;
         });
     }, [filteredSendings, sendingsSortColumn, sendingsSortOrder, normalizeTransportDisplay]);
+    const sendingsInfographic = useMemo(() => {
+        let ferry = 0;
+        let auto = 0;
+        const byRoute = new Map<string, number>();
+        const statusCounts: Record<'in_transit' | 'ready' | 'delivering' | 'delivered' | 'other', number> = {
+            in_transit: 0,
+            ready: 0,
+            delivering: 0,
+            delivered: 0,
+            other: 0,
+        };
+        sendingRowsSorted.forEach((row: any) => {
+            const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
+            const hasPlate = /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase());
+            if (hasPlate) auto += 1;
+            else ferry += 1;
+            const statusKey = getFilterKeyByStatus(row?.State ?? row?.state ?? row?.Статус);
+            if (statusKey === 'in_transit' || statusKey === 'ready' || statusKey === 'delivering' || statusKey === 'delivered') {
+                statusCounts[statusKey] += 1;
+            } else {
+                statusCounts.other += 1;
+            }
+            const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
+            const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
+            const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
+            byRoute.set(route, (byRoute.get(route) ?? 0) + 1);
+        });
+        const total = sendingRowsSorted.length || 1;
+        const statusBadges = [
+            { key: 'in_transit', label: STATUS_MAP.in_transit, count: statusCounts.in_transit, color: '#2563eb', bg: 'rgba(37,99,235,0.12)' },
+            { key: 'ready', label: STATUS_MAP.ready, count: statusCounts.ready, color: '#7c3aed', bg: 'rgba(124,58,237,0.12)' },
+            { key: 'delivering', label: STATUS_MAP.delivering, count: statusCounts.delivering, color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
+            { key: 'delivered', label: STATUS_MAP.delivered, count: statusCounts.delivered, color: '#16a34a', bg: 'rgba(22,163,74,0.12)' },
+            { key: 'other', label: 'Прочее', count: statusCounts.other, color: 'var(--color-text-secondary)', bg: 'var(--color-bg-hover)' },
+        ]
+            .filter((s) => s.count > 0)
+            .map((s) => ({ ...s, percent: Math.round((s.count / total) * 1000) / 10 }));
+        const routes = [...byRoute.entries()]
+            .map(([route, count]) => ({ route, count }))
+            .sort((a, b) => b.count - a.count || a.route.localeCompare(b.route, 'ru'));
+        return { ferry, auto, routes, statusBadges };
+    }, [sendingRowsSorted, normalizeTransportDisplay]);
     const handleSendingsSort = useCallback((column: 'date' | 'number' | 'route' | 'type' | 'vehicle' | 'comment') => {
         if (sendingsSortColumn === column) {
             setSendingsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
@@ -767,7 +809,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         setSendingsSortColumn(column);
         setSendingsSortOrder(column === 'date' ? 'desc' : 'asc');
     }, [sendingsSortColumn]);
-    const handleSendingsSummarySort = useCallback((column: 'index' | 'cargo' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density') => {
+    const handleSendingsSummarySort = useCallback((column: 'index' | 'cargo' | 'status' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density') => {
         if (sendingsSummarySortColumn === column) {
             setSendingsSummarySortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
             return;
@@ -1057,6 +1099,19 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             {uniqueSendingRoutes.map((route) => (
                                 <div key={route} className="dropdown-item" onClick={() => { setRouteFilterCargo(route); setIsRouteCargoDropdownOpen(false); }}>
                                     <Typography.Body>{route}</Typography.Body>
+                                </div>
+                            ))}
+                        </FilterDropdownPortal>
+                        <div ref={deliveryStatusButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsDeliveryStatusDropdownOpen(!isDeliveryStatusDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                Статус перевозки: {deliveryStatusFilterSet.size === 0 ? 'Все' : deliveryStatusFilterSet.size === 1 ? STATUS_MAP[[...deliveryStatusFilterSet][0]] : `Выбрано: ${deliveryStatusFilterSet.size}`} <ChevronDown className="w-4 h-4"/>
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal triggerRef={deliveryStatusButtonRef} isOpen={isDeliveryStatusDropdownOpen} onClose={() => setIsDeliveryStatusDropdownOpen(false)}>
+                            <div className="dropdown-item" onClick={() => { setDeliveryStatusFilterSet(new Set()); setIsDeliveryStatusDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            {(Object.keys(STATUS_MAP) as StatusFilter[]).filter(k => k !== 'favorites' && k !== 'all').map(key => (
+                                <div key={key} className="dropdown-item" onClick={(e) => { e.stopPropagation(); setDeliveryStatusFilterSet(prev => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; }); }} style={{ background: deliveryStatusFilterSet.has(key) ? 'var(--color-bg-hover)' : undefined }}>
+                                    <Typography.Body>{STATUS_MAP[key]} {deliveryStatusFilterSet.has(key) ? '✓' : ''}</Typography.Body>
                                 </div>
                             ))}
                         </FilterDropdownPortal>
@@ -1695,6 +1750,27 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             <>
             {(sendingsLoading || !!sendingsError) && <DocumentsStateBlocks loading={sendingsLoading} error={sendingsError} emptyText="" />}
             {!sendingsLoading && !sendingsError && sendingRowsSorted.length > 0 && (
+                <>
+                <div className="cargo-card" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem 0.5rem', marginBottom: '0.35rem' }}>
+                        <span className="role-badge" style={{ fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(37,99,235,0.12)', color: 'var(--color-primary-blue)', border: '1px solid rgba(37,99,235,0.35)' }}>Паром: {sendingsInfographic.ferry}</span>
+                        <span className="role-badge" style={{ fontSize: '0.75rem', padding: '0.15rem 0.45rem', borderRadius: '999px', background: 'rgba(17,24,39,0.08)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}>Авто: {sendingsInfographic.auto}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem 0.45rem', marginBottom: '0.35rem' }}>
+                        {sendingsInfographic.statusBadges.map((item) => (
+                            <span key={item.key} className="role-badge" style={{ fontSize: '0.72rem', padding: '0.12rem 0.42rem', borderRadius: '999px', background: item.bg, color: item.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap' }}>
+                                {item.label}: {item.percent}% ({item.count})
+                            </span>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem 0.45rem' }}>
+                        {sendingsInfographic.routes.map((item) => (
+                            <span key={item.route} className="role-badge" style={{ fontSize: '0.72rem', padding: '0.12rem 0.42rem', borderRadius: '999px', background: 'var(--color-bg-hover)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border)', whiteSpace: 'nowrap' }}>
+                                {item.route}: {item.count}
+                            </span>
+                        ))}
+                    </div>
+                </div>
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -1787,7 +1863,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                 <thead>
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>№ пп</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Консолидация</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Посылка</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Консолидация</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
@@ -1831,6 +1907,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('index')} title="Сортировка">№ пп {sendingsSummarySortColumn === 'index' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('cargo')} title="Сортировка">Консолидация {sendingsSummarySortColumn === 'cargo' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('status')} title="Сортировка">Статус {sendingsSummarySortColumn === 'status' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('count')} title="Сортировка">Кол-во {sendingsSummarySortColumn === 'count' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('volume')} title="Сортировка">Объем {sendingsSummarySortColumn === 'volume' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -1850,21 +1927,25 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                             const fixed = n.toFixed(3);
                                                                             return fixed.replace(/\.?0+$/, '');
                                                                         };
-                                                                        const byCargo = new Map<string, { cargo: string; count: number; volume: number; weight: number; paidWeight: number }>();
+                                                                        const byCargo = new Map<string, { cargo: string; status: string; count: number; volume: number; weight: number; paidWeight: number }>();
                                                                         parcelsToRender.forEach((parcel: any) => {
                                                                             const cargo = String(parcel?.Перевозка ?? '').trim() || '—';
-                                                                            const prev = byCargo.get(cargo) ?? { cargo, count: 0, volume: 0, weight: 0, paidWeight: 0 };
+                                                                            const prev = byCargo.get(cargo) ?? { cargo, status: '', count: 0, volume: 0, weight: 0, paidWeight: 0 };
                                                                             prev.count += 1;
                                                                             prev.volume += toNumber(parcel?.ОбъемДляОтчета);
                                                                             prev.weight += toNumber(parcel?.ВесДляОтчета);
                                                                             prev.paidWeight += toNumber(parcel?.ПлатныйВес);
+                                                                            if (!prev.status || prev.status === '-') {
+                                                                                const state = cargo !== '—' ? String(cargoStateByNumber.get(normCargoKey(cargo)) ?? '') : '';
+                                                                                prev.status = state || prev.status;
+                                                                            }
                                                                             byCargo.set(cargo, prev);
                                                                         });
                                                                         const summaryRows = Array.from(byCargo.values()).map((summary, index) => {
                                                                             const cargoKey = normCargoKey(summary.cargo);
                                                                             const sendingCustomer = cargoCustomerByNumber.get(cargoKey)
                                                                                 || String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '');
-                                                                            return { ...summary, customer: sendingCustomer, _index: index + 1 };
+                                                                            return { ...summary, status: normalizeStatus(summary.status || ''), customer: sendingCustomer, _index: index + 1 };
                                                                         });
                                                                         const sortedSummaryRows = [...summaryRows].sort((a, b) => {
                                                                             let cmp = 0;
@@ -1874,6 +1955,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                     break;
                                                                                 case 'cargo':
                                                                                     cmp = a.cargo.localeCompare(b.cargo, undefined, { numeric: true });
+                                                                                    break;
+                                                                                case 'status':
+                                                                                    cmp = String(a.status || '').localeCompare(String(b.status || ''), 'ru');
                                                                                     break;
                                                                                 case 'count':
                                                                                     cmp = a.count - b.count;
@@ -1933,6 +2017,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                                     </button>
                                                                                                 ) : '—'}
                                                                                             </td>
+                                                                                            <td style={{ padding: '0.35rem 0.3rem' }}><StatusBadge status={summary.status || '—'} /></td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.volume)}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
@@ -1942,7 +2027,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                     );
                                                                                 })}
                                                                                 <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 700 }} colSpan={2}>Итого</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 700 }} colSpan={3}>Итого</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{totals.count}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.volume)}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.weight)}</td>
@@ -2104,6 +2189,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         </tbody>
                     </table>
                 </div>
+                </>
             )}
             {!sendingsLoading && !sendingsError && sendingRowsSorted.length === 0 && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет отправок за выбранный период</Typography.Body>
