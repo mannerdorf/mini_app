@@ -154,6 +154,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [innerTableSortOrder, setInnerTableSortOrder] = useState<'asc' | 'desc'>('desc');
     const [innerTableActSortColumn, setInnerTableActSortColumn] = useState<'number' | 'date' | 'invoice' | 'sum'>('date');
     const [innerTableActSortOrder, setInnerTableActSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'vehicle' | 'comment'>('date');
+    const [sendingsSortOrder, setSendingsSortOrder] = useState<'asc' | 'desc'>('desc');
     const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
     const [routeFilterCargo, setRouteFilterCargo] = useState<string>('all');
     const [transportFilter, setTransportFilter] = useState<string>('');
@@ -585,11 +587,36 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     }, [filteredOrders, sortOrder]);
     const sendingRowsSorted = useMemo(() => {
         const getDate = (row: any) => String(row?.Дата ?? row?.Date ?? row?.date ?? "");
+        const getNumber = (row: any) => String(row?.Номер ?? row?.Number ?? row?.number ?? "");
+        const getVehicle = (row: any) => String(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? "");
+        const getComment = (row: any) => String(row?.Комментарий ?? row?.Comment ?? "");
         return [...filteredSendings].sort((a, b) => {
-            const cmp = getDate(a).localeCompare(getDate(b));
-            return sortOrder === 'asc' ? cmp : -cmp;
+            let cmp = 0;
+            switch (sendingsSortColumn) {
+                case 'date':
+                    cmp = getDate(a).localeCompare(getDate(b));
+                    break;
+                case 'number':
+                    cmp = getNumber(a).localeCompare(getNumber(b), undefined, { numeric: true });
+                    break;
+                case 'vehicle':
+                    cmp = getVehicle(a).localeCompare(getVehicle(b));
+                    break;
+                case 'comment':
+                    cmp = getComment(a).localeCompare(getComment(b));
+                    break;
+            }
+            return sendingsSortOrder === 'asc' ? cmp : -cmp;
         });
-    }, [filteredSendings, sortOrder]);
+    }, [filteredSendings, sendingsSortColumn, sendingsSortOrder]);
+    const handleSendingsSort = useCallback((column: 'date' | 'number' | 'vehicle' | 'comment') => {
+        if (sendingsSortColumn === column) {
+            setSendingsSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+            return;
+        }
+        setSendingsSortColumn(column);
+        setSendingsSortOrder(column === 'date' ? 'desc' : 'asc');
+    }, [sendingsSortColumn]);
     const getRequestParcels = useCallback((row: any): any[] => {
         const raw = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
         if (Array.isArray(raw)) return raw;
@@ -1238,13 +1265,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Посылка</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Вес для отчета</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Объем для отчета</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Объем</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>ТМЦ</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>ИД отправления</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Объявл. стоимость</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Кол-во</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Стоимость</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -1292,11 +1319,10 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Транспортное средство</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Пломба</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Комментарий</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('date')} title="Сортировка">Дата {sendingsSortColumn === 'date' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('number')} title="Сортировка">Номер {sendingsSortColumn === 'number' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1304,7 +1330,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const rawDate = row?.Дата ?? row?.Date ?? row?.date ?? '';
                                 const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '');
                                 const vehicle = String(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
-                                const seal = String(row?.ПломбаCMR ?? row?.Пломба ?? '');
                                 const comment = String(row?.Комментарий ?? row?.Comment ?? '');
                                 const rowKey = number || `${idx}`;
                                 const parcels = getRequestParcels(row);
@@ -1319,12 +1344,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={rawDate ? String(rawDate) : undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{number ? formatInvoiceNumber(number) : '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
-                                            <td style={{ padding: '0.5rem 0.4rem' }}>{seal || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={5} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={4} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         {parcels.length === 0 ? (
                                                             <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '0.5rem 0.25rem' }}>Нет данных по посылкам</Typography.Body>
@@ -1334,13 +1358,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Посылка</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Вес для отчета</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Объем для отчета</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Объем</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>ТМЦ</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>ИД отправления</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Объявл. стоимость</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Кол-во</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Стоимость</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
