@@ -161,6 +161,7 @@ export function AppMainContent({
             onOpenChat={undefined}
             permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined}
             showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
+            isSuperAdmin={activeAccount?.isSuperAdmin === true}
           />
         </Suspense>
         </SectionBoundary>

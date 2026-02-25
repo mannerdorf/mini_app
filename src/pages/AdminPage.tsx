@@ -20,9 +20,10 @@ const PERMISSION_KEYS = [
   { key: "service_mode", label: "Служебный режим" },
   { key: "analytics", label: "Аналитика" },
   { key: "supervisor", label: "Руководитель" },
+  { key: "eor", label: "EOR" },
 ] as const;
 
-/** Первая строка разделов: при активном — красная (для HAULZ — зелёная). Аналитику может включить только суперадмин. По умолчанию при регистрации: Фин. показатели и Руководитель — активны, остальное — пассивно. */
+/** Первая строка разделов: при активном — красная (для HAULZ — зелёная, для EOR — яркая бирюзовая). Аналитику может включить только суперадмин. По умолчанию при регистрации: Фин. показатели и Руководитель — активны, остальное — пассивно. */
 const PERMISSION_ROW1 = [
   { key: "__financial__", label: "Фин. показатели" as const },
   { key: "supervisor", label: "Руководитель" as const },
@@ -30,6 +31,7 @@ const PERMISSION_ROW1 = [
   { key: "service_mode", label: "Служебный режим" },
   { key: "analytics", label: "Аналитика" as const },
   { key: "haulz", label: "HAULZ" as const },
+  { key: "eor", label: "EOR" as const },
 ] as const;
 
 /** Вторая строка разделов: при активном — синяя */
@@ -322,7 +324,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [bulkDeactivateConfirmOpen, setBulkDeactivateConfirmOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false,
   });
   const [bulkFinancial, setBulkFinancial] = useState(false);
   const [bulkAccessAllInns, setBulkAccessAllInns] = useState(false);
@@ -499,7 +501,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
   const [presetFormLabel, setPresetFormLabel] = useState("");
   const [presetFormPermissions, setPresetFormPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false,
+    cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false,
   });
   const [presetFormFinancial, setPresetFormFinancial] = useState(false);
   const [presetFormServiceMode, setPresetFormServiceMode] = useState(false);
@@ -541,6 +543,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     service_mode: false,
     analytics: false,
     supervisor: true,
+    eor: false,
   });
   const [formSelectedPresetId, setFormSelectedPresetId] = useState<string>("");
   const [formFinancial, setFormFinancial] = useState(true);
@@ -2899,7 +2902,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               ? "active active-warning"
                               : key === "haulz"
                                 ? "active active-success"
-                                : "active active-danger")
+                                : key === "eor"
+                                  ? "active active-eor"
+                                  : "active active-danger")
                           : "";
                         return (
                           <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>
@@ -3149,7 +3154,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             ? "active active-warning"
                             : key === "haulz"
                               ? "active active-success"
-                              : "active active-danger")
+                              : key === "eor"
+                                ? "active active-eor"
+                                : "active active-danger")
                         : "";
                       return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>;
                     })}
@@ -3540,7 +3547,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         ? "active active-warning"
                         : key === "haulz"
                           ? "active active-success"
-                          : "active active-danger")
+                          : key === "eor"
+                            ? "active active-eor"
+                            : "active active-danger")
                     : "";
                   return (
                     <button type="button" key={key} className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>
@@ -6032,7 +6041,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       const isActive = key === "__financial__" ? presetFormFinancial : key === "service_mode" ? (!!presetFormPermissions.service_mode || presetFormServiceMode) : !!presetFormPermissions[key];
                       const onClick = key === "__financial__" ? () => setPresetFormFinancial(!presetFormFinancial) : key === "service_mode" ? () => { const v = !(!!presetFormPermissions.service_mode || presetFormServiceMode); setPresetFormPermissions((p) => ({ ...p, service_mode: v })); setPresetFormServiceMode(v); } : () => setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }));
                       const activeClass = isActive
-                        ? (key === "haulz" ? "active active-success" : "active active-danger")
+                        ? (key === "haulz" ? "active active-success" : key === "eor" ? "active active-eor" : "active active-danger")
                         : "";
                       return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>;
                     })}
@@ -6066,7 +6075,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           const data = await res.json().catch(() => ({}));
                           if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка сохранения");
                           setPresetFormLabel("");
-                          setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false });
+                          setPresetFormPermissions({ cms_access: false, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false });
                           setPresetFormFinancial(false);
                           setPresetFormServiceMode(false);
                           setPresetEditingId(null);

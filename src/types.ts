@@ -22,6 +22,7 @@ export type AccountPermissions = {
     doc_acts_settlement?: boolean;
     doc_tariffs?: boolean;
     service_mode?: boolean;
+    eor?: boolean;
 };
 
 export type Account = {
@@ -37,6 +38,8 @@ export type Account = {
     accessAllInns?: boolean;
     /** Компания пользователя есть в справочнике заказчиков (можно приглашать сотрудников) */
     inCustomerDirectory?: boolean;
+    /** Суперадминистратор (из админки) */
+    isSuperAdmin?: boolean;
     permissions?: AccountPermissions;
     financialAccess?: boolean;
     /** Показывать перевозки, где вы заказчик (полные данные) */

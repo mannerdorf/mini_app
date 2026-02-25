@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { Calendar, ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck } from "lucide-react";
+import { Calendar, ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck, Flag, ClipboardList, RotateCcw } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
@@ -77,9 +77,30 @@ type DocumentsPageProps = {
     permissions?: AccountPermissions | null;
     /** Показывать суммы (финансовые показатели) */
     showSums?: boolean;
+    /** Суперадминистратор (может менять EOR) */
+    isSuperAdmin?: boolean;
 };
 
-export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, onOpenCargo, onOpenChat, permissions, showSums = true }: DocumentsPageProps) {
+const EOR_STORAGE_KEY = 'haulz.eorStatus';
+export type EorStatus = 'entry_allowed' | 'full_inspection' | 'turnaround';
+
+function loadEorStatusMap(): Record<string, EorStatus[]> {
+    try {
+        const raw = localStorage.getItem(EOR_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return parsed;
+    } catch { /* ignore */ }
+    return {};
+}
+
+function saveEorStatusMap(map: Record<string, EorStatus[]>) {
+    try {
+        localStorage.setItem(EOR_STORAGE_KEY, JSON.stringify(map));
+    } catch { /* ignore */ }
+}
+
+export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, onOpenCargo, onOpenChat, permissions, showSums = true, isSuperAdmin = false }: DocumentsPageProps) {
     const runtime = useAppRuntime();
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
     const effectiveActiveInn = activeInn ?? runtime.activeInn;
@@ -133,6 +154,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
     const [expandedOrderRow, setExpandedOrderRow] = useState<string | null>(null);
     const [expandedSendingRow, setExpandedSendingRow] = useState<string | null>(null);
+    const canEditEor = (permissions?.eor === true) || isSuperAdmin;
+    const [eorStatusMap, setEorStatusMap] = useState<Record<string, EorStatus[]>>(loadEorStatusMap);
+    const [eorMenuOpen, setEorMenuOpen] = useState<{ rowKey: string; x: number; y: number } | null>(null);
+    const eorLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const eorTouchPosRef = useRef<{ x: number; y: number } | null>(null);
     const allowedDocSections = useMemo(() => {
         if (!permissions) return DOC_SECTIONS;
         return DOC_SECTIONS.filter(({ key }) => permissions[DOC_SECTION_TO_PERMISSION[key]] !== false);
@@ -159,6 +185,20 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         setExpandedOrderRow(null);
         setExpandedSendingRow(null);
     }, [docSection, dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
+    useEffect(() => {
+        saveEorStatusMap(eorStatusMap);
+    }, [eorStatusMap]);
+    const toggleEorStatus = useCallback((rowKey: string, status: EorStatus) => {
+        setEorStatusMap((prev) => {
+            const list = prev[rowKey] ?? [];
+            const has = list.includes(status);
+            const nextList = has ? list.filter((s) => s !== status) : [...list, status];
+            const next = { ...prev };
+            if (nextList.length === 0) delete next[rowKey];
+            else next[rowKey] = nextList;
+            return next;
+        });
+    }, []);
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
@@ -1669,7 +1709,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('pickupDate')} title="Сортировка">Дата забора план {ordersSortColumn === 'pickupDate' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('number')} title="Сортировка">Номер заявки {ordersSortColumn === 'number' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('clientNumber')} title="Сортировка">Номер заявки заказчика {ordersSortColumn === 'clientNumber' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('cargo')} title="Сортировка">Номер перевозки {ordersSortColumn === 'cargo' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 {effectiveServiceMode && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('customer')} title="Сортировка">Заказчик {ordersSortColumn === 'customer' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('sender')} title="Сортировка">Отправитель {ordersSortColumn === 'sender' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('receiver')} title="Сортировка">Получатель {ordersSortColumn === 'receiver' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -1746,7 +1785,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={pickupDate || undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{requestNumber ? formatInvoiceNumber(requestNumber) : '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{customerRequestNumber || '—'}</td>
-                                            <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{cargoNumber ? formatInvoiceNumber(cargoNumber) : '—'}</td>
                                             {effectiveServiceMode && (
                                                 <td
                                                     style={{
@@ -1754,7 +1792,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                         maxWidth: 220,
                                                         verticalAlign: 'top',
                                                     }}
-                                                    title={customer || '—'}
+                                                    title={stripOoo(customer) || '—'}
                                                 >
                                                     <div
                                                         style={{
@@ -1764,7 +1802,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                             WebkitBoxOrient: 'vertical',
                                                         }}
                                                     >
-                                                        {customer || '—'}
+                                                        {stripOoo(customer) || '—'}
                                                     </div>
                                                 </td>
                                             )}
@@ -1774,7 +1812,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                     maxWidth: 220,
                                                     verticalAlign: 'top',
                                                 }}
-                                                title={sender || '—'}
+                                                title={stripOoo(sender) || '—'}
                                             >
                                                 <div
                                                     style={{
@@ -1784,7 +1822,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                         WebkitBoxOrient: 'vertical',
                                                     }}
                                                 >
-                                                    {sender || '—'}
+                                                    {stripOoo(sender) || '—'}
                                                 </div>
                                             </td>
                                             <td
@@ -1793,7 +1831,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                     maxWidth: 220,
                                                     verticalAlign: 'top',
                                                 }}
-                                                title={receiver || '—'}
+                                                title={stripOoo(receiver) || '—'}
                                             >
                                                 <div
                                                     style={{
@@ -1803,7 +1841,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                         WebkitBoxOrient: 'vertical',
                                                     }}
                                                 >
-                                                    {receiver || '—'}
+                                                    {stripOoo(receiver) || '—'}
                                                 </div>
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>
@@ -1815,7 +1853,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={effectiveServiceMode ? 10 : 8} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={effectiveServiceMode ? 9 : 7} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--color-border)' }}>
                                                         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(170px, 220px) 1fr', gap: '0.35rem 0.75rem', fontSize: '0.85rem' }}>
                                                             <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Заказчик:</Typography.Body>
@@ -1954,6 +1992,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('transitHours')} title="Сортировка">В пути, ч {sendingsSortColumn === 'transitHours' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="Exit of Records (Запись о выходе)">EOR</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1962,6 +2001,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '');
                                 const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
                                 const comment = String(row?.Комментарий ?? row?.Comment ?? '');
+                                const eor = String(row?.EOR ?? row?.ЗаписьОВыходе ?? row?.ExitOfRecords ?? '').trim();
                                 const rowKey = number || `${idx}`;
                                 const parcels = getRequestParcels(row);
                                 const searchLower = effectiveSearchText.trim().toLowerCase();
@@ -1975,12 +2015,37 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const expanded = expandedSendingRow === rowKey;
+                                const eorStatuses = eorStatusMap[rowKey] ?? [];
+                                const handleRowContextMenu = (e: React.MouseEvent) => {
+                                    e.preventDefault();
+                                    if (canEditEor) setEorMenuOpen({ rowKey, x: e.clientX, y: e.clientY });
+                                };
+                                const handleTouchStart = (e: React.TouchEvent) => {
+                                    if (!canEditEor) return;
+                                    const t = e.touches[0];
+                                    eorTouchPosRef.current = { x: t.clientX, y: t.clientY };
+                                    eorLongPressTimerRef.current = setTimeout(() => {
+                                        setEorMenuOpen({ rowKey, x: eorTouchPosRef.current?.x ?? t.clientX, y: eorTouchPosRef.current?.y ?? t.clientY });
+                                        eorLongPressTimerRef.current = null;
+                                    }, 500);
+                                };
+                                const handleTouchEnd = () => {
+                                    if (eorLongPressTimerRef.current) {
+                                        clearTimeout(eorLongPressTimerRef.current);
+                                        eorLongPressTimerRef.current = null;
+                                    }
+                                    eorTouchPosRef.current = null;
+                                };
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
                                             style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expanded ? 'var(--color-bg-hover)' : undefined }}
                                             onClick={() => setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey))}
-                                            title={expanded ? 'Свернуть посылки' : 'Показать посылки'}
+                                            title={expanded ? 'Свернуть посылки' : canEditEor ? 'Длинное нажатие — меню EOR' : 'Показать посылки'}
+                                            onContextMenu={handleRowContextMenu}
+                                            onTouchStart={handleTouchStart}
+                                            onTouchEnd={handleTouchEnd}
+                                            onTouchMove={handleTouchEnd}
                                         >
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={rawDate ? String(rawDate) : undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{number ? formatInvoiceNumber(number) : '—'}</td>
@@ -2008,10 +2073,32 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }} title="Exit of Records (Запись о выходе)">
+                                                {eorStatuses.length > 0 ? (
+                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                                        {eorStatuses.includes('entry_allowed') && (
+                                                            <span title="Въезд разрешен"><Flag className="w-4 h-4" style={{ color: '#003399', display: 'inline-block' }} /></span>
+                                                        )}
+                                                        {eorStatuses.includes('full_inspection') && (
+                                                            <span title="Полный досмотр"><ClipboardList className="w-4 h-4" style={{ color: 'var(--color-text-primary)', display: 'inline-block' }} /></span>
+                                                        )}
+                                                        {eorStatuses.includes('turnaround') && (
+                                                            <span title="Разворот" style={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                                                                <RotateCcw className="w-4 h-4" style={{ color: 'var(--color-text-primary)', flexShrink: 0 }} />
+                                                                <Truck className="w-3.5 h-3.5" style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : eor ? (
+                                                    eor
+                                                ) : (
+                                                    '—'
+                                                )}
+                                            </td>
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={7} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={8} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button
@@ -2207,7 +2294,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.volume)}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
-                                                                                            <td style={{ padding: '0.35rem 0.3rem' }}>{summary.customer || '—'}</td>
+                                                                                            <td style={{ padding: '0.35rem 0.3rem' }}>{stripOoo(summary.customer) || '—'}</td>
                                                                                         </tr>
                                                                                     );
                                                                                 })}
@@ -2328,7 +2415,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                         }}
                                                                                     >
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{summary.customer || '—'}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{stripOoo(summary.customer) || '—'}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.volume)}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
@@ -2385,6 +2472,78 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>
+            )}
+            {eorMenuOpen && canEditEor && (
+                <>
+                    <div
+                        role="presentation"
+                        style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
+                        onClick={() => setEorMenuOpen(null)}
+                    />
+                    <div
+                        role="menu"
+                        aria-label="EOR: Запись о выходе"
+                        style={{
+                            position: 'fixed',
+                            left: Math.min(eorMenuOpen.x, typeof window !== 'undefined' ? window.innerWidth - 220 : eorMenuOpen.x),
+                            top: Math.min(eorMenuOpen.y, typeof window !== 'undefined' ? window.innerHeight - 180 : eorMenuOpen.y),
+                            zIndex: 10001,
+                            background: 'var(--color-bg-card)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 8,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                            padding: '0.35rem 0',
+                            minWidth: 180,
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            role="menuitemcheckbox"
+                            aria-checked={eorStatusMap[eorMenuOpen.rowKey]?.includes('entry_allowed')}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 0.75rem', border: 'none',
+                                background: eorStatusMap[eorMenuOpen.rowKey]?.includes('entry_allowed') ? 'var(--color-bg-hover)' : 'transparent',
+                                cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left', color: 'var(--color-text-primary)',
+                            }}
+                            onClick={() => { toggleEorStatus(eorMenuOpen.rowKey, 'entry_allowed'); setEorMenuOpen(null); }}
+                        >
+                            <Flag className="w-4 h-4" style={{ color: '#003399', flexShrink: 0 }} />
+                            Въезд разрешен
+                        </button>
+                        <button
+                            type="button"
+                            role="menuitemcheckbox"
+                            aria-checked={eorStatusMap[eorMenuOpen.rowKey]?.includes('full_inspection')}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 0.75rem', border: 'none',
+                                background: eorStatusMap[eorMenuOpen.rowKey]?.includes('full_inspection') ? 'var(--color-bg-hover)' : 'transparent',
+                                cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left', color: 'var(--color-text-primary)',
+                            }}
+                            onClick={() => { toggleEorStatus(eorMenuOpen.rowKey, 'full_inspection'); setEorMenuOpen(null); }}
+                        >
+                            <ClipboardList className="w-4 h-4" style={{ flexShrink: 0 }} />
+                            Полный досмотр
+                        </button>
+                        <button
+                            type="button"
+                            role="menuitemcheckbox"
+                            aria-checked={eorStatusMap[eorMenuOpen.rowKey]?.includes('turnaround')}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 0.75rem', border: 'none',
+                                background: eorStatusMap[eorMenuOpen.rowKey]?.includes('turnaround') ? 'var(--color-bg-hover)' : 'transparent',
+                                cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left', color: 'var(--color-text-primary)',
+                            }}
+                            onClick={() => { toggleEorStatus(eorMenuOpen.rowKey, 'turnaround'); setEorMenuOpen(null); }}
+                        >
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                                <RotateCcw className="w-4 h-4" style={{ flexShrink: 0 }} />
+                                <Truck className="w-3.5 h-3.5" style={{ flexShrink: 0 }} />
+                            </span>
+                            Разворот
+                        </button>
+                    </div>
+                </>
             )}
         </div>
     );
