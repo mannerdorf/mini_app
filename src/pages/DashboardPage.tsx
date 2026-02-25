@@ -73,7 +73,9 @@ export function DashboardPage({
         if (!raw) return false;
         return raw.includes("доступ") || raw.includes("недостаточно прав") || raw.includes("только для");
     };
-    const showPaymentCalendar = hasAnalytics;
+    // Календарь по выбранному заказчику доступен при dashboard=true.
+    // Сводный календарь по всей компании (service mode) — только при analytics=true.
+    const showPaymentCalendar = hasDashboard && (!useServiceRequest || hasAnalytics);
     const canViewTimesheetCostDashboard = hasAnalytics;
     const [debugInfo, setDebugInfo] = useState<string>("");
     // Если отключены дашборды правом dashboard — оставляем только SLA.

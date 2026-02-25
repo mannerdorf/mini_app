@@ -355,6 +355,7 @@ export default function App() {
     const hasRestoredTabRef = React.useRef(false);
     const hasUrlTabOverrideRef = React.useRef(false);
     const registeredLoginRefreshInFlightRef = useRef(false);
+    const syncedRegisteredAccountsRef = useRef<Set<string>>(new Set());
 
     const updateActiveAccountCustomer = useCallback((customer: string) => {
         if (!activeAccountId || !customer) return;
@@ -728,6 +729,45 @@ export default function App() {
         })();
         return () => { cancelled = true; };
     }, [accounts]);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (!activeAccount?.id || !activeAccount?.isRegisteredUser || !activeAccount?.login || !activeAccount?.password) return;
+        if (syncedRegisteredAccountsRef.current.has(activeAccount.id)) return;
+        syncedRegisteredAccountsRef.current.add(activeAccount.id);
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch("/api/auth-registered-login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: activeAccount.login.trim().toLowerCase(), password: activeAccount.password }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (cancelled || !res.ok || !data?.ok || !data?.user) return;
+                const user = data.user;
+                const customers: CustomerOption[] = user.inn ? [{ name: user.companyName || user.inn, inn: user.inn }] : [];
+                setAccounts((prev) =>
+                    prev.map((acc) =>
+                        acc.id !== activeAccount.id
+                            ? acc
+                            : {
+                                ...acc,
+                                customers: (acc.customers && acc.customers.length > 0) ? acc.customers : customers,
+                                activeCustomerInn: acc.activeCustomerInn ?? user.inn ?? undefined,
+                                customer: acc.customer ?? user.companyName ?? undefined,
+                                accessAllInns: !!user.accessAllInns,
+                                inCustomerDirectory: !!user.inCustomerDirectory,
+                                ...(user.permissions && typeof user.permissions === "object" ? { permissions: user.permissions } : {}),
+                                ...(user.financialAccess != null ? { financialAccess: user.financialAccess } : {}),
+                            }
+                    )
+                );
+            } catch {
+                // ignore best-effort refresh errors
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.login, activeAccount?.password]);
     const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
 
