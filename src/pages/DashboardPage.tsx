@@ -19,7 +19,7 @@ import type { BillStatusFilterKey } from "../lib/statusUtils";
 import { normalizeStatus } from "../lib/statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "../lib/slaWorkSchedule";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry } from "../lib/cargoUtils";
-import { formatCurrency, stripOoo, cityToCode } from "../lib/formatUtils";
+import { formatCurrency, stripOoo, cityToCode, normalizeInvoiceStatus } from "../lib/formatUtils";
 import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useApi";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
@@ -38,6 +38,7 @@ const {
     getYearsList,
     getWeeksList,
     formatDate,
+    getDateTextColor,
     getFirstWorkingDayOnOrAfter,
     getFirstPaymentWeekdayOnOrAfter,
     isDateInRange,
