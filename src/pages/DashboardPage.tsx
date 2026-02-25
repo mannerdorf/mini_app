@@ -1216,7 +1216,23 @@ export function DashboardPage({
     }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
 
     type DashboardChartPoint = { date: string; value: number; dateKey?: string };
-    type DashboardChartVariant = 'columns' | 'line' | 'area' | 'lollipop' | 'dot' | 'step';
+    type DashboardChartVariant =
+        | 'columns'
+        | 'groupedColumns'
+        | 'stackedColumns'
+        | 'stacked100'
+        | 'line'
+        | 'multiLine'
+        | 'area'
+        | 'stackedArea'
+        | 'combo'
+        | 'step'
+        | 'lollipop'
+        | 'dot'
+        | 'heatmap'
+        | 'weekCards'
+        | 'bulletBars'
+        | 'sparklineKpi';
 
     // Функция для создания SVG графика
     const renderChart = (
@@ -1377,6 +1393,7 @@ export function DashboardPage({
         if (data.length === 0) return null;
         const values = data.map((d) => Math.max(0, Number(d.value) || 0));
         const maxValue = Math.max(...values, 1);
+        const accent = '#22c55e';
         const w = 220;
         const h = 88;
         const left = 8;
@@ -1388,20 +1405,123 @@ export function DashboardPage({
         const n = values.length;
         const slot = plotW / Math.max(n, 1);
         const barW = Math.max(6, slot * 0.56);
+        const splitA = values.map((v, i) => {
+            const ratio = 0.45 + (i % 3) * 0.1;
+            return Math.min(v, Math.round(v * ratio));
+        });
+        const splitB = values.map((v, i) => Math.max(0, v - splitA[i]));
+        const maxStack = Math.max(...values.map((v, i) => splitA[i] + splitB[i]), 1);
         const points = values.map((v, i) => {
             const x = n === 1 ? left + plotW / 2 : left + (i * plotW) / (n - 1);
             const y = top + plotH - (v / maxValue) * plotH;
             return { x, y, v };
         });
+        const pointsA = splitA.map((v, i) => {
+            const x = n === 1 ? left + plotW / 2 : left + (i * plotW) / (n - 1);
+            const y = top + plotH - (v / maxStack) * plotH;
+            return { x, y, v };
+        });
+        const pointsB = splitB.map((v, i) => {
+            const x = n === 1 ? left + plotW / 2 : left + (i * plotW) / (n - 1);
+            const y = top + plotH - (v / maxStack) * plotH;
+            return { x, y, v };
+        });
+        const pointsSum = values.map((_, i) => {
+            const x = n === 1 ? left + plotW / 2 : left + (i * plotW) / (n - 1);
+            const y = top + plotH - ((splitA[i] + splitB[i]) / maxStack) * plotH;
+            return { x, y };
+        });
         const polyPoints = points.map((p) => `${p.x},${p.y}`).join(' ');
+        const polyPointsA = pointsA.map((p) => `${p.x},${p.y}`).join(' ');
+        const polyPointsB = pointsB.map((p) => `${p.x},${p.y}`).join(' ');
         const areaPath = points.length > 1
             ? `M ${points[0].x} ${top + plotH} L ${points.map((p) => `${p.x} ${p.y}`).join(' L ')} L ${points[points.length - 1].x} ${top + plotH} Z`
+            : '';
+        const stackedAreaPathA = points.length > 1
+            ? `M ${pointsSum[0].x} ${top + plotH} L ${pointsSum.map((p) => `${p.x} ${p.y}`).join(' L ')} L ${pointsSum[pointsSum.length - 1].x} ${top + plotH} Z`
+            : '';
+        const stackedAreaPathB = points.length > 1
+            ? `M ${pointsA[0].x} ${top + plotH} L ${pointsA.map((p) => `${p.x} ${p.y}`).join(' L ')} L ${pointsSum.slice().reverse().map((p) => `${p.x} ${p.y}`).join(' L ')} Z`
             : '';
         const stepPath = points.map((p, i) => {
             if (i === 0) return `M ${p.x} ${p.y}`;
             const prev = points[i - 1];
             return `L ${p.x} ${prev.y} L ${p.x} ${p.y}`;
         }).join(' ');
+
+        if (variant === 'weekCards') {
+            return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 4 }}>
+                    {values.slice(0, 7).map((v, i) => (
+                        <div key={`wk-${i}`} style={{ border: '1px solid var(--color-border)', borderRadius: 6, padding: '0.2rem', background: 'var(--color-bg-card)' }}>
+                            <div style={{ fontSize: 9, color: 'var(--color-text-secondary)' }}>д{i + 1}</div>
+                            <div style={{ fontSize: 10, fontWeight: 600 }}>{Math.round(v)}</div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        if (variant === 'bulletBars') {
+            const topValues = values.slice(0, 4);
+            const maxTop = Math.max(...topValues, 1);
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 2 }}>
+                    {topValues.map((v, i) => (
+                        <div key={`bb-${i}`} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 34px', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>d{i + 1}</span>
+                            <div style={{ height: 6, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                <div style={{ width: `${(v / maxTop) * 100}%`, height: '100%', background: color }} />
+                            </div>
+                            <span style={{ fontSize: 10, textAlign: 'right' }}>{Math.round(v)}</span>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        if (variant === 'sparklineKpi') {
+            return (
+                <div style={{ display: 'grid', gap: 6 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4 }}>
+                        <div style={{ fontSize: 10, border: '1px solid var(--color-border)', borderRadius: 6, padding: '0.2rem' }}>рейсы: {values.length}</div>
+                        <div style={{ fontSize: 10, border: '1px solid var(--color-border)', borderRadius: 6, padding: '0.2rem' }}>пик: {Math.round(maxValue)}</div>
+                        <div style={{ fontSize: 10, border: '1px solid var(--color-border)', borderRadius: 6, padding: '0.2rem' }}>ср: {Math.round(values.reduce((a, b) => a + b, 0) / Math.max(values.length, 1))}</div>
+                    </div>
+                    <svg width={w} height={44} style={{ width: '100%', height: '44px', display: 'block' }}>
+                        <polyline points={polyPoints} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                </div>
+            );
+        }
+
+        if (variant === 'heatmap') {
+            const cols = 7;
+            const rows = Math.max(1, Math.ceil(values.length / cols));
+            const cellW = Math.floor((w - 10) / cols);
+            const cellH = Math.max(12, Math.floor((h - 10) / rows));
+            return (
+                <svg width={w} height={h} style={{ width: '100%', height: 'auto', display: 'block' }}>
+                    {values.map((v, i) => {
+                        const r = Math.floor(i / cols);
+                        const c = i % cols;
+                        const intensity = v / maxValue;
+                        return (
+                            <rect
+                                key={`heat-${i}`}
+                                x={5 + c * cellW}
+                                y={5 + r * cellH}
+                                width={cellW - 2}
+                                height={cellH - 2}
+                                rx={3}
+                                fill={color}
+                                opacity={0.15 + intensity * 0.75}
+                            />
+                        );
+                    })}
+                </svg>
+            );
+        }
 
         return (
             <svg width={w} height={h} style={{ width: '100%', height: 'auto', display: 'block' }}>
@@ -1412,13 +1532,73 @@ export function DashboardPage({
                     const y = top + plotH - bh;
                     return <rect key={`col-${i}`} x={x} y={y} width={barW} height={bh} rx={3} fill={color} opacity={0.75} />;
                 })}
+                {variant === 'groupedColumns' && values.map((_, i) => {
+                    const x0 = left + i * slot + (slot - barW) / 2;
+                    const half = Math.max(4, (barW - 2) / 2);
+                    const hA = (splitA[i] / maxStack) * plotH;
+                    const hB = (splitB[i] / maxStack) * plotH;
+                    return (
+                        <g key={`group-${i}`}>
+                            <rect x={x0} y={top + plotH - hA} width={half} height={hA} rx={2} fill={color} opacity={0.8} />
+                            <rect x={x0 + half + 2} y={top + plotH - hB} width={half} height={hB} rx={2} fill={accent} opacity={0.8} />
+                        </g>
+                    );
+                })}
+                {variant === 'stackedColumns' && values.map((_, i) => {
+                    const x = left + i * slot + (slot - barW) / 2;
+                    const hA = (splitA[i] / maxStack) * plotH;
+                    const hB = (splitB[i] / maxStack) * plotH;
+                    return (
+                        <g key={`stack-${i}`}>
+                            <rect x={x} y={top + plotH - hA - hB} width={barW} height={hB} rx={2} fill={accent} opacity={0.9} />
+                            <rect x={x} y={top + plotH - hA} width={barW} height={hA} rx={2} fill={color} opacity={0.8} />
+                        </g>
+                    );
+                })}
+                {variant === 'stacked100' && values.map((v, i) => {
+                    const x = left + i * slot + (slot - barW) / 2;
+                    const pctA = v > 0 ? splitA[i] / v : 0;
+                    const pctB = v > 0 ? splitB[i] / v : 0;
+                    const hA = pctA * plotH;
+                    const hB = pctB * plotH;
+                    return (
+                        <g key={`stack100-${i}`}>
+                            <rect x={x} y={top + plotH - hA - hB} width={barW} height={hB} rx={2} fill={accent} opacity={0.9} />
+                            <rect x={x} y={top + plotH - hA} width={barW} height={hA} rx={2} fill={color} opacity={0.8} />
+                        </g>
+                    );
+                })}
                 {variant === 'area' && areaPath && (
                     <>
                         <path d={areaPath} fill={color} opacity={0.2} />
                         <polyline points={polyPoints} fill="none" stroke={color} strokeWidth="2" />
                     </>
                 )}
+                {variant === 'stackedArea' && (
+                    <>
+                        {stackedAreaPathA && <path d={stackedAreaPathA} fill={accent} opacity={0.18} />}
+                        {stackedAreaPathB && <path d={stackedAreaPathB} fill={color} opacity={0.24} />}
+                        <polyline points={pointsSum.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={color} strokeWidth="1.8" />
+                    </>
+                )}
                 {variant === 'line' && <polyline points={polyPoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />}
+                {variant === 'multiLine' && (
+                    <>
+                        <polyline points={polyPointsA} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <polyline points={polyPointsB} fill="none" stroke={accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </>
+                )}
+                {variant === 'combo' && (
+                    <>
+                        {values.map((v, i) => {
+                            const x = left + i * slot + (slot - barW) / 2;
+                            const bh = (v / maxValue) * plotH;
+                            const y = top + plotH - bh;
+                            return <rect key={`combo-col-${i}`} x={x} y={y} width={barW} height={bh} rx={3} fill={color} opacity={0.32} />;
+                        })}
+                        <polyline points={polyPoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" />
+                    </>
+                )}
                 {variant === 'step' && <path d={stepPath} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
                 {variant === 'lollipop' && points.map((p, i) => (
                     <g key={`lp-${i}`}>
@@ -2072,11 +2252,21 @@ export function DashboardPage({
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.5rem' }}>
                             {([
                                 { key: 'columns', label: 'Столбцы' },
+                                { key: 'groupedColumns', label: 'Сгруппированные столбцы' },
+                                { key: 'stackedColumns', label: 'Накопительные столбцы' },
+                                { key: 'stacked100', label: '100% накопительные' },
                                 { key: 'line', label: 'Линия' },
+                                { key: 'multiLine', label: 'Мульти-линия' },
                                 { key: 'area', label: 'Область' },
+                                { key: 'stackedArea', label: 'Накопительная область' },
+                                { key: 'combo', label: 'Комбо: столбцы + линия' },
                                 { key: 'step', label: 'Ступеньки' },
                                 { key: 'lollipop', label: 'Lollipop' },
                                 { key: 'dot', label: 'Точки' },
+                                { key: 'heatmap', label: 'Heatmap' },
+                                { key: 'weekCards', label: 'Недельные карточки' },
+                                { key: 'bulletBars', label: 'Bullet mini-bars' },
+                                { key: 'sparklineKpi', label: 'Sparkline + KPI' },
                             ] as { key: DashboardChartVariant; label: string }[]).map((variant) => (
                                 <div key={`variant-${variant.key}`} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.4rem', background: 'var(--color-bg-hover)' }}>
                                     <Typography.Body style={{ fontSize: '0.72rem', marginBottom: '0.25rem', color: 'var(--color-text-secondary)' }}>

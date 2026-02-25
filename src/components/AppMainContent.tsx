@@ -146,7 +146,7 @@ export function AppMainContent({
             auth={auth}
             onClose={() => {}}
             onOpenCargoFilters={openCargoWithFilters}
-            showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : (activeAccount?.roleCustomer ?? true)}
+            showSums={activeAccount?.financialAccess ?? true}
             useServiceRequest={useServiceRequest}
             hasAnalytics={true}
             hasDashboard={true}
@@ -163,7 +163,7 @@ export function AppMainContent({
             onOpenCargo={openCargoFromChat}
             onOpenChat={undefined}
             permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined}
-            showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
+            showSums={activeAccount?.financialAccess ?? true}
             isSuperAdmin={activeAccount?.isSuperAdmin === true}
           />
         </Suspense>
@@ -185,7 +185,7 @@ export function AppMainContent({
           }
           roleSender={activeAccount?.roleSender ?? true}
           roleReceiver={activeAccount?.roleReceiver ?? true}
-          showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : true}
+          showSums={activeAccount?.financialAccess ?? true}
           CargoDetailsModal={CargoDetailsModal}
         />
         </SectionBoundary>
@@ -231,7 +231,7 @@ export function AppMainContent({
             auth={auth}
             onClose={() => {}}
             onOpenCargoFilters={openCargoWithFilters}
-            showSums={activeAccount?.roleCustomer ?? true}
+            showSums={activeAccount?.financialAccess ?? true}
             useServiceRequest={useServiceRequest}
             hasAnalytics={activeAccount?.permissions?.analytics === true}
             hasDashboard={activeAccount?.permissions?.dashboard !== false}
