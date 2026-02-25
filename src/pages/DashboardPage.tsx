@@ -713,7 +713,15 @@ export function DashboardPage({
         let dueNext7 = 0;
         let deliveredOnTime = 0;
         let deliveredLate = 0;
-        const byDate = new Map<string, { count: number; pw: number }>();
+        const emptyTransportStats = () => ({ count: 0, pw: 0, mest: 0, vol: 0 });
+        const byDate = new Map<string, {
+            count: number;
+            pw: number;
+            mest: number;
+            vol: number;
+            ferry: { count: number; pw: number; mest: number; vol: number };
+            auto: { count: number; pw: number; mest: number; vol: number };
+        }>();
 
         filteredItems.forEach((item) => {
             const plannedKey = getPlannedKey(item);
@@ -722,9 +730,26 @@ export function DashboardPage({
                 return;
             }
             withPlan += 1;
-            const entry = byDate.get(plannedKey) ?? { count: 0, pw: 0 };
+            const entry = byDate.get(plannedKey) ?? {
+                count: 0,
+                pw: 0,
+                mest: 0,
+                vol: 0,
+                ferry: emptyTransportStats(),
+                auto: emptyTransportStats(),
+            };
+            const mest = toNumber(item.Mest);
+            const pw = toNumber(item.PW);
+            const vol = toNumber((item as any).Value ?? (item as any).Volume ?? (item as any).V);
+            const transportKey = isFerry(item) ? 'ferry' : 'auto';
             entry.count += 1;
-            entry.pw += toNumber(item.PW);
+            entry.pw += pw;
+            entry.mest += mest;
+            entry.vol += vol;
+            entry[transportKey].count += 1;
+            entry[transportKey].pw += pw;
+            entry[transportKey].mest += mest;
+            entry[transportKey].vol += vol;
             byDate.set(plannedKey, entry);
 
             const statusKey = getFilterKeyByStatus(item.State);
@@ -746,10 +771,24 @@ export function DashboardPage({
             const date = new Date(today);
             date.setDate(date.getDate() + idx);
             const key = dateToKey(date);
-            const values = byDate.get(key) ?? { count: 0, pw: 0 };
-            return { key, count: values.count, pw: values.pw };
+            const values = byDate.get(key) ?? {
+                count: 0,
+                pw: 0,
+                mest: 0,
+                vol: 0,
+                ferry: emptyTransportStats(),
+                auto: emptyTransportStats(),
+            };
+            return {
+                key,
+                count: values.count,
+                pw: values.pw,
+                mest: values.mest,
+                vol: values.vol,
+                ferry: values.ferry,
+                auto: values.auto,
+            };
         });
-        const maxUpcomingCount = upcomingSeries.reduce((max, row) => Math.max(max, row.count), 0);
 
         return {
             total: filteredItems.length,
@@ -762,7 +801,6 @@ export function DashboardPage({
             deliveredOnTime,
             deliveredLate,
             upcomingSeries,
-            maxUpcomingCount,
         };
     }, [filteredItems]);
 
@@ -1983,23 +2021,63 @@ export function DashboardPage({
                         <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.45rem' }}>
                             Ближайшие 7 дней (плановая доставка)
                         </Typography.Body>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))', gap: '0.45rem', minWidth: '56rem' }}>
                             {cargoFlowByPlan.upcomingSeries.map((row) => {
-                                const width = cargoFlowByPlan.maxUpcomingCount > 0 ? (row.count / cargoFlowByPlan.maxUpcomingCount) * 100 : 0;
+                                const [year, month, day] = row.key.split('-').map((v) => Number(v));
+                                const date = new Date(year, (month || 1) - 1, day || 1);
+                                const weekday = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][date.getDay()] ?? '';
                                 return (
-                                    <div key={`cargo-flow-${row.key}`} style={{ display: 'grid', gridTemplateColumns: '5.5rem 1fr auto', gap: '0.5rem', alignItems: 'center' }}>
-                                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
-                                            <DateText value={row.key} />
+                                    <div
+                                        key={`cargo-flow-${row.key}`}
+                                        style={{
+                                            border: '1px solid var(--color-border)',
+                                            borderRadius: 10,
+                                            padding: '0.45rem 0.5rem',
+                                            background: row.count > 0 ? 'rgba(37,99,235,0.05)' : 'var(--color-bg-hover)',
+                                            minHeight: '9.1rem',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '0.3rem',
+                                        }}
+                                    >
+                                        <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600 }}>
+                                            {weekday}, <DateText value={row.key} />
                                         </Typography.Body>
-                                        <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                            <div style={{ width: `${width}%`, height: '100%', borderRadius: 4, background: '#2563eb', transition: 'width 0.25s' }} />
+                                        <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>
+                                            Всего: {row.count}
+                                        </Typography.Body>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.22rem', marginTop: '0.08rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.35rem' }}>
+                                                <Flex align="center" gap="0.25rem">
+                                                    <Ship className="w-3.5 h-3.5" style={{ color: '#2563eb' }} />
+                                                    <Typography.Body style={{ fontSize: '0.72rem' }}>Паром</Typography.Body>
+                                                </Flex>
+                                                <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600 }}>{row.ferry.count}</Typography.Body>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.35rem' }}>
+                                                <Flex align="center" gap="0.25rem">
+                                                    <Truck className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />
+                                                    <Typography.Body style={{ fontSize: '0.72rem' }}>Авто</Typography.Body>
+                                                </Flex>
+                                                <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600 }}>{row.auto.count}</Typography.Body>
+                                            </div>
                                         </div>
-                                        <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600 }}>
-                                            {row.count} / {Math.round(row.pw).toLocaleString('ru-RU')} кг
-                                        </Typography.Body>
+                                        <div style={{ marginTop: '0.1rem', paddingTop: '0.3rem', borderTop: '1px dashed var(--color-border)' }}>
+                                            <Typography.Body style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                                                Мест: {Math.round(row.mest).toLocaleString('ru-RU')}
+                                            </Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                                                Вес: {Math.round(row.pw).toLocaleString('ru-RU')} кг
+                                            </Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                                                Объём: {row.vol.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} м³
+                                            </Typography.Body>
+                                        </div>
                                     </div>
                                 );
                             })}
+                        </div>
                         </div>
                     </div>
                     {(cargoFlowByPlan.deliveredOnTime + cargoFlowByPlan.deliveredLate) > 0 && (
