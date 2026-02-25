@@ -434,6 +434,31 @@ export default function App() {
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
+    useEffect(() => {
+        if (!activeAccount?.isRegisteredUser || !activeAccount?.permissions) return;
+        const perms = activeAccount.permissions;
+        const canHome = perms.home !== false;
+        const canCargo = perms.cargo !== false;
+        const canDocs = !!(
+            perms.doc_invoices ||
+            perms.doc_acts ||
+            perms.doc_orders ||
+            perms.doc_sendings ||
+            perms.doc_claims ||
+            perms.doc_contracts ||
+            perms.doc_acts_settlement ||
+            perms.doc_tariffs
+        );
+        const isAllowed =
+            activeTab === "profile" ? true :
+            activeTab === "cargo" ? canCargo :
+            activeTab === "docs" ? canDocs :
+            activeTab === "dashboard" || activeTab === "home" ? canHome :
+            true;
+        if (isAllowed) return;
+        const fallback: Tab = canHome ? "dashboard" : canDocs ? "docs" : canCargo ? "cargo" : "profile";
+        if (fallback !== activeTab) setActiveTab(fallback);
+    }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.permissions, activeTab]);
 
     useEffect(() => {
         document.body.className = `${theme}-mode`;
