@@ -4,7 +4,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
     Loader2, X, ChevronDown, Calendar, Filter, Package, Scale, Weight, Maximize, CreditCard, Check,
-    AlertTriangle, Info, Ship, Truck, ArrowDown, ArrowUp, ArrowLeft,
+    AlertTriangle, Info, Ship, Truck, ArrowDown, ArrowUp, ArrowLeft, TrendingUp, TrendingDown, Minus, RussianRuble, List, RefreshCw,
 } from "lucide-react";
 import { Button, Flex, Grid, Input, Panel, Typography } from "@maxhub/max-ui";
 import * as dateUtils from "../lib/dateUtils";
@@ -23,6 +23,8 @@ import { formatCurrency, stripOoo, cityToCode, normalizeInvoiceStatus } from "..
 import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useApi";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
+import { DateText } from "../components/ui/DateText";
+import { FilterDialog } from "../components/shared/FilterDialog";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { getWebApp, isMaxWebApp } from "../webApp";
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
@@ -38,6 +40,8 @@ const {
     getYearsList,
     getWeeksList,
     formatDate,
+    formatTimelineDate,
+    formatTimelineTime,
     getDateTextColor,
     getFirstWorkingDayOnOrAfter,
     getFirstPaymentWeekdayOnOrAfter,
