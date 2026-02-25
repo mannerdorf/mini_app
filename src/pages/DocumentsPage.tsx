@@ -148,6 +148,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         sendingNumber?: string;
         sendingDate?: string;
     } | null>(null);
+    const [selectedSendingRowKeys, setSelectedSendingRowKeys] = useState<Set<string>>(() => new Set());
+    const [bulkEorMenuOpen, setBulkEorMenuOpen] = useState(false);
+    const [bulkPlanDateOpen, setBulkPlanDateOpen] = useState(false);
+    const [bulkPlanDateValue, setBulkPlanDateValue] = useState("");
+    const [bulkSendingActionLoading, setBulkSendingActionLoading] = useState(false);
+    const [bulkSendingActionError, setBulkSendingActionError] = useState<string | null>(null);
+    const [bulkSendingActionInfo, setBulkSendingActionInfo] = useState<string | null>(null);
     const eorLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const eorTouchPosRef = useRef<{ x: number; y: number } | null>(null);
     const allowedDocSections = useMemo(() => {
@@ -202,6 +209,16 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         })();
         return () => { cancelled = true; };
     }, [showEorColumn, auth?.login, auth?.password]);
+    useEffect(() => {
+        if (docSection !== 'Отправки') {
+            setSelectedSendingRowKeys(new Set());
+            setBulkEorMenuOpen(false);
+            setBulkPlanDateOpen(false);
+            setBulkSendingActionLoading(false);
+            setBulkSendingActionError(null);
+            setBulkSendingActionInfo(null);
+        }
+    }, [docSection]);
     const toggleEorStatus = useCallback(async (
         rowKey: string,
         status: EorStatus,
@@ -1065,6 +1082,170 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         }
         return [];
     }, []);
+    const getSendingRowKey = useCallback((row: any, idx: number): string => {
+        const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '').trim();
+        return number || `${idx}`;
+    }, []);
+    const getSendingCargoNumbers = useCallback((row: any): string[] => {
+        const numbers = new Set<string>();
+        const addNumber = (value: unknown) => {
+            const number = String(value ?? '').trim();
+            if (number) numbers.add(number);
+        };
+        addNumber(row?.Перевозка);
+        addNumber(row?.CargoNumber);
+        addNumber(row?.НомерПеревозки);
+        addNumber(row?.NumberPerevozki);
+        const parcels = getRequestParcels(row);
+        parcels.forEach((parcel: any) => {
+            addNumber(parcel?.Перевозка);
+            addNumber(parcel?.CargoNumber);
+            addNumber(parcel?.НомерПеревозки);
+            addNumber(parcel?.NumberPerevozki);
+            const goodsRaw = parcel?.Товары;
+            const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : null);
+            if (goods && typeof goods === 'object') {
+                addNumber((goods as any)?.Перевозка);
+                addNumber((goods as any)?.CargoNumber);
+                addNumber((goods as any)?.НомерПеревозки);
+                addNumber((goods as any)?.NumberPerevozki);
+            }
+        });
+        return Array.from(numbers);
+    }, [getRequestParcels]);
+    const visibleSendingMeta = useMemo(
+        () =>
+            sendingRowsSorted.map((row: any, idx: number) => {
+                const rawDate = row?.Дата ?? row?.Date ?? row?.date ?? '';
+                const sendingNumber = String(row?.Номер ?? row?.Number ?? row?.number ?? '').trim();
+                return {
+                    rowKey: getSendingRowKey(row, idx),
+                    sendingNumber,
+                    sendingDate: rawDate ? String(rawDate) : '',
+                    cargoNumbers: getSendingCargoNumbers(row),
+                };
+            }),
+        [sendingRowsSorted, getSendingRowKey, getSendingCargoNumbers]
+    );
+    const selectedVisibleSendingCount = useMemo(
+        () => visibleSendingMeta.reduce((acc, row) => acc + (selectedSendingRowKeys.has(row.rowKey) ? 1 : 0), 0),
+        [visibleSendingMeta, selectedSendingRowKeys]
+    );
+    const allVisibleSendingsSelected = visibleSendingMeta.length > 0 && selectedVisibleSendingCount === visibleSendingMeta.length;
+    useEffect(() => {
+        if (selectedSendingRowKeys.size === 0) return;
+        const visibleKeys = new Set(visibleSendingMeta.map((row) => row.rowKey));
+        setSelectedSendingRowKeys((prev) => {
+            const next = new Set<string>();
+            prev.forEach((key) => {
+                if (visibleKeys.has(key)) next.add(key);
+            });
+            return next.size === prev.size ? prev : next;
+        });
+    }, [visibleSendingMeta, selectedSendingRowKeys.size]);
+    const selectedSendingRowsMeta = useMemo(
+        () => visibleSendingMeta.filter((row) => selectedSendingRowKeys.has(row.rowKey)),
+        [visibleSendingMeta, selectedSendingRowKeys]
+    );
+    const applyBulkEorStatus = useCallback(async (status: EorStatus) => {
+        if (!canEditEor || selectedSendingRowsMeta.length === 0) return;
+        setBulkSendingActionLoading(true);
+        setBulkSendingActionError(null);
+        setBulkSendingActionInfo(null);
+        try {
+            const settled = await Promise.allSettled(
+                selectedSendingRowsMeta.map(async (row) => {
+                    const resp = await fetch('/api/sendings-eor', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            login: auth?.login,
+                            password: auth?.password,
+                            inn: effectiveActiveInn ?? null,
+                            rowKey: row.rowKey,
+                            statuses: [status],
+                            sendingNumber: row.sendingNumber || null,
+                            sendingDate: row.sendingDate || null,
+                        }),
+                    });
+                    if (!resp.ok) {
+                        const data = await resp.json().catch(() => ({}));
+                        throw new Error(String(data?.error || `HTTP ${resp.status}`));
+                    }
+                    return row.rowKey;
+                })
+            );
+            const successKeys = settled
+                .filter((item): item is PromiseFulfilledResult<string> => item.status === 'fulfilled')
+                .map((item) => item.value);
+            if (successKeys.length > 0) {
+                setEorStatusMap((prev) => {
+                    const next = { ...prev };
+                    successKeys.forEach((rowKey) => {
+                        next[rowKey] = [status];
+                    });
+                    return next;
+                });
+            }
+            const failed = settled.length - successKeys.length;
+            if (failed > 0) {
+                setBulkSendingActionError(`EOR обновлён частично: ${successKeys.length} из ${settled.length}.`);
+            } else {
+                setBulkSendingActionInfo(`EOR обновлён для ${successKeys.length} отправок.`);
+            }
+            setBulkEorMenuOpen(false);
+        } catch (e: any) {
+            setBulkSendingActionError(String(e?.message || 'Не удалось обновить EOR.'));
+        } finally {
+            setBulkSendingActionLoading(false);
+        }
+    }, [canEditEor, selectedSendingRowsMeta, auth?.login, auth?.password, effectiveActiveInn]);
+    const applyBulkPlanDate = useCallback(async () => {
+        if (!canEditEor || selectedSendingRowsMeta.length === 0) return;
+        if (!bulkPlanDateValue) {
+            setBulkSendingActionError('Укажите плановую дату доставки.');
+            return;
+        }
+        const cargoNumbers = Array.from(
+            new Set(selectedSendingRowsMeta.flatMap((row) => row.cargoNumbers).map((v) => String(v).trim()).filter(Boolean))
+        );
+        if (cargoNumbers.length === 0) {
+            setBulkSendingActionError('По выбранным отправкам не найдены номера перевозок.');
+            return;
+        }
+        setBulkSendingActionLoading(true);
+        setBulkSendingActionError(null);
+        setBulkSendingActionInfo(null);
+        try {
+            const resp = await fetch('/api/sendings-plan-date', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    login: auth?.login,
+                    password: auth?.password,
+                    date: bulkPlanDateValue,
+                    cargoNumbers,
+                }),
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) {
+                throw new Error(String(data?.error || `HTTP ${resp.status}`));
+            }
+            const updated = Number(data?.updated ?? 0);
+            const requested = Number(data?.requested ?? cargoNumbers.length);
+            const failed = Number(data?.failed ?? Math.max(0, requested - updated));
+            if (failed > 0) {
+                setBulkSendingActionError(`Плановая дата записана частично: ${updated} из ${requested}.`);
+            } else {
+                setBulkSendingActionInfo(`Плановая дата ${bulkPlanDateValue} записана для ${updated} перевозок.`);
+            }
+            setBulkPlanDateOpen(false);
+        } catch (e: any) {
+            setBulkSendingActionError(String(e?.message || 'Не удалось записать плановую дату.'));
+        } finally {
+            setBulkSendingActionLoading(false);
+        }
+    }, [canEditEor, selectedSendingRowsMeta, bulkPlanDateValue, auth?.login, auth?.password]);
     const getParcelSearchText = useCallback((parcel: any): string => {
         const parts: string[] = [];
         const seen = new WeakSet<object>();
@@ -2015,12 +2196,121 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             );
                         })}
                     </div>
+                    {canEditEor && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.1rem' }}>
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                Выбрано отправок: {selectedVisibleSendingCount}
+                            </Typography.Body>
+                            <div style={{ position: 'relative' }}>
+                                <Button
+                                    type="button"
+                                    className="filter-button"
+                                    disabled={bulkSendingActionLoading || selectedVisibleSendingCount === 0}
+                                    onClick={() => {
+                                        setBulkPlanDateOpen(false);
+                                        setBulkEorMenuOpen((prev) => !prev);
+                                    }}
+                                    style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
+                                >
+                                    {bulkSendingActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
+                                    EOR
+                                </Button>
+                                {bulkEorMenuOpen && (
+                                    <div
+                                        style={{
+                                            position: 'absolute',
+                                            top: 'calc(100% + 6px)',
+                                            left: 0,
+                                            zIndex: 25,
+                                            minWidth: 190,
+                                            border: '1px solid var(--color-border)',
+                                            borderRadius: 8,
+                                            background: 'var(--color-bg-card)',
+                                            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.16)',
+                                            padding: '0.35rem',
+                                        }}
+                                    >
+                                        <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: '0.25rem' }} onClick={() => applyBulkEorStatus('entry_allowed')}>Въезд разрешен</button>
+                                        <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: '0.25rem' }} onClick={() => applyBulkEorStatus('full_inspection')}>Полный досмотр</button>
+                                        <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => applyBulkEorStatus('turnaround')}>Разворот</button>
+                                    </div>
+                                )}
+                            </div>
+                            <div style={{ position: 'relative' }}>
+                                <Button
+                                    type="button"
+                                    className="filter-button"
+                                    disabled={bulkSendingActionLoading || selectedVisibleSendingCount === 0}
+                                    onClick={() => {
+                                        setBulkEorMenuOpen(false);
+                                        setBulkPlanDateOpen((prev) => !prev);
+                                    }}
+                                    style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
+                                >
+                                    Плановая дата
+                                </Button>
+                                {bulkPlanDateOpen && (
+                                    <div
+                                        style={{
+                                            position: 'absolute',
+                                            top: 'calc(100% + 6px)',
+                                            left: 0,
+                                            zIndex: 25,
+                                            minWidth: 220,
+                                            border: '1px solid var(--color-border)',
+                                            borderRadius: 8,
+                                            background: 'var(--color-bg-card)',
+                                            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.16)',
+                                            padding: '0.5rem',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '0.4rem',
+                                        }}
+                                    >
+                                        <input
+                                            type="date"
+                                            value={bulkPlanDateValue}
+                                            onChange={(e) => setBulkPlanDateValue(e.target.value)}
+                                            className="admin-form-input"
+                                        />
+                                        <Button
+                                            type="button"
+                                            className="button-primary"
+                                            style={{ minWidth: 'auto', padding: '0.35rem 0.55rem' }}
+                                            disabled={bulkSendingActionLoading || !bulkPlanDateValue}
+                                            onClick={applyBulkPlanDate}
+                                        >
+                                            Записать DateArrival
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    {(bulkSendingActionError || bulkSendingActionInfo) && (
+                        <Typography.Body style={{ fontSize: '0.78rem', color: bulkSendingActionError ? 'var(--color-error)' : 'var(--color-text-secondary)' }}>
+                            {bulkSendingActionError || bulkSendingActionInfo}
+                        </Typography.Body>
+                    )}
                     </div>
                 </div>
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                {canEditEor && (
+                                    <th style={{ padding: '0.5rem 0.35rem', textAlign: 'center', width: 34 }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={allVisibleSendingsSelected}
+                                            onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setSelectedSendingRowKeys(() => (checked ? new Set(visibleSendingMeta.map((row) => row.rowKey)) : new Set()));
+                                            }}
+                                            aria-label="Выбрать все отправки"
+                                        />
+                                    </th>
+                                )}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('date')} title="Сортировка">Дата {sendingsSortColumn === 'date' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('number')} title="Сортировка">Номер {sendingsSortColumn === 'number' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('route')} title="Сортировка">Маршрут {sendingsSortColumn === 'route' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -2038,7 +2328,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
                                 const comment = String(row?.Комментарий ?? row?.Comment ?? '');
                                 const eor = String(row?.EOR ?? row?.ЗаписьОВыходе ?? row?.ExitOfRecords ?? '').trim();
-                                const rowKey = number || `${idx}`;
+                                const rowKey = getSendingRowKey(row, idx);
                                 const parcels = getRequestParcels(row);
                                 const searchLower = effectiveSearchText.trim().toLowerCase();
                                 const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
@@ -2097,6 +2387,24 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             onTouchEnd={handleTouchEnd}
                                             onTouchMove={handleTouchEnd}
                                         >
+                                            {canEditEor && (
+                                                <td style={{ padding: '0.5rem 0.35rem', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedSendingRowKeys.has(rowKey)}
+                                                        onChange={(e) => {
+                                                            const checked = e.target.checked;
+                                                            setSelectedSendingRowKeys((prev) => {
+                                                                const next = new Set(prev);
+                                                                if (checked) next.add(rowKey);
+                                                                else next.delete(rowKey);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        aria-label={`Выбрать отправку ${number || rowKey}`}
+                                                    />
+                                                </td>
+                                            )}
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={rawDate ? String(rawDate) : undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{number ? formatInvoiceNumber(number) : '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>
@@ -2150,7 +2458,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={showEorColumn ? 8 : 7} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={(showEorColumn ? 8 : 7) + (canEditEor ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button
