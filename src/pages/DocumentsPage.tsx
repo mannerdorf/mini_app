@@ -2149,7 +2149,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     </div>
                 </div>
                 {canEditEor && (
-                    <div className="cargo-card" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem' }}>
+                    <div className="cargo-card" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem', overflow: 'visible', position: 'relative', zIndex: 20 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
                             <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                                 Выбрано отправок: {selectedVisibleSendingCount}
