@@ -65,8 +65,6 @@ export type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom";
 export type CargoItem = {
     Number?: string;
     DatePrih?: string;
-    /** Плановая дата доставки */
-    DateArrival?: string;
     DateVr?: string;
     State?: string;
     Mest?: number | string;

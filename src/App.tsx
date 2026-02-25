@@ -7113,9 +7113,9 @@ async function fetchPerevozkaDetails(auth: AuthData, number: string, item: Cargo
         return '';
     };
     const meta = {
-        autoReg: tryReadField(['LMAutoReg', 'AutoReg', 'autoReg', 'AutoREG']),
-        autoType: tryReadField(['LMAutoType', 'AutoType', 'autoType', 'TypeOfTranzit', 'TypeOfTransit']),
-        driver: tryReadField(['LMDriver', 'Driver', 'driver', 'DriverFio', 'DriverName']),
+        autoReg: tryReadField(['AutoReg', 'autoReg', 'AutoREG']),
+        autoType: tryReadField(['AutoType', 'autoType', 'TypeOfTranzit', 'TypeOfTransit']),
+        driver: tryReadField(['Driver', 'driver', 'DriverFio', 'DriverName']),
     };
     return { steps: sorted.length ? sorted : null, nomenclature, meta };
 }
@@ -7334,7 +7334,7 @@ function CargoDetailsModal({
 
 
     // Список явно отображаемых полей (из API примера). INN скрыт — используется для БД и проверки дублей, не показываем в карточке.
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'LMAutoReg', 'LMAutoType', 'LMDriver'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', 'Driver', 'AutoType', 'AutoReg', 'DateArrival'];
     const isCustomerRole = item._role === "Customer";
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
@@ -7445,7 +7445,6 @@ function CargoDetailsModal({
                     <DetailItem label="Номер" value={item.Number || '—'} />
                     <DetailItem label="Статус" value={<StatusBadge status={item.State} />} />
                     <DetailItem label="Приход" value={<DateText value={item.DatePrih} />} />
-                    <DetailItem label="Плановая дата доставки" value={<DateText value={item.DateArrival} />} />
                     <DetailItem label="Доставка" value={(() => {
                         // Показываем дату доставки только если груз доставлен
                         const status = normalizeStatus(item.State);
@@ -7461,14 +7460,10 @@ function CargoDetailsModal({
                                 label="Заказчик"
                                 value={stripOoo(String(item.Customer ?? (item as any).customer ?? (item as any).Заказчик ?? (item as any).Contractor ?? (item as any).Organization ?? '').trim()) || '-'}
                             />
-                            <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}>
-                                <Typography.Headline style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem', color: 'var(--color-text-secondary)' }}>Данные курьера</Typography.Headline>
-                                <div className="details-grid-modal" style={{ marginTop: 0 }}>
-                                    <DetailItem label="Номер автомобиля" value={String((item as any).LMAutoReg ?? item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? '-').trim() || '-'} />
-                                    <DetailItem label="Марка" value={String((item as any).LMAutoType ?? item.AutoType ?? (item as any).autoType ?? perevozkaMeta.autoType ?? '-').trim() || '-'} />
-                                    <DetailItem label="Водитель" value={String((item as any).LMDriver ?? item.Driver ?? (item as any).driver ?? perevozkaMeta.driver ?? '-').trim() || '-'} />
-                                </div>
-                            </div>
+                            <DetailItem
+                                label="Транспортное средство"
+                                value={String(item.AutoReg ?? (item as any).autoReg ?? perevozkaMeta.autoReg ?? '-').trim() || '-'}
+                            />
                         </>
                     )}
                     <DetailItem label="Отправитель" value={stripOoo(item.Sender) || '-'} />
