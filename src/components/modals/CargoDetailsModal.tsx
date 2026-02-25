@@ -207,7 +207,7 @@ export function CargoDetailsModal({
         }
     };
 
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', 'Driver', 'AutoType', 'AutoReg', 'DateArrival'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel'];
     const isCustomerRole = item._role === "Customer";
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
@@ -215,6 +215,13 @@ export function CargoDetailsModal({
         Order: 'Номер заявки заказчика',
         AutoReg: 'Транспортное средство',
     };
+    const lastMile = {
+        autoReg: String((item as any).LMAutoReg ?? '').trim(),
+        autoType: String((item as any).LMAutoType ?? '').trim(),
+        driver: String((item as any).LMDriver ?? '').trim(),
+        driverTel: String((item as any).LMDriverTel ?? '').trim(),
+    };
+    const hasLastMileBlock = Boolean(lastMile.autoReg || lastMile.autoType || lastMile.driver || lastMile.driverTel);
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -302,6 +309,7 @@ export function CargoDetailsModal({
                         }
                         return '-';
                     })()} />
+                    <DetailItem label="Плановая дата доставки" value={<DateText value={item.DateArrival as any} />} />
                     {useServiceRequest && (
                         <>
                             <DetailItem label="Заказчик" value={stripOoo(String(item.Customer ?? (item as any).customer ?? (item as any).Заказчик ?? (item as any).Contractor ?? (item as any).Organization ?? '').trim()) || '-'} />
@@ -321,6 +329,19 @@ export function CargoDetailsModal({
                         </>
                     )}
                 </div>
+                {hasLastMileBlock && (
+                    <div style={{ marginTop: '0.75rem' }}>
+                        <Typography.Headline style={{ marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+                            Последняя миля
+                        </Typography.Headline>
+                        <div className="details-grid-modal">
+                            <DetailItem label="Гос номер" value={lastMile.autoReg || '-'} />
+                            <DetailItem label="Марка" value={lastMile.autoType || '-'} />
+                            <DetailItem label="Экспедитор" value={lastMile.driver || '-'} />
+                            <DetailItem label="Телефон" value={lastMile.driverTel || '-'} />
+                        </div>
+                    </div>
+                )}
                 <div className="details-grid-modal">
                     {Object.entries(item)
                         .filter(([key]) => !EXCLUDED_KEYS.includes(key))
