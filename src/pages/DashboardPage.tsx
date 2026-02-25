@@ -1215,9 +1215,12 @@ export function DashboardPage({
             .sort((a, b) => b.value - a.value);
     }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
 
+    type DashboardChartPoint = { date: string; value: number; dateKey?: string };
+    type DashboardChartVariant = 'columns' | 'line' | 'area' | 'lollipop' | 'dot' | 'step';
+
     // Функция для создания SVG графика
     const renderChart = (
-        data: { date: string; value: number }[],
+        data: DashboardChartPoint[],
         title: string,
         color: string,
         formatValue: (val: number) => string
@@ -1365,6 +1368,110 @@ export function DashboardPage({
             </div>
         );
     };
+
+    const renderChartVariantPreview = (
+        data: DashboardChartPoint[],
+        color: string,
+        variant: DashboardChartVariant
+    ) => {
+        if (data.length === 0) return null;
+        const values = data.map((d) => Math.max(0, Number(d.value) || 0));
+        const maxValue = Math.max(...values, 1);
+        const w = 220;
+        const h = 88;
+        const left = 8;
+        const right = 8;
+        const top = 8;
+        const bottom = 18;
+        const plotW = w - left - right;
+        const plotH = h - top - bottom;
+        const n = values.length;
+        const slot = plotW / Math.max(n, 1);
+        const barW = Math.max(6, slot * 0.56);
+        const points = values.map((v, i) => {
+            const x = n === 1 ? left + plotW / 2 : left + (i * plotW) / (n - 1);
+            const y = top + plotH - (v / maxValue) * plotH;
+            return { x, y, v };
+        });
+        const polyPoints = points.map((p) => `${p.x},${p.y}`).join(' ');
+        const areaPath = points.length > 1
+            ? `M ${points[0].x} ${top + plotH} L ${points.map((p) => `${p.x} ${p.y}`).join(' L ')} L ${points[points.length - 1].x} ${top + plotH} Z`
+            : '';
+        const stepPath = points.map((p, i) => {
+            if (i === 0) return `M ${p.x} ${p.y}`;
+            const prev = points[i - 1];
+            return `L ${p.x} ${prev.y} L ${p.x} ${p.y}`;
+        }).join(' ');
+
+        return (
+            <svg width={w} height={h} style={{ width: '100%', height: 'auto', display: 'block' }}>
+                <line x1={left} y1={top + plotH} x2={w - right} y2={top + plotH} stroke="var(--color-border)" strokeWidth="1" opacity="0.6" />
+                {variant === 'columns' && values.map((v, i) => {
+                    const x = left + i * slot + (slot - barW) / 2;
+                    const bh = (v / maxValue) * plotH;
+                    const y = top + plotH - bh;
+                    return <rect key={`col-${i}`} x={x} y={y} width={barW} height={bh} rx={3} fill={color} opacity={0.75} />;
+                })}
+                {variant === 'area' && areaPath && (
+                    <>
+                        <path d={areaPath} fill={color} opacity={0.2} />
+                        <polyline points={polyPoints} fill="none" stroke={color} strokeWidth="2" />
+                    </>
+                )}
+                {variant === 'line' && <polyline points={polyPoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />}
+                {variant === 'step' && <path d={stepPath} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+                {variant === 'lollipop' && points.map((p, i) => (
+                    <g key={`lp-${i}`}>
+                        <line x1={p.x} y1={top + plotH} x2={p.x} y2={p.y} stroke={color} strokeWidth="2" opacity="0.45" />
+                        <circle cx={p.x} cy={p.y} r="3.6" fill={color} />
+                    </g>
+                ))}
+                {variant === 'dot' && points.map((p, i) => (
+                    <circle key={`dot-${i}`} cx={p.x} cy={p.y} r="3.2" fill={color} opacity="0.88" />
+                ))}
+            </svg>
+        );
+    };
+
+    const selectedChartConfig = useMemo(() => {
+        let data: DashboardChartPoint[] = [];
+        let title = "Динамика";
+        let color = "#6366f1";
+        let formatValue: (val: number) => string = (val) => `${Math.round(val).toLocaleString('ru-RU')}`;
+        switch (chartType) {
+            case 'money':
+                data = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.sum) }));
+                title = "Динамика в деньгах";
+                color = "#6366f1";
+                formatValue = (val) => `${Math.round(val).toLocaleString('ru-RU')} ₽`;
+                break;
+            case 'paidWeight':
+                data = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.pw) }));
+                title = "Динамика в платном весе";
+                color = "#10b981";
+                formatValue = (val) => `${Math.round(val)} кг`;
+                break;
+            case 'weight':
+                data = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.w) }));
+                title = "Динамика по весу";
+                color = "#0d9488";
+                formatValue = (val) => `${Math.round(val)} кг`;
+                break;
+            case 'volume':
+                data = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: d.vol }));
+                title = "Динамика по объёму";
+                color = "#f59e0b";
+                formatValue = (val) => `${val.toFixed(2)} м³`;
+                break;
+            case 'pieces':
+                data = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.mest) }));
+                title = "Динамика по местам (шт)";
+                color = "#8b5cf6";
+                formatValue = (val) => `${Math.round(val)} шт`;
+                break;
+        }
+        return { data, title, color, formatValue };
+    }, [chartData, chartType]);
     
     const formatStripValue = (): string => {
         if (chartType === 'money') return `${Math.round(stripTotals.sum || 0).toLocaleString('ru-RU')} ₽`;
@@ -1957,47 +2064,29 @@ export function DashboardPage({
             {/* === ВИДЖЕТ 3: График динамики (включить: WIDGET_3_CHART = true) === */}
             {WIDGET_3_CHART && !loading && !error && showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
-                    {(() => {
-                        let chartDataForType: { date: string; value: number }[];
-                        let title: string;
-                        let color: string;
-                        let formatValue: (val: number) => string;
-                        
-                        switch (chartType) {
-                            case 'money':
-                                chartDataForType = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.sum) }));
-                                title = "Динамика в деньгах";
-                                color = "#6366f1";
-                                formatValue = (val) => `${Math.round(val).toLocaleString('ru-RU')} ₽`;
-                                break;
-                            case 'paidWeight':
-                                chartDataForType = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.pw) }));
-                                title = "Динамика в платном весе";
-                                color = "#10b981";
-                                formatValue = (val) => `${Math.round(val)} кг`;
-                                break;
-                            case 'weight':
-                                chartDataForType = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.w) }));
-                                title = "Динамика по весу";
-                                color = "#0d9488";
-                                formatValue = (val) => `${Math.round(val)} кг`;
-                                break;
-                            case 'volume':
-                                chartDataForType = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: d.vol }));
-                                title = "Динамика по объёму";
-                                color = "#f59e0b";
-                                formatValue = (val) => `${val.toFixed(2)} м³`;
-                                break;
-                            case 'pieces':
-                                chartDataForType = chartData.map(d => ({ date: d.date, dateKey: (d as { dateKey?: string }).dateKey, value: Math.round(d.mest) }));
-                                title = "Динамика по местам (шт)";
-                                color = "#8b5cf6";
-                                formatValue = (val) => `${Math.round(val)} шт`;
-                                break;
-                        }
-                        
-                        return renderChart(chartDataForType, title, color, formatValue);
-                    })()}
+                    {renderChart(selectedChartConfig.data, selectedChartConfig.title, selectedChartConfig.color, selectedChartConfig.formatValue)}
+                    <div style={{ marginTop: '0.85rem', borderTop: '1px dashed var(--color-border)', paddingTop: '0.7rem' }}>
+                        <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                            Варианты визуализации (выбери, какой оставить)
+                        </Typography.Body>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.5rem' }}>
+                            {([
+                                { key: 'columns', label: 'Столбцы' },
+                                { key: 'line', label: 'Линия' },
+                                { key: 'area', label: 'Область' },
+                                { key: 'step', label: 'Ступеньки' },
+                                { key: 'lollipop', label: 'Lollipop' },
+                                { key: 'dot', label: 'Точки' },
+                            ] as { key: DashboardChartVariant; label: string }[]).map((variant) => (
+                                <div key={`variant-${variant.key}`} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.4rem', background: 'var(--color-bg-hover)' }}>
+                                    <Typography.Body style={{ fontSize: '0.72rem', marginBottom: '0.25rem', color: 'var(--color-text-secondary)' }}>
+                                        {variant.label}
+                                    </Typography.Body>
+                                    {renderChartVariantPreview(selectedChartConfig.data, selectedChartConfig.color, variant.key)}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </Panel>
             )}
 
