@@ -114,7 +114,8 @@ export type ProfileView =
     | "2fa"
     | "notifications"
     | "admin"
-    | "tinyurl-test";
+    | "tinyurl-test"
+    | "chat";
 
 export type CompanyRow = { login: string; inn: string; name: string };
 

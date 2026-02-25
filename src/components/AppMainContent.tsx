@@ -141,14 +141,16 @@ export function AppMainContent({
     <>
       {showDashboard && activeTab === "dashboard" && auth && (
         <SectionBoundary section="Дашборд">
-        <DashboardPage
-          auth={auth}
-          onClose={() => {}}
-          onOpenCargoFilters={openCargoWithFilters}
-          showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : (activeAccount?.roleCustomer ?? true)}
-          useServiceRequest={useServiceRequest}
-          hasAnalytics={true}
-        />
+        <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+          <DashboardPage
+            auth={auth}
+            onClose={() => {}}
+            onOpenCargoFilters={openCargoWithFilters}
+            showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : (activeAccount?.roleCustomer ?? true)}
+            useServiceRequest={useServiceRequest}
+            hasAnalytics={true}
+          />
+        </Suspense>
         </SectionBoundary>
       )}
 
@@ -202,53 +204,59 @@ export function AppMainContent({
 
       {showDashboard && activeTab === "profile" && (
         <SectionBoundary section="Профиль">
-        <ProfilePage
-          accounts={accounts}
-          activeAccountId={activeAccountId}
-          onSwitchAccount={handleSwitchAccount}
-          onAddAccount={handleAddAccount}
-          onRemoveAccount={handleRemoveAccount}
-          onOpenOffer={() => setIsOfferOpen(true)}
-          onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
-          onOpenNotifications={openSecretPinModal}
-          onOpenCargo={openCargoFromChat}
-          onOpenTelegramBot={openTelegramBotWithAccount}
-          onOpenMaxBot={undefined}
-          onUpdateAccount={handleUpdateAccount}
-        />
+        <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+          <ProfilePage
+            accounts={accounts}
+            activeAccountId={activeAccountId}
+            onSwitchAccount={handleSwitchAccount}
+            onAddAccount={handleAddAccount}
+            onRemoveAccount={handleRemoveAccount}
+            onOpenOffer={() => setIsOfferOpen(true)}
+            onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
+            onOpenNotifications={openSecretPinModal}
+            onOpenCargo={openCargoFromChat}
+            onOpenTelegramBot={openTelegramBotWithAccount}
+            onOpenMaxBot={undefined}
+            onUpdateAccount={handleUpdateAccount}
+          />
+        </Suspense>
         </SectionBoundary>
       )}
 
       {!showDashboard && (activeTab === "dashboard" || activeTab === "home") && auth && (
         <SectionBoundary section="Дашборд">
-        <DashboardPage
-          auth={auth}
-          onClose={() => {}}
-          onOpenCargoFilters={openCargoWithFilters}
-          showSums={activeAccount?.roleCustomer ?? true}
-          useServiceRequest={useServiceRequest}
-          hasAnalytics={activeAccount?.permissions?.analytics === true}
-          hasSupervisor={activeAccount?.permissions?.supervisor === true}
-        />
+        <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+          <DashboardPage
+            auth={auth}
+            onClose={() => {}}
+            onOpenCargoFilters={openCargoWithFilters}
+            showSums={activeAccount?.roleCustomer ?? true}
+            useServiceRequest={useServiceRequest}
+            hasAnalytics={activeAccount?.permissions?.analytics === true}
+            hasSupervisor={activeAccount?.permissions?.supervisor === true}
+          />
+        </Suspense>
         </SectionBoundary>
       )}
 
       {!showDashboard && activeTab === "profile" && (
         <SectionBoundary section="Профиль">
-        <ProfilePage
-          accounts={accounts}
-          activeAccountId={activeAccountId}
-          onSwitchAccount={handleSwitchAccount}
-          onAddAccount={handleAddAccount}
-          onRemoveAccount={handleRemoveAccount}
-          onOpenOffer={() => setIsOfferOpen(true)}
-          onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
-          onOpenNotifications={openSecretPinModal}
-          onOpenCargo={openCargoFromChat}
-          onOpenTelegramBot={openTelegramBotWithAccount}
-          onOpenMaxBot={undefined}
-          onUpdateAccount={handleUpdateAccount}
-        />
+        <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
+          <ProfilePage
+            accounts={accounts}
+            activeAccountId={activeAccountId}
+            onSwitchAccount={handleSwitchAccount}
+            onAddAccount={handleAddAccount}
+            onRemoveAccount={handleRemoveAccount}
+            onOpenOffer={() => setIsOfferOpen(true)}
+            onOpenPersonalConsent={() => setIsPersonalConsentOpen(true)}
+            onOpenNotifications={openSecretPinModal}
+            onOpenCargo={openCargoFromChat}
+            onOpenTelegramBot={openTelegramBotWithAccount}
+            onOpenMaxBot={undefined}
+            onUpdateAccount={handleUpdateAccount}
+          />
+        </Suspense>
         </SectionBoundary>
       )}
     </>
