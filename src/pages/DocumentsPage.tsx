@@ -20,9 +20,10 @@ import {
     DEFAULT_DATE_FROM,
     DEFAULT_DATE_TO,
     getPayTillDate,
-getPayTillDateColor,
+    getPayTillDateColor,
 } from "../lib/dateUtils";
 import type { AccountPermissions, AuthData, DateFilter, StatusFilter } from "../types";
+import { DELIVERY_WEBSERVICE_SET_PLAN_DATE_URL } from "../constants/config";
 import { useDocumentsDateRange } from "./useDocumentsDateRange";
 import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -154,6 +155,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
     const [expandedOrderRow, setExpandedOrderRow] = useState<string | null>(null);
     const [expandedSendingRow, setExpandedSendingRow] = useState<string | null>(null);
+    /** Выбранные строки отправок (номера перевозок) для EOR и плановой даты доставки */
+    const [selectedSendingRowKeys, setSelectedSendingRowKeys] = useState<Set<string>>(() => new Set());
+    const [planDateModalOpen, setPlanDateModalOpen] = useState(false);
+    const [planDateValue, setPlanDateValue] = useState(() => new Date().toISOString().split("T")[0]);
+    const [planDateLoading, setPlanDateLoading] = useState(false);
+    const [eorToolbarDropdownOpen, setEorToolbarDropdownOpen] = useState(false);
+    const eorToolbarDropdownRef = useRef<HTMLDivElement>(null);
     /** Столбец EOR виден всем, у кого включён служебный режим (service_mode); менять значение могут только с правом eor или суперадмин */
     const showEorColumn = permissions?.service_mode === true;
     const canEditEor = (permissions?.eor === true) || isSuperAdmin;
@@ -201,6 +209,45 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return next;
         });
     }, []);
+
+    const toggleSendingSelection = useCallback((key: string) => {
+        setSelectedSendingRowKeys((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    }, []);
+
+    const selectAllSendings = useCallback(() => {
+        const allKeys = sendingRowsSorted.map((row: any) => String(row?.Номер ?? row?.Number ?? row?.number ?? "").trim() || String(row?.ИДОтправления ?? ""));
+        const set = new Set(allKeys.filter(Boolean));
+        setSelectedSendingRowKeys((prev) => (prev.size === set.size ? new Set() : set));
+    }, [sendingRowsSorted]);
+
+    const handleSetPlanDate = useCallback(async () => {
+        if (selectedSendingRowKeys.size === 0 || !planDateValue) return;
+        setPlanDateLoading(true);
+        try {
+            const dateStr = planDateValue;
+            for (const perevozka of selectedSendingRowKeys) {
+                const url = `${DELIVERY_WEBSERVICE_SET_PLAN_DATE_URL}?metod=SetPlanDataDostavki&Perevozka=${encodeURIComponent(perevozka)}&Date=${encodeURIComponent(dateStr)}`;
+                await fetch(url, { method: "GET", credentials: "include" });
+            }
+            await mutateSendings?.();
+            setPlanDateModalOpen(false);
+            setSelectedSendingRowKeys(new Set());
+        } catch (e) {
+            console.error("SetPlanDataDostavki error", e);
+        } finally {
+            setPlanDateLoading(false);
+        }
+    }, [selectedSendingRowKeys, planDateValue, mutateSendings]);
+
+    const handleEorForSelected = useCallback((status: EorStatus) => {
+        selectedSendingRowKeys.forEach((rowKey) => toggleEorStatus(rowKey, status));
+        setEorToolbarDropdownOpen(false);
+    }, [selectedSendingRowKeys, toggleEorStatus]);
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
@@ -268,6 +315,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         sendingsItems,
         sendingsError,
         sendingsLoading,
+        mutateSendings,
         perevozkiItems,
         perevozkiLoading,
     } = useDocumentsDataLoad({
@@ -1983,10 +2031,60 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     </div>
                     </div>
                 </div>
+                {showEorColumn && (
+                    <div className="cargo-card" style={{ padding: '0.5rem 0.75rem', marginBottom: '0.5rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
+                        <Button
+                            type="button"
+                            style={{ background: 'var(--color-primary-blue)', color: '#fff', fontWeight: 600, padding: '0.4rem 0.75rem' }}
+                            onClick={() => { if (selectedSendingRowKeys.size > 0) setPlanDateModalOpen(true); }}
+                            disabled={selectedSendingRowKeys.size === 0}
+                            title="Выберите строки и нажмите — откроется календарь для установки плановой даты доставки"
+                        >
+                            Плановая дата доставки
+                        </Button>
+                        <div style={{ position: 'relative' }} ref={eorToolbarDropdownRef}>
+                            <Button
+                                type="button"
+                                style={{ background: '#0d9488', color: '#fff', fontWeight: 600, padding: '0.4rem 0.75rem' }}
+                                onClick={() => setEorToolbarDropdownOpen((prev) => !prev)}
+                                disabled={selectedSendingRowKeys.size === 0}
+                                title="Выберите строки и выберите статус EOR"
+                            >
+                                EOR <ChevronDown className="w-4 h-4" style={{ verticalAlign: 'middle', marginLeft: 2 }} />
+                            </Button>
+                            {eorToolbarDropdownOpen && (
+                                <>
+                                    <div role="presentation" style={{ position: 'fixed', inset: 0, zIndex: 9999 }} onClick={() => setEorToolbarDropdownOpen(false)} />
+                                    <div role="menu" style={{ position: 'absolute', left: 0, top: '100%', marginTop: 2, zIndex: 10000, background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', padding: '0.25rem 0', minWidth: 180 }}>
+                                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 0.75rem', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left' }} onClick={() => handleEorForSelected('entry_allowed')}><Flag className="w-4 h-4" /> Въезд разрешен</button>
+                                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 0.75rem', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left' }} onClick={() => handleEorForSelected('full_inspection')}><ClipboardList className="w-4 h-4" /> Полный досмотр</button>
+                                        <button type="button" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 0.75rem', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left' }} onClick={() => handleEorForSelected('turnaround')}><RotateCcw className="w-4 h-4" /><Truck className="w-3.5 h-3.5" /> Разворот</button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        {selectedSendingRowKeys.size > 0 && <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Выбрано: {selectedSendingRowKeys.size}</Typography.Body>}
+                    </div>
+                )}
+                {planDateModalOpen && (
+                    <div className="cargo-card" style={{ padding: '1rem', marginBottom: '0.5rem', background: 'var(--color-bg-card)', borderRadius: 12 }}>
+                        <Typography.Headline style={{ fontSize: '0.95rem', marginBottom: '0.5rem' }}>Плановая дата доставки</Typography.Headline>
+                        <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap' }}>
+                            <input type="date" value={planDateValue} onChange={(e) => setPlanDateValue(e.target.value)} style={{ padding: '0.4rem', fontSize: '0.9rem', border: '1px solid var(--color-border)', borderRadius: 6 }} />
+                            <Button type="button" className="filter-button" onClick={handleSetPlanDate} disabled={planDateLoading}>{planDateLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Применить</Button>
+                            <Button type="button" className="filter-button" onClick={() => setPlanDateModalOpen(false)}>Отмена</Button>
+                        </Flex>
+                    </div>
+                )}
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                {showEorColumn && (
+                                    <th style={{ padding: '0.5rem 0.4rem', width: 40, textAlign: 'center', verticalAlign: 'middle' }} title="Выбрать все">
+                                        <input type="checkbox" checked={sendingRowsSorted.length > 0 && selectedSendingRowKeys.size === sendingRowsSorted.length} onChange={selectAllSendings} onClick={(e) => e.stopPropagation()} />
+                                    </th>
+                                )}
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('date')} title="Сортировка">Дата {sendingsSortColumn === 'date' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('number')} title="Сортировка">Номер {sendingsSortColumn === 'number' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('route')} title="Сортировка">Маршрут {sendingsSortColumn === 'route' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -2049,6 +2147,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             onTouchEnd={handleTouchEnd}
                                             onTouchMove={handleTouchEnd}
                                         >
+                                            {showEorColumn && (
+                                                <td style={{ padding: '0.5rem 0.4rem', width: 40, textAlign: 'center', verticalAlign: 'middle' }} onClick={(e) => e.stopPropagation()}>
+                                                    <input type="checkbox" checked={selectedSendingRowKeys.has(rowKey)} onChange={() => toggleSendingSelection(rowKey)} />
+                                                </td>
+                                            )}
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={rawDate ? String(rawDate) : undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{number ? formatInvoiceNumber(number) : '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>
@@ -2102,7 +2205,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={showEorColumn ? 8 : 7} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={showEorColumn ? 9 : 8} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button
@@ -2181,6 +2284,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                             <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                                 <thead>
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                        {showEorColumn && <th style={{ padding: '0.35rem 0.3rem', width: 32, textAlign: 'center' }} title="Выбрать перевозку" />}
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('index')} title="Сортировка">№ пп {sendingsSummarySortColumn === 'index' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('cargo')} title="Сортировка">Консолидация {sendingsSummarySortColumn === 'cargo' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('status')} title="Сортировка">Статус {sendingsSummarySortColumn === 'status' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -2280,6 +2384,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                                 background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
                                                                                             }}
                                                                                         >
+                                                                                            {showEorColumn && (
+                                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'center', width: 32 }} onClick={(e) => e.stopPropagation()}>
+                                                                                                    {summary.cargo && summary.cargo !== '—' ? (
+                                                                                                        <input type="checkbox" checked={selectedSendingRowKeys.has(summary.cargo)} onChange={() => toggleSendingSelection(summary.cargo)} />
+                                                                                                    ) : null}
+                                                                                                </td>
+                                                                                            )}
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>
                                                                                                 {summary.cargo && summary.cargo !== '—' ? (
@@ -2303,7 +2414,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                     );
                                                                                 })}
                                                                                 <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 700 }} colSpan={3}>Итого</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 700 }} colSpan={showEorColumn ? 4 : 3}>Итого</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{totals.count}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.volume)}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.weight)}</td>
@@ -2320,6 +2431,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                             <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                                 <thead>
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                        {showEorColumn && <th style={{ padding: '0.35rem 0.3rem', width: 32, textAlign: 'center' }} />}
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('index')} title="Сортировка">№ пп {sendingsSummarySortColumn === 'index' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('customer')} title="Сортировка">Заказчик {sendingsSummarySortColumn === 'customer' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('count')} title="Сортировка">Кол-во {sendingsSummarySortColumn === 'count' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -2418,6 +2530,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                             background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
                                                                                         }}
                                                                                     >
+                                                                                        {showEorColumn && (
+                                                                                            <td style={{ padding: '0.35rem 0.3rem', textAlign: 'center', width: 32 }} onClick={(e) => e.stopPropagation()}>
+                                                                                                <input type="checkbox" checked={selectedSendingRowKeys.has(rowKey)} onChange={() => toggleSendingSelection(rowKey)} title="Выбрать отправку" />
+                                                                                            </td>
+                                                                                        )}
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{stripOoo(summary.customer) || '—'}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
@@ -2428,7 +2545,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                     </tr>
                                                                                 ))}
                                                                                 <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 700 }} colSpan={2}>Итого</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 700 }} colSpan={showEorColumn ? 3 : 2}>Итого</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{totals.count}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.volume)}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.weight)}</td>

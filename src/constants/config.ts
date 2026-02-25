@@ -7,3 +7,6 @@ export const PROXY_API_INVOICES_URL = '/api/invoices';
 export const PROXY_API_ACTS_URL = '/api/acts';
 export const PROXY_API_ORDERS_URL = '/api/orders';
 export const PROXY_API_SENDINGS_URL = '/api/sendings';
+
+/** Установка плановой даты доставки: GET ?metod=SetPlanDataDostavki&Perevozka={number}&Date=YYYY-MM-DD */
+export const DELIVERY_WEBSERVICE_SET_PLAN_DATE_URL = 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI';
