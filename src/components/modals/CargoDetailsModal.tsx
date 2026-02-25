@@ -133,6 +133,16 @@ export function CargoDetailsModal({
             return { planDays, actualDays, onTime: actualDays <= planDays, delayDays: Math.max(0, actualDays - planDays) };
         })()
         : null;
+    const normalizePlannedDeliveryDate = (value: unknown): string | undefined => {
+        const raw = String(value ?? '').trim();
+        if (!raw) return undefined;
+        // Some backends return sentinel dates for "not set".
+        if (/^0?1[./-]0?1[./-](1900|1901|0001)$/.test(raw)) return undefined;
+        const parsed = new Date(raw);
+        if (Number.isFinite(parsed.getTime()) && parsed.getFullYear() <= 1901) return undefined;
+        return raw;
+    };
+    const plannedDeliveryDate = normalizePlannedDeliveryDate((item as any).DateArrival);
 
     const downloadFile = (blob: Blob, fileName: string) => {
         const url = URL.createObjectURL(blob);
@@ -207,7 +217,7 @@ export function CargoDetailsModal({
         }
     };
 
-    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel'];
+    const EXCLUDED_KEYS = ['Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', '_role', 'Driver', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel'];
     const isCustomerRole = item._role === "Customer";
     const FIELD_LABELS: Record<string, string> = {
         CitySender: 'Место отправления',
@@ -309,7 +319,11 @@ export function CargoDetailsModal({
                         }
                         return '-';
                     })()} />
-                    <DetailItem label="Плановая дата доставки" value={<DateText value={item.DateArrival as any} />} />
+                    <DetailItem
+                        label="Плановая дата доставки"
+                        value={plannedDeliveryDate ? <DateText value={plannedDeliveryDate} /> : '-'}
+                    />
+                    <DetailItem label="Номер заявки заказчика" value={String((item as any).Order ?? '').trim() || '-'} />
                     {useServiceRequest && (
                         <>
                             <DetailItem label="Заказчик" value={stripOoo(String(item.Customer ?? (item as any).customer ?? (item as any).Заказчик ?? (item as any).Contractor ?? (item as any).Organization ?? '').trim()) || '-'} />
