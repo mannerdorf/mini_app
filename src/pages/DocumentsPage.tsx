@@ -1086,33 +1086,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '').trim();
         return number || `${idx}`;
     }, []);
-    const getSendingCargoNumbers = useCallback((row: any): string[] => {
-        const numbers = new Set<string>();
-        const addNumber = (value: unknown) => {
-            const number = String(value ?? '').trim();
-            if (number) numbers.add(number);
-        };
-        addNumber(row?.Перевозка);
-        addNumber(row?.CargoNumber);
-        addNumber(row?.НомерПеревозки);
-        addNumber(row?.NumberPerevozki);
-        const parcels = getRequestParcels(row);
-        parcels.forEach((parcel: any) => {
-            addNumber(parcel?.Перевозка);
-            addNumber(parcel?.CargoNumber);
-            addNumber(parcel?.НомерПеревозки);
-            addNumber(parcel?.NumberPerevozki);
-            const goodsRaw = parcel?.Товары;
-            const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : null);
-            if (goods && typeof goods === 'object') {
-                addNumber((goods as any)?.Перевозка);
-                addNumber((goods as any)?.CargoNumber);
-                addNumber((goods as any)?.НомерПеревозки);
-                addNumber((goods as any)?.NumberPerevozki);
-            }
-        });
-        return Array.from(numbers);
-    }, [getRequestParcels]);
     const visibleSendingMeta = useMemo(
         () =>
             sendingRowsSorted.map((row: any, idx: number) => {
