@@ -1155,9 +1155,16 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             setBulkSendingActionError('Укажите плановую дату доставки.');
             return;
         }
-        const cargoNumbers = Array.from(
-            new Set(selectedSendingRowsMeta.flatMap((row) => row.cargoNumbers).map((v) => String(v).trim()).filter(Boolean))
-        );
+        const cargoNumbers = Array.from(new Set(
+            selectedSendingRowsMeta
+                .flatMap((row) => {
+                    const direct = String(row.sendingNumber || '').trim();
+                    if (direct) return [direct];
+                    // fallback only when sending number is empty
+                    return row.cargoNumbers.map((v) => String(v).trim()).filter(Boolean);
+                })
+                .filter(Boolean)
+        ));
         if (cargoNumbers.length === 0) {
             setBulkSendingActionError('По выбранным отправкам не найдены номера перевозок.');
             return;

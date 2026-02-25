@@ -26,6 +26,21 @@ function parseCargoNumbers(input: unknown): string[] {
   return Array.from(unique);
 }
 
+function buildCargoCandidates(rawCargoNumber: string): string[] {
+  const value = normalizeText(rawCargoNumber);
+  if (!value) return [];
+  const out = new Set<string>();
+  out.add(value);
+
+  // В 1С номер перевозки часто ожидается с ведущими нулями (например 000136334).
+  const digits = value.replace(/\D/g, "");
+  if (digits) {
+    out.add(digits);
+    if (digits.length < 9) out.add(digits.padStart(9, "0"));
+  }
+  return Array.from(out);
+}
+
 async function callSetPlanDate(
   serviceLogin: string,
   servicePassword: string,
@@ -95,19 +110,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "cargoNumbers is required" });
   }
 
-  const serviceLogin = String(process.env.PEREVOZKI_SERVICE_LOGIN || "").trim();
-  const servicePassword = String(process.env.PEREVOZKI_SERVICE_PASSWORD || "").trim();
+  const serviceLogin = String(
+    process.env.PLAN_DATE_SERVICE_LOGIN ||
+    process.env.HAULZ_1C_SERVICE_LOGIN ||
+    process.env.PEREVOZKI_SERVICE_LOGIN ||
+    ""
+  ).trim();
+  const servicePassword = String(
+    process.env.PLAN_DATE_SERVICE_PASSWORD ||
+    process.env.HAULZ_1C_SERVICE_PASSWORD ||
+    process.env.PEREVOZKI_SERVICE_PASSWORD ||
+    ""
+  ).trim();
   if (!serviceLogin || !servicePassword) {
-    return res.status(503).json({ error: "Set PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD in Vercel." });
+    return res.status(503).json({
+      error:
+        "Set PLAN_DATE_SERVICE_LOGIN/PASSWORD or HAULZ_1C_SERVICE_LOGIN/PASSWORD or PEREVOZKI_SERVICE_LOGIN/PASSWORD in Vercel.",
+    });
   }
 
   const results = await Promise.all(
     cargoNumbers.map(async (cargoNumber) => {
-      const result = await callSetPlanDate(serviceLogin, servicePassword, cargoNumber, date);
+      const candidates = buildCargoCandidates(cargoNumber);
+      let lastError = "Ошибка записи даты в 1С";
+      let appliedCargoNumber = cargoNumber;
+      let ok = false;
+
+      for (const candidate of candidates) {
+        const result = await callSetPlanDate(serviceLogin, servicePassword, candidate, date);
+        if (result.ok) {
+          ok = true;
+          appliedCargoNumber = candidate;
+          break;
+        }
+        lastError = result.error;
+      }
+
       return {
-        cargoNumber,
-        ok: result.ok,
-        error: result.ok ? null : result.error,
+        cargoNumber: appliedCargoNumber,
+        ok,
+        error: ok ? null : lastError,
       };
     })
   );
