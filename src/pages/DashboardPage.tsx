@@ -129,6 +129,7 @@ export function DashboardPage({
     
     // Chart type selector: деньги / вес / объём (при !showSums доступны только вес и объём)
     const [chartType, setChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>(() => (showSums ? 'money' : 'paidWeight'));
+    const [mainChartVariant, setMainChartVariant] = useState<'columns' | 'line' | 'area' | 'combo' | 'dot'>('columns');
     const [stripTab, setStripTab] = useState<'type' | 'sender' | 'receiver' | 'customer'>('type');
     const [deliveryStripTab, setDeliveryStripTab] = useState<'type' | 'sender' | 'receiver'>('type');
     /** true = показывать проценты, false = показывать в рублях/кг/м³/шт (по типу графика) */
@@ -1216,6 +1217,7 @@ export function DashboardPage({
     }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
 
     type DashboardChartPoint = { date: string; value: number; dateKey?: string };
+    type MainChartVariant = 'columns' | 'line' | 'area' | 'combo' | 'dot';
     type DashboardChartVariant =
         | 'columns'
         | 'groupedColumns'
@@ -1239,7 +1241,8 @@ export function DashboardPage({
         data: DashboardChartPoint[],
         title: string,
         color: string,
-        formatValue: (val: number) => string
+        formatValue: (val: number) => string,
+        variant: MainChartVariant
     ) => {
         if (data.length === 0) {
             return (
@@ -1276,6 +1279,16 @@ export function DashboardPage({
         const barWidth = Math.max(12, (availableWidth - paddingLeft - paddingRight - (roundedData.length - 1) * barSpacing) / roundedData.length);
         const chartWidth = paddingLeft + paddingRight + roundedData.length * (barWidth + barSpacing) - barSpacing;
         const availableHeight = chartHeight - paddingTop - paddingBottom;
+        const points = roundedData.map((d, idx) => {
+            const barHeight = (d.value / scaleMax) * availableHeight;
+            const x = paddingLeft + idx * (barWidth + barSpacing);
+            const y = chartHeight - paddingBottom - barHeight;
+            return { x, y, barHeight, value: d.value };
+        });
+        const linePoints = points.map((p) => `${p.x + barWidth / 2},${p.y}`).join(' ');
+        const areaPath = points.length > 1
+            ? `M ${points[0].x + barWidth / 2} ${chartHeight - paddingBottom} L ${points.map((p) => `${p.x + barWidth / 2} ${p.y}`).join(' L ')} L ${points[points.length - 1].x + barWidth / 2} ${chartHeight - paddingBottom} Z`
+            : '';
         
         // Градиенты для столбцов (полутона, сложные)
         const gradientId = `gradient-${color.replace('#', '')}`;
@@ -1330,27 +1343,41 @@ export function DashboardPage({
                             opacity="0.5"
                         />
                         
-                        {/* Столбцы */}
+                        {/* Основной график по выбранному стилю */}
+                        {(variant === 'columns' || variant === 'combo') && points.map((p, idx) => (
+                            <rect
+                                key={`bar-${idx}`}
+                                x={p.x}
+                                y={p.y}
+                                width={barWidth}
+                                height={p.barHeight}
+                                fill={`url(#${gradientId})`}
+                                opacity={variant === 'combo' ? 0.38 : 1}
+                                rx="4"
+                                style={{ transition: 'all 0.3s ease' }}
+                            />
+                        ))}
+                        {variant === 'area' && areaPath && (
+                            <>
+                                <path d={areaPath} fill={lightColor} opacity="0.22" />
+                                <polyline points={linePoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                            </>
+                        )}
+                        {(variant === 'line' || variant === 'combo') && (
+                            <polyline points={linePoints} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                        )}
+                        {variant === 'dot' && points.map((p, idx) => (
+                            <circle key={`dot-main-${idx}`} cx={p.x + barWidth / 2} cy={p.y} r="4" fill={color} opacity="0.9" />
+                        ))}
+
+                        {/* Подписи значений — только для столбцов */}
                         {roundedData.map((d, idx) => {
-                            const barHeight = (d.value / scaleMax) * availableHeight;
-                            const x = paddingLeft + idx * (barWidth + barSpacing);
-                            const y = chartHeight - paddingBottom - barHeight;
+                            const { x, y, barHeight } = points[idx];
                             
                             return (
                                 <g key={idx}>
-                                    {/* Столбец с градиентом */}
-                                    <rect
-                                        x={x}
-                                        y={y}
-                                        width={barWidth}
-                                        height={barHeight}
-                                        fill={`url(#${gradientId})`}
-                                        rx="4"
-                                        style={{ transition: 'all 0.3s ease' }}
-                                    />
-                                    
                                     {/* Значение вертикально внутри столбца */}
-                                    {barHeight > 20 && (
+                                    {variant === 'columns' && barHeight > 20 && (
                                         <text
                                             x={x + barWidth / 2}
                                             y={y + barHeight / 2}
@@ -1364,7 +1391,7 @@ export function DashboardPage({
                                             {formatValue(d.value)}
                                         </text>
                                     )}
-                                    
+
                                     {/* Дата вертикально под столбцом: день 1 раз, выходные/праздники — красным */}
                                     <text
                                         x={x + barWidth / 2}
@@ -2244,36 +2271,38 @@ export function DashboardPage({
             {/* === ВИДЖЕТ 3: График динамики (включить: WIDGET_3_CHART = true) === */}
             {WIDGET_3_CHART && !loading && !error && showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
-                    {renderChart(selectedChartConfig.data, selectedChartConfig.title, selectedChartConfig.color, selectedChartConfig.formatValue)}
+                    {renderChart(selectedChartConfig.data, selectedChartConfig.title, selectedChartConfig.color, selectedChartConfig.formatValue, mainChartVariant)}
                     <div style={{ marginTop: '0.85rem', borderTop: '1px dashed var(--color-border)', paddingTop: '0.7rem' }}>
                         <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem' }}>
-                            Варианты визуализации (выбери, какой оставить)
+                            Стиль графика (нажми на миниатюру)
                         </Typography.Body>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.5rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '0.45rem' }}>
                             {([
                                 { key: 'columns', label: 'Столбцы' },
-                                { key: 'groupedColumns', label: 'Сгруппированные столбцы' },
-                                { key: 'stackedColumns', label: 'Накопительные столбцы' },
-                                { key: 'stacked100', label: '100% накопительные' },
                                 { key: 'line', label: 'Линия' },
-                                { key: 'multiLine', label: 'Мульти-линия' },
                                 { key: 'area', label: 'Область' },
-                                { key: 'stackedArea', label: 'Накопительная область' },
                                 { key: 'combo', label: 'Комбо: столбцы + линия' },
-                                { key: 'step', label: 'Ступеньки' },
-                                { key: 'lollipop', label: 'Lollipop' },
                                 { key: 'dot', label: 'Точки' },
-                                { key: 'heatmap', label: 'Heatmap' },
-                                { key: 'weekCards', label: 'Недельные карточки' },
-                                { key: 'bulletBars', label: 'Bullet mini-bars' },
-                                { key: 'sparklineKpi', label: 'Sparkline + KPI' },
-                            ] as { key: DashboardChartVariant; label: string }[]).map((variant) => (
-                                <div key={`variant-${variant.key}`} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.4rem', background: 'var(--color-bg-hover)' }}>
+                            ] as { key: MainChartVariant; label: string }[]).map((variant) => (
+                                <button
+                                    key={`variant-${variant.key}`}
+                                    type="button"
+                                    className="filter-button"
+                                    onClick={() => setMainChartVariant(variant.key)}
+                                    style={{
+                                        border: variant.key === mainChartVariant ? '1px solid var(--color-primary-blue)' : '1px solid var(--color-border)',
+                                        borderRadius: 8,
+                                        padding: '0.32rem',
+                                        background: variant.key === mainChartVariant ? 'rgba(37,99,235,0.08)' : 'var(--color-bg-hover)',
+                                        textAlign: 'left',
+                                    }}
+                                    title={`Выбрать: ${variant.label}`}
+                                >
                                     <Typography.Body style={{ fontSize: '0.72rem', marginBottom: '0.25rem', color: 'var(--color-text-secondary)' }}>
                                         {variant.label}
                                     </Typography.Body>
                                     {renderChartVariantPreview(selectedChartConfig.data, selectedChartConfig.color, variant.key)}
-                                </div>
+                                </button>
                             ))}
                         </div>
                     </div>
