@@ -354,6 +354,7 @@ export default function App() {
     const [pinError, setPinError] = useState(false);
     const hasRestoredTabRef = React.useRef(false);
     const hasUrlTabOverrideRef = React.useRef(false);
+    const registeredLoginRefreshInFlightRef = useRef(false);
 
     const updateActiveAccountCustomer = useCallback((customer: string) => {
         if (!activeAccountId || !customer) return;
@@ -646,12 +647,15 @@ export default function App() {
                 (!acc.customers?.length || !acc.activeCustomerInn || acc.inCustomerDirectory === undefined)
         );
         if (needRefresh.length === 0) return;
+        if (registeredLoginRefreshInFlightRef.current) return; // избегаем лавины запросов при повторных срабатываниях эффекта
+        registeredLoginRefreshInFlightRef.current = true;
         let cancelled = false;
         (async () => {
-            const updates: { id: string; customers: CustomerOption[]; activeCustomerInn: string | null; customer: string | null; accessAllInns: boolean; inCustomerDirectory?: boolean; permissions?: Record<string, boolean>; financialAccess?: boolean }[] = [];
-            for (const acc of needRefresh) {
-                try {
-                    const res = await fetch("/api/auth-registered-login", {
+            try {
+                const updates: { id: string; customers: CustomerOption[]; activeCustomerInn: string | null; customer: string | null; accessAllInns: boolean; inCustomerDirectory?: boolean; permissions?: Record<string, boolean>; financialAccess?: boolean }[] = [];
+                for (const acc of needRefresh) {
+                    try {
+                        const res = await fetch("/api/auth-registered-login", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ email: acc.login.trim().toLowerCase(), password: acc.password }),
@@ -674,25 +678,28 @@ export default function App() {
                     // ignore
                 }
             }
-            if (cancelled || updates.length === 0) return;
-            setAccounts((prev) =>
-                prev.map((a) => {
-                    const up = updates.find((u) => u.id === a.id);
-                    if (!up) return a;
-                    const hadCustomers = (a.customers?.length ?? 0) > 0;
-                    return {
-                        ...a,
-                        customers: hadCustomers ? (a.customers ?? up.customers) : up.customers,
-                        // Не перезаписывать activeCustomerInn, если пользователь уже выбрал компанию в шапке (CustomerSwitcher)
-                        activeCustomerInn: a.activeCustomerInn ?? up.activeCustomerInn ?? undefined,
-                        customer: hadCustomers ? (a.customer ?? up.customer ?? undefined) : (up.customer ?? undefined),
-                        accessAllInns: up.accessAllInns,
-                        inCustomerDirectory: up.inCustomerDirectory,
-                        ...(up.permissions != null ? { permissions: up.permissions } : {}),
-                        ...(up.financialAccess != null ? { financialAccess: up.financialAccess } : {}),
-                    };
-                })
-            );
+                if (cancelled || updates.length === 0) return;
+                setAccounts((prev) =>
+                    prev.map((a) => {
+                        const up = updates.find((u) => u.id === a.id);
+                        if (!up) return a;
+                        const hadCustomers = (a.customers?.length ?? 0) > 0;
+                        return {
+                            ...a,
+                            customers: hadCustomers ? (a.customers ?? up.customers) : up.customers,
+                            // Не перезаписывать activeCustomerInn, если пользователь уже выбрал компанию в шапке (CustomerSwitcher)
+                            activeCustomerInn: a.activeCustomerInn ?? up.activeCustomerInn ?? undefined,
+                            customer: hadCustomers ? (a.customer ?? up.customer ?? undefined) : (up.customer ?? undefined),
+                            accessAllInns: up.accessAllInns,
+                            inCustomerDirectory: up.inCustomerDirectory,
+                            ...(up.permissions != null ? { permissions: up.permissions } : {}),
+                            ...(up.financialAccess != null ? { financialAccess: up.financialAccess } : {}),
+                        };
+                    })
+                );
+            } finally {
+                registeredLoginRefreshInFlightRef.current = false;
+            }
         })();
         return () => { cancelled = true; };
     }, [accounts]);
