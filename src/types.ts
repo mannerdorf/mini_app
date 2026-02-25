@@ -13,6 +13,10 @@ export type PerevozkiRole = "Customer" | "Sender" | "Receiver";
 export type AccountPermissions = {
     cms_access?: boolean;
     cargo?: boolean;
+    analytics?: boolean;
+    supervisor?: boolean;
+    chat?: boolean;
+    haulz?: boolean;
     doc_invoices?: boolean;
     doc_acts?: boolean;
     doc_orders?: boolean;

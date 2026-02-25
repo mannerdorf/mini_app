@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
     LogOut, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, User as UserIcon, Users, ChevronDown,
-    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic,
+    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Lock,
 } from "lucide-react";
 import { Button, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import type { Account, AuthData, ProfileView } from "../types";
