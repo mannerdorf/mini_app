@@ -16,7 +16,7 @@ type PresetRow = {
 
 const PERMISSION_KEYS = [
   "cms_access", "cargo", "doc_invoices", "doc_acts", "doc_orders", "doc_sendings", "doc_claims",
-  "doc_contracts", "doc_acts_settlement", "doc_tariffs", "haulz", "chat", "service_mode", "analytics",
+  "doc_contracts", "doc_acts_settlement", "doc_tariffs", "haulz", "eor", "chat", "service_mode", "analytics",
 ];
 
 function normalizePermissions(permissions: unknown): Record<string, boolean> {

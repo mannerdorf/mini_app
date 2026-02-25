@@ -137,17 +137,10 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
     const [expandedOrderRow, setExpandedOrderRow] = useState<string | null>(null);
     const [expandedSendingRow, setExpandedSendingRow] = useState<string | null>(null);
-    /** Столбец EOR виден всем, у кого включён служебный режим (service_mode); менять значение могут только с правом eor или суперадмин */
-    const showEorColumn = permissions?.service_mode === true;
+    /** Столбец EOR виден при наличии eor/service_mode или у суперадмина; менять значение могут только с правом eor или суперадмин */
+    const showEorColumn = (permissions?.eor === true) || (permissions?.service_mode === true) || isSuperAdmin;
     const canEditEor = (permissions?.eor === true) || isSuperAdmin;
     const [eorStatusMap, setEorStatusMap] = useState<Record<string, EorStatus[]>>({});
-    const [eorMenuOpen, setEorMenuOpen] = useState<{
-        rowKey: string;
-        x: number;
-        y: number;
-        sendingNumber?: string;
-        sendingDate?: string;
-    } | null>(null);
     const [selectedSendingRowKeys, setSelectedSendingRowKeys] = useState<Set<string>>(() => new Set());
     const [bulkEorMenuOpen, setBulkEorMenuOpen] = useState(false);
     const [bulkPlanDateOpen, setBulkPlanDateOpen] = useState(false);
@@ -155,8 +148,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [bulkSendingActionLoading, setBulkSendingActionLoading] = useState(false);
     const [bulkSendingActionError, setBulkSendingActionError] = useState<string | null>(null);
     const [bulkSendingActionInfo, setBulkSendingActionInfo] = useState<string | null>(null);
-    const eorLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const eorTouchPosRef = useRef<{ x: number; y: number } | null>(null);
     const allowedDocSections = useMemo(() => {
         if (!permissions) return DOC_SECTIONS;
         return DOC_SECTIONS.filter(({ key }) => permissions[DOC_SECTION_TO_PERMISSION[key]] !== false);
@@ -219,39 +210,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             setBulkSendingActionInfo(null);
         }
     }, [docSection]);
-    const toggleEorStatus = useCallback(async (
-        rowKey: string,
-        status: EorStatus,
-        meta?: { sendingNumber?: string; sendingDate?: string }
-    ) => {
-        let nextStatuses: EorStatus[] = [];
-        setEorStatusMap((prev) => {
-            const list = prev[rowKey] ?? [];
-            const has = list.includes(status);
-            nextStatuses = has ? list.filter((s) => s !== status) : [...list, status];
-            const next = { ...prev };
-            if (nextStatuses.length === 0) delete next[rowKey];
-            else next[rowKey] = nextStatuses;
-            return next;
-        });
-        try {
-            await fetch('/api/sendings-eor', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    login: auth?.login,
-                    password: auth?.password,
-                    inn: effectiveActiveInn ?? null,
-                    rowKey,
-                    statuses: nextStatuses,
-                    sendingNumber: meta?.sendingNumber ?? null,
-                    sendingDate: meta?.sendingDate ?? null,
-                }),
-            });
-        } catch {
-            // ignore DB sync errors in UI
-        }
-    }, [auth?.login, auth?.password, effectiveActiveInn]);
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
@@ -446,8 +404,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     }, [perevozkiItems, parseDateTimeValue, normCargoKey]);
     const getSendingCargoNumbers = useCallback((row: any): string[] => {
         const numbers: string[] = [];
-        const direct = String(row?.НомерПеревозки ?? row?.Перевозка ?? row?.CargoNumber ?? row?.NumberPerevozki ?? '').trim();
-        if (direct) numbers.push(direct);
+        const add = (value: unknown) => {
+            const v = String(value ?? '').trim();
+            if (v) numbers.push(v);
+        };
+        add(row?.НомерПеревозки);
+        add(row?.CargoNumber);
+        add(row?.NumberPerevozki);
+        add(row?.ИДОтправления);
         const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
         const parcels = Array.isArray(rawParcels)
             ? rawParcels
@@ -455,8 +419,20 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 ? Object.values(rawParcels as Record<string, any>)
                 : []);
         parcels.forEach((parcel: any) => {
-            const parcelCargo = String(parcel?.Перевозка ?? parcel?.CargoNumber ?? '').trim();
-            if (parcelCargo) numbers.push(parcelCargo);
+            add(parcel?.ИДОтправления);
+            add(parcel?.НомерПеревозки);
+            add(parcel?.CargoNumber);
+            add(parcel?.NumberPerevozki);
+            const goodsRaw = parcel?.Товары;
+            const goods = Array.isArray(goodsRaw)
+                ? (goodsRaw[0] ?? {})
+                : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : null);
+            if (goods && typeof goods === 'object') {
+                add((goods as any)?.ИДОтправления);
+                add((goods as any)?.НомерПеревозки);
+                add((goods as any)?.CargoNumber);
+                add((goods as any)?.NumberPerevozki);
+            }
         });
         return Array.from(new Set(numbers));
     }, []);
@@ -1207,8 +1183,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const updated = Number(data?.updated ?? 0);
             const requested = Number(data?.requested ?? cargoNumbers.length);
             const failed = Number(data?.failed ?? Math.max(0, requested - updated));
+            const firstError = Array.isArray(data?.errors) && data.errors.length > 0
+                ? String(data.errors[0]?.error || '').trim()
+                : '';
             if (failed > 0) {
-                setBulkSendingActionError(`Плановая дата записана частично: ${updated} из ${requested}.`);
+                setBulkSendingActionError(`Плановая дата записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
             } else {
                 setBulkSendingActionInfo(`Плановая дата ${bulkPlanDateValue} записана для ${updated} перевозок.`);
             }
@@ -2169,12 +2148,16 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             );
                         })}
                     </div>
-                    {canEditEor && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.1rem' }}>
-                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                    </div>
+                </div>
+                {canEditEor && (
+                    <div className="cargo-card" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+                            <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                                 Выбрано отправок: {selectedVisibleSendingCount}
                             </Typography.Body>
-                            <div style={{ position: 'relative' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
+                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>EOR</Typography.Body>
                                 <Button
                                     type="button"
                                     className="filter-button"
@@ -2186,7 +2169,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
                                 >
                                     {bulkSendingActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
-                                    EOR
+                                    Записать
                                 </Button>
                                 {bulkEorMenuOpen && (
                                     <div
@@ -2209,7 +2192,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     </div>
                                 )}
                             </div>
-                            <div style={{ position: 'relative' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
+                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Плановая дата</Typography.Body>
                                 <Button
                                     type="button"
                                     className="filter-button"
@@ -2220,7 +2204,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     }}
                                     style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
                                 >
-                                    Плановая дата
+                                    Записать
                                 </Button>
                                 {bulkPlanDateOpen && (
                                     <div
@@ -2253,20 +2237,19 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             disabled={bulkSendingActionLoading || !bulkPlanDateValue}
                                             onClick={applyBulkPlanDate}
                                         >
-                                            Записать DateArrival
+                                            Записать
                                         </Button>
                                     </div>
                                 )}
                             </div>
                         </div>
-                    )}
-                    {(bulkSendingActionError || bulkSendingActionInfo) && (
-                        <Typography.Body style={{ fontSize: '0.78rem', color: bulkSendingActionError ? 'var(--color-error)' : 'var(--color-text-secondary)' }}>
-                            {bulkSendingActionError || bulkSendingActionInfo}
-                        </Typography.Body>
-                    )}
+                        {(bulkSendingActionError || bulkSendingActionInfo) && (
+                            <Typography.Body style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: bulkSendingActionError ? 'var(--color-error)' : 'var(--color-text-secondary)' }}>
+                                {bulkSendingActionError || bulkSendingActionInfo}
+                            </Typography.Body>
+                        )}
                     </div>
-                </div>
+                )}
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -2315,50 +2298,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const expanded = expandedSendingRow === rowKey;
                                 const eorStatuses = eorStatusMap[rowKey] ?? [];
-                                const handleRowContextMenu = (e: React.MouseEvent) => {
-                                    e.preventDefault();
-                                    if (showEorColumn && canEditEor) {
-                                        setEorMenuOpen({
-                                            rowKey,
-                                            x: e.clientX,
-                                            y: e.clientY,
-                                            sendingNumber: number || undefined,
-                                            sendingDate: rawDate ? String(rawDate) : undefined,
-                                        });
-                                    }
-                                };
-                                const handleTouchStart = (e: React.TouchEvent) => {
-                                    if (!showEorColumn || !canEditEor) return;
-                                    const t = e.touches[0];
-                                    eorTouchPosRef.current = { x: t.clientX, y: t.clientY };
-                                    eorLongPressTimerRef.current = setTimeout(() => {
-                                        setEorMenuOpen({
-                                            rowKey,
-                                            x: eorTouchPosRef.current?.x ?? t.clientX,
-                                            y: eorTouchPosRef.current?.y ?? t.clientY,
-                                            sendingNumber: number || undefined,
-                                            sendingDate: rawDate ? String(rawDate) : undefined,
-                                        });
-                                        eorLongPressTimerRef.current = null;
-                                    }, 500);
-                                };
-                                const handleTouchEnd = () => {
-                                    if (eorLongPressTimerRef.current) {
-                                        clearTimeout(eorLongPressTimerRef.current);
-                                        eorLongPressTimerRef.current = null;
-                                    }
-                                    eorTouchPosRef.current = null;
-                                };
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
                                             style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expanded ? 'var(--color-bg-hover)' : undefined }}
                                             onClick={() => setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey))}
-                                            title={expanded ? 'Свернуть посылки' : (showEorColumn && canEditEor) ? 'Длинное нажатие — меню EOR' : 'Показать посылки'}
-                                            onContextMenu={handleRowContextMenu}
-                                            onTouchStart={handleTouchStart}
-                                            onTouchEnd={handleTouchEnd}
-                                            onTouchMove={handleTouchEnd}
+                                            title={expanded ? 'Свернуть посылки' : 'Показать посылки'}
                                         >
                                             {canEditEor && (
                                                 <td style={{ padding: '0.5rem 0.35rem', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
@@ -2805,96 +2750,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>
-            )}
-            {eorMenuOpen && canEditEor && (
-                <>
-                    <div
-                        role="presentation"
-                        style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
-                        onClick={() => setEorMenuOpen(null)}
-                    />
-                    <div
-                        role="menu"
-                        aria-label="EOR: Запись о выходе"
-                        style={{
-                            position: 'fixed',
-                            left: Math.min(eorMenuOpen.x, typeof window !== 'undefined' ? window.innerWidth - 220 : eorMenuOpen.x),
-                            top: Math.min(eorMenuOpen.y, typeof window !== 'undefined' ? window.innerHeight - 180 : eorMenuOpen.y),
-                            zIndex: 10001,
-                            background: 'var(--color-bg-card)',
-                            border: '1px solid var(--color-border)',
-                            borderRadius: 8,
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                            padding: '0.35rem 0',
-                            minWidth: 180,
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <button
-                            type="button"
-                            role="menuitemcheckbox"
-                            aria-checked={eorStatusMap[eorMenuOpen.rowKey]?.includes('entry_allowed')}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 0.75rem', border: 'none',
-                                background: eorStatusMap[eorMenuOpen.rowKey]?.includes('entry_allowed') ? 'var(--color-bg-hover)' : 'transparent',
-                                cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left', color: 'var(--color-text-primary)',
-                            }}
-                            onClick={() => {
-                                toggleEorStatus(eorMenuOpen.rowKey, 'entry_allowed', {
-                                    sendingNumber: eorMenuOpen.sendingNumber,
-                                    sendingDate: eorMenuOpen.sendingDate,
-                                });
-                                setEorMenuOpen(null);
-                            }}
-                        >
-                            <Flag className="w-4 h-4" style={{ color: '#003399', flexShrink: 0 }} />
-                            Въезд разрешен
-                        </button>
-                        <button
-                            type="button"
-                            role="menuitemcheckbox"
-                            aria-checked={eorStatusMap[eorMenuOpen.rowKey]?.includes('full_inspection')}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 0.75rem', border: 'none',
-                                background: eorStatusMap[eorMenuOpen.rowKey]?.includes('full_inspection') ? 'var(--color-bg-hover)' : 'transparent',
-                                cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left', color: 'var(--color-text-primary)',
-                            }}
-                            onClick={() => {
-                                toggleEorStatus(eorMenuOpen.rowKey, 'full_inspection', {
-                                    sendingNumber: eorMenuOpen.sendingNumber,
-                                    sendingDate: eorMenuOpen.sendingDate,
-                                });
-                                setEorMenuOpen(null);
-                            }}
-                        >
-                            <ClipboardList className="w-4 h-4" style={{ flexShrink: 0 }} />
-                            Полный досмотр
-                        </button>
-                        <button
-                            type="button"
-                            role="menuitemcheckbox"
-                            aria-checked={eorStatusMap[eorMenuOpen.rowKey]?.includes('turnaround')}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem 0.75rem', border: 'none',
-                                background: eorStatusMap[eorMenuOpen.rowKey]?.includes('turnaround') ? 'var(--color-bg-hover)' : 'transparent',
-                                cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left', color: 'var(--color-text-primary)',
-                            }}
-                            onClick={() => {
-                                toggleEorStatus(eorMenuOpen.rowKey, 'turnaround', {
-                                    sendingNumber: eorMenuOpen.sendingNumber,
-                                    sendingDate: eorMenuOpen.sendingDate,
-                                });
-                                setEorMenuOpen(null);
-                            }}
-                        >
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                                <RotateCcw className="w-4 h-4" style={{ flexShrink: 0 }} />
-                                <Truck className="w-3.5 h-3.5" style={{ flexShrink: 0 }} />
-                            </span>
-                            Разворот
-                        </button>
-                    </div>
-                </>
             )}
         </div>
     );

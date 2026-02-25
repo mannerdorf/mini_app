@@ -226,6 +226,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         doc_acts_settlement: false,
         doc_tariffs: false,
         haulz: true,
+        eor: false,
         chat: false,
         service_mode: false,
         analytics: false,
@@ -427,6 +428,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const nextPermissions: Record<string, boolean> = {
       ...currentPermissions,
       haulz: false,
+      eor: false,
       supervisor: false,
     };
 

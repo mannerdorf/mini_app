@@ -87,6 +87,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
             doc_acts_settlement: false,
             doc_tariffs: false,
             haulz: false,
+            eor: false,
             chat: true,
           };
 

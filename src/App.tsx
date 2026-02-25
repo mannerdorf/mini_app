@@ -915,6 +915,7 @@ export default function App() {
                     doc_acts_settlement: false,
                     doc_tariffs: false,
                     haulz: false,
+                    eor: false,
                     chat: true,
                 };
 
