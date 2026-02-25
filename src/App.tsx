@@ -438,8 +438,8 @@ export default function App() {
     useEffect(() => {
         if (!activeAccount?.isRegisteredUser || !activeAccount?.permissions) return;
         const perms = activeAccount.permissions;
-        const canHome = perms.home !== false;
-        const canCargo = perms.cargo !== false;
+        const canHome = true;
+        const canCargo = true;
         const canDocs = !!(
             perms.doc_invoices ||
             perms.doc_acts ||

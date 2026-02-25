@@ -234,7 +234,7 @@ export function AppMainContent({
             showSums={activeAccount?.financialAccess ?? true}
             useServiceRequest={useServiceRequest}
             hasAnalytics={activeAccount?.permissions?.analytics === true}
-            hasDashboard={activeAccount?.permissions?.dashboard !== false}
+            hasDashboard={true}
           />
         </Suspense>
         </SectionBoundary>

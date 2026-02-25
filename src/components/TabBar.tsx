@@ -73,8 +73,8 @@ export function TabBar({
   showAllTabs,
   permissions,
 }: TabBarProps) {
-  const showHome = permissions ? permissions.home !== false : true;
-  const showCargo = permissions ? permissions.cargo !== false : true;
+  const showHome = true;
+  const showCargo = true;
   const hasDocAccess = permissions
     ? !!(permissions.doc_invoices || permissions.doc_acts || permissions.doc_orders || permissions.doc_sendings || permissions.doc_claims || permissions.doc_contracts || permissions.doc_acts_settlement || permissions.doc_tariffs)
     : true;
