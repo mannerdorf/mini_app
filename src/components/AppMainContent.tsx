@@ -149,6 +149,7 @@ export function AppMainContent({
             showSums={activeAccount?.isRegisteredUser ? (activeAccount.financialAccess ?? true) : (activeAccount?.roleCustomer ?? true)}
             useServiceRequest={useServiceRequest}
             hasAnalytics={true}
+            hasDashboard={true}
           />
         </Suspense>
         </SectionBoundary>
@@ -233,7 +234,7 @@ export function AppMainContent({
             showSums={activeAccount?.roleCustomer ?? true}
             useServiceRequest={useServiceRequest}
             hasAnalytics={activeAccount?.permissions?.analytics === true}
-            hasSupervisor={activeAccount?.permissions?.supervisor === true}
+            hasDashboard={activeAccount?.permissions?.dashboard !== false}
           />
         </Suspense>
         </SectionBoundary>

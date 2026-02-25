@@ -9,6 +9,8 @@ import { sendLkAddTo1c } from "../lib/sendLkTo1c.js";
 
 const DEFAULT_PERMISSIONS = {
   cms_access: false,
+  home: true,
+  dashboard: true,
   cargo: true,
   doc_invoices: true,
   doc_acts: true,

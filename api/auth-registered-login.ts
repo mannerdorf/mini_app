@@ -77,6 +77,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       user.permissions && typeof user.permissions === "object"
         ? user.permissions
         : {
+            home: true,
+            dashboard: true,
             cargo: true,
             doc_invoices: true,
             doc_acts: true,
@@ -89,6 +91,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
             haulz: false,
             eor: false,
             chat: true,
+            service_mode: false,
+            analytics: false,
+            supervisor: false,
           };
 
     const accessAllInns = !!user.access_all_inns;

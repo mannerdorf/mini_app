@@ -56,7 +56,7 @@ export type DashboardPageProps = {
     showSums?: boolean;
     useServiceRequest?: boolean;
     hasAnalytics?: boolean;
-    hasSupervisor?: boolean;
+    hasDashboard?: boolean;
 };
 
 export function DashboardPage({
@@ -66,18 +66,18 @@ export function DashboardPage({
     showSums = true,
     useServiceRequest = false,
     hasAnalytics = false,
-    hasSupervisor = false,
+    hasDashboard = true,
 }: DashboardPageProps) {
     const isVisibilityDeniedError = (message?: string | null) => {
         const raw = String(message || "").trim().toLowerCase();
         if (!raw) return false;
         return raw.includes("доступ") || raw.includes("недостаточно прав") || raw.includes("только для");
     };
-    const showPaymentCalendar = hasAnalytics || hasSupervisor;
-    const canViewTimesheetCostDashboard = hasAnalytics || hasSupervisor;
+    const showPaymentCalendar = hasAnalytics;
+    const canViewTimesheetCostDashboard = hasAnalytics;
     const [debugInfo, setDebugInfo] = useState<string>("");
     // Виджеты дашборда включены по умолчанию. В служебном режиме — только дашборд SLA.
-    const showOnlySla = useServiceRequest;
+    const showOnlySla = useServiceRequest || !hasDashboard;
     const WIDGET_1_FILTERS = !showOnlySla;
     const WIDGET_2_STRIP = !showOnlySla;
     const WIDGET_3_CHART = !showOnlySla;

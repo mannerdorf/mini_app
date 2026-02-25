@@ -4,6 +4,8 @@ import { Home, Truck, FileText, User } from "lucide-react";
 import type { Tab } from "../types";
 
 export type TabBarPermissions = {
+  home?: boolean;
+  dashboard?: boolean;
   cargo?: boolean;
   doc_invoices?: boolean;
   doc_acts?: boolean;
@@ -71,6 +73,7 @@ export function TabBar({
   showAllTabs,
   permissions,
 }: TabBarProps) {
+  const showHome = permissions ? permissions.home !== false : true;
   const showCargo = permissions ? permissions.cargo !== false : true;
   const hasDocAccess = permissions
     ? !!(permissions.doc_invoices || permissions.doc_acts || permissions.doc_orders || permissions.doc_sendings || permissions.doc_claims || permissions.doc_contracts || permissions.doc_acts_settlement || permissions.doc_tariffs)
@@ -79,7 +82,7 @@ export function TabBar({
   if (showAllTabs) {
     return (
       <div className="tabbar-container">
-        <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
+        {showHome && <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />}
         {showCargo && <TabBtn label="Грузы" icon={<Truck />} active={active === "cargo"} onClick={() => onChange("cargo")} />}
         {hasDocAccess && <TabBtn label="Документы" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />}
         <TabBtn label="Профиль" icon={<User />} active={active === "profile"} onClick={() => onChange("profile")} />
@@ -89,7 +92,7 @@ export function TabBar({
 
   return (
     <div className="tabbar-container">
-      <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />
+      {showHome && <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />}
       {showCargo && (
         <TabBtn
           label="Грузы"

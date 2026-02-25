@@ -137,8 +137,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
     const [expandedOrderRow, setExpandedOrderRow] = useState<string | null>(null);
     const [expandedSendingRow, setExpandedSendingRow] = useState<string | null>(null);
-    /** Столбец EOR виден при наличии eor/service_mode или у суперадмина; менять значение могут только с правом eor или суперадмин */
-    const showEorColumn = (permissions?.eor === true) || (permissions?.service_mode === true) || isSuperAdmin;
+    /** Столбец EOR виден всем с правом haulz; менять значение могут только с правом eor или суперадмин */
+    const showEorColumn = (permissions?.haulz === true) || isSuperAdmin;
     const canEditEor = (permissions?.eor === true) || isSuperAdmin;
     const [eorStatusMap, setEorStatusMap] = useState<Record<string, EorStatus[]>>({});
     const [selectedSendingRowKeys, setSelectedSendingRowKeys] = useState<Set<string>>(() => new Set());
