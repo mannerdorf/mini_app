@@ -2597,7 +2597,7 @@ export function DashboardPage({
                                 <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'inline' }}>
                                     {slaStatsByType.auto.percentOnTime}% ({slaStatsByType.auto.onTime}/{slaStatsByType.auto.total}), ср. {slaStatsByType.auto.avgDelay} дн.
                                 </Typography.Body>
-                                {useServiceRequest && outOfSlaByType.auto.length > 0 && (
+                                {outOfSlaByType.auto.length > 0 && (
                                     <div style={{ marginTop: '0.5rem', overflowX: 'auto' }}>
                                         <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Перевозки вне SLA:</Typography.Body>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
@@ -2699,7 +2699,7 @@ export function DashboardPage({
                                 <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'inline' }}>
                                     {slaStatsByType.ferry.percentOnTime}% ({slaStatsByType.ferry.onTime}/{slaStatsByType.ferry.total}), ср. {slaStatsByType.ferry.avgDelay} дн.
                                 </Typography.Body>
-                                {useServiceRequest && outOfSlaByType.ferry.length > 0 && (
+                                {outOfSlaByType.ferry.length > 0 && (
                                     <div style={{ marginTop: '0.5rem', overflowX: 'auto' }}>
                                         <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Перевозки вне SLA:</Typography.Body>
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
