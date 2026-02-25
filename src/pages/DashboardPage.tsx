@@ -76,8 +76,8 @@ export function DashboardPage({
     const showPaymentCalendar = hasAnalytics;
     const canViewTimesheetCostDashboard = hasAnalytics;
     const [debugInfo, setDebugInfo] = useState<string>("");
-    // Виджеты дашборда включены по умолчанию. В служебном режиме — только дашборд SLA.
-    const showOnlySla = useServiceRequest || !hasDashboard;
+    // Если отключены дашборды правом dashboard — оставляем только SLA.
+    const showOnlySla = !hasDashboard;
     const WIDGET_1_FILTERS = !showOnlySla;
     const WIDGET_2_STRIP = !showOnlySla;
     const WIDGET_3_CHART = !showOnlySla;
@@ -1842,8 +1842,8 @@ export function DashboardPage({
                 </Panel>
             )}
 
-            {/* === ВИДЖЕТ 4: Монитор SLA (включить: WIDGET_4_SLA = true); в служебном режиме показываем даже при 0 перевозок === */}
-            {WIDGET_4_SLA && !loading && !error && (slaStats.total > 0 || useServiceRequest) && (
+            {/* === ВИДЖЕТ 4: Монитор SLA (включить: WIDGET_4_SLA = true); в режиме "только SLA" показываем даже при 0 перевозок === */}
+            {WIDGET_4_SLA && !loading && !error && (slaStats.total > 0 || showOnlySla) && (
                 <Panel className="cargo-card sla-monitor-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
                     <Flex align="center" justify="space-between" className="sla-monitor-header" style={{ marginBottom: '0.75rem' }}>
                         <Typography.Headline style={{ fontSize: '0.95rem', fontWeight: 600 }}>
