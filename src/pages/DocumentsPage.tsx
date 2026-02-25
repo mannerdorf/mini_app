@@ -148,6 +148,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [bulkSendingActionLoading, setBulkSendingActionLoading] = useState(false);
     const [bulkSendingActionError, setBulkSendingActionError] = useState<string | null>(null);
     const [bulkSendingActionInfo, setBulkSendingActionInfo] = useState<string | null>(null);
+    const [selectedByCustomerSummaryKeys, setSelectedByCustomerSummaryKeys] = useState<Set<string>>(() => new Set());
+    const [byCustomerPlanDateOpen, setByCustomerPlanDateOpen] = useState(false);
+    const [byCustomerPlanDateValue, setByCustomerPlanDateValue] = useState("");
+    const [byCustomerActionLoading, setByCustomerActionLoading] = useState(false);
+    const [byCustomerActionError, setByCustomerActionError] = useState<string | null>(null);
+    const [byCustomerActionInfo, setByCustomerActionInfo] = useState<string | null>(null);
     const allowedDocSections = useMemo(() => {
         if (!permissions) return DOC_SECTIONS;
         return DOC_SECTIONS.filter(({ key }) => permissions[DOC_SECTION_TO_PERMISSION[key]] !== false);
@@ -208,6 +214,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             setBulkSendingActionLoading(false);
             setBulkSendingActionError(null);
             setBulkSendingActionInfo(null);
+            setSelectedByCustomerSummaryKeys(new Set());
+            setByCustomerPlanDateOpen(false);
+            setByCustomerPlanDateValue("");
+            setByCustomerActionLoading(false);
+            setByCustomerActionError(null);
+            setByCustomerActionInfo(null);
         }
     }, [docSection]);
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
@@ -231,6 +243,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [isEdoStatusDropdownOpen, setIsEdoStatusDropdownOpen] = useState(false);
     const [isActCustomerDropdownOpen, setIsActCustomerDropdownOpen] = useState(false);
     const [favVersion, setFavVersion] = useState(0);
+    useEffect(() => {
+        setSelectedByCustomerSummaryKeys(new Set());
+        setByCustomerPlanDateOpen(false);
+        setByCustomerPlanDateValue("");
+        setByCustomerActionLoading(false);
+        setByCustomerActionError(null);
+        setByCustomerActionInfo(null);
+    }, [expandedSendingRow, sendingsDetailsView]);
     const deliveryStatusButtonRef = useRef<HTMLDivElement | null>(null);
     const routeCargoButtonRef = useRef<HTMLDivElement | null>(null);
     const transportButtonRef = useRef<HTMLDivElement | null>(null);
@@ -2594,9 +2614,195 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                             </table>
                                                         ) : (
                                                             <>
+                                                            {(() => {
+                                                                const toNumber = (v: unknown) => {
+                                                                    const raw = String(v ?? '').trim().replace(',', '.');
+                                                                    const n = Number(raw);
+                                                                    return Number.isFinite(n) ? n : 0;
+                                                                };
+                                                                const rowDefaultCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '').trim() || '—';
+                                                                const byCustomer = new Map<string, { customer: string; count: number; volume: number; weight: number; paidWeight: number; cargoNumbers: Set<string> }>();
+                                                                parcelsToRender.forEach((parcel: any) => {
+                                                                    const cargo = String(parcel?.Перевозка ?? '').trim();
+                                                                    const customerFromParcel = String(parcel?.ЗаказчикНаименование ?? parcel?.Заказчик ?? parcel?.Customer ?? parcel?.customer ?? '').trim();
+                                                                    const customerFromCargo = cargo ? String(cargoCustomerByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
+                                                                    const customer = customerFromParcel || customerFromCargo || rowDefaultCustomer;
+                                                                    const prev = byCustomer.get(customer) ?? { customer, count: 0, volume: 0, weight: 0, paidWeight: 0, cargoNumbers: new Set<string>() };
+                                                                    prev.count += 1;
+                                                                    prev.volume += toNumber(parcel?.ОбъемДляОтчета);
+                                                                    prev.weight += toNumber(parcel?.ВесДляОтчета);
+                                                                    prev.paidWeight += toNumber(parcel?.ПлатныйВес);
+                                                                    if (cargo) prev.cargoNumbers.add(cargo);
+                                                                    byCustomer.set(customer, prev);
+                                                                });
+                                                                const summaryRows = Array.from(byCustomer.values()).map((summary, index) => ({
+                                                                    ...summary,
+                                                                    _index: index + 1,
+                                                                    selectionKey: `${rowKey}::${summary.customer}`,
+                                                                    cargoNumbers: Array.from(summary.cargoNumbers),
+                                                                }));
+                                                                const selectedSummaryRows = summaryRows.filter((summary) => selectedByCustomerSummaryKeys.has(summary.selectionKey));
+                                                                const selectedByCustomerCount = selectedSummaryRows.length;
+                                                                return (
+                                                                    <>
+                                                                        {canEditEor && (
+                                                                            <div className="cargo-card" style={{ padding: '0.45rem 0.6rem', marginBottom: '0.5rem', overflow: 'visible', position: 'sticky', top: 0, zIndex: 10, background: 'var(--color-bg-primary)' }}>
+                                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+                                                                                    <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                                                                        Выбрано заказчиков: {selectedByCustomerCount}
+                                                                                    </Typography.Body>
+                                                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            className="filter-button"
+                                                                                            disabled={byCustomerActionLoading || selectedByCustomerCount === 0}
+                                                                                            onClick={() => setByCustomerPlanDateOpen((prev) => !prev)}
+                                                                                            style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
+                                                                                        >
+                                                                                            {byCustomerActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
+                                                                                            Плановая дата
+                                                                                        </Button>
+                                                                                        {byCustomerPlanDateOpen && (
+                                                                                            <div
+                                                                                                style={{
+                                                                                                    position: 'absolute',
+                                                                                                    top: 'calc(100% + 6px)',
+                                                                                                    left: 0,
+                                                                                                    zIndex: 12000,
+                                                                                                    minWidth: 220,
+                                                                                                    border: '1px solid var(--color-border)',
+                                                                                                    borderRadius: 8,
+                                                                                                    background: 'var(--color-bg-card)',
+                                                                                                    boxShadow: '0 6px 18px rgba(0, 0, 0, 0.16)',
+                                                                                                    padding: '0.5rem',
+                                                                                                    display: 'flex',
+                                                                                                    flexDirection: 'column',
+                                                                                                    gap: '0.4rem',
+                                                                                                }}
+                                                                                            >
+                                                                                                <input
+                                                                                                    type="date"
+                                                                                                    value={byCustomerPlanDateValue}
+                                                                                                    onChange={(e) => setByCustomerPlanDateValue(e.target.value)}
+                                                                                                    className="admin-form-input"
+                                                                                                />
+                                                                                                <Button
+                                                                                                    type="button"
+                                                                                                    className="button-primary"
+                                                                                                    style={{ minWidth: 'auto', padding: '0.35rem 0.55rem' }}
+                                                                                                    disabled={byCustomerActionLoading || !byCustomerPlanDateValue}
+                                                                                                    onClick={async () => {
+                                                                                                        if (!byCustomerPlanDateValue) {
+                                                                                                            setByCustomerActionError('Укажите плановую дату доставки.');
+                                                                                                            return;
+                                                                                                        }
+                                                                                                        const cargoNumbers = Array.from(new Set(
+                                                                                                            selectedSummaryRows
+                                                                                                                .flatMap((summary) => summary.cargoNumbers.map((cargo) => String(cargo).trim()))
+                                                                                                                .filter(Boolean)
+                                                                                                        ));
+                                                                                                        if (cargoNumbers.length === 0) {
+                                                                                                            setByCustomerActionError('По выбранным заказчикам не найдены номера перевозок.');
+                                                                                                            return;
+                                                                                                        }
+                                                                                                        setByCustomerActionLoading(true);
+                                                                                                        setByCustomerActionError(null);
+                                                                                                        setByCustomerActionInfo(null);
+                                                                                                        try {
+                                                                                                            const resp = await fetch('/api/sendings-plan-date', {
+                                                                                                                method: 'POST',
+                                                                                                                headers: { 'Content-Type': 'application/json' },
+                                                                                                                body: JSON.stringify({
+                                                                                                                    date: byCustomerPlanDateValue,
+                                                                                                                    cargoNumbers,
+                                                                                                                }),
+                                                                                                            });
+                                                                                                            const data = await resp.json().catch(() => ({}));
+                                                                                                            if (!resp.ok) {
+                                                                                                                throw new Error(String(data?.error || `HTTP ${resp.status}`));
+                                                                                                            }
+                                                                                                            const updated = Number(data?.updated ?? 0);
+                                                                                                            const requested = Number(data?.requested ?? cargoNumbers.length);
+                                                                                                            const failed = Number(data?.failed ?? Math.max(0, requested - updated));
+                                                                                                            const firstError = Array.isArray(data?.errors) && data.errors.length > 0
+                                                                                                                ? String(data.errors[0]?.error || '').trim()
+                                                                                                                : '';
+                                                                                                            if (failed > 0) {
+                                                                                                                setByCustomerActionError(`Плановая дата записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ''}`);
+                                                                                                            } else {
+                                                                                                                setByCustomerActionInfo(`Плановая дата ${byCustomerPlanDateValue} записана для ${updated} перевозок.`);
+                                                                                                            }
+                                                                                                            setByCustomerPlanDateOpen(false);
+                                                                                                        } catch (e: any) {
+                                                                                                            setByCustomerActionError(String(e?.message || 'Не удалось записать плановую дату.'));
+                                                                                                        } finally {
+                                                                                                            setByCustomerActionLoading(false);
+                                                                                                        }
+                                                                                                    }}
+                                                                                                >
+                                                                                                    Записать
+                                                                                                </Button>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                                {(byCustomerActionError || byCustomerActionInfo) && (
+                                                                                    <Typography.Body style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: byCustomerActionError ? 'var(--color-error)' : 'var(--color-text-secondary)' }}>
+                                                                                        {byCustomerActionError || byCustomerActionInfo}
+                                                                                    </Typography.Body>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+                                                                    </>
+                                                                );
+                                                            })()}
                                                             <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                                 <thead>
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                        {canEditEor && (
+                                                                            <th style={{ padding: '0.35rem 0.25rem', textAlign: 'center', width: 30 }}>
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={(() => {
+                                                                                        const rowDefaultCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '').trim() || '—';
+                                                                                        const customers = new Set<string>();
+                                                                                        parcelsToRender.forEach((parcel: any) => {
+                                                                                            const cargo = String(parcel?.Перевозка ?? '').trim();
+                                                                                            const customerFromParcel = String(parcel?.ЗаказчикНаименование ?? parcel?.Заказчик ?? parcel?.Customer ?? parcel?.customer ?? '').trim();
+                                                                                            const customerFromCargo = cargo ? String(cargoCustomerByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
+                                                                                            const customer = customerFromParcel || customerFromCargo || rowDefaultCustomer;
+                                                                                            customers.add(`${rowKey}::${customer}`);
+                                                                                        });
+                                                                                        if (customers.size === 0) return false;
+                                                                                        for (const key of customers) {
+                                                                                            if (!selectedByCustomerSummaryKeys.has(key)) return false;
+                                                                                        }
+                                                                                        return true;
+                                                                                    })()}
+                                                                                    onChange={(e) => {
+                                                                                        const checked = e.target.checked;
+                                                                                        const rowDefaultCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '').trim() || '—';
+                                                                                        const keys = new Set<string>();
+                                                                                        parcelsToRender.forEach((parcel: any) => {
+                                                                                            const cargo = String(parcel?.Перевозка ?? '').trim();
+                                                                                            const customerFromParcel = String(parcel?.ЗаказчикНаименование ?? parcel?.Заказчик ?? parcel?.Customer ?? parcel?.customer ?? '').trim();
+                                                                                            const customerFromCargo = cargo ? String(cargoCustomerByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
+                                                                                            const customer = customerFromParcel || customerFromCargo || rowDefaultCustomer;
+                                                                                            keys.add(`${rowKey}::${customer}`);
+                                                                                        });
+                                                                                        setSelectedByCustomerSummaryKeys((prev) => {
+                                                                                            const next = new Set(prev);
+                                                                                            keys.forEach((key) => {
+                                                                                                if (checked) next.add(key);
+                                                                                                else next.delete(key);
+                                                                                            });
+                                                                                            return next;
+                                                                                        });
+                                                                                    }}
+                                                                                    aria-label="Выбрать всех заказчиков"
+                                                                                />
+                                                                            </th>
+                                                                        )}
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('index')} title="Сортировка">№ пп {sendingsSummarySortColumn === 'index' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('customer')} title="Сортировка">Заказчик {sendingsSummarySortColumn === 'customer' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('count')} title="Сортировка">Кол-во {sendingsSummarySortColumn === 'count' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -2630,20 +2836,26 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                             return '#dc2626';
                                                                         };
                                                                         const rowDefaultCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '').trim() || '—';
-                                                                        const byCustomer = new Map<string, { customer: string; count: number; volume: number; weight: number; paidWeight: number }>();
+                                                                        const byCustomer = new Map<string, { customer: string; count: number; volume: number; weight: number; paidWeight: number; cargoNumbers: Set<string> }>();
                                                                         parcelsToRender.forEach((parcel: any) => {
                                                                             const cargo = String(parcel?.Перевозка ?? '').trim();
                                                                             const customerFromParcel = String(parcel?.ЗаказчикНаименование ?? parcel?.Заказчик ?? parcel?.Customer ?? parcel?.customer ?? '').trim();
                                                                             const customerFromCargo = cargo ? String(cargoCustomerByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
                                                                             const customer = customerFromParcel || customerFromCargo || rowDefaultCustomer;
-                                                                            const prev = byCustomer.get(customer) ?? { customer, count: 0, volume: 0, weight: 0, paidWeight: 0 };
+                                                                            const prev = byCustomer.get(customer) ?? { customer, count: 0, volume: 0, weight: 0, paidWeight: 0, cargoNumbers: new Set<string>() };
                                                                             prev.count += 1;
                                                                             prev.volume += toNumber(parcel?.ОбъемДляОтчета);
                                                                             prev.weight += toNumber(parcel?.ВесДляОтчета);
                                                                             prev.paidWeight += toNumber(parcel?.ПлатныйВес);
+                                                                            if (cargo) prev.cargoNumbers.add(cargo);
                                                                             byCustomer.set(customer, prev);
                                                                         });
-                                                                        const summaryRows = Array.from(byCustomer.values()).map((summary, index) => ({ ...summary, _index: index + 1 }));
+                                                                        const summaryRows = Array.from(byCustomer.values()).map((summary, index) => ({
+                                                                            ...summary,
+                                                                            _index: index + 1,
+                                                                            selectionKey: `${rowKey}::${summary.customer}`,
+                                                                            cargoNumbers: Array.from(summary.cargoNumbers),
+                                                                        }));
                                                                         const sortedSummaryRows = [...summaryRows].sort((a, b) => {
                                                                             let cmp = 0;
                                                                             switch (sendingsSummarySortColumn) {
@@ -2685,6 +2897,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                             },
                                                                             { count: 0, volume: 0, weight: 0, paidWeight: 0 }
                                                                         );
+                                                                        const stickyTotalsCellBase: React.CSSProperties = {
+                                                                            padding: '0.35rem 0.3rem',
+                                                                            position: 'sticky',
+                                                                            bottom: 0,
+                                                                            background: 'var(--color-bg-hover)',
+                                                                            fontWeight: 700,
+                                                                            borderTop: '2px solid var(--color-border)',
+                                                                            zIndex: 3,
+                                                                        };
                                                                         return (
                                                                             <>
                                                                                 {sortedSummaryRows.map((summary, parcelIdx: number) => (
@@ -2695,6 +2916,24 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                             background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
                                                                                         }}
                                                                                     >
+                                                                                        {canEditEor && (
+                                                                                            <td style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
+                                                                                                <input
+                                                                                                    type="checkbox"
+                                                                                                    checked={selectedByCustomerSummaryKeys.has(summary.selectionKey)}
+                                                                                                    onChange={(e) => {
+                                                                                                        const checked = e.target.checked;
+                                                                                                        setSelectedByCustomerSummaryKeys((prev) => {
+                                                                                                            const next = new Set(prev);
+                                                                                                            if (checked) next.add(summary.selectionKey);
+                                                                                                            else next.delete(summary.selectionKey);
+                                                                                                            return next;
+                                                                                                        });
+                                                                                                    }}
+                                                                                                    aria-label={`Выбрать заказчика ${summary.customer || parcelIdx + 1}`}
+                                                                                                />
+                                                                                            </td>
+                                                                                        )}
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem' }}>{stripOoo(summary.customer) || '—'}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
@@ -2704,13 +2943,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', color: densityColor(summary.weight, summary.volume), fontWeight: 600 }}>{densityOf(summary.weight, summary.volume)}</td>
                                                                                     </tr>
                                                                                 ))}
-                                                                                <tr style={{ borderTop: '2px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 700 }} colSpan={2}>Итого</td>
-                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{totals.count}</td>
-                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.volume)}</td>
-                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.weight)}</td>
-                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.paidWeight)}</td>
-                                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700, color: densityColor(totals.weight, totals.volume) }}>{densityOf(totals.weight, totals.volume)}</td>
+                                                                                <tr>
+                                                                                    {canEditEor && <td style={stickyTotalsCellBase} />}
+                                                                                    <td style={{ ...stickyTotalsCellBase, textAlign: 'right' }} colSpan={2}>Итого</td>
+                                                                                    <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap' }}>{totals.count}</td>
+                                                                                    <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(totals.volume)}</td>
+                                                                                    <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(totals.weight)}</td>
+                                                                                    <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(totals.paidWeight)}</td>
+                                                                                    <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap', color: densityColor(totals.weight, totals.volume) }}>{densityOf(totals.weight, totals.volume)}</td>
                                                                                 </tr>
                                                                             </>
                                                                         );
