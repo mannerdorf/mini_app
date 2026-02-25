@@ -384,7 +384,14 @@ export function ProfilePage({
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        const update = () => setDepartmentTimesheetMobilePicker(window.matchMedia('(max-width: 768px)').matches);
+        const update = () => {
+            // Some embedded WebViews can miss matchMedia; avoid crashing Profile on mount.
+            if (typeof window.matchMedia !== 'function') {
+                setDepartmentTimesheetMobilePicker(false);
+                return;
+            }
+            setDepartmentTimesheetMobilePicker(window.matchMedia('(max-width: 768px)').matches);
+        };
         update();
         window.addEventListener('resize', update);
         return () => window.removeEventListener('resize', update);
