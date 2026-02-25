@@ -67,8 +67,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "GET") {
     try {
-      const rows = await pool.query<{ row_key: string; statuses: EorStatus[] }>(
-        `select row_key, statuses
+      const rows = await pool.query<{ row_key: string; sending_number: string | null; statuses: EorStatus[] }>(
+        `select row_key, sending_number, statuses
            from sendings_eor
           where lower(trim(login)) = $1`,
         [login]
@@ -76,7 +76,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const map: Record<string, EorStatus[]> = {};
       for (const row of rows.rows) {
         if (!row.row_key) continue;
-        map[row.row_key] = parseStatuses(row.statuses);
+        const parsed = parseStatuses(row.statuses);
+        map[row.row_key] = parsed;
+        const sendingNumberKey = normalizeText(row.sending_number);
+        if (sendingNumberKey && !map[sendingNumberKey]) {
+          map[sendingNumberKey] = parsed;
+        }
       }
       return res.status(200).json({ ok: true, map });
     } catch (e: any) {

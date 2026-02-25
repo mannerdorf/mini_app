@@ -2176,7 +2176,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     </div>
                 </div>
                 {canEditEor && (
-                    <div className="cargo-card" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem', overflow: 'visible', position: 'relative', zIndex: 20 }}>
+                    <div className="cargo-card sendings-bulk-actions-sticky" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem', overflow: 'visible' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
                             <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                                 Выбрано отправок: {selectedVisibleSendingCount}
@@ -2216,55 +2216,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     </div>
                                 )}
                             </div>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
-                                <Button
-                                    type="button"
-                                    className="filter-button"
-                                    disabled={bulkSendingActionLoading || selectedVisibleSendingCount === 0}
-                                    onClick={() => {
-                                        setBulkEorMenuOpen(false);
-                                        setBulkPlanDateOpen((prev) => !prev);
-                                    }}
-                                    style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
-                                >
-                                    Плановая дата
-                                </Button>
-                                {bulkPlanDateOpen && (
-                                    <div
-                                        style={{
-                                            position: 'absolute',
-                                            top: 'calc(100% + 6px)',
-                                            left: 0,
-                                            zIndex: 12000,
-                                            minWidth: 220,
-                                            border: '1px solid var(--color-border)',
-                                            borderRadius: 8,
-                                            background: 'var(--color-bg-card)',
-                                            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.16)',
-                                            padding: '0.5rem',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '0.4rem',
-                                        }}
-                                    >
-                                        <input
-                                            type="date"
-                                            value={bulkPlanDateValue}
-                                            onChange={(e) => setBulkPlanDateValue(e.target.value)}
-                                            className="admin-form-input"
-                                        />
-                                        <Button
-                                            type="button"
-                                            className="button-primary"
-                                            style={{ minWidth: 'auto', padding: '0.35rem 0.55rem' }}
-                                            disabled={bulkSendingActionLoading || !bulkPlanDateValue}
-                                            onClick={applyBulkPlanDate}
-                                        >
-                                            Записать
-                                        </Button>
-                                    </div>
-                                )}
-                            </div>
                         </div>
                         {(bulkSendingActionError || bulkSendingActionInfo) && (
                             <Typography.Body style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: bulkSendingActionError ? 'var(--color-error)' : 'var(--color-text-secondary)' }}>
@@ -2297,7 +2248,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('transitHours')} title="Сортировка">В пути, ч {sendingsSortColumn === 'transitHours' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                {showEorColumn && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="Exit of Records (Запись о выходе)">EOR</th>}
+                                {showEorColumn && <th className="sendings-table-eor-cell sendings-table-eor-head" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="Exit of Records (Запись о выходе)">EOR</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -2308,6 +2259,18 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const comment = String(row?.Комментарий ?? row?.Comment ?? '');
                                 const eor = String(row?.EOR ?? row?.ЗаписьОВыходе ?? row?.ExitOfRecords ?? '').trim();
                                 const rowKey = getSendingRowKey(row, idx);
+                                const eorStatuses = (() => {
+                                    const candidates = [
+                                        rowKey,
+                                        number,
+                                        String(row?.ИДОтправления ?? '').trim(),
+                                    ].filter(Boolean);
+                                    for (const candidate of candidates) {
+                                        const statuses = eorStatusMap[candidate];
+                                        if (Array.isArray(statuses) && statuses.length > 0) return statuses;
+                                    }
+                                    return [] as EorStatus[];
+                                })();
                                 const parcels = getRequestParcels(row);
                                 const searchLower = effectiveSearchText.trim().toLowerCase();
                                 const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
@@ -2320,7 +2283,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const expanded = expandedSendingRow === rowKey;
-                                const eorStatuses = eorStatusMap[rowKey] ?? [];
                                 return (
                                     <React.Fragment key={rowKey}>
                                         <tr
@@ -2373,7 +2335,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
                                             {showEorColumn && (
-                                                <td style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }} title="Exit of Records (Запись о выходе)">
+                                                <td className="sendings-table-eor-cell" style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }} title="Exit of Records (Запись о выходе)">
                                                     {eorStatuses.length > 0 ? (
                                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                                                             {eorStatuses.includes('entry_allowed') && (
