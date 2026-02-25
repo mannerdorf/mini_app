@@ -1170,8 +1170,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    login: auth?.login,
-                    password: auth?.password,
                     date: bulkPlanDateValue,
                     cargoNumbers,
                 }),
@@ -2157,7 +2155,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 Выбрано отправок: {selectedVisibleSendingCount}
                             </Typography.Body>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
-                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>EOR</Typography.Body>
                                 <Button
                                     type="button"
                                     className="filter-button"
@@ -2169,7 +2166,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
                                 >
                                     {bulkSendingActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
-                                    Записать
+                                    EOR
                                 </Button>
                                 {bulkEorMenuOpen && (
                                     <div
@@ -2177,7 +2174,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             position: 'absolute',
                                             top: 'calc(100% + 6px)',
                                             left: 0,
-                                            zIndex: 25,
+                                            zIndex: 12000,
                                             minWidth: 190,
                                             border: '1px solid var(--color-border)',
                                             borderRadius: 8,
@@ -2193,7 +2190,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 )}
                             </div>
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
-                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Плановая дата</Typography.Body>
                                 <Button
                                     type="button"
                                     className="filter-button"
@@ -2204,7 +2200,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     }}
                                     style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
                                 >
-                                    Записать
+                                    Плановая дата
                                 </Button>
                                 {bulkPlanDateOpen && (
                                     <div
@@ -2212,7 +2208,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             position: 'absolute',
                                             top: 'calc(100% + 6px)',
                                             left: 0,
-                                            zIndex: 25,
+                                            zIndex: 12000,
                                             minWidth: 220,
                                             border: '1px solid var(--color-border)',
                                             borderRadius: 8,

@@ -1,11 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPool } from "./_db.js";
-import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
-
 const BASE_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
-const normalizeLogin = (value: unknown) => String(value ?? "").trim().toLowerCase();
 const normalizeText = (value: unknown) => String(value ?? "").trim();
 
 function normalizeDateOnly(raw: unknown): string {
@@ -30,19 +26,12 @@ function parseCargoNumbers(input: unknown): string[] {
   return Array.from(unique);
 }
 
-function pickCredentials(req: VercelRequest, body?: any) {
-  const login =
-    normalizeLogin(body?.login) ||
-    normalizeLogin(req.headers["x-login"]) ||
-    normalizeLogin(req.query.login);
-  const password =
-    normalizeText(body?.password) ||
-    normalizeText(req.headers["x-password"]) ||
-    normalizeText(req.query.password);
-  return { login, password };
-}
-
-async function callSetPlanDate(login: string, password: string, cargoNumber: string, date: string): Promise<{ ok: true } | { ok: false; error: string }> {
+async function callSetPlanDate(
+  serviceLogin: string,
+  servicePassword: string,
+  cargoNumber: string,
+  date: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const url = new URL(BASE_URL);
   url.searchParams.set("metod", "SetPlanDataDostavki");
   url.searchParams.set("Perevozka", cargoNumber);
@@ -52,13 +41,19 @@ async function callSetPlanDate(login: string, password: string, cargoNumber: str
     const upstream = await fetch(url.toString(), {
       method: "GET",
       headers: {
-        Auth: `Basic ${login}:${password}`,
+        Auth: `Basic ${serviceLogin}:${servicePassword}`,
         Authorization: SERVICE_AUTH,
       },
     });
     const text = await upstream.text();
     if (!upstream.ok) {
-      return { ok: false, error: text || upstream.statusText || `HTTP ${upstream.status}` };
+      try {
+        const json = JSON.parse(text) as Record<string, unknown>;
+        const message = json?.Error ?? json?.error ?? json?.message;
+        return { ok: false, error: String(message || text || upstream.statusText || `HTTP ${upstream.status}`) };
+      } catch {
+        return { ok: false, error: text || upstream.statusText || `HTTP ${upstream.status}` };
+      }
     }
     try {
       const json = JSON.parse(text) as Record<string, unknown>;
@@ -90,11 +85,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  const { login, password } = pickCredentials(req, body);
-  if (!login || !password) {
-    return res.status(400).json({ error: "login and password are required" });
-  }
-
   const date = normalizeDateOnly(body?.date);
   if (!date) {
     return res.status(400).json({ error: "date is required (YYYY-MM-DD)" });
@@ -105,15 +95,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "cargoNumbers is required" });
   }
 
-  const pool = getPool();
-  const verified = await verifyRegisteredUser(pool, login, password);
-  if (!verified) {
-    return res.status(401).json({ error: "Неверный email или пароль" });
+  const serviceLogin = String(process.env.PEREVOZKI_SERVICE_LOGIN || "").trim();
+  const servicePassword = String(process.env.PEREVOZKI_SERVICE_PASSWORD || "").trim();
+  if (!serviceLogin || !servicePassword) {
+    return res.status(503).json({ error: "Set PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD in Vercel." });
   }
 
   const results = await Promise.all(
     cargoNumbers.map(async (cargoNumber) => {
-      const result = await callSetPlanDate(login, password, cargoNumber, date);
+      const result = await callSetPlanDate(serviceLogin, servicePassword, cargoNumber, date);
       return {
         cargoNumber,
         ok: result.ok,
