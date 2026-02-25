@@ -24,6 +24,7 @@ import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useA
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
+import { getWebApp, isMaxWebApp } from "../webApp";
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
 
 const {
@@ -32,6 +33,7 @@ const {
     DEFAULT_DATE_FROM,
     DEFAULT_DATE_TO,
     getDateRange,
+    getPreviousPeriodRange,
     getWeekRange,
     getYearsList,
     getWeeksList,
