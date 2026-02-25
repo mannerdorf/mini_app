@@ -154,6 +154,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
     const [expandedOrderRow, setExpandedOrderRow] = useState<string | null>(null);
     const [expandedSendingRow, setExpandedSendingRow] = useState<string | null>(null);
+    /** Столбец EOR виден всем, у кого включён служебный режим (service_mode); менять значение могут только с правом eor или суперадмин */
+    const showEorColumn = permissions?.service_mode === true;
     const canEditEor = (permissions?.eor === true) || isSuperAdmin;
     const [eorStatusMap, setEorStatusMap] = useState<Record<string, EorStatus[]>>(loadEorStatusMap);
     const [eorMenuOpen, setEorMenuOpen] = useState<{ rowKey: string; x: number; y: number } | null>(null);
@@ -1992,7 +1994,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('transitHours')} title="Сортировка">В пути, ч {sendingsSortColumn === 'transitHours' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="Exit of Records (Запись о выходе)">EOR</th>
+                                {showEorColumn && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="Exit of Records (Запись о выходе)">EOR</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -2018,10 +2020,10 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const eorStatuses = eorStatusMap[rowKey] ?? [];
                                 const handleRowContextMenu = (e: React.MouseEvent) => {
                                     e.preventDefault();
-                                    if (canEditEor) setEorMenuOpen({ rowKey, x: e.clientX, y: e.clientY });
+                                    if (showEorColumn && canEditEor) setEorMenuOpen({ rowKey, x: e.clientX, y: e.clientY });
                                 };
                                 const handleTouchStart = (e: React.TouchEvent) => {
-                                    if (!canEditEor) return;
+                                    if (!showEorColumn || !canEditEor) return;
                                     const t = e.touches[0];
                                     eorTouchPosRef.current = { x: t.clientX, y: t.clientY };
                                     eorLongPressTimerRef.current = setTimeout(() => {
@@ -2041,7 +2043,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         <tr
                                             style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expanded ? 'var(--color-bg-hover)' : undefined }}
                                             onClick={() => setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey))}
-                                            title={expanded ? 'Свернуть посылки' : canEditEor ? 'Длинное нажатие — меню EOR' : 'Показать посылки'}
+                                            title={expanded ? 'Свернуть посылки' : (showEorColumn && canEditEor) ? 'Длинное нажатие — меню EOR' : 'Показать посылки'}
                                             onContextMenu={handleRowContextMenu}
                                             onTouchStart={handleTouchStart}
                                             onTouchEnd={handleTouchEnd}
@@ -2073,32 +2075,34 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
-                                            <td style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }} title="Exit of Records (Запись о выходе)">
-                                                {eorStatuses.length > 0 ? (
-                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-                                                        {eorStatuses.includes('entry_allowed') && (
-                                                            <span title="Въезд разрешен"><Flag className="w-4 h-4" style={{ color: '#003399', display: 'inline-block' }} /></span>
-                                                        )}
-                                                        {eorStatuses.includes('full_inspection') && (
-                                                            <span title="Полный досмотр"><ClipboardList className="w-4 h-4" style={{ color: 'var(--color-text-primary)', display: 'inline-block' }} /></span>
-                                                        )}
-                                                        {eorStatuses.includes('turnaround') && (
-                                                            <span title="Разворот" style={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                                                                <RotateCcw className="w-4 h-4" style={{ color: 'var(--color-text-primary)', flexShrink: 0 }} />
-                                                                <Truck className="w-3.5 h-3.5" style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ) : eor ? (
-                                                    eor
-                                                ) : (
-                                                    '—'
-                                                )}
-                                            </td>
+                                            {showEorColumn && (
+                                                <td style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }} title="Exit of Records (Запись о выходе)">
+                                                    {eorStatuses.length > 0 ? (
+                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                                            {eorStatuses.includes('entry_allowed') && (
+                                                                <span title="Въезд разрешен"><Flag className="w-4 h-4" style={{ color: '#003399', display: 'inline-block' }} /></span>
+                                                            )}
+                                                            {eorStatuses.includes('full_inspection') && (
+                                                                <span title="Полный досмотр"><ClipboardList className="w-4 h-4" style={{ color: 'var(--color-text-primary)', display: 'inline-block' }} /></span>
+                                                            )}
+                                                            {eorStatuses.includes('turnaround') && (
+                                                                <span title="Разворот" style={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                                                                    <RotateCcw className="w-4 h-4" style={{ color: 'var(--color-text-primary)', flexShrink: 0 }} />
+                                                                    <Truck className="w-3.5 h-3.5" style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : eor ? (
+                                                        eor
+                                                    ) : (
+                                                        '—'
+                                                    )}
+                                                </td>
+                                            )}
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={8} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={showEorColumn ? 8 : 7} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button

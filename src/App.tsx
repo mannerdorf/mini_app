@@ -625,12 +625,13 @@ function DashboardPage({
     const showPaymentCalendar = hasAnalytics || hasSupervisor;
     const canViewTimesheetCostDashboard = hasAnalytics || hasSupervisor;
     const [debugInfo, setDebugInfo] = useState<string>("");
-    // Виджеты дашборда включены по умолчанию.
-    const WIDGET_1_FILTERS = true;
-    const WIDGET_2_STRIP = true;
-    const WIDGET_3_CHART = true;
+    // Виджеты дашборда включены по умолчанию. В служебном режиме — только дашборд SLA.
+    const showOnlySla = useServiceRequest;
+    const WIDGET_1_FILTERS = !showOnlySla;
+    const WIDGET_2_STRIP = !showOnlySla;
+    const WIDGET_3_CHART = !showOnlySla;
     const WIDGET_4_SLA = true;
-    const WIDGET_5_PAYMENT_CALENDAR = true;
+    const WIDGET_5_PAYMENT_CALENDAR = !showOnlySla;
 
     // Filters State (такие же как на странице грузов); при переключении вкладок восстанавливаем из localStorage
     const initDate = () => loadDateFilterState();
@@ -2390,16 +2391,20 @@ function DashboardPage({
                 </Panel>
             )}
 
-            {/* === ВИДЖЕТ 4: Монитор SLA (включить: WIDGET_4_SLA = true) === */}
-            {WIDGET_4_SLA && !loading && !error && slaStats.total > 0 && (
+            {/* === ВИДЖЕТ 4: Монитор SLA (включить: WIDGET_4_SLA = true); в служебном режиме показываем даже при 0 перевозок === */}
+            {WIDGET_4_SLA && !loading && !error && (slaStats.total > 0 || useServiceRequest) && (
                 <Panel className="cargo-card sla-monitor-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
                     <Flex align="center" justify="space-between" className="sla-monitor-header" style={{ marginBottom: '0.75rem' }}>
                         <Typography.Headline style={{ fontSize: '0.95rem', fontWeight: 600 }}>
                             Монитор SLA
                         </Typography.Headline>
-                        {slaTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} title="Динамика SLA улучшается" />}
-                        {slaTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} title="Динамика SLA ухудшается" />}
+                        {slaStats.total > 0 && slaTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} title="Динамика SLA улучшается" />}
+                        {slaStats.total > 0 && slaTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} title="Динамика SLA ухудшается" />}
                     </Flex>
+                    {slaStats.total === 0 ? (
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Нет перевозок за выбранный период.</Typography.Body>
+                    ) : (
+                    <>
                     <Flex gap="2rem" wrap="wrap" align="flex-start" className="sla-monitor-metrics" style={{ marginBottom: '1rem' }}>
                         <div style={{ minWidth: 0 }}>
                             <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>В срок{'   '}</Typography.Body>
@@ -2609,6 +2614,8 @@ function DashboardPage({
                                 )}
                             </div>
                         </div>
+                    )}
+                    </>
                     )}
                 </Panel>
             )}
