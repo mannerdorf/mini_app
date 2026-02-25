@@ -81,24 +81,7 @@ type DocumentsPageProps = {
     isSuperAdmin?: boolean;
 };
 
-const EOR_STORAGE_KEY = 'haulz.eorStatus';
 export type EorStatus = 'entry_allowed' | 'full_inspection' | 'turnaround';
-
-function loadEorStatusMap(): Record<string, EorStatus[]> {
-    try {
-        const raw = localStorage.getItem(EOR_STORAGE_KEY);
-        if (!raw) return {};
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') return parsed;
-    } catch { /* ignore */ }
-    return {};
-}
-
-function saveEorStatusMap(map: Record<string, EorStatus[]>) {
-    try {
-        localStorage.setItem(EOR_STORAGE_KEY, JSON.stringify(map));
-    } catch { /* ignore */ }
-}
 
 export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, onOpenCargo, onOpenChat, permissions, showSums = true, isSuperAdmin = false }: DocumentsPageProps) {
     const runtime = useAppRuntime();
@@ -157,8 +140,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     /** Столбец EOR виден всем, у кого включён служебный режим (service_mode); менять значение могут только с правом eor или суперадмин */
     const showEorColumn = permissions?.service_mode === true;
     const canEditEor = (permissions?.eor === true) || isSuperAdmin;
-    const [eorStatusMap, setEorStatusMap] = useState<Record<string, EorStatus[]>>(loadEorStatusMap);
-    const [eorMenuOpen, setEorMenuOpen] = useState<{ rowKey: string; x: number; y: number } | null>(null);
+    const [eorStatusMap, setEorStatusMap] = useState<Record<string, EorStatus[]>>({});
+    const [eorMenuOpen, setEorMenuOpen] = useState<{
+        rowKey: string;
+        x: number;
+        y: number;
+        sendingNumber?: string;
+        sendingDate?: string;
+    } | null>(null);
     const eorLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const eorTouchPosRef = useRef<{ x: number; y: number } | null>(null);
     const allowedDocSections = useMemo(() => {
@@ -188,19 +177,64 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         setExpandedSendingRow(null);
     }, [docSection, dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
     useEffect(() => {
-        saveEorStatusMap(eorStatusMap);
-    }, [eorStatusMap]);
-    const toggleEorStatus = useCallback((rowKey: string, status: EorStatus) => {
+        if (!showEorColumn || !auth?.login || !auth?.password) {
+            setEorStatusMap({});
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const resp = await fetch('/api/sendings-eor', {
+                    method: 'GET',
+                    headers: {
+                        'x-login': auth.login,
+                        'x-password': auth.password,
+                    },
+                });
+                if (!resp.ok) return;
+                const data = await resp.json().catch(() => ({}));
+                if (!cancelled && data && typeof data.map === 'object' && data.map !== null) {
+                    setEorStatusMap(data.map as Record<string, EorStatus[]>);
+                }
+            } catch {
+                // ignore DB sync errors in UI
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [showEorColumn, auth?.login, auth?.password]);
+    const toggleEorStatus = useCallback(async (
+        rowKey: string,
+        status: EorStatus,
+        meta?: { sendingNumber?: string; sendingDate?: string }
+    ) => {
+        let nextStatuses: EorStatus[] = [];
         setEorStatusMap((prev) => {
             const list = prev[rowKey] ?? [];
             const has = list.includes(status);
-            const nextList = has ? list.filter((s) => s !== status) : [...list, status];
+            nextStatuses = has ? list.filter((s) => s !== status) : [...list, status];
             const next = { ...prev };
-            if (nextList.length === 0) delete next[rowKey];
-            else next[rowKey] = nextList;
+            if (nextStatuses.length === 0) delete next[rowKey];
+            else next[rowKey] = nextStatuses;
             return next;
         });
-    }, []);
+        try {
+            await fetch('/api/sendings-eor', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    login: auth?.login,
+                    password: auth?.password,
+                    inn: effectiveActiveInn ?? null,
+                    rowKey,
+                    statuses: nextStatuses,
+                    sendingNumber: meta?.sendingNumber ?? null,
+                    sendingDate: meta?.sendingDate ?? null,
+                }),
+            });
+        } catch {
+            // ignore DB sync errors in UI
+        }
+    }, [auth?.login, auth?.password, effectiveActiveInn]);
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
     const [innerTableSortColumn, setInnerTableSortColumn] = useState<'number' | 'date' | 'status' | 'sum' | 'deliveryStatus' | 'route'>('date');
@@ -2020,14 +2054,28 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const eorStatuses = eorStatusMap[rowKey] ?? [];
                                 const handleRowContextMenu = (e: React.MouseEvent) => {
                                     e.preventDefault();
-                                    if (showEorColumn && canEditEor) setEorMenuOpen({ rowKey, x: e.clientX, y: e.clientY });
+                                    if (showEorColumn && canEditEor) {
+                                        setEorMenuOpen({
+                                            rowKey,
+                                            x: e.clientX,
+                                            y: e.clientY,
+                                            sendingNumber: number || undefined,
+                                            sendingDate: rawDate ? String(rawDate) : undefined,
+                                        });
+                                    }
                                 };
                                 const handleTouchStart = (e: React.TouchEvent) => {
                                     if (!showEorColumn || !canEditEor) return;
                                     const t = e.touches[0];
                                     eorTouchPosRef.current = { x: t.clientX, y: t.clientY };
                                     eorLongPressTimerRef.current = setTimeout(() => {
-                                        setEorMenuOpen({ rowKey, x: eorTouchPosRef.current?.x ?? t.clientX, y: eorTouchPosRef.current?.y ?? t.clientY });
+                                        setEorMenuOpen({
+                                            rowKey,
+                                            x: eorTouchPosRef.current?.x ?? t.clientX,
+                                            y: eorTouchPosRef.current?.y ?? t.clientY,
+                                            sendingNumber: number || undefined,
+                                            sendingDate: rawDate ? String(rawDate) : undefined,
+                                        });
                                         eorLongPressTimerRef.current = null;
                                     }, 500);
                                 };
@@ -2510,7 +2558,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 background: eorStatusMap[eorMenuOpen.rowKey]?.includes('entry_allowed') ? 'var(--color-bg-hover)' : 'transparent',
                                 cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left', color: 'var(--color-text-primary)',
                             }}
-                            onClick={() => { toggleEorStatus(eorMenuOpen.rowKey, 'entry_allowed'); setEorMenuOpen(null); }}
+                            onClick={() => {
+                                toggleEorStatus(eorMenuOpen.rowKey, 'entry_allowed', {
+                                    sendingNumber: eorMenuOpen.sendingNumber,
+                                    sendingDate: eorMenuOpen.sendingDate,
+                                });
+                                setEorMenuOpen(null);
+                            }}
                         >
                             <Flag className="w-4 h-4" style={{ color: '#003399', flexShrink: 0 }} />
                             Въезд разрешен
@@ -2524,7 +2578,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 background: eorStatusMap[eorMenuOpen.rowKey]?.includes('full_inspection') ? 'var(--color-bg-hover)' : 'transparent',
                                 cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left', color: 'var(--color-text-primary)',
                             }}
-                            onClick={() => { toggleEorStatus(eorMenuOpen.rowKey, 'full_inspection'); setEorMenuOpen(null); }}
+                            onClick={() => {
+                                toggleEorStatus(eorMenuOpen.rowKey, 'full_inspection', {
+                                    sendingNumber: eorMenuOpen.sendingNumber,
+                                    sendingDate: eorMenuOpen.sendingDate,
+                                });
+                                setEorMenuOpen(null);
+                            }}
                         >
                             <ClipboardList className="w-4 h-4" style={{ flexShrink: 0 }} />
                             Полный досмотр
@@ -2538,7 +2598,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 background: eorStatusMap[eorMenuOpen.rowKey]?.includes('turnaround') ? 'var(--color-bg-hover)' : 'transparent',
                                 cursor: 'pointer', fontSize: '0.9rem', textAlign: 'left', color: 'var(--color-text-primary)',
                             }}
-                            onClick={() => { toggleEorStatus(eorMenuOpen.rowKey, 'turnaround'); setEorMenuOpen(null); }}
+                            onClick={() => {
+                                toggleEorStatus(eorMenuOpen.rowKey, 'turnaround', {
+                                    sendingNumber: eorMenuOpen.sendingNumber,
+                                    sendingDate: eorMenuOpen.sendingDate,
+                                });
+                                setEorMenuOpen(null);
+                            }}
                         >
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
                                 <RotateCcw className="w-4 h-4" style={{ flexShrink: 0 }} />

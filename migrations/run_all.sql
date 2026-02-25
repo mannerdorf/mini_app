@@ -328,3 +328,33 @@ create table if not exists employee_timesheet_month_exclusions (
 );
 create index if not exists employee_timesheet_month_exclusions_month_idx
   on employee_timesheet_month_exclusions(month_key);
+
+-- ========== 032_sendings_eor.sql ==========
+-- EOR-статусы для строк отправок (раздел Документы -> Отправки)
+create table if not exists sendings_eor (
+  id bigserial primary key,
+  login text not null,
+  inn text,
+  row_key text not null,
+  sending_number text,
+  sending_date date,
+  statuses text[] not null default '{}'::text[],
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+
+  constraint sendings_eor_statuses_chk check (
+    statuses <@ array['entry_allowed','full_inspection','turnaround']::text[]
+  )
+);
+
+create unique index if not exists sendings_eor_login_row_key_uidx
+  on sendings_eor (lower(trim(login)), row_key);
+
+create index if not exists sendings_eor_login_idx
+  on sendings_eor (lower(trim(login)));
+
+create index if not exists sendings_eor_login_updated_idx
+  on sendings_eor (lower(trim(login)), updated_at desc);
+
+create index if not exists sendings_eor_sending_number_idx
+  on sendings_eor (sending_number);
