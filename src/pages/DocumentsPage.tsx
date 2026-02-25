@@ -2248,7 +2248,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('transitHours')} title="Сортировка">В пути, ч {sendingsSortColumn === 'transitHours' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                {showEorColumn && <th className="sendings-table-eor-cell sendings-table-eor-head" style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="Exit of Records (Запись о выходе)">EOR</th>}
+                                {showEorColumn && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="Exit of Records (Запись о выходе)">EOR</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -2260,12 +2260,18 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const eor = String(row?.EOR ?? row?.ЗаписьОВыходе ?? row?.ExitOfRecords ?? '').trim();
                                 const rowKey = getSendingRowKey(row, idx);
                                 const eorStatuses = (() => {
+                                    const withNormalized = (raw: string) => {
+                                        const base = String(raw ?? '').trim();
+                                        if (!base) return [] as string[];
+                                        const compact = base.replace(/\D+/g, '');
+                                        return compact && compact !== base ? [base, compact] : [base];
+                                    };
                                     const candidates = [
-                                        rowKey,
-                                        number,
-                                        String(row?.ИДОтправления ?? '').trim(),
-                                    ].filter(Boolean);
-                                    for (const candidate of candidates) {
+                                        ...withNormalized(rowKey),
+                                        ...withNormalized(number),
+                                        ...withNormalized(String(row?.ИДОтправления ?? '').trim()),
+                                    ];
+                                    for (const candidate of Array.from(new Set(candidates))) {
                                         const statuses = eorStatusMap[candidate];
                                         if (Array.isArray(statuses) && statuses.length > 0) return statuses;
                                     }
@@ -2335,7 +2341,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
                                             {showEorColumn && (
-                                                <td className="sendings-table-eor-cell" style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }} title="Exit of Records (Запись о выходе)">
+                                                <td style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }} title="Exit of Records (Запись о выходе)">
                                                     {eorStatuses.length > 0 ? (
                                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
                                                             {eorStatuses.includes('entry_allowed') && (

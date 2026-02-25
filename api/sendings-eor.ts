@@ -20,11 +20,26 @@ const normalizeDateOnly = (raw: unknown): string | null => {
 };
 
 const parseStatuses = (input: unknown): EorStatus[] => {
-  if (!Array.isArray(input)) return [];
-  const list = input
-    .map((x) => String(x || "").trim() as EorStatus)
+  const listRaw = Array.isArray(input)
+    ? input
+    : typeof input === "string"
+      ? input
+          .replace(/[{}"]/g, "")
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean)
+      : [];
+  const list = listRaw
+    .map((x) => String(x || "").trim().toLowerCase() as EorStatus)
     .filter((x): x is EorStatus => ALLOWED_STATUSES.has(x));
   return Array.from(new Set(list));
+};
+
+const keyVariants = (raw: unknown): string[] => {
+  const base = normalizeText(raw);
+  if (!base) return [];
+  const compactDigits = base.replace(/\D+/g, "");
+  return compactDigits && compactDigits !== base ? [base, compactDigits] : [base];
 };
 
 function pickCredentials(req: VercelRequest, body?: any) {
@@ -77,10 +92,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       for (const row of rows.rows) {
         if (!row.row_key) continue;
         const parsed = parseStatuses(row.statuses);
-        map[row.row_key] = parsed;
-        const sendingNumberKey = normalizeText(row.sending_number);
-        if (sendingNumberKey && !map[sendingNumberKey]) {
-          map[sendingNumberKey] = parsed;
+        const keys = [...keyVariants(row.row_key), ...keyVariants(row.sending_number)];
+        for (const key of keys) {
+          if (!map[key]) {
+            map[key] = parsed;
+          }
         }
       }
       return res.status(200).json({ ok: true, map });

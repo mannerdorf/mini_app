@@ -12,6 +12,8 @@ export type PerevozkiRole = "Customer" | "Sender" | "Receiver";
 /** Права доступа для зарегистрированных пользователей */
 export type AccountPermissions = {
     cms_access?: boolean;
+    home?: boolean;
+    dashboard?: boolean;
     cargo?: boolean;
     analytics?: boolean;
     supervisor?: boolean;

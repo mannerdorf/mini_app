@@ -716,21 +716,6 @@ body {
 }
 .filter-group { position: relative; z-index: 30; }
 
-/* На мобильных EOR всегда виден: закрепляем правый столбец таблицы отправок */
-@media (max-width: 768px) {
-    .sendings-table-eor-cell {
-        position: sticky;
-        right: 0;
-        background: var(--color-bg-card);
-        z-index: 2;
-        box-shadow: -8px 0 8px -8px rgba(0, 0, 0, 0.22);
-    }
-    .sendings-table-eor-head {
-        background: var(--color-bg-hover);
-        z-index: 4;
-    }
-}
-
 .filter-button {
     display: flex;
     align-items: center;
