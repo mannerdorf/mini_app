@@ -5,6 +5,40 @@ import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 const GETAPI_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
+const GET_PEREVOZKA_METHODS = ["Getperevozka", "GetPerevozka"] as const;
+
+async function requestGetPerevozkaFrom1C(params: {
+  number: string;
+  inn?: string;
+  serviceLogin: string;
+  servicePassword: string;
+}) {
+  let lastStatus = 500;
+  let lastText = "";
+  for (const methodName of GET_PEREVOZKA_METHODS) {
+    const url = new URL(GETAPI_BASE);
+    url.searchParams.set("metod", methodName);
+    url.searchParams.set("Number", params.number);
+    if (params.inn && String(params.inn).trim()) {
+      url.searchParams.set("INN", String(params.inn).trim());
+    }
+    const upstream = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Auth: `Basic ${params.serviceLogin}:${params.servicePassword}`,
+        Authorization: SERVICE_AUTH,
+        Accept: "application/json",
+      },
+    });
+    const text = await upstream.text();
+    lastStatus = upstream.status;
+    lastText = text;
+    if (upstream.ok) {
+      return { ok: true as const, status: upstream.status, text };
+    }
+  }
+  return { ok: false as const, status: lastStatus, text: lastText };
+}
 
 export default async function handler(
   req: VercelRequest,
@@ -92,20 +126,14 @@ export default async function handler(
       }
       // Запрос деталей перевозки (статусы, номенклатура) в 1С сервисным аккаунтом
       const itemInn = String(item?.INN ?? item?.Inn ?? item?.inn ?? "").trim();
-      const url = new URL(GETAPI_BASE);
-      url.searchParams.set("metod", "Getperevozka");
-      url.searchParams.set("Number", norm);
-      if (itemInn) url.searchParams.set("INN", itemInn);
-      const upstream = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          Auth: `Basic ${serviceLogin}:${servicePassword}`,
-          Authorization: SERVICE_AUTH,
-          Accept: "application/json",
-        },
+      const upstream = await requestGetPerevozkaFrom1C({
+        number: norm,
+        inn: itemInn || undefined,
+        serviceLogin,
+        servicePassword,
       });
       if (upstream.ok) {
-        const text = await upstream.text();
+        const text = upstream.text;
         try {
           const json = JSON.parse(text);
           return res.status(200).json(json);
@@ -121,24 +149,14 @@ export default async function handler(
     }
   }
 
-  const url = new URL(GETAPI_BASE);
-  url.searchParams.set("metod", "Getperevozka");
-  url.searchParams.set("Number", number);
-  if (inn && String(inn).trim()) {
-    url.searchParams.set("INN", String(inn).trim());
-  }
-
   try {
-    const upstream = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        Auth: `Basic ${serviceLogin}:${servicePassword}`,
-        Authorization: SERVICE_AUTH,
-        Accept: "application/json",
-      },
+    const upstream = await requestGetPerevozkaFrom1C({
+      number,
+      inn,
+      serviceLogin,
+      servicePassword,
     });
-
-    const text = await upstream.text();
+    const text = upstream.text;
 
     if (!upstream.ok) {
       try {

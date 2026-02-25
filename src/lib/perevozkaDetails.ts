@@ -10,6 +10,10 @@ export type PerevozkaDetailsResult = {
     nomenclature: Record<string, unknown>[];
     meta: { autoReg: string; autoType: string; driver: string };
 };
+type PerevozkaDetailsOptions = {
+    /** Принудительно ходить через сервисный аккаунт Vercel (без user-ветки) */
+    forceServiceAuth?: boolean;
+};
 
 const STEPS_KEYS = ['items', 'Steps', 'stages', 'Statuses'];
 const NOMENCLATURE_KEYS = ['Packages', 'Nomenclature', 'Goods', 'CargoNomenclature', 'ПринятыйГруз', 'Номенклатура', 'TablePart', 'CargoItems', 'Items', 'GoodsList', 'Nomenklatura'];
@@ -70,17 +74,27 @@ function extractNomenclatureFromPerevozka(data: any): Record<string, unknown>[] 
     return [];
 }
 
-export async function fetchPerevozkaDetails(auth: AuthData, number: string, item: CargoItem): Promise<PerevozkaDetailsResult> {
-    const res = await fetch(PROXY_API_GETPEREVOZKA_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+export async function fetchPerevozkaDetails(
+    auth: AuthData,
+    number: string,
+    item: CargoItem,
+    options?: PerevozkaDetailsOptions
+): Promise<PerevozkaDetailsResult> {
+    const forceServiceAuth = options?.forceServiceAuth === true;
+    const requestInn = String(item?.INN ?? item?.Inn ?? item?.inn ?? auth?.inn ?? "").trim();
+    const payload = forceServiceAuth
+        ? { number, ...(requestInn ? { inn: requestInn } : {}) }
+        : {
             login: auth.login,
             password: auth.password,
             number,
-            ...(auth.inn ? { inn: auth.inn } : {}),
+            ...(requestInn ? { inn: requestInn } : {}),
             ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-        }),
+        };
+    const res = await fetch(PROXY_API_GETPEREVOZKA_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -145,7 +159,12 @@ export async function fetchPerevozkaDetails(auth: AuthData, number: string, item
     return { steps: sorted.length ? sorted : null, nomenclature, meta };
 }
 
-export async function fetchPerevozkaTimeline(auth: AuthData, number: string, item: CargoItem): Promise<PerevozkaTimelineStep[] | null> {
-    const { steps } = await fetchPerevozkaDetails(auth, number, item);
+export async function fetchPerevozkaTimeline(
+    auth: AuthData,
+    number: string,
+    item: CargoItem,
+    options?: PerevozkaDetailsOptions
+): Promise<PerevozkaTimelineStep[] | null> {
+    const { steps } = await fetchPerevozkaDetails(auth, number, item, options);
     return steps;
 }

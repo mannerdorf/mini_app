@@ -68,6 +68,15 @@ export function DashboardPage({
     hasAnalytics = false,
     hasDashboard = true,
 }: DashboardPageProps) {
+    const normalizeTimelineErrorMessage = (message?: string | null) => {
+        const raw = String(message || "").trim();
+        if (!raw) return "Не удалось загрузить статусы";
+        const lower = raw.toLowerCase();
+        if (lower.includes("перевозка не найдена") || lower.includes("not found")) {
+            return "Нет статусов по этой перевозке";
+        }
+        return raw;
+    };
     const isVisibilityDeniedError = (message?: string | null) => {
         const raw = String(message || "").trim().toLowerCase();
         if (!raw) return false;
@@ -296,9 +305,9 @@ export function DashboardPage({
         let cancelled = false;
         setSlaTimelineLoading(true);
         setSlaTimelineError(null);
-        fetchPerevozkaTimeline(auth, expandedSlaCargoNumber, expandedSlaItem)
+        fetchPerevozkaTimeline(auth, expandedSlaCargoNumber, expandedSlaItem, { forceServiceAuth: true })
             .then((steps) => { if (!cancelled) setSlaTimelineSteps(steps); })
-            .catch((e: any) => { if (!cancelled) setSlaTimelineError(e?.message || 'Не удалось загрузить статусы'); })
+            .catch((e: any) => { if (!cancelled) setSlaTimelineError(normalizeTimelineErrorMessage(e?.message)); })
             .finally(() => { if (!cancelled) setSlaTimelineLoading(false); });
         return () => { cancelled = true; };
     }, [expandedSlaCargoNumber, expandedSlaItem, auth?.login, auth?.password]);
