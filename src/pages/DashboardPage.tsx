@@ -644,6 +644,125 @@ export function DashboardPage({
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
         return res;
     }, [items, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter]);
+    const cargoFlowByPlan = useMemo(() => {
+        const dateToKey = (date: Date): string => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const parseKey = (value: unknown): string | null => {
+            const raw = String(value ?? '').trim();
+            if (!raw) return null;
+            if (/^0?1[./-]0?1[./-](1900|1901|0001)$/.test(raw)) return null;
+            const parsedByUtils = dateUtils.parseDateOnly(raw);
+            if (parsedByUtils && parsedByUtils.getFullYear() > 1901) return dateToKey(parsedByUtils);
+            const fallback = new Date(raw);
+            if (!Number.isFinite(fallback.getTime()) || fallback.getFullYear() <= 1901) return null;
+            return dateToKey(fallback);
+        };
+        const getPlannedKey = (item: CargoItem): string | null => {
+            const candidates = [
+                (item as any).DateArrival,
+                (item as any).PlannedDeliveryDate,
+                (item as any).PlanDeliveryDate,
+                (item as any).DateDeliveryPlan,
+                (item as any).ПлановаяДатаДоставки,
+                (item as any).ПланДатаДоставки,
+                (item as any).ПлановаяДата,
+                (item as any).PlanDate,
+            ];
+            for (const candidate of candidates) {
+                const key = parseKey(candidate);
+                if (key) return key;
+            }
+            return null;
+        };
+        const getActualKey = (item: CargoItem): string | null => {
+            const candidates = [
+                (item as any).DateVr,
+                (item as any).DateDeliveryFact,
+                (item as any).FactDeliveryDate,
+                (item as any).ДатаФактическойДоставки,
+                (item as any).ДатаВручения,
+            ];
+            for (const candidate of candidates) {
+                const key = parseKey(candidate);
+                if (key) return key;
+            }
+            return null;
+        };
+        const toNumber = (value: unknown) => {
+            const raw = String(value ?? '').trim().replace(',', '.');
+            const n = Number(raw);
+            return Number.isFinite(n) ? n : 0;
+        };
+
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayKey = dateToKey(today);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowKey = dateToKey(tomorrow);
+        const horizon = new Date(today);
+        horizon.setDate(horizon.getDate() + 7);
+        const horizonKey = dateToKey(horizon);
+
+        let withPlan = 0;
+        let withoutPlan = 0;
+        let overdue = 0;
+        let dueToday = 0;
+        let dueTomorrow = 0;
+        let dueNext7 = 0;
+        let deliveredOnTime = 0;
+        let deliveredLate = 0;
+        const byDate = new Map<string, { count: number; pw: number }>();
+
+        filteredItems.forEach((item) => {
+            const plannedKey = getPlannedKey(item);
+            if (!plannedKey) {
+                withoutPlan += 1;
+                return;
+            }
+            withPlan += 1;
+            const entry = byDate.get(plannedKey) ?? { count: 0, pw: 0 };
+            entry.count += 1;
+            entry.pw += toNumber(item.PW);
+            byDate.set(plannedKey, entry);
+
+            const statusKey = getFilterKeyByStatus(item.State);
+            const isDelivered = statusKey === 'delivered';
+            if (!isDelivered) {
+                if (plannedKey < todayKey) overdue += 1;
+                else if (plannedKey === todayKey) dueToday += 1;
+                else if (plannedKey === tomorrowKey) dueTomorrow += 1;
+                else if (plannedKey <= horizonKey) dueNext7 += 1;
+            } else {
+                const actualKey = getActualKey(item);
+                if (!actualKey) return;
+                if (actualKey <= plannedKey) deliveredOnTime += 1;
+                else deliveredLate += 1;
+            }
+        });
+
+        const upcomingSeries = Array.from({ length: 7 }).map((_, idx) => {
+            const date = new Date(today);
+            date.setDate(date.getDate() + idx);
+            const key = dateToKey(date);
+            const values = byDate.get(key) ?? { count: 0, pw: 0 };
+            return { key, count: values.count, pw: values.pw };
+        });
+        const maxUpcomingCount = upcomingSeries.reduce((max, row) => Math.max(max, row.count), 0);
+
+        return {
+            total: filteredItems.length,
+            withPlan,
+            withoutPlan,
+            overdue,
+            dueToday,
+            dueTomorrow,
+            dueNext7,
+            deliveredOnTime,
+            deliveredLate,
+            upcomingSeries,
+            maxUpcomingCount,
+        };
+    }, [filteredItems]);
 
     useEffect(() => {
         if (!useServiceRequest || !auth?.login || !auth?.password || filteredItems.length === 0) return;
@@ -1839,6 +1958,53 @@ export function DashboardPage({
                         
                         return renderChart(chartDataForType, title, color, formatValue);
                     })()}
+                </Panel>
+            )}
+
+            {!showOnlySla && !loading && !error && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        Cargo Flow (по плановой дате)
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+                        Поток перевозок по плановой дате доставки: нагрузка на ближайшие дни и риск просрочки.
+                    </Typography.Body>
+                    <Flex gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.9rem' }}>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.35)' }}>С планом: {cargoFlowByPlan.withPlan} из {cargoFlowByPlan.total}</span>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: cargoFlowByPlan.overdue > 0 ? 'rgba(239,68,68,0.16)' : 'rgba(148,163,184,0.16)', border: cargoFlowByPlan.overdue > 0 ? '1px solid rgba(239,68,68,0.35)' : '1px solid var(--color-border)' }}>Просрочено: {cargoFlowByPlan.overdue}</span>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(245,158,11,0.16)', border: '1px solid rgba(245,158,11,0.35)' }}>Сегодня: {cargoFlowByPlan.dueToday}</span>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(16,185,129,0.16)', border: '1px solid rgba(16,185,129,0.35)' }}>Завтра: {cargoFlowByPlan.dueTomorrow}</span>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(99,102,241,0.16)', border: '1px solid rgba(99,102,241,0.35)' }}>2-7 дней: {cargoFlowByPlan.dueNext7}</span>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(148,163,184,0.16)', border: '1px solid var(--color-border)' }}>Без плановой: {cargoFlowByPlan.withoutPlan}</span>
+                    </Flex>
+                    <div style={{ marginTop: '0.4rem' }}>
+                        <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.45rem' }}>
+                            Ближайшие 7 дней (плановая доставка)
+                        </Typography.Body>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            {cargoFlowByPlan.upcomingSeries.map((row) => {
+                                const width = cargoFlowByPlan.maxUpcomingCount > 0 ? (row.count / cargoFlowByPlan.maxUpcomingCount) * 100 : 0;
+                                return (
+                                    <div key={`cargo-flow-${row.key}`} style={{ display: 'grid', gridTemplateColumns: '5.5rem 1fr auto', gap: '0.5rem', alignItems: 'center' }}>
+                                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                                            <DateText value={row.key} />
+                                        </Typography.Body>
+                                        <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                            <div style={{ width: `${width}%`, height: '100%', borderRadius: 4, background: '#2563eb', transition: 'width 0.25s' }} />
+                                        </div>
+                                        <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600 }}>
+                                            {row.count} / {Math.round(row.pw).toLocaleString('ru-RU')} кг
+                                        </Typography.Body>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    {(cargoFlowByPlan.deliveredOnTime + cargoFlowByPlan.deliveredLate) > 0 && (
+                        <Typography.Body style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                            Доставлено: в срок {cargoFlowByPlan.deliveredOnTime}, с опозданием {cargoFlowByPlan.deliveredLate}.
+                        </Typography.Body>
+                    )}
                 </Panel>
             )}
 
