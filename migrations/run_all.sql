@@ -358,3 +358,15 @@ create index if not exists sendings_eor_login_updated_idx
 
 create index if not exists sendings_eor_sending_number_idx
   on sendings_eor (sending_number);
+
+-- ========== 033_cache_suppliers.sql ==========
+-- Кэш поставщиков из GETAPI?metod=GETALLKontragents.
+create table if not exists cache_suppliers (
+  inn text not null primary key,
+  supplier_name text not null default '',
+  email text default '',
+  fetched_at timestamptz not null default now()
+);
+
+create index if not exists cache_suppliers_supplier_name_idx on cache_suppliers(supplier_name);
+create index if not exists cache_suppliers_email_idx on cache_suppliers(email);

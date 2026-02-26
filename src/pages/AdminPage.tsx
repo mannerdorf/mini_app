@@ -276,7 +276,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
@@ -342,6 +342,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [customersSortOrder, setCustomersSortOrder] = useState<"asc" | "desc">("asc");
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersFetchTrigger, setCustomersFetchTrigger] = useState(0);
+  const [suppliersList, setSuppliersList] = useState<{ inn: string; supplier_name: string; email: string }[]>([]);
+  const [suppliersSearch, setSuppliersSearch] = useState("");
+  const [suppliersShowOnlyWithoutEmail, setSuppliersShowOnlyWithoutEmail] = useState(false);
+  const [suppliersSortBy, setSuppliersSortBy] = useState<"inn" | "supplier_name" | "email">("supplier_name");
+  const [suppliersSortOrder, setSuppliersSortOrder] = useState<"asc" | "desc">("asc");
+  const [suppliersLoading, setSuppliersLoading] = useState(false);
+  const [suppliersFetchTrigger, setSuppliersFetchTrigger] = useState(0);
   const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
   const [autoRegisterCandidates, setAutoRegisterCandidates] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [autoRegisterStats, setAutoRegisterStats] = useState<{ total: number; withEmail: number; validEmail: number; alreadyRegistered: number } | null>(null);
@@ -1322,6 +1329,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [tab, customersSearch, adminToken, customersFetchTrigger]);
 
   useEffect(() => {
+    if (tab !== "suppliers") return;
+    setSuppliersLoading(true);
+    const query = suppliersSearch.trim();
+    const url = query.length >= 2
+      ? `/api/admin-suppliers-search?q=${encodeURIComponent(query)}&limit=500`
+      : `/api/admin-suppliers-search?q=&limit=2000`;
+    fetch(url, { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((res) => res.json())
+      .then((data: { suppliers?: { inn: string; supplier_name: string; email: string }[] }) => {
+        setSuppliersList(data.suppliers || []);
+      })
+      .catch(() => setSuppliersList([]))
+      .finally(() => setSuppliersLoading(false));
+  }, [tab, suppliersSearch, adminToken, suppliersFetchTrigger]);
+
+  useEffect(() => {
     if (tab !== "customers") return;
     setAutoRegisterLoading(true);
     const params = new URLSearchParams();
@@ -2212,6 +2235,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         >
           <Building2 className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Справочник заказчиков
+        </Button>
+        <Button
+          className="filter-button"
+          style={{ background: tab === "suppliers" ? "var(--color-primary-blue)" : undefined, color: tab === "suppliers" ? "white" : undefined }}
+          onClick={() => setTab("suppliers")}
+        >
+          <Building2 className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+          Справочник поставщиков
         </Button>
         <Button
           className="filter-button"
@@ -3937,6 +3968,107 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </div>
                 <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
                   Записей: {sorted.length}{customersShowOnlyWithoutEmail && sorted.length !== customersList.length ? ` (из ${customersList.length})` : ""}
+                </Typography.Body>
+              </>
+            );
+          })()}
+        </Panel>
+      )}
+
+      {tab === "suppliers" && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник поставщиков</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            Данные загружаются из `GETALLKontragents` и обновляются кроном каждые 15 минут.
+          </Typography.Body>
+          <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "var(--space-3, 0.75rem)" }}>
+            <label htmlFor="suppliers-search" className="visually-hidden">Поиск поставщиков по ИНН или наименованию</label>
+            <Input
+              id="suppliers-search"
+              type="text"
+              placeholder="Поиск по ИНН или наименованию..."
+              value={suppliersSearch}
+              onChange={(e) => setSuppliersSearch(e.target.value)}
+              className="admin-form-input"
+              style={{ maxWidth: "24rem" }}
+              aria-label="Поиск поставщиков по ИНН или наименованию"
+            />
+            <label htmlFor="suppliers-only-without-email" style={{ display: "flex", alignItems: "center", gap: "0.35rem", cursor: "pointer", fontSize: "0.9rem" }}>
+              <input
+                id="suppliers-only-without-email"
+                type="checkbox"
+                checked={suppliersShowOnlyWithoutEmail}
+                onChange={(e) => setSuppliersShowOnlyWithoutEmail(e.target.checked)}
+              />
+              <Typography.Body>Только без email</Typography.Body>
+            </label>
+            <Button
+              type="button"
+              className="filter-button"
+              disabled={suppliersLoading}
+              onClick={() => setSuppliersFetchTrigger((n) => n + 1)}
+              style={{ marginLeft: "auto" }}
+            >
+              {suppliersLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+              Обновить
+            </Button>
+          </Flex>
+          {suppliersLoading ? (
+            <Flex align="center" gap="0.5rem">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка...</Typography.Body>
+            </Flex>
+          ) : suppliersList.length === 0 ? (
+            <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
+              {suppliersSearch.trim().length >= 2 ? "Нет совпадений" : "Справочник пуст"}
+            </Typography.Body>
+          ) : (() => {
+            const filtered = suppliersShowOnlyWithoutEmail
+              ? suppliersList.filter((s) => !s.email || String(s.email).trim() === "")
+              : suppliersList;
+            const sorted = [...filtered].sort((a, b) => {
+              const key = suppliersSortBy;
+              const va = (key === "inn" ? a.inn : key === "supplier_name" ? (a.supplier_name || "") : (a.email || "")).toLowerCase();
+              const vb = (key === "inn" ? b.inn : key === "supplier_name" ? (b.supplier_name || "") : (b.email || "")).toLowerCase();
+              const cmp = va.localeCompare(vb, "ru");
+              return suppliersSortOrder === "asc" ? cmp : -cmp;
+            });
+            const toggleSort = (col: "inn" | "supplier_name" | "email") => {
+              if (suppliersSortBy === col) setSuppliersSortOrder((o) => (o === "asc" ? "desc" : "asc"));
+              else { setSuppliersSortBy(col); setSuppliersSortOrder("asc"); }
+            };
+            const thStyle: React.CSSProperties = { padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" };
+            const thClass = "sortable-th";
+            return (
+              <>
+                <div style={{ overflowX: "auto", maxHeight: "60vh", overflowY: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                    <thead>
+                      <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                        <th className={thClass} style={thStyle} onClick={() => toggleSort("inn")} role="columnheader" aria-sort={suppliersSortBy === "inn" ? (suppliersSortOrder === "asc" ? "ascending" : "descending") : undefined} title="Нажмите для сортировки">
+                          ИНН {suppliersSortBy === "inn" ? (suppliersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />) : <ChevronsUpDown size={14} style={{ verticalAlign: "middle", marginLeft: 2, opacity: 0.5 }} />}
+                        </th>
+                        <th className={thClass} style={thStyle} onClick={() => toggleSort("supplier_name")} role="columnheader" aria-sort={suppliersSortBy === "supplier_name" ? (suppliersSortOrder === "asc" ? "ascending" : "descending") : undefined} title="Нажмите для сортировки">
+                          Наименование {suppliersSortBy === "supplier_name" ? (suppliersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />) : <ChevronsUpDown size={14} style={{ verticalAlign: "middle", marginLeft: 2, opacity: 0.5 }} />}
+                        </th>
+                        <th className={thClass} style={thStyle} onClick={() => toggleSort("email")} role="columnheader" aria-sort={suppliersSortBy === "email" ? (suppliersSortOrder === "asc" ? "ascending" : "descending") : undefined} title="Нажмите для сортировки">
+                          Email {suppliersSortBy === "email" ? (suppliersSortOrder === "asc" ? <ChevronUp size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} /> : <ChevronDown size={14} style={{ verticalAlign: "middle", marginLeft: 2 }} />) : <ChevronsUpDown size={14} style={{ verticalAlign: "middle", marginLeft: 2, opacity: 0.5 }} />}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sorted.map((s) => (
+                        <tr key={s.inn} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                          <td style={{ padding: "0.5rem 0.75rem" }}>{s.inn}</td>
+                          <td style={{ padding: "0.5rem 0.75rem" }}>{s.supplier_name || "—"}</td>
+                          <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{s.email || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
+                  Записей: {sorted.length}{suppliersShowOnlyWithoutEmail && sorted.length !== suppliersList.length ? ` (из ${suppliersList.length})` : ""}
                 </Typography.Body>
               </>
             );
