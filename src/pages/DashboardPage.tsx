@@ -1225,6 +1225,59 @@ export function DashboardPage({
             .sort((a, b) => b.value - a.value);
     }, [filteredItems, filteredPrevPeriodItems, useServiceRequest, chartType, getValForChart]);
 
+    const stripLineChartData = useMemo(() => {
+        if (!showSums || stripTab === 'type') return null;
+
+        const sourceRows = stripTab === 'sender'
+            ? stripDiagramBySender
+            : stripTab === 'receiver'
+                ? stripDiagramByReceiver
+                : stripDiagramByCustomer;
+
+        const topRows = sourceRows.slice(0, 8);
+        if (topRows.length === 0) return null;
+
+        const selected = new Set(topRows.map((row) => row.name));
+        const byDate = new Map<string, Map<string, number>>();
+        const toDateKey = (raw?: string) => {
+            const parsed = dateUtils.parseDateOnly(raw);
+            if (!parsed) return '';
+            const y = parsed.getFullYear();
+            const m = String(parsed.getMonth() + 1).padStart(2, '0');
+            const d = String(parsed.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
+
+        filteredItems.forEach((item) => {
+            const dateKey = toDateKey(item.DatePrih || item.DateVr);
+            if (!dateKey) return;
+
+            const rawName = stripTab === 'sender'
+                ? (item.Sender ?? '').trim() || '—'
+                : stripTab === 'receiver'
+                    ? (item.Receiver ?? (item as any).receiver ?? '').trim() || '—'
+                    : (item.Customer ?? (item as any).customer ?? '').trim() || '—';
+            const name = stripOoo(rawName);
+            if (!selected.has(name)) return;
+
+            const money = typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+            if (!byDate.has(dateKey)) byDate.set(dateKey, new Map());
+            const dateMap = byDate.get(dateKey)!;
+            dateMap.set(name, (dateMap.get(name) || 0) + money);
+        });
+
+        const dates = [...byDate.keys()].sort();
+        if (dates.length === 0) return null;
+
+        const series = topRows.map((row) => ({
+            name: row.name,
+            color: row.color,
+            values: dates.map((date) => byDate.get(date)?.get(row.name) || 0),
+        }));
+        const maxY = Math.max(1, ...series.flatMap((line) => line.values));
+        return { dates, series, maxY };
+    }, [showSums, stripTab, filteredItems, stripDiagramBySender, stripDiagramByReceiver, stripDiagramByCustomer]);
+
     type DashboardChartPoint = { date: string; value: number; dateKey?: string };
     type MainChartVariant = 'columns' | 'line' | 'area' | 'combo' | 'dot';
     type DashboardChartVariant =
@@ -2177,6 +2230,77 @@ export function DashboardPage({
                                 </div>
                             ))}
                         </div>
+                        {stripLineChartData && (
+                            <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px dashed var(--color-border)' }}>
+                                <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginBottom: '0.45rem' }}>
+                                    Динамика по датам (X — даты, Y — сумма, ₽)
+                                </Typography.Body>
+                                <div style={{ overflowX: 'auto' }}>
+                                    {(() => {
+                                        const chartWidth = Math.max(560, stripLineChartData.dates.length * 56);
+                                        const chartHeight = 250;
+                                        const left = 56;
+                                        const right = 14;
+                                        const top = 12;
+                                        const bottom = 50;
+                                        const innerW = chartWidth - left - right;
+                                        const innerH = chartHeight - top - bottom;
+                                        const xStep = stripLineChartData.dates.length > 1 ? innerW / (stripLineChartData.dates.length - 1) : 0;
+                                        const yTicks = 4;
+                                        const xLabelStep = Math.max(1, Math.ceil(stripLineChartData.dates.length / 6));
+                                        const xLabel = (dateKey: string) => {
+                                            const parts = dateKey.split('-');
+                                            if (parts.length !== 3) return dateKey;
+                                            return `${parts[2]}.${parts[1]}`;
+                                        };
+                                        return (
+                                            <svg width={chartWidth} height={chartHeight} style={{ display: 'block', minWidth: `${chartWidth}px` }}>
+                                                {Array.from({ length: yTicks + 1 }).map((_, idx) => {
+                                                    const ratio = idx / yTicks;
+                                                    const y = top + innerH * (1 - ratio);
+                                                    const value = stripLineChartData.maxY * ratio;
+                                                    return (
+                                                        <g key={`y-grid-${idx}`}>
+                                                            <line x1={left} y1={y} x2={chartWidth - right} y2={y} stroke="var(--color-border)" strokeOpacity={0.55} strokeDasharray="3 3" />
+                                                            <text x={left - 8} y={y + 4} textAnchor="end" fontSize="10" fill="var(--color-text-secondary)">
+                                                                {Math.round(value).toLocaleString('ru-RU')}
+                                                            </text>
+                                                        </g>
+                                                    );
+                                                })}
+                                                {stripLineChartData.series.map((line) => {
+                                                    const points = line.values.map((val, idx) => ({
+                                                        x: left + xStep * idx,
+                                                        y: top + innerH - (val / stripLineChartData.maxY) * innerH,
+                                                        val,
+                                                    }));
+                                                    const d = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                                                    return (
+                                                        <g key={line.name}>
+                                                            <path d={d} fill="none" stroke={line.color} strokeWidth={2} strokeLinecap="round" />
+                                                            {points.map((p, idx) => (
+                                                                <circle key={`${line.name}-${idx}`} cx={p.x} cy={p.y} r={2.5} fill={line.color}>
+                                                                    <title>{`${line.name}: ${Math.round(p.val).toLocaleString('ru-RU')} ₽`}</title>
+                                                                </circle>
+                                                            ))}
+                                                        </g>
+                                                    );
+                                                })}
+                                                {stripLineChartData.dates.map((date, idx) => {
+                                                    if (idx % xLabelStep !== 0 && idx !== stripLineChartData.dates.length - 1) return null;
+                                                    const x = left + xStep * idx;
+                                                    return (
+                                                        <text key={`x-${date}-${idx}`} x={x} y={chartHeight - 18} textAnchor="middle" fontSize="10" fill="var(--color-text-secondary)">
+                                                            {xLabel(date)}
+                                                        </text>
+                                                    );
+                                                })}
+                                            </svg>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
