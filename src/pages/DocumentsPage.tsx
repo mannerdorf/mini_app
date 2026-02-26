@@ -231,6 +231,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [sendingsSortColumn, setSendingsSortColumn] = useState<'date' | 'number' | 'route' | 'type' | 'transitHours' | 'vehicle' | 'comment'>('date');
     const [sendingsSortOrder, setSendingsSortOrder] = useState<'asc' | 'desc'>('desc');
     const [sendingsDetailsView, setSendingsDetailsView] = useState<'general' | 'byCargo' | 'byCustomer'>('general');
+    const [sendingsSummaryGroupBy, setSendingsSummaryGroupBy] = useState<'customer' | 'receiver'>('customer');
     const [sendingsSummarySortColumn, setSendingsSummarySortColumn] = useState<'index' | 'cargo' | 'status' | 'count' | 'volume' | 'weight' | 'paidWeight' | 'customer' | 'density'>('index');
     const [sendingsSummarySortOrder, setSendingsSummarySortOrder] = useState<'asc' | 'desc'>('asc');
     const [deliveryStatusFilterSet, setDeliveryStatusFilterSet] = useState<Set<StatusFilter>>(() => new Set());
@@ -250,6 +251,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         setByCustomerActionLoading(false);
         setByCustomerActionError(null);
         setByCustomerActionInfo(null);
+        setSendingsSummaryGroupBy('customer');
     }, [expandedSendingRow, sendingsDetailsView]);
     const deliveryStatusButtonRef = useRef<HTMLDivElement | null>(null);
     const routeCargoButtonRef = useRef<HTMLDivElement | null>(null);
@@ -506,6 +508,19 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             if (!customer) return;
             m.set(key, customer);
             if (key !== raw) m.set(raw, customer);
+        });
+        return m;
+    }, [perevozkiItems, normCargoKey]);
+    const cargoReceiverByNumber = useMemo(() => {
+        const m = new Map<string, string>();
+        (perevozkiItems || []).forEach((c: any) => {
+            const raw = String(c?.Number ?? c?.number ?? '').replace(/^0000-/, '').trim();
+            if (!raw) return;
+            const key = normCargoKey(raw);
+            const receiver = String(c?.Получатель ?? c?.Грузополучатель ?? c?.Receiver ?? c?.receiver ?? c?.Consignee ?? '').trim();
+            if (!receiver) return;
+            m.set(key, receiver);
+            if (key !== raw) m.set(raw, receiver);
         });
         return m;
     }, [perevozkiItems, normCargoKey]);
@@ -2386,15 +2401,29 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                             </Button>
                                                             <Button
                                                                 className="filter-button"
-                                                                style={{ padding: '0.35rem 0.6rem', minWidth: 'auto', background: sendingsDetailsView === 'byCustomer' ? 'var(--color-primary-blue, #2563eb)' : undefined, color: sendingsDetailsView === 'byCustomer' ? '#fff' : undefined }}
+                                                                style={{ padding: '0.35rem 0.6rem', minWidth: 'auto', background: sendingsDetailsView === 'byCustomer' && sendingsSummaryGroupBy === 'customer' ? 'var(--color-primary-blue, #2563eb)' : undefined, color: sendingsDetailsView === 'byCustomer' && sendingsSummaryGroupBy === 'customer' ? '#fff' : undefined }}
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     setSendingsDetailsView('byCustomer');
+                                                                    setSendingsSummaryGroupBy('customer');
                                                                     setSendingsSummarySortColumn('customer');
                                                                     setSendingsSummarySortOrder('asc');
                                                                 }}
                                                             >
                                                                 По заказчику
+                                                            </Button>
+                                                            <Button
+                                                                className="filter-button"
+                                                                style={{ padding: '0.35rem 0.6rem', minWidth: 'auto', background: sendingsDetailsView === 'byCustomer' && sendingsSummaryGroupBy === 'receiver' ? 'var(--color-primary-blue, #2563eb)' : undefined, color: sendingsDetailsView === 'byCustomer' && sendingsSummaryGroupBy === 'receiver' ? '#fff' : undefined }}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setSendingsDetailsView('byCustomer');
+                                                                    setSendingsSummaryGroupBy('receiver');
+                                                                    setSendingsSummarySortColumn('customer');
+                                                                    setSendingsSummarySortOrder('asc');
+                                                                }}
+                                                            >
+                                                                По получателю
                                                             </Button>
                                                         </div>
                                                         {parcelsToRender.length === 0 ? (
@@ -2589,24 +2618,29 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                     return Number.isFinite(n) ? n : 0;
                                                                 };
                                                                 const rowDefaultCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '').trim() || '—';
-                                                                const byCustomer = new Map<string, { customer: string; count: number; volume: number; weight: number; paidWeight: number; cargoNumbers: Set<string> }>();
+                                                                const rowDefaultReceiver = String(row?.Получатель ?? row?.Грузополучатель ?? row?.Receiver ?? row?.receiver ?? row?.Consignee ?? '').trim() || '—';
+                                                                const byCounterparty = new Map<string, { party: string; count: number; volume: number; weight: number; paidWeight: number; cargoNumbers: Set<string> }>();
                                                                 parcelsToRender.forEach((parcel: any) => {
                                                                     const cargo = String(parcel?.Перевозка ?? '').trim();
                                                                     const customerFromParcel = String(parcel?.ЗаказчикНаименование ?? parcel?.Заказчик ?? parcel?.Customer ?? parcel?.customer ?? '').trim();
                                                                     const customerFromCargo = cargo ? String(cargoCustomerByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
-                                                                    const customer = customerFromParcel || customerFromCargo || rowDefaultCustomer;
-                                                                    const prev = byCustomer.get(customer) ?? { customer, count: 0, volume: 0, weight: 0, paidWeight: 0, cargoNumbers: new Set<string>() };
+                                                                    const receiverFromParcel = String(parcel?.ПолучательНаименование ?? parcel?.Получатель ?? parcel?.ГрузополучательНаименование ?? parcel?.Грузополучатель ?? parcel?.Receiver ?? parcel?.receiver ?? parcel?.Consignee ?? '').trim();
+                                                                    const receiverFromCargo = cargo ? String(cargoReceiverByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
+                                                                    const party = sendingsSummaryGroupBy === 'receiver'
+                                                                        ? (receiverFromParcel || receiverFromCargo || rowDefaultReceiver)
+                                                                        : (customerFromParcel || customerFromCargo || rowDefaultCustomer);
+                                                                    const prev = byCounterparty.get(party) ?? { party, count: 0, volume: 0, weight: 0, paidWeight: 0, cargoNumbers: new Set<string>() };
                                                                     prev.count += 1;
                                                                     prev.volume += toNumber(parcel?.ОбъемДляОтчета);
                                                                     prev.weight += toNumber(parcel?.ВесДляОтчета);
                                                                     prev.paidWeight += toNumber(parcel?.ПлатныйВес);
                                                                     if (cargo) prev.cargoNumbers.add(cargo);
-                                                                    byCustomer.set(customer, prev);
+                                                                    byCounterparty.set(party, prev);
                                                                 });
-                                                                const summaryRows = Array.from(byCustomer.values()).map((summary, index) => ({
+                                                                const summaryRows = Array.from(byCounterparty.values()).map((summary, index) => ({
                                                                     ...summary,
                                                                     _index: index + 1,
-                                                                    selectionKey: `${rowKey}::${summary.customer}`,
+                                                                    selectionKey: `${rowKey}::${summary.party}`,
                                                                     cargoNumbers: Array.from(summary.cargoNumbers),
                                                                 }));
                                                                 const selectedSummaryRows = summaryRows.filter((summary) => selectedByCustomerSummaryKeys.has(summary.selectionKey));
@@ -2617,7 +2651,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                             <div className="cargo-card" style={{ padding: '0.45rem 0.6rem', marginBottom: '0.5rem', overflow: 'visible', position: 'sticky', top: 0, zIndex: 10, background: 'var(--color-bg-primary)' }}>
                                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
                                                                                     <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                                                                                        Выбрано заказчиков: {selectedByCustomerCount}
+                                                                                        Выбрано {sendingsSummaryGroupBy === 'receiver' ? 'получателей' : 'заказчиков'}: {selectedByCustomerCount}
                                                                                     </Typography.Body>
                                                                                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
                                                                                         <Button
@@ -2670,7 +2704,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                                                 .filter(Boolean)
                                                                                                         ));
                                                                                                         if (cargoNumbers.length === 0) {
-                                                                                                            setByCustomerActionError('По выбранным заказчикам не найдены номера перевозок.');
+                                                                                                            setByCustomerActionError(sendingsSummaryGroupBy === 'receiver' ? 'По выбранным получателям не найдены номера перевозок.' : 'По выбранным заказчикам не найдены номера перевозок.');
                                                                                                             return;
                                                                                                         }
                                                                                                         setByCustomerActionLoading(true);
@@ -2733,16 +2767,21 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                     type="checkbox"
                                                                                     checked={(() => {
                                                                                         const rowDefaultCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '').trim() || '—';
-                                                                                        const customers = new Set<string>();
+                                                                                        const rowDefaultReceiver = String(row?.Получатель ?? row?.Грузополучатель ?? row?.Receiver ?? row?.receiver ?? row?.Consignee ?? '').trim() || '—';
+                                                                                        const parties = new Set<string>();
                                                                                         parcelsToRender.forEach((parcel: any) => {
                                                                                             const cargo = String(parcel?.Перевозка ?? '').trim();
                                                                                             const customerFromParcel = String(parcel?.ЗаказчикНаименование ?? parcel?.Заказчик ?? parcel?.Customer ?? parcel?.customer ?? '').trim();
                                                                                             const customerFromCargo = cargo ? String(cargoCustomerByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
-                                                                                            const customer = customerFromParcel || customerFromCargo || rowDefaultCustomer;
-                                                                                            customers.add(`${rowKey}::${customer}`);
+                                                                                            const receiverFromParcel = String(parcel?.ПолучательНаименование ?? parcel?.Получатель ?? parcel?.ГрузополучательНаименование ?? parcel?.Грузополучатель ?? parcel?.Receiver ?? parcel?.receiver ?? parcel?.Consignee ?? '').trim();
+                                                                                            const receiverFromCargo = cargo ? String(cargoReceiverByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
+                                                                                            const party = sendingsSummaryGroupBy === 'receiver'
+                                                                                                ? (receiverFromParcel || receiverFromCargo || rowDefaultReceiver)
+                                                                                                : (customerFromParcel || customerFromCargo || rowDefaultCustomer);
+                                                                                            parties.add(`${rowKey}::${party}`);
                                                                                         });
-                                                                                        if (customers.size === 0) return false;
-                                                                                        for (const key of customers) {
+                                                                                        if (parties.size === 0) return false;
+                                                                                        for (const key of parties) {
                                                                                             if (!selectedByCustomerSummaryKeys.has(key)) return false;
                                                                                         }
                                                                                         return true;
@@ -2750,13 +2789,18 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                     onChange={(e) => {
                                                                                         const checked = e.target.checked;
                                                                                         const rowDefaultCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '').trim() || '—';
+                                                                                        const rowDefaultReceiver = String(row?.Получатель ?? row?.Грузополучатель ?? row?.Receiver ?? row?.receiver ?? row?.Consignee ?? '').trim() || '—';
                                                                                         const keys = new Set<string>();
                                                                                         parcelsToRender.forEach((parcel: any) => {
                                                                                             const cargo = String(parcel?.Перевозка ?? '').trim();
                                                                                             const customerFromParcel = String(parcel?.ЗаказчикНаименование ?? parcel?.Заказчик ?? parcel?.Customer ?? parcel?.customer ?? '').trim();
                                                                                             const customerFromCargo = cargo ? String(cargoCustomerByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
-                                                                                            const customer = customerFromParcel || customerFromCargo || rowDefaultCustomer;
-                                                                                            keys.add(`${rowKey}::${customer}`);
+                                                                                            const receiverFromParcel = String(parcel?.ПолучательНаименование ?? parcel?.Получатель ?? parcel?.ГрузополучательНаименование ?? parcel?.Грузополучатель ?? parcel?.Receiver ?? parcel?.receiver ?? parcel?.Consignee ?? '').trim();
+                                                                                            const receiverFromCargo = cargo ? String(cargoReceiverByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
+                                                                                            const party = sendingsSummaryGroupBy === 'receiver'
+                                                                                                ? (receiverFromParcel || receiverFromCargo || rowDefaultReceiver)
+                                                                                                : (customerFromParcel || customerFromCargo || rowDefaultCustomer);
+                                                                                            keys.add(`${rowKey}::${party}`);
                                                                                         });
                                                                                         setSelectedByCustomerSummaryKeys((prev) => {
                                                                                             const next = new Set(prev);
@@ -2767,12 +2811,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                             return next;
                                                                                         });
                                                                                     }}
-                                                                                    aria-label="Выбрать всех заказчиков"
+                                                                                    aria-label={sendingsSummaryGroupBy === 'receiver' ? 'Выбрать всех получателей' : 'Выбрать всех заказчиков'}
                                                                                 />
                                                                             </th>
                                                                         )}
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('index')} title="Сортировка">№ пп {sendingsSummarySortColumn === 'index' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('customer')} title="Сортировка">Заказчик {sendingsSummarySortColumn === 'customer' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('customer')} title="Сортировка">{sendingsSummaryGroupBy === 'receiver' ? 'Получатель' : 'Заказчик'} {sendingsSummarySortColumn === 'customer' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('count')} title="Сортировка">Кол-во {sendingsSummarySortColumn === 'count' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('volume')} title="Сортировка">Объем {sendingsSummarySortColumn === 'volume' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
@@ -2804,24 +2848,29 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                             return '#dc2626';
                                                                         };
                                                                         const rowDefaultCustomer = String(row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? '').trim() || '—';
-                                                                        const byCustomer = new Map<string, { customer: string; count: number; volume: number; weight: number; paidWeight: number; cargoNumbers: Set<string> }>();
+                                                                        const rowDefaultReceiver = String(row?.Получатель ?? row?.Грузополучатель ?? row?.Receiver ?? row?.receiver ?? row?.Consignee ?? '').trim() || '—';
+                                                                        const byCounterparty = new Map<string, { party: string; count: number; volume: number; weight: number; paidWeight: number; cargoNumbers: Set<string> }>();
                                                                         parcelsToRender.forEach((parcel: any) => {
                                                                             const cargo = String(parcel?.Перевозка ?? '').trim();
                                                                             const customerFromParcel = String(parcel?.ЗаказчикНаименование ?? parcel?.Заказчик ?? parcel?.Customer ?? parcel?.customer ?? '').trim();
                                                                             const customerFromCargo = cargo ? String(cargoCustomerByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
-                                                                            const customer = customerFromParcel || customerFromCargo || rowDefaultCustomer;
-                                                                            const prev = byCustomer.get(customer) ?? { customer, count: 0, volume: 0, weight: 0, paidWeight: 0, cargoNumbers: new Set<string>() };
+                                                                            const receiverFromParcel = String(parcel?.ПолучательНаименование ?? parcel?.Получатель ?? parcel?.ГрузополучательНаименование ?? parcel?.Грузополучатель ?? parcel?.Receiver ?? parcel?.receiver ?? parcel?.Consignee ?? '').trim();
+                                                                            const receiverFromCargo = cargo ? String(cargoReceiverByNumber.get(normCargoKey(cargo)) ?? '').trim() : '';
+                                                                            const party = sendingsSummaryGroupBy === 'receiver'
+                                                                                ? (receiverFromParcel || receiverFromCargo || rowDefaultReceiver)
+                                                                                : (customerFromParcel || customerFromCargo || rowDefaultCustomer);
+                                                                            const prev = byCounterparty.get(party) ?? { party, count: 0, volume: 0, weight: 0, paidWeight: 0, cargoNumbers: new Set<string>() };
                                                                             prev.count += 1;
                                                                             prev.volume += toNumber(parcel?.ОбъемДляОтчета);
                                                                             prev.weight += toNumber(parcel?.ВесДляОтчета);
                                                                             prev.paidWeight += toNumber(parcel?.ПлатныйВес);
                                                                             if (cargo) prev.cargoNumbers.add(cargo);
-                                                                            byCustomer.set(customer, prev);
+                                                                            byCounterparty.set(party, prev);
                                                                         });
-                                                                        const summaryRows = Array.from(byCustomer.values()).map((summary, index) => ({
+                                                                        const summaryRows = Array.from(byCounterparty.values()).map((summary, index) => ({
                                                                             ...summary,
                                                                             _index: index + 1,
-                                                                            selectionKey: `${rowKey}::${summary.customer}`,
+                                                                            selectionKey: `${rowKey}::${summary.party}`,
                                                                             cargoNumbers: Array.from(summary.cargoNumbers),
                                                                         }));
                                                                         const sortedSummaryRows = [...summaryRows].sort((a, b) => {
@@ -2850,7 +2899,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                 }
                                                                                 case 'cargo':
                                                                                 case 'customer':
-                                                                                    cmp = String(a.customer || '').localeCompare(String(b.customer || ''));
+                                                                                    cmp = String(a.party || '').localeCompare(String(b.party || ''));
                                                                                     break;
                                                                             }
                                                                             return sendingsSummarySortOrder === 'asc' ? cmp : -cmp;
@@ -2878,7 +2927,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                             <>
                                                                                 {sortedSummaryRows.map((summary, parcelIdx: number) => (
                                                                                     <tr
-                                                                                        key={`${rowKey}-summary-customer-${summary.customer}-${parcelIdx}`}
+                                                                                        key={`${rowKey}-summary-customer-${summary.party}-${parcelIdx}`}
                                                                                         style={{
                                                                                             borderBottom: '1px solid var(--color-border)',
                                                                                             background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
@@ -2898,12 +2947,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                                                             return next;
                                                                                                         });
                                                                                                     }}
-                                                                                                    aria-label={`Выбрать заказчика ${summary.customer || parcelIdx + 1}`}
+                                                                                                    aria-label={`Выбрать ${sendingsSummaryGroupBy === 'receiver' ? 'получателя' : 'заказчика'} ${summary.party || parcelIdx + 1}`}
                                                                                                 />
                                                                                             </td>
                                                                                         )}
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{stripOoo(summary.customer) || '—'}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{stripOoo(summary.party) || '—'}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.volume)}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
