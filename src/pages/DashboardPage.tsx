@@ -813,6 +813,132 @@ export function DashboardPage({
             upcomingSeries,
         };
     }, [filteredItems]);
+    const planVsFactDashboard = useMemo(() => {
+        const dayMs = 24 * 60 * 60 * 1000;
+        const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const toKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const parseDate = (value: unknown): Date | null => {
+            const raw = String(value ?? '').trim();
+            if (!raw) return null;
+            if (/^0?1[./-]0?1[./-](1900|1901|0001)$/.test(raw)) return null;
+            const parsed = dateUtils.parseDateOnly(raw) ?? new Date(raw);
+            if (!Number.isFinite(parsed.getTime()) || parsed.getFullYear() <= 1901) return null;
+            return startOfDay(parsed);
+        };
+        const getPlannedDate = (item: CargoItem): Date | null => {
+            const candidates = [
+                (item as any).DateArrival,
+                (item as any).PlannedDeliveryDate,
+                (item as any).PlanDeliveryDate,
+                (item as any).DateDeliveryPlan,
+                (item as any).ПлановаяДатаДоставки,
+                (item as any).ПланДатаДоставки,
+                (item as any).ПлановаяДата,
+                (item as any).PlanDate,
+            ];
+            for (const candidate of candidates) {
+                const parsed = parseDate(candidate);
+                if (parsed) return parsed;
+            }
+            return null;
+        };
+        const getActualDate = (item: CargoItem): Date | null => {
+            const candidates = [
+                (item as any).DateVr,
+                (item as any).DateDeliveryFact,
+                (item as any).FactDeliveryDate,
+                (item as any).ДатаФактическойДоставки,
+                (item as any).ДатаВручения,
+            ];
+            for (const candidate of candidates) {
+                const parsed = parseDate(candidate);
+                if (parsed) return parsed;
+            }
+            return null;
+        };
+        const routeLabel = (item: CargoItem) => {
+            const from = cityToCode(item.CitySender) || (item.CitySender ?? '').trim();
+            const to = cityToCode(item.CityReceiver) || (item.CityReceiver ?? '').trim();
+            return [from, to].filter(Boolean).join(' – ') || '—';
+        };
+
+        let withPlan = 0;
+        let withoutPlan = 0;
+        let pendingFact = 0;
+        let onTime = 0;
+        let late = 0;
+        let overdueOpen = 0;
+        let deviationSum = 0;
+        let deviationCount = 0;
+        let lateDelaySum = 0;
+        const today = startOfDay(new Date());
+
+        const byPlanDate = new Map<string, { onTime: number; late: number; total: number }>();
+        const lateRows: { number: string; route: string; planned: string; actual: string; delayDays: number }[] = [];
+
+        filteredItems.forEach((item) => {
+            const planned = getPlannedDate(item);
+            if (!planned) {
+                withoutPlan += 1;
+                return;
+            }
+            withPlan += 1;
+            const actual = getActualDate(item);
+            const planKey = toKey(planned);
+            const dateBucket = byPlanDate.get(planKey) ?? { onTime: 0, late: 0, total: 0 };
+            dateBucket.total += 1;
+            if (!actual) {
+                pendingFact += 1;
+                if (planned.getTime() < today.getTime()) overdueOpen += 1;
+                byPlanDate.set(planKey, dateBucket);
+                return;
+            }
+
+            const diffDays = Math.round((actual.getTime() - planned.getTime()) / dayMs);
+            deviationSum += diffDays;
+            deviationCount += 1;
+            if (diffDays <= 0) {
+                onTime += 1;
+                dateBucket.onTime += 1;
+            } else {
+                late += 1;
+                lateDelaySum += diffDays;
+                dateBucket.late += 1;
+                lateRows.push({
+                    number: String(item.Number ?? '').trim() || '—',
+                    route: routeLabel(item),
+                    planned: planKey,
+                    actual: toKey(actual),
+                    delayDays: diffDays,
+                });
+            }
+            byPlanDate.set(planKey, dateBucket);
+        });
+
+        const trend = Array.from(byPlanDate.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .slice(-10)
+            .map(([key, row]) => ({ key, ...row }));
+
+        const maxTotal = Math.max(1, ...trend.map((row) => row.total));
+        const topLate = lateRows.sort((a, b) => b.delayDays - a.delayDays).slice(0, 5);
+
+        return {
+            total: filteredItems.length,
+            withPlan,
+            withoutPlan,
+            pendingFact,
+            overdueOpen,
+            onTime,
+            late,
+            onTimeRate: withPlan > 0 ? Math.round((onTime / withPlan) * 100) : 0,
+            avgDeviationDays: deviationCount > 0 ? Math.round((deviationSum / deviationCount) * 10) / 10 : 0,
+            avgLateDays: late > 0 ? Math.round((lateDelaySum / late) * 10) / 10 : 0,
+            trend,
+            maxTotal,
+            topLate,
+        };
+    }, [filteredItems]);
 
     useEffect(() => {
         if (!useServiceRequest || !auth?.login || !auth?.password || filteredItems.length === 0) return;
@@ -2676,6 +2802,76 @@ export function DashboardPage({
                         <Typography.Body style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
                             Доставлено: в срок {cargoFlowByPlan.deliveredOnTime}, с опозданием {cargoFlowByPlan.deliveredLate}.
                         </Typography.Body>
+                    )}
+                </Panel>
+            )}
+
+            {!showOnlySla && !loading && !error && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        Plan vs Fact Dashboard
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+                        Сравнение плановой и фактической даты доставки по выбранному периоду.
+                    </Typography.Body>
+                    <Flex gap="0.55rem" wrap="wrap" style={{ marginBottom: '0.8rem' }}>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(37,99,235,0.14)', border: '1px solid rgba(37,99,235,0.35)' }}>С планом: {planVsFactDashboard.withPlan} из {planVsFactDashboard.total}</span>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(22,163,74,0.16)', border: '1px solid rgba(22,163,74,0.35)' }}>В срок: {planVsFactDashboard.onTime}</span>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(239,68,68,0.16)', border: '1px solid rgba(239,68,68,0.35)' }}>С опозданием: {planVsFactDashboard.late}</span>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(245,158,11,0.16)', border: '1px solid rgba(245,158,11,0.35)' }}>Без факта: {planVsFactDashboard.pendingFact}</span>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(99,102,241,0.16)', border: '1px solid rgba(99,102,241,0.35)' }}>В срок, %: {planVsFactDashboard.onTimeRate}%</span>
+                        <span className="role-badge" style={{ fontSize: '0.72rem', padding: '0.18rem 0.45rem', borderRadius: '999px', background: 'rgba(148,163,184,0.16)', border: '1px solid var(--color-border)' }}>Без плана: {planVsFactDashboard.withoutPlan}</span>
+                    </Flex>
+                    <Flex gap="1.4rem" wrap="wrap" style={{ marginBottom: '0.7rem' }}>
+                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                            Ср. отклонение (план→факт): <b style={{ color: 'var(--color-text-primary)' }}>{planVsFactDashboard.avgDeviationDays} дн.</b>
+                        </Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                            Ср. задержка (только просрочка): <b style={{ color: '#ef4444' }}>{planVsFactDashboard.avgLateDays} дн.</b>
+                        </Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
+                            Просрочено без факта: <b style={{ color: planVsFactDashboard.overdueOpen > 0 ? '#ef4444' : 'var(--color-text-primary)' }}>{planVsFactDashboard.overdueOpen}</b>
+                        </Typography.Body>
+                    </Flex>
+                    {planVsFactDashboard.trend.length > 0 && (
+                        <div style={{ marginTop: '0.35rem' }}>
+                            <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                                Тренд по датам плана (последние 10 дней)
+                            </Typography.Body>
+                            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${planVsFactDashboard.trend.length}, minmax(86px, 1fr))`, gap: '0.4rem', minWidth: `${Math.max(560, planVsFactDashboard.trend.length * 92)}px` }}>
+                                    {planVsFactDashboard.trend.map((row) => (
+                                        <div key={`pvf-${row.key}`} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.38rem 0.42rem', background: 'var(--color-bg-hover)' }}>
+                                            <Typography.Body style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)', marginBottom: '0.18rem' }}>
+                                                <DateText value={row.key} />
+                                            </Typography.Body>
+                                            <div style={{ height: 7, borderRadius: 4, background: 'rgba(148,163,184,0.25)', overflow: 'hidden', marginBottom: '0.2rem' }}>
+                                                <div style={{ width: `${Math.round((row.total / planVsFactDashboard.maxTotal) * 100)}%`, height: '100%', background: 'rgba(99,102,241,0.7)' }} />
+                                            </div>
+                                            <Typography.Body style={{ fontSize: '0.68rem' }}>Всего: {row.total}</Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.68rem', color: '#16a34a' }}>В срок: {row.onTime}</Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.68rem', color: '#ef4444' }}>Late: {row.late}</Typography.Body>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {planVsFactDashboard.topLate.length > 0 && (
+                        <div style={{ marginTop: '0.8rem', borderTop: '1px dashed var(--color-border)', paddingTop: '0.55rem' }}>
+                            <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                                Топ просрочек
+                            </Typography.Body>
+                            {planVsFactDashboard.topLate.map((row, idx) => (
+                                <div key={`late-row-${row.number}-${idx}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 110px) minmax(120px, 1fr) minmax(64px, 90px) minmax(64px, 90px) minmax(56px, 70px)', gap: '0.45rem', padding: '0.22rem 0', borderBottom: idx === planVsFactDashboard.topLate.length - 1 ? 'none' : '1px dashed var(--color-border)' }}>
+                                    <Typography.Body style={{ fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{formatInvoiceNumber(row.number)}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.route}>{row.route}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>{row.planned.slice(5).split('-').reverse().join('.')}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>{row.actual.slice(5).split('-').reverse().join('.')}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 700, color: '#ef4444' }}>+{row.delayDays} д</Typography.Body>
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </Panel>
             )}
