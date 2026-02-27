@@ -2181,6 +2181,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     return items;
   }, [selectedUser, editorPermissions, editorFinancial, editorAccessAllInns, editorCustomers]);
+  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "employee_directory";
 
   return (
     <div className={theme === "light" ? "light-mode w-full" : "w-full"}>
@@ -2214,11 +2215,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       <Flex gap="0.5rem" style={{ marginBottom: "1rem", flexWrap: "wrap" }}>
         <Button
           className="filter-button"
-          style={{ background: tab === "users" ? "var(--color-primary-blue)" : undefined, color: tab === "users" ? "white" : undefined }}
+          style={{ background: isDirectoryTab ? "var(--color-primary-blue)" : undefined, color: isDirectoryTab ? "white" : undefined }}
           onClick={() => setTab("users")}
         >
           <Users className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          Пользователи
+          Справочники
         </Button>
         <Button
           className="filter-button"
@@ -2227,22 +2228,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         >
           <Mail className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Шаблоны писем
-        </Button>
-        <Button
-          className="filter-button"
-          style={{ background: tab === "customers" ? "var(--color-primary-blue)" : undefined, color: tab === "customers" ? "white" : undefined }}
-          onClick={() => setTab("customers")}
-        >
-          <Building2 className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          Справочник заказчиков
-        </Button>
-        <Button
-          className="filter-button"
-          style={{ background: tab === "suppliers" ? "var(--color-primary-blue)" : undefined, color: tab === "suppliers" ? "white" : undefined }}
-          onClick={() => setTab("suppliers")}
-        >
-          <Building2 className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          Справочник поставщиков
         </Button>
         <Button
           className="filter-button"
@@ -2268,16 +2253,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <Activity className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Здоровье интеграций
         </Button>
-        {isSuperAdmin && (
-          <Button
-            className="filter-button"
-            style={{ background: tab === "employee_directory" ? "var(--color-primary-blue)" : undefined, color: tab === "employee_directory" ? "white" : undefined }}
-            onClick={() => setTab("employee_directory")}
-          >
-            <Users className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-            Справочник сотрудников
-          </Button>
-        )}
         {isSuperAdmin && (
           <Button
             className="filter-button"
@@ -2319,6 +2294,45 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           </Button>
         )}
       </Flex>
+
+      {isDirectoryTab && (
+        <Flex gap="0.5rem" style={{ marginBottom: "1rem", flexWrap: "wrap" }}>
+          <Button
+            className="filter-button"
+            style={{ background: tab === "users" ? "var(--color-primary-blue)" : undefined, color: tab === "users" ? "white" : undefined }}
+            onClick={() => setTab("users")}
+          >
+            <Users className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Справочник пользователей
+          </Button>
+          <Button
+            className="filter-button"
+            style={{ background: tab === "customers" ? "var(--color-primary-blue)" : undefined, color: tab === "customers" ? "white" : undefined }}
+            onClick={() => setTab("customers")}
+          >
+            <Building2 className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Справочник заказчиков
+          </Button>
+          <Button
+            className="filter-button"
+            style={{ background: tab === "suppliers" ? "var(--color-primary-blue)" : undefined, color: tab === "suppliers" ? "white" : undefined }}
+            onClick={() => setTab("suppliers")}
+          >
+            <Building2 className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Справочник поставщиков
+          </Button>
+          {isSuperAdmin && (
+            <Button
+              className="filter-button"
+              style={{ background: tab === "employee_directory" ? "var(--color-primary-blue)" : undefined, color: tab === "employee_directory" ? "white" : undefined }}
+              onClick={() => setTab("employee_directory")}
+            >
+              <Users className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+              Справочник сотрудников
+            </Button>
+          )}
+        </Flex>
+      )}
 
       {error && (
         <Typography.Body style={{ color: "var(--color-error)", marginBottom: "1rem", fontSize: "0.9rem" }}>{error}</Typography.Body>
