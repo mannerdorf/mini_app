@@ -150,6 +150,16 @@ export function DashboardPage({
     const [expandedAgingBucket, setExpandedAgingBucket] = useState<string | null>(null);
     const [agingSortCol, setAgingSortCol] = useState<'number' | 'customer' | 'status' | 'shipmentStatus' | 'sum' | 'days'>('sum');
     const [agingSortAsc, setAgingSortAsc] = useState(false);
+    /** Выбранная зона риска оттока: при клике на карточку показываем список клиентов этой зоны */
+    const [churnRiskZone, setChurnRiskZone] = useState<'red' | 'yellow' | 'green'>('red');
+    /** Сортировка таблицы «Риск оттока» */
+    const [churnSortCol, setChurnSortCol] = useState<'name' | 'orders' | 'avgInterval' | 'daysSinceLast' | 'status'>('daysSinceLast');
+    const [churnSortAsc, setChurnSortAsc] = useState(false);
+    /** Раскрытый сегмент RFM: при клике показываем список заказчиков */
+    const [expandedRfmSegment, setExpandedRfmSegment] = useState<string | null>(null);
+    /** Сортировка таблицы «Платёжная дисциплина» */
+    const [paymentDisciplineSortCol, setPaymentDisciplineSortCol] = useState<'name' | 'count' | 'paid' | 'unpaid' | 'paidRate'>('paidRate');
+    const [paymentDisciplineSortAsc, setPaymentDisciplineSortAsc] = useState(true);
     const [maChartType, setMaChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>('paidWeight');
     const [expandedSlaItem, setExpandedSlaItem] = useState<CargoItem | null>(null);
     const [slaTimelineSteps, setSlaTimelineSteps] = useState<PerevozkaTimelineStep[] | null>(null);
@@ -2147,37 +2157,6 @@ export function DashboardPage({
     const getItemSum = (item: any) => typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
     const getItemPw = (item: any) => typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
 
-    const retentionCohorts = useMemo(() => {
-        if (!useServiceRequest || clientItems.length === 0) return null;
-        const customerFirst = new Map<string, string>();
-        const customerMonths = new Map<string, Set<string>>();
-        clientItems.forEach(item => {
-            const name = getCustomerName(item);
-            if (!name) return;
-            const d = getItemDate(item);
-            if (!d) return;
-            const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-            if (!customerFirst.has(name) || mk < customerFirst.get(name)!) customerFirst.set(name, mk);
-            if (!customerMonths.has(name)) customerMonths.set(name, new Set());
-            customerMonths.get(name)!.add(mk);
-        });
-        const cohortMap = new Map<string, Map<string, number>>();
-        const allMonths = new Set<string>();
-        customerFirst.forEach((firstMonth, name) => {
-            if (!cohortMap.has(firstMonth)) cohortMap.set(firstMonth, new Map());
-            const row = cohortMap.get(firstMonth)!;
-            customerMonths.get(name)!.forEach(m => {
-                allMonths.add(m);
-                row.set(m, (row.get(m) || 0) + 1);
-            });
-        });
-        const cohortSizes = new Map<string, number>();
-        customerFirst.forEach((firstMonth) => { cohortSizes.set(firstMonth, (cohortSizes.get(firstMonth) || 0) + 1); });
-        const months = [...allMonths].sort();
-        const cohorts = [...cohortMap.keys()].sort();
-        return { cohorts, months, cohortMap, cohortSizes };
-    }, [clientItems, useServiceRequest]);
-
     const customerLtv = useMemo(() => {
         if (!useServiceRequest || clientItems.length === 0) return null;
         const byCustomer = new Map<string, { sum: number; pw: number; count: number; first: Date | null; last: Date | null }>();
@@ -2305,7 +2284,13 @@ export function DashboardPage({
         });
         segments.forEach(v => { v.avgSum = v.count > 0 ? v.totalSum / v.count : 0; });
         const segList = [...segments.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.count - a.count);
-        return { segments: segList, total: scores.length };
+        const customersBySegment: Record<string, { name: string; monetary: number }[]> = {};
+        scores.forEach(s => {
+            if (!customersBySegment[s.segment]) customersBySegment[s.segment] = [];
+            customersBySegment[s.segment].push({ name: s.name, monetary: s.monetary });
+        });
+        Object.keys(customersBySegment).forEach(seg => customersBySegment[seg].sort((a, b) => b.monetary - a.monetary));
+        return { segments: segList, total: scores.length, customersBySegment };
     }, [clientItems, useServiceRequest]);
 
     const paymentDiscipline = useMemo(() => {
@@ -3983,56 +3968,6 @@ export function DashboardPage({
 
             {/* ═══════ ГРУППА 5: АНАЛИТИКА КЛИЕНТОВ ═══════ */}
 
-            {/* 5.1 Retention-когорты */}
-            {useServiceRequest && !loading && !error && retentionCohorts && retentionCohorts.cohorts.length > 1 && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Retention-когорты</Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                        Таблица удержания клиентов: по строкам — месяц первого заказа, по столбцам — месяц активности. Процент показывает долю вернувшихся клиентов от когорты.
-                    </Typography.Body>
-                    <div style={{ overflowX: 'auto', fontSize: '0.7rem' }}>
-                        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: retentionCohorts.months.length * 52 }}>
-                            <thead>
-                                <tr>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left', fontWeight: 600, borderBottom: '2px solid var(--color-border)', whiteSpace: 'nowrap' }}>Когорта</th>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>N</th>
-                                    {retentionCohorts.months.map(m => (
-                                        <th key={m} style={{ padding: '0.3rem 0.25rem', textAlign: 'center', fontWeight: 500, borderBottom: '2px solid var(--color-border)', whiteSpace: 'nowrap' }}>{m.slice(2)}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {retentionCohorts.cohorts.map(cohort => {
-                                    const size = retentionCohorts.cohortSizes.get(cohort) || 1;
-                                    const row = retentionCohorts.cohortMap.get(cohort)!;
-                                    return (
-                                        <tr key={cohort}>
-                                            <td style={{ padding: '0.25rem 0.4rem', fontWeight: 600, whiteSpace: 'nowrap', borderBottom: '1px solid var(--color-border)' }}>{cohort}</td>
-                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}>{size}</td>
-                                            {retentionCohorts.months.map(m => {
-                                                const cnt = row.get(m) || 0;
-                                                const pct = Math.round((cnt / size) * 100);
-                                                const isFirst = m === cohort;
-                                                return (
-                                                    <td key={m} style={{
-                                                        padding: '0.25rem 0.2rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)',
-                                                        background: m < cohort ? 'transparent' : isFirst ? 'rgba(37,99,235,0.15)' : pct > 0 ? `rgba(16,185,129,${0.08 + (pct / 100) * 0.45})` : 'transparent',
-                                                        color: pct > 60 ? 'white' : 'var(--color-text-primary)',
-                                                        fontWeight: pct > 0 ? 600 : 400,
-                                                    }}>
-                                                        {m < cohort ? '' : `${pct}%`}
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </Panel>
-            )}
-
             {/* 5.2 Lifetime Value (LTV) */}
             {useServiceRequest && !loading && !error && customerLtv && customerLtv.top10.length > 0 && showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
@@ -4069,32 +4004,56 @@ export function DashboardPage({
                         Красная зона — нет заказов &gt;90 дней или интервал вырос в 3×. Жёлтая — &gt;45 дней или 2×. Зелёная — активные клиенты.
                     </Typography.Body>
                     <Flex gap="0.5rem" style={{ marginBottom: '0.6rem' }}>
-                        <div style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', textAlign: 'center' }}>
-                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ef4444' }}>{churnRisk.red}</Typography.Body>
-                            <Typography.Body style={{ fontSize: '0.65rem', color: '#ef4444' }}>Высокий риск</Typography.Body>
-                        </div>
-                        <div style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', textAlign: 'center' }}>
-                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f59e0b' }}>{churnRisk.yellow}</Typography.Body>
-                            <Typography.Body style={{ fontSize: '0.65rem', color: '#f59e0b' }}>Средний риск</Typography.Body>
-                        </div>
-                        <div style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', textAlign: 'center' }}>
-                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#10b981' }}>{churnRisk.green}</Typography.Body>
-                            <Typography.Body style={{ fontSize: '0.65rem', color: '#10b981' }}>Активные</Typography.Body>
-                        </div>
+                        <button type="button" onClick={() => setChurnRiskZone('red')} style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: churnRiskZone === 'red' ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.1)', border: churnRiskZone === 'red' ? '2px solid #ef4444' : '1px solid rgba(239,68,68,0.25)', textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'center', justifyContent: 'center' }}>
+                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ef4444', display: 'block', lineHeight: 1.2 }}>{churnRisk.red}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.65rem', color: '#ef4444', display: 'block', lineHeight: 1.2 }}>Высокий риск</Typography.Body>
+                        </button>
+                        <button type="button" onClick={() => setChurnRiskZone('yellow')} style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: churnRiskZone === 'yellow' ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.1)', border: churnRiskZone === 'yellow' ? '2px solid #f59e0b' : '1px solid rgba(245,158,11,0.25)', textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'center', justifyContent: 'center' }}>
+                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f59e0b', display: 'block', lineHeight: 1.2 }}>{churnRisk.yellow}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.65rem', color: '#f59e0b', display: 'block', lineHeight: 1.2 }}>Средний риск</Typography.Body>
+                        </button>
+                        <button type="button" onClick={() => setChurnRiskZone('green')} style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: churnRiskZone === 'green' ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.1)', border: churnRiskZone === 'green' ? '2px solid #10b981' : '1px solid rgba(16,185,129,0.25)', textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'center', justifyContent: 'center' }}>
+                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#10b981', display: 'block', lineHeight: 1.2 }}>{churnRisk.green}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.65rem', color: '#10b981', display: 'block', lineHeight: 1.2 }}>Активные</Typography.Body>
+                        </button>
                     </Flex>
                     <div style={{ overflowX: 'auto', fontSize: '0.7rem' }}>
                         <table style={{ borderCollapse: 'collapse', width: '100%' }}>
                             <thead>
                                 <tr>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Клиент</th>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Заказы</th>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Ø интервал</th>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Дней без заказа</th>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Статус</th>
+                                    {(() => {
+                                        const toggleChurnSort = (col: typeof churnSortCol) => {
+                                            if (churnSortCol === col) setChurnSortAsc(!churnSortAsc);
+                                            else { setChurnSortCol(col); setChurnSortAsc(col === 'name' || col === 'status'); }
+                                        };
+                                        const churnArrow = (col: typeof churnSortCol) => churnSortCol === col ? (churnSortAsc ? ' ↑' : ' ↓') : '';
+                                        const churnTh = (label: string, col: typeof churnSortCol, align: 'left' | 'center') => (
+                                            <th key={col} style={{ padding: '0.3rem 0.4rem', textAlign: align, fontWeight: 600, borderBottom: '2px solid var(--color-border)', cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleChurnSort(col)} title="Сортировка">{label}{churnArrow(col)}</th>
+                                        );
+                                        return (
+                                            <>
+                                                {churnTh('Клиент', 'name', 'left')}
+                                                {churnTh('Заказы', 'orders', 'center')}
+                                                {churnTh('Ø интервал', 'avgInterval', 'center')}
+                                                {churnTh('Дней без заказа', 'daysSinceLast', 'center')}
+                                                {churnTh('Статус', 'status', 'center')}
+                                            </>
+                                        );
+                                    })()}
                                 </tr>
                             </thead>
                             <tbody>
-                                {churnRisk.items.slice(0, 15).map(c => {
+                                {[...churnRisk.items.filter(c => c.zone === churnRiskZone)]
+                                    .sort((a, b) => {
+                                        let cmp = 0;
+                                        if (churnSortCol === 'name') cmp = a.name.localeCompare(b.name);
+                                        else if (churnSortCol === 'orders') cmp = a.orders - b.orders;
+                                        else if (churnSortCol === 'avgInterval') cmp = a.avgInterval - b.avgInterval;
+                                        else if (churnSortCol === 'daysSinceLast') cmp = a.daysSinceLast - b.daysSinceLast;
+                                        else cmp = (a.zone === b.zone ? 0 : (a.zone < b.zone ? -1 : 1));
+                                        return churnSortAsc ? cmp : -cmp;
+                                    })
+                                    .map(c => {
                                     const zColor = { red: '#ef4444', yellow: '#f59e0b', green: '#10b981' }[c.zone];
                                     const zLabel = { red: 'Высокий', yellow: 'Средний', green: 'Активен' }[c.zone];
                                     return (
@@ -4120,20 +4079,36 @@ export function DashboardPage({
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>RFM-сегментация</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                        Recency (давность) × Frequency (частота) × Monetary (сумма). Всего клиентов: {rfmSegments.total}
+                        Recency (давность) × Frequency (частота) × Monetary (сумма). Всего клиентов: {rfmSegments.total}. Нажмите на сегмент — список заказчиков.
                     </Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {rfmSegments.segments.map(seg => {
                             const pct = rfmSegments.total > 0 ? Math.round((seg.count / rfmSegments.total) * 100) : 0;
+                            const isExpanded = expandedRfmSegment === seg.name;
                             return (
-                                <div key={seg.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <Typography.Body style={{ fontSize: '0.75rem', width: 130, flexShrink: 0, fontWeight: 600 }}>{seg.name}</Typography.Body>
-                                    <div style={{ flex: 1, height: 16, borderRadius: 8, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                        <div style={{ width: `${pct}%`, height: '100%', background: seg.color, borderRadius: 8, transition: 'width 0.3s', minWidth: pct > 0 ? 4 : 0 }} />
-                                    </div>
-                                    <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, minWidth: 36, textAlign: 'right' }}>{seg.count}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', minWidth: 30, textAlign: 'right' }}>{pct}%</Typography.Body>
-                                    {showSums && <Typography.Body style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', minWidth: 70, textAlign: 'right' }}>Ø {Math.round(seg.avgSum).toLocaleString('ru-RU')} ₽</Typography.Body>}
+                                <div key={seg.name}>
+                                    <button type="button" onClick={() => setExpandedRfmSegment(isExpanded ? null : seg.name)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0', background: isExpanded ? 'var(--color-bg-hover)' : 'transparent', border: 'none', borderRadius: 6, cursor: 'pointer', textAlign: 'left' }}>
+                                        <Typography.Body style={{ fontSize: '0.75rem', width: 130, flexShrink: 0, fontWeight: 600 }}>{seg.name}</Typography.Body>
+                                        <div style={{ flex: 1, height: 16, borderRadius: 8, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                            <div style={{ width: `${pct}%`, height: '100%', background: seg.color, borderRadius: 8, transition: 'width 0.3s', minWidth: pct > 0 ? 4 : 0 }} />
+                                        </div>
+                                        <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, minWidth: 36, textAlign: 'right' }}>{seg.count}</Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', minWidth: 30, textAlign: 'right' }}>{pct}%</Typography.Body>
+                                        {showSums && <Typography.Body style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', minWidth: 70, textAlign: 'right' }}>Ø {Math.round(seg.avgSum).toLocaleString('ru-RU')} ₽</Typography.Body>}
+                                    </button>
+                                    {isExpanded && rfmSegments.customersBySegment && rfmSegments.customersBySegment[seg.name] && (
+                                        <div style={{ marginTop: '0.35rem', marginBottom: '0.25rem', marginLeft: 8, padding: '0.5rem 0.6rem', background: 'var(--color-bg-hover)', borderRadius: 8, maxHeight: 220, overflowY: 'auto' }}>
+                                            <Typography.Body style={{ fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.35rem', color: seg.color }}>Заказчики ({rfmSegments.customersBySegment[seg.name].length})</Typography.Body>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                {rfmSegments.customersBySegment[seg.name].map((c, i) => (
+                                                    <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', fontSize: '0.72rem' }}>
+                                                        <Typography.Body style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
+                                                        {showSums && <Typography.Body style={{ flexShrink: 0, fontWeight: 600 }}>{Math.round(c.monetary).toLocaleString('ru-RU')} ₽</Typography.Body>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
@@ -4160,15 +4135,40 @@ export function DashboardPage({
                         <table style={{ borderCollapse: 'collapse', width: '100%' }}>
                             <thead>
                                 <tr>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Клиент</th>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Всего</th>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Оплачено</th>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Не оплач.</th>
-                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>% оплаты</th>
+                                    {(() => {
+                                        const togglePaySort = (col: typeof paymentDisciplineSortCol) => {
+                                            if (paymentDisciplineSortCol === col) setPaymentDisciplineSortAsc(!paymentDisciplineSortAsc);
+                                            else { setPaymentDisciplineSortCol(col); setPaymentDisciplineSortAsc(col === 'name'); }
+                                        };
+                                        const payArrow = (col: typeof paymentDisciplineSortCol) => paymentDisciplineSortCol === col ? (paymentDisciplineSortAsc ? ' ↑' : ' ↓') : '';
+                                        const payTh = (label: string, col: typeof paymentDisciplineSortCol, align: 'left' | 'center') => (
+                                            <th key={col} style={{ padding: '0.3rem 0.4rem', textAlign: align, fontWeight: 600, borderBottom: '2px solid var(--color-border)', cursor: 'pointer', userSelect: 'none' }} onClick={() => togglePaySort(col)} title="Сортировка">{label}{payArrow(col)}</th>
+                                        );
+                                        return (
+                                            <>
+                                                {payTh('Клиент', 'name', 'left')}
+                                                {payTh('Всего', 'count', 'center')}
+                                                {payTh('Оплачено', 'paid', 'center')}
+                                                {payTh('Не оплач.', 'unpaid', 'center')}
+                                                {payTh('% оплаты', 'paidRate', 'center')}
+                                            </>
+                                        );
+                                    })()}
                                 </tr>
                             </thead>
                             <tbody>
-                                {paymentDiscipline.slice(0, 15).map(c => {
+                                {[...paymentDiscipline]
+                                    .sort((a, b) => {
+                                        let cmp = 0;
+                                        if (paymentDisciplineSortCol === 'name') cmp = a.name.localeCompare(b.name);
+                                        else if (paymentDisciplineSortCol === 'count') cmp = a.count - b.count;
+                                        else if (paymentDisciplineSortCol === 'paid') cmp = a.paid - b.paid;
+                                        else if (paymentDisciplineSortCol === 'unpaid') cmp = a.unpaid - b.unpaid;
+                                        else cmp = a.paidRate - b.paidRate;
+                                        return paymentDisciplineSortAsc ? cmp : -cmp;
+                                    })
+                                    .slice(0, 15)
+                                    .map(c => {
                                     const color = c.paidRate >= 80 ? '#10b981' : c.paidRate >= 50 ? '#f59e0b' : '#ef4444';
                                     return (
                                         <tr key={c.name}>
