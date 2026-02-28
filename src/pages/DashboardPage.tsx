@@ -1626,12 +1626,12 @@ export function DashboardPage({
         const values = data.map((d) => Math.max(0, Number(d.value) || 0));
         const maxValue = Math.max(...values, 1);
         const accent = '#22c55e';
-        const w = 220;
-        const h = 88;
-        const left = 8;
-        const right = 8;
-        const top = 8;
-        const bottom = 18;
+        const w = 160;
+        const h = 56;
+        const left = 6;
+        const right = 6;
+        const top = 6;
+        const bottom = 10;
         const plotW = w - left - right;
         const plotH = h - top - bottom;
         const n = values.length;
@@ -1937,6 +1937,159 @@ export function DashboardPage({
         if (v2 < v1) return 'down';
         return null;
     }, [chartData, chartType]);
+
+    // ═══════ Служебные виджеты (только useServiceRequest) ═══════
+
+    const statusFunnel = useMemo(() => {
+        if (!useServiceRequest) return [];
+        const stages: { key: string; label: string; color: string }[] = [
+            { key: 'accepted', label: 'Принят', color: '#3b82f6' },
+            { key: 'transit', label: 'В пути', color: '#f59e0b' },
+            { key: 'ready', label: 'Готов к выдаче', color: '#8b5cf6' },
+            { key: 'delivering', label: 'На доставке', color: '#06b6d4' },
+            { key: 'delivered', label: 'Доставлен', color: '#10b981' },
+        ];
+        const counts = new Map<string, number>();
+        filteredItems.forEach((item) => {
+            const k = getFilterKeyByStatus(item.State);
+            counts.set(k, (counts.get(k) || 0) + 1);
+        });
+        return stages.map((s) => ({ ...s, count: counts.get(s.key) || 0 }));
+    }, [filteredItems, useServiceRequest]);
+
+    const paretoByCustomer = useMemo(() => {
+        if (!useServiceRequest) return { rows: [] as { name: string; value: number; cumPercent: number; color: string }[], total: 0 };
+        const map = new Map<string, number>();
+        filteredItems.forEach((item) => {
+            const name = stripOoo((item.Customer ?? (item as any).customer ?? '').trim() || '—');
+            const val = typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+            map.set(name, (map.get(name) || 0) + val);
+        });
+        const total = [...map.values()].reduce((a, b) => a + b, 0) || 1;
+        const sorted = [...map.entries()].sort((a, b) => b[1] - a[1]);
+        let cum = 0;
+        const rows = sorted.map(([name, value], i) => {
+            cum += value;
+            return { name, value, cumPercent: Math.round((cum / total) * 100), color: DIAGRAM_COLORS[i % DIAGRAM_COLORS.length] };
+        });
+        return { rows, total };
+    }, [filteredItems, useServiceRequest]);
+
+    const invoiceAging = useMemo(() => {
+        if (!useServiceRequest) return { buckets: [] as { label: string; count: number; sum: number; color: string }[], total: 0 };
+        const now = new Date();
+        const buckets = [
+            { label: 'до 7 дн.', min: 0, max: 7, count: 0, sum: 0, color: '#10b981' },
+            { label: '7–14 дн.', min: 7, max: 14, count: 0, sum: 0, color: '#f59e0b' },
+            { label: '14–30 дн.', min: 14, max: 30, count: 0, sum: 0, color: '#f97316' },
+            { label: '30+ дн.', min: 30, max: Infinity, count: 0, sum: 0, color: '#ef4444' },
+        ];
+        let total = 0;
+        (calendarInvoiceItems ?? []).forEach((inv: any) => {
+            const status = normalizeInvoiceStatus(inv?.Status ?? inv?.State ?? inv?.state ?? inv?.Статус ?? inv?.status ?? inv?.PaymentStatus ?? '');
+            if (status === 'Оплачен') return;
+            const rawDate = String(inv?.DateDoc ?? inv?.Date ?? inv?.date ?? inv?.dateDoc ?? inv?.Дата ?? '').trim();
+            const parsed = dateUtils.parseDateOnly(rawDate);
+            if (!parsed) return;
+            const days = Math.max(0, Math.round((now.getTime() - parsed.getTime()) / (24 * 60 * 60 * 1000)));
+            const sum = typeof inv?.SumDoc === 'string' ? parseFloat(inv.SumDoc) || 0 : Number(inv?.SumDoc ?? inv?.Sum ?? inv?.sum ?? inv?.Сумма ?? 0) || 0;
+            if (sum <= 0) return;
+            for (const b of buckets) {
+                if (days >= b.min && days < b.max) { b.count += 1; b.sum += sum; total += sum; break; }
+            }
+        });
+        return { buckets, total };
+    }, [calendarInvoiceItems, useServiceRequest]);
+
+    const loadHeatmap = useMemo(() => {
+        if (!useServiceRequest) return { cells: [] as { key: string; day: number; count: number; pw: number }[], maxCount: 1, year: 0, month: 0 };
+        const { year, month } = paymentCalendarMonth;
+        const lastDay = new Date(year, month, 0).getDate();
+        const cells: { key: string; day: number; count: number; pw: number }[] = [];
+        const byDay = new Map<string, { count: number; pw: number }>();
+        filteredItems.forEach((item) => {
+            const raw = String(item.DatePrih ?? '').trim();
+            if (!raw) return;
+            const dk = raw.includes('T') ? raw.split('T')[0] : raw;
+            const p = dateUtils.parseDateOnly(dk);
+            if (!p) return;
+            if (p.getFullYear() !== year || p.getMonth() + 1 !== month) return;
+            const dayKey = `${year}-${String(month).padStart(2, '0')}-${String(p.getDate()).padStart(2, '0')}`;
+            const entry = byDay.get(dayKey) || { count: 0, pw: 0 };
+            entry.count += 1;
+            entry.pw += typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+            byDay.set(dayKey, entry);
+        });
+        let maxCount = 1;
+        for (let d = 1; d <= lastDay; d++) {
+            const key = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const entry = byDay.get(key) || { count: 0, pw: 0 };
+            if (entry.count > maxCount) maxCount = entry.count;
+            cells.push({ key, day: d, count: entry.count, pw: entry.pw });
+        }
+        return { cells, maxCount, year, month };
+    }, [filteredItems, useServiceRequest, paymentCalendarMonth]);
+
+    const movingAverage7 = useMemo(() => {
+        if (!useServiceRequest || chartData.length < 3) return null;
+        const getVal = (d: { sum: number; pw: number; w: number; mest: number; vol: number }) => {
+            if (chartType === 'money') return d.sum;
+            if (chartType === 'paidWeight') return d.pw;
+            if (chartType === 'weight') return d.w;
+            if (chartType === 'pieces') return d.mest;
+            return d.vol;
+        };
+        const values = chartData.map(getVal);
+        const window = Math.min(7, values.length);
+        const ma: { date: string; dateKey?: string; value: number }[] = [];
+        for (let i = 0; i < values.length; i++) {
+            const start = Math.max(0, i - window + 1);
+            const slice = values.slice(start, i + 1);
+            const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+            ma.push({ date: chartData[i].date, dateKey: (chartData[i] as any).dateKey, value: Math.round(avg) });
+        }
+        return ma;
+    }, [chartData, chartType, useServiceRequest]);
+
+    const repeatCustomers = useMemo(() => {
+        if (!useServiceRequest || filteredPrevPeriodItems.length === 0) return null;
+        const current = new Set<string>();
+        const previous = new Set<string>();
+        filteredItems.forEach((item) => {
+            const name = (item.Customer ?? (item as any).customer ?? '').trim();
+            if (name) current.add(name);
+        });
+        filteredPrevPeriodItems.forEach((item) => {
+            const name = (item.Customer ?? (item as any).customer ?? '').trim();
+            if (name) previous.add(name);
+        });
+        let repeat = 0;
+        let newC = 0;
+        current.forEach((name) => {
+            if (previous.has(name)) repeat += 1;
+            else newC += 1;
+        });
+        return { total: current.size, repeat, new: newC, repeatPercent: current.size > 0 ? Math.round((repeat / current.size) * 100) : 0 };
+    }, [filteredItems, filteredPrevPeriodItems, useServiceRequest]);
+
+    const weekdayDistribution = useMemo(() => {
+        if (!useServiceRequest) return [];
+        const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+        const counts = [0, 0, 0, 0, 0, 0, 0];
+        const weights = [0, 0, 0, 0, 0, 0, 0];
+        filteredItems.forEach((item) => {
+            const raw = String(item.DatePrih ?? '').trim();
+            if (!raw) return;
+            const dk = raw.includes('T') ? raw.split('T')[0] : raw;
+            const p = dateUtils.parseDateOnly(dk);
+            if (!p) return;
+            const dow = (p.getDay() + 6) % 7;
+            counts[dow] += 1;
+            weights[dow] += typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+        });
+        const maxCount = Math.max(...counts, 1);
+        return DAYS.map((label, i) => ({ label, count: counts[i], pw: weights[i], percent: Math.round((counts[i] / maxCount) * 100) }));
+    }, [filteredItems, useServiceRequest]);
 
     if (!auth?.login || !auth?.password) {
         return (
@@ -2555,7 +2708,7 @@ export function DashboardPage({
                         <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem' }}>
                             Стиль графика (нажми на миниатюру)
                         </Typography.Body>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '0.45rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '0.35rem' }}>
                             {([
                                 { key: 'columns', label: 'Столбцы' },
                                 { key: 'line', label: 'Линия' },
@@ -2570,14 +2723,14 @@ export function DashboardPage({
                                     onClick={() => setMainChartVariant(variant.key)}
                                     style={{
                                         border: variant.key === mainChartVariant ? '1px solid var(--color-primary-blue)' : '1px solid var(--color-border)',
-                                        borderRadius: 8,
-                                        padding: '0.32rem',
+                                        borderRadius: 6,
+                                        padding: '0.22rem',
                                         background: variant.key === mainChartVariant ? 'rgba(37,99,235,0.08)' : 'var(--color-bg-hover)',
                                         textAlign: 'left',
                                     }}
                                     title={`Выбрать: ${variant.label}`}
                                 >
-                                    <Typography.Body style={{ fontSize: '0.72rem', marginBottom: '0.25rem', color: 'var(--color-text-secondary)' }}>
+                                    <Typography.Body style={{ fontSize: '0.62rem', marginBottom: '0.15rem', color: 'var(--color-text-secondary)' }}>
                                         {variant.label}
                                     </Typography.Body>
                                     {renderChartVariantPreview(selectedChartConfig.data, selectedChartConfig.color, variant.key)}
@@ -2739,7 +2892,7 @@ export function DashboardPage({
             {!showOnlySla && !loading && !error && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                        Order Flow (по плановой дате)
+                        Cargo Flow (по плановой дате)
                     </Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
                         Поток перевозок по плановой дате доставки: нагрузка на ближайшие дни и риск просрочки.
@@ -3119,6 +3272,240 @@ export function DashboardPage({
                     )}
                     </>
                     )}
+                </Panel>
+            )}
+
+            {/* ═══════ СЛУЖЕБНЫЕ ВИДЖЕТЫ ═══════ */}
+
+            {/* 1. Воронка статусов */}
+            {useServiceRequest && !loading && !error && statusFunnel.length > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                        Воронка статусов
+                    </Typography.Headline>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        {(() => {
+                            const maxC = Math.max(...statusFunnel.map((s) => s.count), 1);
+                            const totalC = statusFunnel.reduce((a, s) => a + s.count, 0) || 1;
+                            return statusFunnel.map((stage) => (
+                                <div key={stage.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Typography.Body style={{ fontSize: '0.78rem', width: 110, flexShrink: 0, color: 'var(--color-text-secondary)' }}>{stage.label}</Typography.Body>
+                                    <div style={{ flex: 1, height: 14, borderRadius: 7, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                        <div style={{ width: `${Math.round((stage.count / maxC) * 100)}%`, height: '100%', background: stage.color, borderRadius: 7, transition: 'width 0.3s' }} />
+                                    </div>
+                                    <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, minWidth: 44, textAlign: 'right' }}>{stage.count}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', minWidth: 36, textAlign: 'right' }}>{Math.round((stage.count / totalC) * 100)}%</Typography.Body>
+                                </div>
+                            ));
+                        })()}
+                    </div>
+                </Panel>
+            )}
+
+            {/* 3. Pareto / ABC-анализ клиентов */}
+            {useServiceRequest && !loading && !error && paretoByCustomer.rows.length > 0 && showSums && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        ABC-анализ клиентов
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
+                        Концентрация выручки по заказчикам (Парето)
+                    </Typography.Body>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: 280, overflowY: 'auto' }}>
+                        {paretoByCustomer.rows.slice(0, 15).map((row, i) => {
+                            const zone = row.cumPercent <= 80 ? 'A' : row.cumPercent <= 95 ? 'B' : 'C';
+                            const zoneColor = zone === 'A' ? '#10b981' : zone === 'B' ? '#f59e0b' : '#94a3b8';
+                            return (
+                                <div key={`pareto-${i}`} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: zoneColor, width: 16, textAlign: 'center', flexShrink: 0 }}>{zone}</span>
+                                    <Typography.Body style={{ fontSize: '0.76rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.name}>{row.name}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, flexShrink: 0 }}>{formatCurrency(row.value, true)}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', flexShrink: 0, minWidth: 40, textAlign: 'right' }}>∑{row.cumPercent}%</Typography.Body>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '0.45rem' }}>
+                        Всего клиентов: {paretoByCustomer.rows.length} · A (80%): {paretoByCustomer.rows.filter((r) => r.cumPercent <= 80).length} · B (95%): {paretoByCustomer.rows.filter((r) => r.cumPercent > 80 && r.cumPercent <= 95).length} · C: {paretoByCustomer.rows.filter((r) => r.cumPercent > 95).length}
+                    </Typography.Body>
+                </Panel>
+            )}
+
+            {/* 4. Старение дебиторки */}
+            {useServiceRequest && !loading && !error && invoiceAging.total > 0 && showSums && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        Старение дебиторки
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
+                        Неоплаченные счета по давности выставления
+                    </Typography.Body>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        {invoiceAging.buckets.map((b) => (
+                            <div key={b.label} style={{ border: `1px solid ${b.color}33`, borderRadius: 10, padding: '0.55rem', background: `${b.color}0a` }}>
+                                <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>{b.label}</Typography.Body>
+                                <Typography.Body style={{ fontWeight: 700, fontSize: '1rem', color: b.color }}>{b.count}</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600 }}>{formatCurrency(b.sum, true)}</Typography.Body>
+                            </div>
+                        ))}
+                    </div>
+                    <div style={{ height: 10, borderRadius: 5, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
+                        {invoiceAging.buckets.map((b) => (
+                            <div key={`aging-bar-${b.label}`} style={{ width: `${invoiceAging.total > 0 ? (b.sum / invoiceAging.total) * 100 : 0}%`, height: '100%', background: b.color, transition: 'width 0.3s' }} title={`${b.label}: ${formatCurrency(b.sum, true)}`} />
+                        ))}
+                    </div>
+                </Panel>
+            )}
+
+            {/* 6. Календарь загрузки (heatmap) */}
+            {useServiceRequest && !loading && !error && loadHeatmap.cells.length > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Flex align="center" justify="space-between" style={{ marginBottom: '0.5rem' }}>
+                        <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
+                            Календарь загрузки
+                        </Typography.Headline>
+                        <Flex align="center" gap="0.4rem">
+                            <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
+                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', minWidth: '8rem', textAlign: 'center' }}>
+                                {['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][loadHeatmap.month - 1]} {loadHeatmap.year}
+                            </Typography.Body>
+                            <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
+                        </Flex>
+                    </Flex>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
+                        {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((wd) => (
+                            <div key={`hm-h-${wd}`} style={{ textAlign: 'center', fontSize: '0.7rem', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.15rem' }}>{wd}</div>
+                        ))}
+                        {(() => {
+                            const first = new Date(loadHeatmap.year, loadHeatmap.month - 1, 1);
+                            const offset = (first.getDay() + 6) % 7;
+                            const blanks = Array.from({ length: offset }, (_, i) => (
+                                <div key={`hm-blank-${i}`} />
+                            ));
+                            const days = loadHeatmap.cells.map((cell) => {
+                                const intensity = cell.count / loadHeatmap.maxCount;
+                                return (
+                                    <div key={`hm-${cell.key}`} title={`${cell.key}: ${cell.count} грузов, ${Math.round(cell.pw)} кг`} style={{ textAlign: 'center', borderRadius: 5, padding: '0.3rem 0.15rem', fontSize: '0.72rem', fontWeight: cell.count > 0 ? 600 : 400, background: cell.count > 0 ? `rgba(37,99,235,${0.12 + intensity * 0.55})` : 'var(--color-bg-hover)', color: intensity > 0.5 ? 'white' : 'var(--color-text-primary)', cursor: 'default' }}>
+                                        {cell.day}
+                                        {cell.count > 0 && <div style={{ fontSize: '0.6rem', fontWeight: 400, opacity: 0.85 }}>{cell.count}</div>}
+                                    </div>
+                                );
+                            });
+                            return [...blanks, ...days];
+                        })()}
+                    </div>
+                </Panel>
+            )}
+
+            {/* 7. Скользящая средняя (overlay на основной график) */}
+            {useServiceRequest && !loading && !error && movingAverage7 && movingAverage7.length > 2 && !showOnlySla && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        Скользящая средняя (7 дн.)
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Тренд без дневных колебаний — {selectedChartConfig.title.toLowerCase()}
+                    </Typography.Body>
+                    {(() => {
+                        const pts = movingAverage7;
+                        const maxVal = Math.max(...pts.map((p) => p.value), 1);
+                        const w = Math.max(400, pts.length * 28);
+                        const h = 100;
+                        const pad = { l: 50, r: 16, t: 10, b: 26 };
+                        const plotW = w - pad.l - pad.r;
+                        const plotH = h - pad.t - pad.b;
+                        const polyPts = pts.map((p, i) => {
+                            const x = pad.l + (pts.length > 1 ? (i * plotW) / (pts.length - 1) : plotW / 2);
+                            const y = pad.t + plotH - (p.value / maxVal) * plotH;
+                            return `${x},${y}`;
+                        }).join(' ');
+                        const areaD = pts.length > 1
+                            ? `M ${pad.l} ${pad.t + plotH} L ${pts.map((p, i) => { const x = pad.l + (i * plotW) / (pts.length - 1); const y = pad.t + plotH - (p.value / maxVal) * plotH; return `${x} ${y}`; }).join(' L ')} L ${pad.l + plotW} ${pad.t + plotH} Z`
+                            : '';
+                        return (
+                            <div style={{ overflowX: 'auto' }}>
+                                <svg width={w} height={h} style={{ display: 'block', minWidth: `${w}px` }}>
+                                    <line x1={pad.l} y1={pad.t + plotH} x2={w - pad.r} y2={pad.t + plotH} stroke="var(--color-border)" strokeWidth="1" opacity="0.5" />
+                                    {areaD && <path d={areaD} fill={selectedChartConfig.color} opacity="0.12" />}
+                                    <polyline points={polyPts} fill="none" stroke={selectedChartConfig.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    {pts.filter((_, i) => i % Math.max(1, Math.floor(pts.length / 8)) === 0 || i === pts.length - 1).map((p, i) => {
+                                        const idx = pts.indexOf(p);
+                                        const x = pad.l + (pts.length > 1 ? (idx * plotW) / (pts.length - 1) : plotW / 2);
+                                        const raw = String(p?.date ?? '').trim();
+                                        const label = raw.includes('.') ? raw.split('.').slice(0, 2).join('.') : /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw.slice(8) + '.' + raw.slice(5, 7) : raw;
+                                        return <text key={`ma-lbl-${i}`} x={x} y={h - 6} textAnchor="middle" fontSize="9" fill="var(--color-text-secondary)">{label}</text>;
+                                    })}
+                                    <text x={pad.l - 4} y={pad.t + 4} textAnchor="end" fontSize="9" fill="var(--color-text-secondary)">{selectedChartConfig.formatValue(maxVal)}</text>
+                                </svg>
+                            </div>
+                        );
+                    })()}
+                </Panel>
+            )}
+
+            {/* 9. Доля повторных клиентов */}
+            {useServiceRequest && !loading && !error && repeatCustomers && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        Повторные клиенты
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
+                        Текущий период vs предыдущий — доля возвращающихся заказчиков
+                    </Typography.Body>
+                    <Flex gap="1rem" wrap="wrap" style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ textAlign: 'center' }}>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#10b981' }}>{repeatCustomers.repeatPercent}%</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>повторных</Typography.Body>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem' }}>{repeatCustomers.total}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>всего клиентов</Typography.Body>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#3b82f6' }}>{repeatCustomers.repeat}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>повторных</Typography.Body>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#f59e0b' }}>{repeatCustomers.new}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>новых</Typography.Body>
+                        </div>
+                    </Flex>
+                    <div style={{ height: 12, borderRadius: 6, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
+                        <div style={{ width: `${repeatCustomers.repeatPercent}%`, height: '100%', background: '#10b981', borderRadius: '6px 0 0 6px', transition: 'width 0.3s' }} />
+                        <div style={{ width: `${100 - repeatCustomers.repeatPercent}%`, height: '100%', background: '#f59e0b', borderRadius: '0 6px 6px 0', transition: 'width 0.3s' }} />
+                    </div>
+                    <Flex gap="0.75rem" style={{ marginTop: '0.3rem' }}>
+                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} /><Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Повторные</Typography.Body></Flex>
+                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Новые</Typography.Body></Flex>
+                    </Flex>
+                </Panel>
+            )}
+
+            {/* 10. Распределение по дням недели */}
+            {useServiceRequest && !loading && !error && weekdayDistribution.length > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        Загрузка по дням недели
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
+                        Количество приёмок и платный вес в разрезе дня недели
+                    </Typography.Body>
+                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'flex-end', height: 90, marginBottom: '0.35rem' }}>
+                        {weekdayDistribution.map((d) => (
+                            <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+                                <Typography.Body style={{ fontSize: '0.68rem', fontWeight: 600, marginBottom: '0.15rem' }}>{d.count || ''}</Typography.Body>
+                                <div style={{ width: '100%', maxWidth: 36, borderRadius: '5px 5px 0 0', background: d.percent > 0 ? 'rgba(37,99,235,0.65)' : 'var(--color-bg-hover)', height: `${Math.max(d.percent, 4)}%`, transition: 'height 0.3s' }} />
+                            </div>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                        {weekdayDistribution.map((d) => (
+                            <div key={`lbl-${d.label}`} style={{ flex: 1, textAlign: 'center' }}>
+                                <Typography.Body style={{ fontSize: '0.72rem', color: d.label === 'Сб' || d.label === 'Вс' ? '#ef4444' : 'var(--color-text-secondary)', fontWeight: 600 }}>{d.label}</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.6rem', color: 'var(--color-text-secondary)' }}>{Math.round(d.pw)} кг</Typography.Body>
+                            </div>
+                        ))}
+                    </div>
                 </Panel>
             )}
 
