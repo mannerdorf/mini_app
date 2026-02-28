@@ -2038,14 +2038,18 @@ export function DashboardPage({
         const lastDay = new Date(year, month, 0).getDate();
         const cells: { key: string; day: number; count: number; pw: number }[] = [];
         const byDay = new Map<string, { count: number; pw: number }>();
+        let _dbgTotal = 0, _dbgNoDate = 0, _dbgRecv = 0, _dbgParseFail = 0, _dbgMonthMiss = 0, _dbgOk = 0;
+        const _dbgSamples: string[] = [];
         items.forEach((item) => {
-            if (isReceivedInfoStatus(item.State)) return;
+            _dbgTotal++;
+            if (isReceivedInfoStatus(item.State)) { _dbgRecv++; return; }
             const raw = String(item.DatePrih ?? '').trim();
-            if (!raw) return;
-            const dk = raw.includes('T') ? raw.split('T')[0] : raw.split(' ')[0];
-            const p = dateUtils.parseDateOnly(dk);
-            if (!p) return;
-            if (p.getFullYear() !== year || p.getMonth() + 1 !== month) return;
+            if (!raw) { _dbgNoDate++; return; }
+            if (_dbgSamples.length < 5) _dbgSamples.push(raw);
+            const p = dateUtils.parseDateOnly(raw);
+            if (!p) { _dbgParseFail++; return; }
+            if (p.getFullYear() !== year || p.getMonth() + 1 !== month) { _dbgMonthMiss++; return; }
+            _dbgOk++;
             const dayKey = `${year}-${String(month).padStart(2, '0')}-${String(p.getDate()).padStart(2, '0')}`;
             const entry = byDay.get(dayKey) || { count: 0, pw: 0 };
             entry.count += 1;
@@ -2059,6 +2063,7 @@ export function DashboardPage({
             if (entry.count > maxCount) maxCount = entry.count;
             cells.push({ key, day: d, count: entry.count, pw: entry.pw });
         }
+        console.log('[HEATMAP DEBUG]', { year, month, _dbgTotal, _dbgRecv, _dbgNoDate, _dbgParseFail, _dbgMonthMiss, _dbgOk, _dbgSamples, byDaySize: byDay.size });
         return { cells, maxCount, year, month };
     }, [items, useServiceRequest, heatmapMonth]);
 
@@ -2740,9 +2745,20 @@ export function DashboardPage({
             {/* === ВИДЖЕТ 3: График динамики (включить: WIDGET_3_CHART = true) === */}
             {WIDGET_3_CHART && !loading && !error && showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>
-                        {selectedChartConfig.title}
-                    </Typography.Headline>
+                    <Flex align="center" justify="space-between" style={{ marginBottom: '0.15rem' }}>
+                        <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
+                            {selectedChartConfig.title}
+                        </Typography.Headline>
+                        <Flex gap="0.2rem" align="center">
+                            {showSums && (
+                                <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: chartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => setChartType('money')} title="Рубли"><RussianRuble className="w-4 h-4" style={{ color: chartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                            )}
+                            <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: chartType === 'paidWeight' ? '#10b981' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => setChartType('paidWeight')} title="Платный вес"><Scale className="w-4 h-4" style={{ color: chartType === 'paidWeight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                            <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: chartType === 'weight' ? '#0d9488' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => setChartType('weight')} title="Вес"><Weight className="w-4 h-4" style={{ color: chartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                            <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: chartType === 'volume' ? '#f59e0b' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => setChartType('volume')} title="Объём"><List className="w-4 h-4" style={{ color: chartType === 'volume' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                            <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: chartType === 'pieces' ? '#8b5cf6' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => setChartType('pieces')} title="Места (шт)"><Package className="w-4 h-4" style={{ color: chartType === 'pieces' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        </Flex>
+                    </Flex>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
                         Динамика показателя по дням за выбранный период. Выберите стиль отображения ниже.
                     </Typography.Body>
