@@ -278,6 +278,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
   const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
+  const [journalsOpen, setJournalsOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
       const saved = localStorage.getItem(ADMIN_THEME_KEY);
@@ -2181,7 +2182,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     return items;
   }, [selectedUser, editorPermissions, editorFinancial, editorAccessAllInns, editorCustomers]);
-  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "employee_directory";
+  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "employee_directory" || tab === "presets";
 
   return (
     <div className={theme === "light" ? "light-mode w-full" : "w-full"}>
@@ -2221,48 +2222,30 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <Users className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Справочники
         </Button>
-        <Button
-          className="filter-button"
-          style={{ background: tab === "templates" ? "var(--color-primary-blue)" : undefined, color: tab === "templates" ? "white" : undefined }}
-          onClick={() => setTab("templates")}
-        >
-          <Mail className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          Шаблоны писем
-        </Button>
-        <Button
-          className="filter-button"
-          style={{ background: tab === "audit" ? "var(--color-primary-blue)" : undefined, color: tab === "audit" ? "white" : undefined }}
-          onClick={() => setTab("audit")}
-        >
-          <History className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          Журнал
-        </Button>
-        <Button
-          className="filter-button"
-          style={{ background: tab === "logs" ? "var(--color-primary-blue)" : undefined, color: tab === "logs" ? "white" : undefined }}
-          onClick={() => setTab("logs")}
-        >
-          <AlertCircle className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          Журнал логов
-        </Button>
-        <Button
-          className="filter-button"
-          style={{ background: tab === "integrations" ? "var(--color-primary-blue)" : undefined, color: tab === "integrations" ? "white" : undefined }}
-          onClick={() => setTab("integrations")}
-        >
-          <Activity className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-          Здоровье интеграций
-        </Button>
-        {isSuperAdmin && (
+        <div style={{ position: "relative", display: "inline-block" }}>
           <Button
             className="filter-button"
-            style={{ background: tab === "presets" ? "var(--color-primary-blue)" : undefined, color: tab === "presets" ? "white" : undefined }}
-            onClick={() => setTab("presets")}
+            style={{ background: ["audit", "logs", "integrations"].includes(tab) ? "var(--color-primary-blue)" : undefined, color: ["audit", "logs", "integrations"].includes(tab) ? "white" : undefined }}
+            onClick={() => setJournalsOpen(!journalsOpen)}
           >
-            <Layers className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-            Пресеты ролей
+            <History className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Журналы
+            {journalsOpen ? <ChevronUp className="w-3 h-3" style={{ marginLeft: "0.25rem" }} /> : <ChevronDown className="w-3 h-3" style={{ marginLeft: "0.25rem" }} />}
           </Button>
-        )}
+          {journalsOpen && (
+            <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 50, background: "var(--color-bg-card)", border: "1px solid var(--color-border)", borderRadius: 10, boxShadow: "var(--shadow-lg)", padding: "0.35rem", minWidth: "12rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+              <Button className="filter-button" style={{ width: "100%", justifyContent: "flex-start", background: tab === "audit" ? "var(--color-primary-blue)" : undefined, color: tab === "audit" ? "white" : undefined }} onClick={() => { setTab("audit"); setJournalsOpen(false); }}>
+                <History className="w-4 h-4" style={{ marginRight: "0.35rem" }} />Журнал
+              </Button>
+              <Button className="filter-button" style={{ width: "100%", justifyContent: "flex-start", background: tab === "logs" ? "var(--color-primary-blue)" : undefined, color: tab === "logs" ? "white" : undefined }} onClick={() => { setTab("logs"); setJournalsOpen(false); }}>
+                <AlertCircle className="w-4 h-4" style={{ marginRight: "0.35rem" }} />Журнал логов
+              </Button>
+              <Button className="filter-button" style={{ width: "100%", justifyContent: "flex-start", background: tab === "integrations" ? "var(--color-primary-blue)" : undefined, color: tab === "integrations" ? "white" : undefined }} onClick={() => { setTab("integrations"); setJournalsOpen(false); }}>
+                <Activity className="w-4 h-4" style={{ marginRight: "0.35rem" }} />Здоровье интеграций
+              </Button>
+            </div>
+          )}
+        </div>
         {isSuperAdmin && (
           <Button
             className="filter-button"
@@ -2329,6 +2312,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             >
               <Users className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
               Справочник сотрудников
+            </Button>
+          )}
+          {isSuperAdmin && (
+            <Button
+              className="filter-button"
+              style={{ background: tab === "presets" ? "var(--color-primary-blue)" : undefined, color: tab === "presets" ? "white" : undefined }}
+              onClick={() => setTab("presets")}
+            >
+              <Layers className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+              Пресеты ролей
             </Button>
           )}
         </Flex>
@@ -3673,46 +3666,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         </Panel>
       )}
 
-      {tab === "templates" && (
-        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
-          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Шаблоны писем</Typography.Body>
-          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-            HTML-текст писем при регистрации и при сбросе пароля. Подстановки: <code>[login]</code>, <code>[email]</code>, <code>[password]</code>, <code>[company_name]</code>. Пусто — текст по умолчанию.
-          </Typography.Body>
-          {templatesLoading ? (
-            <Flex align="center" gap="0.5rem" style={{ marginBottom: "1rem" }}>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <Typography.Body>Загрузка…</Typography.Body>
-            </Flex>
-          ) : (
-            <form onSubmit={handleSaveTemplates}>
-              <label htmlFor="email-template-registration" style={{ display: "block", marginBottom: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Письмо при регистрации</label>
-              <textarea
-                id="email-template-registration"
-                className="admin-form-input"
-                value={emailTemplateRegistration}
-                onChange={(e) => setEmailTemplateRegistration(e.target.value)}
-                placeholder="Оставьте пустым для текста по умолчанию"
-                rows={8}
-                style={{ width: "100%", resize: "vertical", minHeight: "8rem", marginBottom: "1rem" }}
-              />
-              <label htmlFor="email-template-password-reset" style={{ display: "block", marginBottom: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-primary)" }}>Письмо при сбросе пароля</label>
-              <textarea
-                id="email-template-password-reset"
-                className="admin-form-input"
-                value={emailTemplatePasswordReset}
-                onChange={(e) => setEmailTemplatePasswordReset(e.target.value)}
-                placeholder="Оставьте пустым для текста по умолчанию"
-                rows={8}
-                style={{ width: "100%", resize: "vertical", minHeight: "8rem", marginBottom: "1rem" }}
-              />
-              <Button type="submit" className="filter-button" disabled={templatesSaving}>
-                {templatesSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Сохранить"}
-              </Button>
-            </form>
-          )}
-        </Panel>
-      )}
 
       {tab === "customers" && (
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
