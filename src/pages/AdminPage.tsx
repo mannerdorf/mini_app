@@ -278,7 +278,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
   const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
-  const [journalsOpen, setJournalsOpen] = useState(false);
+  const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     try {
       const saved = localStorage.getItem(ADMIN_THEME_KEY);
@@ -2222,30 +2222,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <Users className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
           Справочники
         </Button>
-        <div style={{ position: "relative", display: "inline-block" }}>
-          <Button
-            className="filter-button"
-            style={{ background: ["audit", "logs", "integrations"].includes(tab) ? "var(--color-primary-blue)" : undefined, color: ["audit", "logs", "integrations"].includes(tab) ? "white" : undefined }}
-            onClick={() => setJournalsOpen(!journalsOpen)}
-          >
-            <History className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-            Журналы
-            {journalsOpen ? <ChevronUp className="w-3 h-3" style={{ marginLeft: "0.25rem" }} /> : <ChevronDown className="w-3 h-3" style={{ marginLeft: "0.25rem" }} />}
-          </Button>
-          {journalsOpen && (
-            <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 50, background: "var(--color-bg-card)", border: "1px solid var(--color-border)", borderRadius: 10, boxShadow: "var(--shadow-lg)", padding: "0.35rem", minWidth: "12rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-              <Button className="filter-button" style={{ width: "100%", justifyContent: "flex-start", background: tab === "audit" ? "var(--color-primary-blue)" : undefined, color: tab === "audit" ? "white" : undefined }} onClick={() => { setTab("audit"); setJournalsOpen(false); }}>
-                <History className="w-4 h-4" style={{ marginRight: "0.35rem" }} />Журнал
-              </Button>
-              <Button className="filter-button" style={{ width: "100%", justifyContent: "flex-start", background: tab === "logs" ? "var(--color-primary-blue)" : undefined, color: tab === "logs" ? "white" : undefined }} onClick={() => { setTab("logs"); setJournalsOpen(false); }}>
-                <AlertCircle className="w-4 h-4" style={{ marginRight: "0.35rem" }} />Журнал логов
-              </Button>
-              <Button className="filter-button" style={{ width: "100%", justifyContent: "flex-start", background: tab === "integrations" ? "var(--color-primary-blue)" : undefined, color: tab === "integrations" ? "white" : undefined }} onClick={() => { setTab("integrations"); setJournalsOpen(false); }}>
-                <Activity className="w-4 h-4" style={{ marginRight: "0.35rem" }} />Здоровье интеграций
-              </Button>
-            </div>
-          )}
-        </div>
+        <Button
+          className="filter-button"
+          style={{ background: isJournalTab ? "var(--color-primary-blue)" : undefined, color: isJournalTab ? "white" : undefined }}
+          onClick={() => setTab("audit")}
+        >
+          <History className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+          Журналы
+        </Button>
         {isSuperAdmin && (
           <Button
             className="filter-button"
@@ -2324,6 +2308,35 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               Пресеты ролей
             </Button>
           )}
+        </Flex>
+      )}
+
+      {isJournalTab && (
+        <Flex gap="0.5rem" style={{ marginBottom: "1rem", flexWrap: "wrap" }}>
+          <Button
+            className="filter-button"
+            style={{ background: tab === "audit" ? "var(--color-primary-blue)" : undefined, color: tab === "audit" ? "white" : undefined }}
+            onClick={() => setTab("audit")}
+          >
+            <History className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Журнал
+          </Button>
+          <Button
+            className="filter-button"
+            style={{ background: tab === "logs" ? "var(--color-primary-blue)" : undefined, color: tab === "logs" ? "white" : undefined }}
+            onClick={() => setTab("logs")}
+          >
+            <AlertCircle className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Журнал логов
+          </Button>
+          <Button
+            className="filter-button"
+            style={{ background: tab === "integrations" ? "var(--color-primary-blue)" : undefined, color: tab === "integrations" ? "white" : undefined }}
+            onClick={() => setTab("integrations")}
+          >
+            <Activity className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Здоровье интеграций
+          </Button>
         </Flex>
       )}
 

@@ -2134,6 +2134,288 @@ export function DashboardPage({
         }));
     }, [filteredItems, useServiceRequest]);
 
+    // ═══════ CLIENT ANALYTICS DATA ═══════
+
+    const clientItems = useMemo(() => items.filter(i => !isReceivedInfoStatus(i.State)), [items]);
+    const getCustomerName = (item: any) => (item.Customer ?? item.customer ?? '').trim();
+    const getItemDate = (item: any): Date | null => dateUtils.parseDateOnly(String(item.DatePrih ?? '').trim());
+    const getItemSum = (item: any) => typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
+    const getItemPw = (item: any) => typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
+
+    const retentionCohorts = useMemo(() => {
+        if (!useServiceRequest || clientItems.length === 0) return null;
+        const customerFirst = new Map<string, string>();
+        const customerMonths = new Map<string, Set<string>>();
+        clientItems.forEach(item => {
+            const name = getCustomerName(item);
+            if (!name) return;
+            const d = getItemDate(item);
+            if (!d) return;
+            const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (!customerFirst.has(name) || mk < customerFirst.get(name)!) customerFirst.set(name, mk);
+            if (!customerMonths.has(name)) customerMonths.set(name, new Set());
+            customerMonths.get(name)!.add(mk);
+        });
+        const cohortMap = new Map<string, Map<string, number>>();
+        const allMonths = new Set<string>();
+        customerFirst.forEach((firstMonth, name) => {
+            if (!cohortMap.has(firstMonth)) cohortMap.set(firstMonth, new Map());
+            const row = cohortMap.get(firstMonth)!;
+            customerMonths.get(name)!.forEach(m => {
+                allMonths.add(m);
+                row.set(m, (row.get(m) || 0) + 1);
+            });
+        });
+        const cohortSizes = new Map<string, number>();
+        customerFirst.forEach((firstMonth) => { cohortSizes.set(firstMonth, (cohortSizes.get(firstMonth) || 0) + 1); });
+        const months = [...allMonths].sort();
+        const cohorts = [...cohortMap.keys()].sort();
+        return { cohorts, months, cohortMap, cohortSizes };
+    }, [clientItems, useServiceRequest]);
+
+    const customerLtv = useMemo(() => {
+        if (!useServiceRequest || clientItems.length === 0) return null;
+        const byCustomer = new Map<string, { sum: number; pw: number; count: number; first: Date | null; last: Date | null }>();
+        clientItems.forEach(item => {
+            const name = getCustomerName(item);
+            if (!name) return;
+            const d = getItemDate(item);
+            const entry = byCustomer.get(name) || { sum: 0, pw: 0, count: 0, first: null, last: null };
+            entry.sum += getItemSum(item);
+            entry.pw += getItemPw(item);
+            entry.count += 1;
+            if (d) {
+                if (!entry.first || d < entry.first) entry.first = d;
+                if (!entry.last || d > entry.last) entry.last = d;
+            }
+            byCustomer.set(name, entry);
+        });
+        const list = [...byCustomer.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.sum - a.sum);
+        const totalLtv = list.reduce((a, b) => a + b.sum, 0);
+        const avgLtv = list.length > 0 ? totalLtv / list.length : 0;
+        return { top10: list.slice(0, 10), avgLtv, totalCustomers: list.length };
+    }, [clientItems, useServiceRequest]);
+
+    const churnRisk = useMemo(() => {
+        if (!useServiceRequest || clientItems.length === 0) return null;
+        const byCustomer = new Map<string, Date[]>();
+        clientItems.forEach(item => {
+            const name = getCustomerName(item);
+            if (!name) return;
+            const d = getItemDate(item);
+            if (!d) return;
+            if (!byCustomer.has(name)) byCustomer.set(name, []);
+            byCustomer.get(name)!.push(d);
+        });
+        const now = new Date();
+        const results: { name: string; avgInterval: number; lastInterval: number; daysSinceLast: number; zone: 'green' | 'yellow' | 'red'; orders: number }[] = [];
+        byCustomer.forEach((dates, name) => {
+            if (dates.length < 2) {
+                const daysSinceLast = Math.round((now.getTime() - Math.max(...dates.map(d => d.getTime()))) / 86400000);
+                results.push({ name, avgInterval: 0, lastInterval: 0, daysSinceLast, zone: daysSinceLast > 60 ? 'red' : daysSinceLast > 30 ? 'yellow' : 'green', orders: 1 });
+                return;
+            }
+            dates.sort((a, b) => a.getTime() - b.getTime());
+            const intervals: number[] = [];
+            for (let i = 1; i < dates.length; i++) {
+                intervals.push(Math.round((dates[i].getTime() - dates[i - 1].getTime()) / 86400000));
+            }
+            const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+            const lastInterval = intervals[intervals.length - 1];
+            const daysSinceLast = Math.round((now.getTime() - dates[dates.length - 1].getTime()) / 86400000);
+            let zone: 'green' | 'yellow' | 'red' = 'green';
+            if (daysSinceLast > avgInterval * 3 || daysSinceLast > 90) zone = 'red';
+            else if (daysSinceLast > avgInterval * 2 || daysSinceLast > 45) zone = 'yellow';
+            results.push({ name, avgInterval: Math.round(avgInterval), lastInterval, daysSinceLast, zone, orders: dates.length });
+        });
+        results.sort((a, b) => {
+            const z = { red: 0, yellow: 1, green: 2 };
+            return z[a.zone] - z[b.zone] || b.daysSinceLast - a.daysSinceLast;
+        });
+        return {
+            items: results,
+            red: results.filter(r => r.zone === 'red').length,
+            yellow: results.filter(r => r.zone === 'yellow').length,
+            green: results.filter(r => r.zone === 'green').length,
+        };
+    }, [clientItems, useServiceRequest]);
+
+    const rfmSegments = useMemo(() => {
+        if (!useServiceRequest || clientItems.length === 0) return null;
+        const byCustomer = new Map<string, { dates: Date[]; sum: number; count: number }>();
+        clientItems.forEach(item => {
+            const name = getCustomerName(item);
+            if (!name) return;
+            const d = getItemDate(item);
+            const entry = byCustomer.get(name) || { dates: [], sum: 0, count: 0 };
+            entry.sum += getItemSum(item);
+            entry.count += 1;
+            if (d) entry.dates.push(d);
+            byCustomer.set(name, entry);
+        });
+        const now = new Date();
+        const scores: { name: string; recency: number; frequency: number; monetary: number; rScore: number; fScore: number; mScore: number; segment: string }[] = [];
+        const allR: number[] = [], allF: number[] = [], allM: number[] = [];
+        byCustomer.forEach((v, name) => {
+            const lastDate = v.dates.length > 0 ? Math.max(...v.dates.map(d => d.getTime())) : 0;
+            const recency = lastDate ? Math.round((now.getTime() - lastDate) / 86400000) : 999;
+            allR.push(recency); allF.push(v.count); allM.push(v.sum);
+            scores.push({ name, recency, frequency: v.count, monetary: v.sum, rScore: 0, fScore: 0, mScore: 0, segment: '' });
+        });
+        const quantile = (arr: number[], q: number) => { const s = [...arr].sort((a, b) => a - b); return s[Math.floor(s.length * q)] || 0; };
+        const rQ = [quantile(allR, 0.25), quantile(allR, 0.5), quantile(allR, 0.75)];
+        const fQ = [quantile(allF, 0.25), quantile(allF, 0.5), quantile(allF, 0.75)];
+        const mQ = [quantile(allM, 0.25), quantile(allM, 0.5), quantile(allM, 0.75)];
+        const score = (val: number, qs: number[], invert?: boolean) => {
+            if (invert) return val <= qs[0] ? 4 : val <= qs[1] ? 3 : val <= qs[2] ? 2 : 1;
+            return val >= qs[2] ? 4 : val >= qs[1] ? 3 : val >= qs[0] ? 2 : 1;
+        };
+        const segmentName = (r: number, f: number, m: number) => {
+            if (r >= 3 && f >= 3 && m >= 3) return 'Чемпионы';
+            if (r >= 3 && f >= 2) return 'Лояльные';
+            if (r >= 3 && f === 1) return 'Новички';
+            if (r === 2 && f >= 2) return 'Перспективные';
+            if (r === 2 && f === 1) return 'Нуждаются во внимании';
+            if (r === 1 && f >= 3) return 'Спящие';
+            if (r === 1 && f >= 1 && m >= 2) return 'Под угрозой';
+            return 'Потерянные';
+        };
+        scores.forEach(s => {
+            s.rScore = score(s.recency, rQ, true);
+            s.fScore = score(s.frequency, fQ);
+            s.mScore = score(s.monetary, mQ);
+            s.segment = segmentName(s.rScore, s.fScore, s.mScore);
+        });
+        const segments = new Map<string, { count: number; avgSum: number; totalSum: number; color: string }>();
+        const segColors: Record<string, string> = {
+            'Чемпионы': '#10b981', 'Лояльные': '#22c55e', 'Новички': '#3b82f6',
+            'Перспективные': '#06b6d4', 'Нуждаются во внимании': '#f59e0b',
+            'Спящие': '#f97316', 'Под угрозой': '#ef4444', 'Потерянные': '#94a3b8',
+        };
+        scores.forEach(s => {
+            const e = segments.get(s.segment) || { count: 0, avgSum: 0, totalSum: 0, color: segColors[s.segment] || '#6b7280' };
+            e.count += 1;
+            e.totalSum += s.monetary;
+            segments.set(s.segment, e);
+        });
+        segments.forEach(v => { v.avgSum = v.count > 0 ? v.totalSum / v.count : 0; });
+        const segList = [...segments.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.count - a.count);
+        return { segments: segList, total: scores.length };
+    }, [clientItems, useServiceRequest]);
+
+    const paymentDiscipline = useMemo(() => {
+        if (!useServiceRequest || clientItems.length === 0) return null;
+        const byCustomer = new Map<string, { totalDelay: number; count: number; paid: number; unpaid: number }>();
+        clientItems.forEach(item => {
+            const name = getCustomerName(item);
+            if (!name) return;
+            const entry = byCustomer.get(name) || { totalDelay: 0, count: 0, paid: 0, unpaid: 0 };
+            entry.count += 1;
+            const billKey = getPaymentFilterKey(item.StateBill);
+            if (billKey === 'paid') entry.paid += 1;
+            else entry.unpaid += 1;
+            const datePrih = getItemDate(item);
+            const dateVr = dateUtils.parseDateOnly(String(item.DateVr ?? '').trim());
+            if (datePrih && dateVr && dateVr > datePrih) {
+                entry.totalDelay += Math.round((dateVr.getTime() - datePrih.getTime()) / 86400000);
+            }
+            byCustomer.set(name, entry);
+        });
+        const list = [...byCustomer.entries()].map(([name, v]) => ({
+            name, avgDelay: v.count > 0 ? Math.round(v.totalDelay / v.count) : 0,
+            paidRate: v.count > 0 ? Math.round((v.paid / v.count) * 100) : 0,
+            count: v.count, paid: v.paid, unpaid: v.unpaid,
+        })).sort((a, b) => a.paidRate - b.paidRate);
+        return list;
+    }, [clientItems, useServiceRequest]);
+
+    const customerMargin = useMemo(() => {
+        if (!useServiceRequest || clientItems.length === 0) return null;
+        const byCustomer = new Map<string, { sum: number; pw: number; count: number }>();
+        clientItems.forEach(item => {
+            const name = getCustomerName(item);
+            if (!name) return;
+            const entry = byCustomer.get(name) || { sum: 0, pw: 0, count: 0 };
+            entry.sum += getItemSum(item);
+            entry.pw += getItemPw(item);
+            entry.count += 1;
+            byCustomer.set(name, entry);
+        });
+        return [...byCustomer.entries()]
+            .map(([name, v]) => ({ name, sum: v.sum, pw: v.pw, count: v.count, perKg: v.pw > 0 ? v.sum / v.pw : 0 }))
+            .sort((a, b) => b.sum - a.sum);
+    }, [clientItems, useServiceRequest]);
+
+    const clientGeography = useMemo(() => {
+        if (!useServiceRequest || clientItems.length === 0) return null;
+        const routes = new Map<string, { count: number; pw: number; sum: number }>();
+        const cities = new Map<string, { sent: number; received: number }>();
+        clientItems.forEach(item => {
+            const from = (item.CitySender ?? '').trim() || '—';
+            const to = (item.CityReceiver ?? '').trim() || '—';
+            const rKey = `${from} → ${to}`;
+            const rEntry = routes.get(rKey) || { count: 0, pw: 0, sum: 0 };
+            rEntry.count += 1; rEntry.pw += getItemPw(item); rEntry.sum += getItemSum(item);
+            routes.set(rKey, rEntry);
+            const fromE = cities.get(from) || { sent: 0, received: 0 }; fromE.sent += 1; cities.set(from, fromE);
+            const toE = cities.get(to) || { sent: 0, received: 0 }; toE.received += 1; cities.set(to, toE);
+        });
+        const topRoutes = [...routes.entries()].map(([route, v]) => ({ route, ...v })).sort((a, b) => b.count - a.count).slice(0, 10);
+        const topCities = [...cities.entries()].map(([city, v]) => ({ city, total: v.sent + v.received, ...v })).sort((a, b) => b.total - a.total).slice(0, 10);
+        return { topRoutes, topCities };
+    }, [clientItems, useServiceRequest]);
+
+    const clientSeasonality = useMemo(() => {
+        if (!useServiceRequest || clientItems.length === 0) return null;
+        const data = new Map<string, number[]>();
+        clientItems.forEach(item => {
+            const name = getCustomerName(item);
+            if (!name) return;
+            const d = getItemDate(item);
+            if (!d) return;
+            if (!data.has(name)) data.set(name, Array(12).fill(0));
+            data.get(name)![d.getMonth()] += 1;
+        });
+        const list = [...data.entries()].map(([name, months]) => ({ name, months, total: months.reduce((a, b) => a + b, 0) })).sort((a, b) => b.total - a.total).slice(0, 15);
+        const maxVal = Math.max(...list.flatMap(r => r.months), 1);
+        return { rows: list, maxVal };
+    }, [clientItems, useServiceRequest]);
+
+    const avgCheckTrend = useMemo(() => {
+        if (!useServiceRequest || clientItems.length === 0) return null;
+        const byMonth = new Map<string, { sum: number; pw: number; count: number }>();
+        clientItems.forEach(item => {
+            const d = getItemDate(item);
+            if (!d) return;
+            const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const entry = byMonth.get(mk) || { sum: 0, pw: 0, count: 0 };
+            entry.sum += getItemSum(item);
+            entry.pw += getItemPw(item);
+            entry.count += 1;
+            byMonth.set(mk, entry);
+        });
+        return [...byMonth.entries()].map(([month, v]) => ({
+            month, avgSum: v.count > 0 ? Math.round(v.sum / v.count) : 0,
+            avgPw: v.count > 0 ? Math.round(v.pw / v.count) : 0, count: v.count,
+        })).sort((a, b) => a.month.localeCompare(b.month));
+    }, [clientItems, useServiceRequest]);
+
+    const deliveryPreferences = useMemo(() => {
+        if (!useServiceRequest || clientItems.length === 0) return null;
+        const byCustomer = new Map<string, { ferry: number; auto: number; total: number }>();
+        clientItems.forEach(item => {
+            const name = getCustomerName(item);
+            if (!name) return;
+            const entry = byCustomer.get(name) || { ferry: 0, auto: 0, total: 0 };
+            if (isFerry(item)) entry.ferry += 1; else entry.auto += 1;
+            entry.total += 1;
+            byCustomer.set(name, entry);
+        });
+        return [...byCustomer.entries()]
+            .map(([name, v]) => ({ name, ...v, ferryPct: Math.round((v.ferry / v.total) * 100) }))
+            .sort((a, b) => b.total - a.total).slice(0, 15);
+    }, [clientItems, useServiceRequest]);
+
     if (!auth?.login || !auth?.password) {
         return (
             <div className="w-full p-4">
@@ -3678,7 +3960,409 @@ export function DashboardPage({
                 </Panel>
             )}
 
-            {/* ═══════ ГРУППА 5: КАДРЫ ═══════ */}
+            {/* ═══════ ГРУППА 5: АНАЛИТИКА КЛИЕНТОВ ═══════ */}
+
+            {/* 5.1 Retention-когорты */}
+            {useServiceRequest && !loading && !error && retentionCohorts && retentionCohorts.cohorts.length > 1 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Retention-когорты</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Таблица удержания клиентов: по строкам — месяц первого заказа, по столбцам — месяц активности. Процент показывает долю вернувшихся клиентов от когорты.
+                    </Typography.Body>
+                    <div style={{ overflowX: 'auto', fontSize: '0.7rem' }}>
+                        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: retentionCohorts.months.length * 52 }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left', fontWeight: 600, borderBottom: '2px solid var(--color-border)', whiteSpace: 'nowrap' }}>Когорта</th>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>N</th>
+                                    {retentionCohorts.months.map(m => (
+                                        <th key={m} style={{ padding: '0.3rem 0.25rem', textAlign: 'center', fontWeight: 500, borderBottom: '2px solid var(--color-border)', whiteSpace: 'nowrap' }}>{m.slice(2)}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {retentionCohorts.cohorts.map(cohort => {
+                                    const size = retentionCohorts.cohortSizes.get(cohort) || 1;
+                                    const row = retentionCohorts.cohortMap.get(cohort)!;
+                                    return (
+                                        <tr key={cohort}>
+                                            <td style={{ padding: '0.25rem 0.4rem', fontWeight: 600, whiteSpace: 'nowrap', borderBottom: '1px solid var(--color-border)' }}>{cohort}</td>
+                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}>{size}</td>
+                                            {retentionCohorts.months.map(m => {
+                                                const cnt = row.get(m) || 0;
+                                                const pct = Math.round((cnt / size) * 100);
+                                                const isFirst = m === cohort;
+                                                return (
+                                                    <td key={m} style={{
+                                                        padding: '0.25rem 0.2rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)',
+                                                        background: m < cohort ? 'transparent' : isFirst ? 'rgba(37,99,235,0.15)' : pct > 0 ? `rgba(16,185,129,${0.08 + (pct / 100) * 0.45})` : 'transparent',
+                                                        color: pct > 60 ? 'white' : 'var(--color-text-primary)',
+                                                        fontWeight: pct > 0 ? 600 : 400,
+                                                    }}>
+                                                        {m < cohort ? '' : `${pct}%`}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </Panel>
+            )}
+
+            {/* 5.2 Lifetime Value (LTV) */}
+            {useServiceRequest && !loading && !error && customerLtv && customerLtv.top10.length > 0 && showSums && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Lifetime Value (LTV)</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Накопленная выручка по клиенту с момента первого заказа. Средний LTV: <span style={{ fontWeight: 600 }}>{Math.round(customerLtv.avgLtv).toLocaleString('ru-RU')} ₽</span> ({customerLtv.totalCustomers} клиентов)
+                    </Typography.Body>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {customerLtv.top10.map((c, i) => {
+                            const maxSum = customerLtv.top10[0]?.sum || 1;
+                            return (
+                                <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600, width: 22, textAlign: 'right', color: i < 3 ? '#f59e0b' : 'var(--color-text-secondary)' }}>#{i + 1}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.75rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
+                                    <div style={{ width: '30%', flexShrink: 0 }}>
+                                        <div style={{ height: 10, borderRadius: 5, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                            <div style={{ width: `${Math.round((c.sum / maxSum) * 100)}%`, height: '100%', background: i < 3 ? '#f59e0b' : '#3b82f6', borderRadius: 5, transition: 'width 0.3s' }} />
+                                        </div>
+                                    </div>
+                                    <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: 72, textAlign: 'right' }}>{Math.round(c.sum).toLocaleString('ru-RU')} ₽</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', minWidth: 40, textAlign: 'right' }}>{c.count} шт</Typography.Body>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </Panel>
+            )}
+
+            {/* 5.3 Churn-risk */}
+            {useServiceRequest && !loading && !error && churnRisk && churnRisk.items.length > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Риск оттока клиентов</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Красная зона — нет заказов &gt;90 дней или интервал вырос в 3×. Жёлтая — &gt;45 дней или 2×. Зелёная — активные клиенты.
+                    </Typography.Body>
+                    <Flex gap="0.5rem" style={{ marginBottom: '0.6rem' }}>
+                        <div style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', textAlign: 'center' }}>
+                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ef4444' }}>{churnRisk.red}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.65rem', color: '#ef4444' }}>Высокий риск</Typography.Body>
+                        </div>
+                        <div style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', textAlign: 'center' }}>
+                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f59e0b' }}>{churnRisk.yellow}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.65rem', color: '#f59e0b' }}>Средний риск</Typography.Body>
+                        </div>
+                        <div style={{ flex: 1, padding: '0.4rem 0.5rem', borderRadius: 8, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', textAlign: 'center' }}>
+                            <Typography.Body style={{ fontSize: '1.1rem', fontWeight: 700, color: '#10b981' }}>{churnRisk.green}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.65rem', color: '#10b981' }}>Активные</Typography.Body>
+                        </div>
+                    </Flex>
+                    <div style={{ overflowX: 'auto', fontSize: '0.7rem' }}>
+                        <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Клиент</th>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Заказы</th>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Ø интервал</th>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Дней без заказа</th>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {churnRisk.items.slice(0, 15).map(c => {
+                                    const zColor = { red: '#ef4444', yellow: '#f59e0b', green: '#10b981' }[c.zone];
+                                    const zLabel = { red: 'Высокий', yellow: 'Средний', green: 'Активен' }[c.zone];
+                                    return (
+                                        <tr key={c.name}>
+                                            <td style={{ padding: '0.25rem 0.4rem', borderBottom: '1px solid var(--color-border)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</td>
+                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>{c.orders}</td>
+                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>{c.avgInterval > 0 ? `${c.avgInterval} дн` : '—'}</td>
+                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>{c.daysSinceLast}</td>
+                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
+                                                <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: 999, background: `${zColor}18`, color: zColor, border: `1px solid ${zColor}44`, fontWeight: 600 }}>{zLabel}</span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </Panel>
+            )}
+
+            {/* 5.4 RFM-сегментация */}
+            {useServiceRequest && !loading && !error && rfmSegments && rfmSegments.segments.length > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>RFM-сегментация</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Recency (давность) × Frequency (частота) × Monetary (сумма). Всего клиентов: {rfmSegments.total}
+                    </Typography.Body>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        {rfmSegments.segments.map(seg => {
+                            const pct = rfmSegments.total > 0 ? Math.round((seg.count / rfmSegments.total) * 100) : 0;
+                            return (
+                                <div key={seg.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Typography.Body style={{ fontSize: '0.75rem', width: 130, flexShrink: 0, fontWeight: 600 }}>{seg.name}</Typography.Body>
+                                    <div style={{ flex: 1, height: 16, borderRadius: 8, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                        <div style={{ width: `${pct}%`, height: '100%', background: seg.color, borderRadius: 8, transition: 'width 0.3s', minWidth: pct > 0 ? 4 : 0 }} />
+                                    </div>
+                                    <Typography.Body style={{ fontSize: '0.75rem', fontWeight: 600, minWidth: 36, textAlign: 'right' }}>{seg.count}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', minWidth: 30, textAlign: 'right' }}>{pct}%</Typography.Body>
+                                    {showSums && <Typography.Body style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', minWidth: 70, textAlign: 'right' }}>Ø {Math.round(seg.avgSum).toLocaleString('ru-RU')} ₽</Typography.Body>}
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <Flex gap="0.4rem" style={{ marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                        {rfmSegments.segments.map(s => (
+                            <Flex key={s.name} align="center" gap="0.2rem">
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color }} />
+                                <Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>{s.name}</Typography.Body>
+                            </Flex>
+                        ))}
+                    </Flex>
+                </Panel>
+            )}
+
+            {/* 5.5 Платёжная дисциплина */}
+            {useServiceRequest && !loading && !error && paymentDiscipline && paymentDiscipline.length > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Платёжная дисциплина</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Доля оплаченных перевозок по каждому клиенту. Чем ниже процент оплаты — тем хуже дисциплина.
+                    </Typography.Body>
+                    <div style={{ overflowX: 'auto', fontSize: '0.7rem' }}>
+                        <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Клиент</th>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Всего</th>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Оплачено</th>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Не оплач.</th>
+                                    <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>% оплаты</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {paymentDiscipline.slice(0, 15).map(c => {
+                                    const color = c.paidRate >= 80 ? '#10b981' : c.paidRate >= 50 ? '#f59e0b' : '#ef4444';
+                                    return (
+                                        <tr key={c.name}>
+                                            <td style={{ padding: '0.25rem 0.4rem', borderBottom: '1px solid var(--color-border)', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</td>
+                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>{c.count}</td>
+                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)', color: '#10b981', fontWeight: 600 }}>{c.paid}</td>
+                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)', color: '#ef4444', fontWeight: 600 }}>{c.unpaid}</td>
+                                            <td style={{ padding: '0.25rem 0.4rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'center' }}>
+                                                    <div style={{ width: 40, height: 6, borderRadius: 3, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                                        <div style={{ width: `${c.paidRate}%`, height: '100%', background: color, borderRadius: 3 }} />
+                                                    </div>
+                                                    <span style={{ fontWeight: 600, color }}>{c.paidRate}%</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </Panel>
+            )}
+
+            {/* 5.6 Маржинальность по клиентам */}
+            {useServiceRequest && !loading && !error && customerMargin && customerMargin.length > 0 && showSums && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Выручка на кг по клиентам</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Стоимость перевозки на 1 кг платного веса. Чем выше — тем выгоднее клиент.
+                    </Typography.Body>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {customerMargin.slice(0, 12).map((c, i) => {
+                            const maxPerKg = Math.max(...customerMargin.slice(0, 12).map(x => x.perKg), 1);
+                            return (
+                                <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Typography.Body style={{ fontSize: '0.75rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
+                                    <div style={{ width: '25%', flexShrink: 0 }}>
+                                        <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                            <div style={{ width: `${Math.round((c.perKg / maxPerKg) * 100)}%`, height: '100%', background: i < 3 ? '#10b981' : '#3b82f6', borderRadius: 4 }} />
+                                        </div>
+                                    </div>
+                                    <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: 55, textAlign: 'right' }}>{c.perKg.toFixed(1)} ₽/кг</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', minWidth: 60, textAlign: 'right' }}>{Math.round(c.sum).toLocaleString('ru-RU')} ₽</Typography.Body>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </Panel>
+            )}
+
+            {/* 5.7 География клиентов */}
+            {useServiceRequest && !loading && !error && clientGeography && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>География клиентов</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Популярные маршруты и концентрация грузов по городам.
+                    </Typography.Body>
+                    <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.3rem' }}>Топ маршрутов</Typography.Body>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginBottom: '0.75rem' }}>
+                        {clientGeography.topRoutes.map((r, i) => {
+                            const maxC = clientGeography.topRoutes[0]?.count || 1;
+                            return (
+                                <div key={r.route} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Typography.Body style={{ fontSize: '0.72rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.route}</Typography.Body>
+                                    <div style={{ width: '25%', flexShrink: 0 }}>
+                                        <div style={{ height: 8, borderRadius: 4, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                            <div style={{ width: `${Math.round((r.count / maxC) * 100)}%`, height: '100%', background: '#8b5cf6', borderRadius: 4 }} />
+                                        </div>
+                                    </div>
+                                    <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: 40, textAlign: 'right' }}>{r.count}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', minWidth: 55, textAlign: 'right' }}>{Math.round(r.pw).toLocaleString('ru-RU')} кг</Typography.Body>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.3rem' }}>Топ городов</Typography.Body>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        {clientGeography.topCities.map(c => {
+                            const maxC = clientGeography.topCities[0]?.total || 1;
+                            return (
+                                <div key={c.city} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Typography.Body style={{ fontSize: '0.72rem', width: 90, flexShrink: 0, fontWeight: 600 }}>{c.city}</Typography.Body>
+                                    <div style={{ flex: 1, height: 10, borderRadius: 5, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
+                                        <div style={{ width: `${Math.round((c.sent / maxC) * 100)}%`, height: '100%', background: '#3b82f6' }} />
+                                        <div style={{ width: `${Math.round((c.received / maxC) * 100)}%`, height: '100%', background: '#f59e0b' }} />
+                                    </div>
+                                    <Typography.Body style={{ fontSize: '0.68rem', minWidth: 70, textAlign: 'right' }}>
+                                        <span style={{ color: '#3b82f6' }}>↑{c.sent}</span>{' '}<span style={{ color: '#f59e0b' }}>↓{c.received}</span>
+                                    </Typography.Body>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <Flex gap="0.5rem" style={{ marginTop: '0.35rem' }}>
+                        <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Отправка</Typography.Body></Flex>
+                        <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Получение</Typography.Body></Flex>
+                    </Flex>
+                </Panel>
+            )}
+
+            {/* 5.8 Сезонность по клиентам */}
+            {useServiceRequest && !loading && !error && clientSeasonality && clientSeasonality.rows.length > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Сезонность по клиентам</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Интенсивность грузопотока по месяцам. Чем ярче ячейка — тем больше заказов. Помогает выявить сезонных и стабильных клиентов.
+                    </Typography.Body>
+                    <div style={{ overflowX: 'auto', fontSize: '0.68rem' }}>
+                        <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 500 }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ padding: '0.25rem 0.3rem', textAlign: 'left', fontWeight: 600, borderBottom: '2px solid var(--color-border)', whiteSpace: 'nowrap' }}>Клиент</th>
+                                    {['Я', 'Ф', 'М', 'А', 'М', 'И', 'И', 'А', 'С', 'О', 'Н', 'Д'].map((m, i) => (
+                                        <th key={i} style={{ padding: '0.25rem 0.2rem', textAlign: 'center', fontWeight: 500, borderBottom: '2px solid var(--color-border)', width: 28 }}>{m}</th>
+                                    ))}
+                                    <th style={{ padding: '0.25rem 0.3rem', textAlign: 'right', fontWeight: 600, borderBottom: '2px solid var(--color-border)' }}>Σ</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {clientSeasonality.rows.map(row => (
+                                    <tr key={row.name}>
+                                        <td style={{ padding: '0.2rem 0.3rem', borderBottom: '1px solid var(--color-border)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.name}>{row.name}</td>
+                                        {row.months.map((cnt, mi) => {
+                                            const intensity = cnt / clientSeasonality.maxVal;
+                                            return (
+                                                <td key={mi} style={{
+                                                    padding: '0.2rem 0.15rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)',
+                                                    background: cnt > 0 ? `rgba(37,99,235,${0.1 + intensity * 0.6})` : 'transparent',
+                                                    color: intensity > 0.5 ? 'white' : 'var(--color-text-primary)', fontWeight: cnt > 0 ? 600 : 400,
+                                                }}>
+                                                    {cnt > 0 ? cnt : ''}
+                                                </td>
+                                            );
+                                        })}
+                                        <td style={{ padding: '0.2rem 0.3rem', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}>{row.total}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Panel>
+            )}
+
+            {/* 5.9 Средний чек / средний вес */}
+            {useServiceRequest && !loading && !error && avgCheckTrend && avgCheckTrend.length > 1 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Средний чек и вес</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Динамика среднего чека (₽) и среднего платного веса (кг) по месяцам. Показывает тренд стоимости и объёма заказов.
+                    </Typography.Body>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, marginBottom: '0.25rem' }}>
+                        {avgCheckTrend.map((m, i) => {
+                            const maxAvgPw = Math.max(...avgCheckTrend.map(x => x.avgPw), 1);
+                            const h = Math.round((m.avgPw / maxAvgPw) * 90);
+                            return (
+                                <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                                    <Typography.Body style={{ fontSize: '0.58rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>{m.avgPw}</Typography.Body>
+                                    <div style={{ width: '100%', height: h, background: '#3b82f6', borderRadius: '4px 4px 0 0', minHeight: 2 }} />
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div style={{ display: 'flex', gap: 3 }}>
+                        {avgCheckTrend.map(m => (
+                            <div key={m.month} style={{ flex: 1, textAlign: 'center' }}>
+                                <Typography.Body style={{ fontSize: '0.55rem', color: 'var(--color-text-secondary)' }}>{m.month.slice(2)}</Typography.Body>
+                            </div>
+                        ))}
+                    </div>
+                    {showSums && (
+                        <div style={{ display: 'flex', gap: 3, marginTop: '0.35rem' }}>
+                            {avgCheckTrend.map(m => (
+                                <div key={m.month} style={{ flex: 1, textAlign: 'center' }}>
+                                    <Typography.Body style={{ fontSize: '0.55rem', color: '#f59e0b', fontWeight: 600 }}>{m.avgSum.toLocaleString('ru-RU')} ₽</Typography.Body>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <Flex gap="0.5rem" style={{ marginTop: '0.35rem' }}>
+                        <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Средний вес (кг)</Typography.Body></Flex>
+                        {showSums && <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Средний чек (₽)</Typography.Body></Flex>}
+                    </Flex>
+                </Panel>
+            )}
+
+            {/* 5.10 Предпочтения по типу доставки */}
+            {useServiceRequest && !loading && !error && deliveryPreferences && deliveryPreferences.length > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Предпочтения по типу доставки</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Доля паром vs авто по клиентам. Помогает выявить предпочтения и потенциал для переключения на другой тип.
+                    </Typography.Body>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        {deliveryPreferences.map(c => (
+                            <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <Typography.Body style={{ fontSize: '0.72rem', width: 100, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
+                                <div style={{ flex: 1, height: 14, borderRadius: 7, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
+                                    {c.ferry > 0 && <div style={{ width: `${c.ferryPct}%`, height: '100%', background: '#3b82f6', transition: 'width 0.3s' }} />}
+                                    {c.auto > 0 && <div style={{ width: `${100 - c.ferryPct}%`, height: '100%', background: '#f59e0b', transition: 'width 0.3s' }} />}
+                                </div>
+                                <Typography.Body style={{ fontSize: '0.65rem', minWidth: 60, textAlign: 'right' }}>
+                                    <span style={{ color: '#3b82f6' }}>{c.ferry}</span>/<span style={{ color: '#f59e0b' }}>{c.auto}</span>
+                                </Typography.Body>
+                            </div>
+                        ))}
+                    </div>
+                    <Flex gap="0.5rem" style={{ marginTop: '0.35rem' }}>
+                        <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Паром</Typography.Body></Flex>
+                        <Flex align="center" gap="0.2rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>Авто</Typography.Body></Flex>
+                    </Flex>
+                </Panel>
+            )}
+
+            {/* ═══════ ГРУППА 6: КАДРЫ ═══════ */}
 
             {canViewTimesheetCostDashboard && !loading && !error && !isVisibilityDeniedError(timesheetAnalyticsError) && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
