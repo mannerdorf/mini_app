@@ -2022,6 +2022,13 @@ export function DashboardPage({
         return { buckets, total };
     }, [calendarInvoiceItems, useServiceRequest]);
 
+    const heatmapRange = useMemo(() => {
+        const from = dateUtils.parseDateOnly(apiDateRange.dateFrom);
+        const to = dateUtils.parseDateOnly(apiDateRange.dateTo);
+        if (!from || !to) return { minYear: 0, minMonth: 0, maxYear: 0, maxMonth: 0 };
+        return { minYear: from.getFullYear(), minMonth: from.getMonth() + 1, maxYear: to.getFullYear(), maxMonth: to.getMonth() + 1 };
+    }, [apiDateRange]);
+
     const loadHeatmap = useMemo(() => {
         if (!useServiceRequest) return { cells: [] as { key: string; day: number; count: number; pw: number }[], maxCount: 1, year: 0, month: 0 };
         const { year, month } = heatmapMonth;
@@ -2054,14 +2061,7 @@ export function DashboardPage({
 
     const movingAverage7 = useMemo(() => {
         if (!useServiceRequest || chartData.length < 3) return null;
-        const getVal = (d: { sum: number; pw: number; w: number; mest: number; vol: number }) => {
-            if (chartType === 'money') return d.sum;
-            if (chartType === 'paidWeight') return d.pw;
-            if (chartType === 'weight') return d.w;
-            if (chartType === 'pieces') return d.mest;
-            return d.vol;
-        };
-        const values = chartData.map(getVal);
+        const values = chartData.map((d) => d.pw);
         const window = Math.min(7, values.length);
         const ma: { date: string; dateKey?: string; value: number }[] = [];
         for (let i = 0; i < values.length; i++) {
@@ -2071,7 +2071,7 @@ export function DashboardPage({
             ma.push({ date: chartData[i].date, dateKey: (chartData[i] as any).dateKey, value: Math.round(avg) });
         }
         return ma;
-    }, [chartData, chartType, useServiceRequest]);
+    }, [chartData, useServiceRequest]);
 
     const repeatCustomers = useMemo(() => {
         if (!useServiceRequest || filteredPrevPeriodItems.length === 0) return null;
@@ -3345,8 +3345,11 @@ export function DashboardPage({
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
                         ABC-анализ клиентов
                     </Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>
                         Концентрация выручки по заказчикам (Парето)
+                    </Typography.Body>
+                    <Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem', lineHeight: '1.4' }}>
+                        % после суммы — кумулятивная доля: сколько от общей выручки дают все клиенты от первого до текущего. A (≤80%) — ключевые, B (≤95%) — средние, C — остальные.
                     </Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: 280, overflowY: 'auto' }}>
                         {paretoByCustomer.rows.slice(0, 15).map((row, i) => {
@@ -3391,9 +3394,9 @@ export function DashboardPage({
                                     transition: 'all 0.2s',
                                 }}
                             >
-                                <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>{b.label}</Typography.Body>
-                                <Typography.Body style={{ fontWeight: 700, fontSize: '1rem', color: b.color }}>{b.count}</Typography.Body>
-                                <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600 }}>{formatCurrency(b.sum, true)}</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem', display: 'block' }}>{b.label}</Typography.Body>
+                                <Typography.Body style={{ fontWeight: 700, fontSize: '1rem', color: b.color, display: 'block', marginBottom: '0.15rem' }}>{b.count}</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, display: 'block' }}>{formatCurrency(b.sum, true)}</Typography.Body>
                             </div>
                         ))}
                     </div>
@@ -3446,11 +3449,19 @@ export function DashboardPage({
                             Календарь загрузки
                         </Typography.Headline>
                         <Flex align="center" gap="0.4rem">
-                            <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem' }} onClick={() => setHeatmapMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
-                            <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', minWidth: '8rem', textAlign: 'center' }}>
-                                {['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][loadHeatmap.month - 1]} {loadHeatmap.year}
-                            </Typography.Body>
-                            <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem' }} onClick={() => setHeatmapMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
+                            {(() => {
+                                const canPrev = heatmapMonth.year > heatmapRange.minYear || (heatmapMonth.year === heatmapRange.minYear && heatmapMonth.month > heatmapRange.minMonth);
+                                const canNext = heatmapMonth.year < heatmapRange.maxYear || (heatmapMonth.year === heatmapRange.maxYear && heatmapMonth.month < heatmapRange.maxMonth);
+                                return (
+                                    <>
+                                        <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', opacity: canPrev ? 1 : 0.3 }} disabled={!canPrev} onClick={() => canPrev && setHeatmapMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', minWidth: '8rem', textAlign: 'center' }}>
+                                            {['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][loadHeatmap.month - 1]} {loadHeatmap.year}
+                                        </Typography.Body>
+                                        <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', opacity: canNext ? 1 : 0.3 }} disabled={!canNext} onClick={() => canNext && setHeatmapMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
+                                    </>
+                                );
+                            })()}
                         </Flex>
                     </Flex>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.4rem' }}>
@@ -3488,7 +3499,7 @@ export function DashboardPage({
                         Скользящая средняя (7 дн.)
                     </Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                        Тренд без дневных колебаний — {selectedChartConfig.title.toLowerCase()}
+                        Тренд без дневных колебаний — платный вес (кг)
                     </Typography.Body>
                     {(() => {
                         const pts = movingAverage7;
@@ -3510,8 +3521,8 @@ export function DashboardPage({
                             <div style={{ overflowX: 'auto' }}>
                                 <svg width={w} height={h} style={{ display: 'block', minWidth: `${w}px` }}>
                                     <line x1={pad.l} y1={pad.t + plotH} x2={w - pad.r} y2={pad.t + plotH} stroke="var(--color-border)" strokeWidth="1" opacity="0.5" />
-                                    {areaD && <path d={areaD} fill={selectedChartConfig.color} opacity="0.12" />}
-                                    <polyline points={polyPts} fill="none" stroke={selectedChartConfig.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    {areaD && <path d={areaD} fill="#7c3aed" opacity="0.12" />}
+                                    <polyline points={polyPts} fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                                     {pts.filter((_, i) => i % Math.max(1, Math.floor(pts.length / 8)) === 0 || i === pts.length - 1).map((p, i) => {
                                         const idx = pts.indexOf(p);
                                         const x = pad.l + (pts.length > 1 ? (idx * plotW) / (pts.length - 1) : plotW / 2);
@@ -3519,7 +3530,7 @@ export function DashboardPage({
                                         const label = raw.includes('.') ? raw.split('.').slice(0, 2).join('.') : /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw.slice(8) + '.' + raw.slice(5, 7) : raw;
                                         return <text key={`ma-lbl-${i}`} x={x} y={h - 6} textAnchor="middle" fontSize="9" fill="var(--color-text-secondary)">{label}</text>;
                                     })}
-                                    <text x={pad.l - 4} y={pad.t + 4} textAnchor="end" fontSize="9" fill="var(--color-text-secondary)">{selectedChartConfig.formatValue(maxVal)}</text>
+                                    <text x={pad.l - 4} y={pad.t + 4} textAnchor="end" fontSize="9" fill="var(--color-text-secondary)">{maxVal.toLocaleString('ru-RU')} кг</text>
                                 </svg>
                             </div>
                         );
@@ -3574,29 +3585,29 @@ export function DashboardPage({
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
                         Количество приёмок и платный вес в разрезе дня недели
                     </Typography.Body>
-                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'flex-end', height: 90, marginBottom: '0.35rem' }}>
+                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'flex-end', height: 100, marginBottom: '0.4rem' }}>
                         {weekdayDistribution.map((d) => (
                             <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-                                <Typography.Body style={{ fontSize: '0.68rem', fontWeight: 600, marginBottom: '0.15rem' }}>{d.count || ''}</Typography.Body>
-                                <div style={{ width: '100%', maxWidth: 36, display: 'flex', flexDirection: 'column', borderRadius: '5px 5px 0 0', overflow: 'hidden', height: `${Math.max(d.percent, 4)}%`, transition: 'height 0.3s' }}>
-                                    {d.ferry > 0 && <div style={{ flex: d.ferry, background: '#6366f1' }} title={`Паром: ${d.ferry}`} />}
-                                    {d.auto > 0 && <div style={{ flex: d.auto, background: '#3b82f6' }} title={`Авто: ${d.auto}`} />}
+                                <div style={{ width: '100%', maxWidth: 38, display: 'flex', flexDirection: 'column', borderRadius: '5px 5px 0 0', overflow: 'hidden', height: `${Math.max(d.percent, 4)}%`, transition: 'height 0.3s' }}>
+                                    {d.ferry > 0 && <div style={{ flex: d.ferry, background: '#3b82f6' }} title={`Паром: ${d.ferry}`} />}
+                                    {d.auto > 0 && <div style={{ flex: d.auto, background: '#f59e0b' }} title={`Авто: ${d.auto}`} />}
                                     {d.count === 0 && <div style={{ flex: 1, background: 'var(--color-bg-hover)' }} />}
                                 </div>
                             </div>
                         ))}
                     </div>
-                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.35rem' }}>
                         {weekdayDistribution.map((d) => (
                             <div key={`lbl-${d.label}`} style={{ flex: 1, textAlign: 'center' }}>
-                                <Typography.Body style={{ fontSize: '0.72rem', color: d.label === 'Сб' || d.label === 'Вс' ? '#ef4444' : 'var(--color-text-secondary)', fontWeight: 600 }}>{d.label}</Typography.Body>
-                                <Typography.Body style={{ fontSize: '0.6rem', color: 'var(--color-text-secondary)' }}>{Math.round(d.pw)} кг</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.72rem', color: d.label === 'Сб' || d.label === 'Вс' ? '#ef4444' : 'var(--color-text-secondary)', fontWeight: 600, lineHeight: '1.3' }}>{d.label}</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)', lineHeight: '1.3' }}>{d.count} шт</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.58rem', color: 'var(--color-text-secondary)', lineHeight: '1.3' }}>{Math.round(d.pw).toLocaleString('ru-RU')} кг</Typography.Body>
                             </div>
                         ))}
                     </div>
-                    <Flex gap="0.75rem" style={{ marginTop: '0.35rem' }}>
-                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#6366f1' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Паром</Typography.Body></Flex>
-                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Авто</Typography.Body></Flex>
+                    <Flex gap="0.75rem">
+                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Паром</Typography.Body></Flex>
+                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Авто</Typography.Body></Flex>
                     </Flex>
                 </Panel>
             )}
