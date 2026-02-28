@@ -689,6 +689,22 @@ body {
     }
 }
 
+.dashboard-sticky-filters {
+    position: sticky;
+    top: 64px;
+    z-index: 40;
+    background-color: var(--color-bg-primary);
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+@media (max-width: 768px) {
+    .dashboard-sticky-filters {
+        top: 0;
+        padding-top: 0.35rem;
+        padding-bottom: 0.35rem;
+    }
+}
+
 /* --- FILTERS --- */
 .filters-container {
     display: flex;

@@ -146,6 +146,7 @@ export function DashboardPage({
     const [deliveryStripShowAsPercent, setDeliveryStripShowAsPercent] = useState(true);
     /** Раскрытая строка в таблице «Перевозки вне SLA»: по клику показываем статусы в виде таблицы */
     const [expandedSlaCargoNumber, setExpandedSlaCargoNumber] = useState<string | null>(null);
+    const [expandedAgingBucket, setExpandedAgingBucket] = useState<string | null>(null);
     const [expandedSlaItem, setExpandedSlaItem] = useState<CargoItem | null>(null);
     const [slaTimelineSteps, setSlaTimelineSteps] = useState<PerevozkaTimelineStep[] | null>(null);
     const [slaTimelineLoading, setSlaTimelineLoading] = useState(false);
@@ -163,6 +164,10 @@ export function DashboardPage({
         return { year: n.getFullYear(), month: n.getMonth() + 1 };
     });
     const [paymentCalendarSelectedDate, setPaymentCalendarSelectedDate] = useState<string | null>(null);
+    const [heatmapMonth, setHeatmapMonth] = useState<{ year: number; month: number }>(() => {
+        const n = new Date();
+        return { year: n.getFullYear(), month: n.getMonth() + 1 };
+    });
     const [timesheetDashboardPeriod, setTimesheetDashboardPeriod] = useState<{ year: number; month: number }>(() => {
         const n = new Date();
         return { year: n.getFullYear(), month: n.getMonth() + 1 };
@@ -382,6 +387,11 @@ export function DashboardPage({
         const prev = getPreviousPeriodRange(dateFilter, api.dateFrom, api.dateTo);
         return { apiDateRange: api, prevRange: prev };
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
+
+    useEffect(() => {
+        const d = dateUtils.parseDateOnly(apiDateRange.dateFrom);
+        if (d) setHeatmapMonth({ year: d.getFullYear(), month: d.getMonth() + 1 });
+    }, [apiDateRange.dateFrom]);
 
     const { items, error, loading, mutate: mutatePerevozki } = usePerevozki({
         auth,
@@ -1975,14 +1985,15 @@ export function DashboardPage({
         return { rows, total };
     }, [filteredItems, useServiceRequest]);
 
+    type AgingInvoice = { number: string; customer: string; date: string; sum: number; days: number; status: string };
     const invoiceAging = useMemo(() => {
-        if (!useServiceRequest) return { buckets: [] as { label: string; count: number; sum: number; color: string }[], total: 0 };
+        if (!useServiceRequest) return { buckets: [] as { label: string; count: number; sum: number; color: string; items: AgingInvoice[] }[], total: 0 };
         const now = new Date();
         const buckets = [
-            { label: 'до 7 дн.', min: 0, max: 7, count: 0, sum: 0, color: '#10b981' },
-            { label: '7–14 дн.', min: 7, max: 14, count: 0, sum: 0, color: '#f59e0b' },
-            { label: '14–30 дн.', min: 14, max: 30, count: 0, sum: 0, color: '#f97316' },
-            { label: '30+ дн.', min: 30, max: Infinity, count: 0, sum: 0, color: '#ef4444' },
+            { label: 'до 7 дн.', min: 0, max: 7, count: 0, sum: 0, color: '#10b981', items: [] as AgingInvoice[] },
+            { label: '7–14 дн.', min: 7, max: 14, count: 0, sum: 0, color: '#f59e0b', items: [] as AgingInvoice[] },
+            { label: '14–30 дн.', min: 14, max: 30, count: 0, sum: 0, color: '#f97316', items: [] as AgingInvoice[] },
+            { label: '30+ дн.', min: 30, max: Infinity, count: 0, sum: 0, color: '#ef4444', items: [] as AgingInvoice[] },
         ];
         let total = 0;
         (calendarInvoiceItems ?? []).forEach((inv: any) => {
@@ -1994,20 +2005,31 @@ export function DashboardPage({
             const days = Math.max(0, Math.round((now.getTime() - parsed.getTime()) / (24 * 60 * 60 * 1000)));
             const sum = typeof inv?.SumDoc === 'string' ? parseFloat(inv.SumDoc) || 0 : Number(inv?.SumDoc ?? inv?.Sum ?? inv?.sum ?? inv?.Сумма ?? 0) || 0;
             if (sum <= 0) return;
+            const invNum = String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? '').trim() || '—';
+            const customer = String(inv?.Customer ?? inv?.customer ?? inv?.Контрагент ?? inv?.Contractor ?? '').trim() || '—';
+            const dateStr = dateUtils.formatDate(rawDate);
             for (const b of buckets) {
-                if (days >= b.min && days < b.max) { b.count += 1; b.sum += sum; total += sum; break; }
+                if (days >= b.min && days < b.max) {
+                    b.count += 1;
+                    b.sum += sum;
+                    total += sum;
+                    b.items.push({ number: invNum, customer: stripOoo(customer), date: dateStr, sum, days, status });
+                    break;
+                }
             }
         });
+        buckets.forEach((b) => b.items.sort((a, b2) => b2.sum - a.sum));
         return { buckets, total };
     }, [calendarInvoiceItems, useServiceRequest]);
 
     const loadHeatmap = useMemo(() => {
         if (!useServiceRequest) return { cells: [] as { key: string; day: number; count: number; pw: number }[], maxCount: 1, year: 0, month: 0 };
-        const { year, month } = paymentCalendarMonth;
+        const { year, month } = heatmapMonth;
         const lastDay = new Date(year, month, 0).getDate();
         const cells: { key: string; day: number; count: number; pw: number }[] = [];
         const byDay = new Map<string, { count: number; pw: number }>();
-        filteredItems.forEach((item) => {
+        items.forEach((item) => {
+            if (isReceivedInfoStatus(item.State)) return;
             const raw = String(item.DatePrih ?? '').trim();
             if (!raw) return;
             const dk = raw.includes('T') ? raw.split('T')[0] : raw;
@@ -2028,7 +2050,7 @@ export function DashboardPage({
             cells.push({ key, day: d, count: entry.count, pw: entry.pw });
         }
         return { cells, maxCount, year, month };
-    }, [filteredItems, useServiceRequest, paymentCalendarMonth]);
+    }, [items, useServiceRequest, heatmapMonth]);
 
     const movingAverage7 = useMemo(() => {
         if (!useServiceRequest || chartData.length < 3) return null;
@@ -2075,7 +2097,8 @@ export function DashboardPage({
     const weekdayDistribution = useMemo(() => {
         if (!useServiceRequest) return [];
         const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-        const counts = [0, 0, 0, 0, 0, 0, 0];
+        const ferry = [0, 0, 0, 0, 0, 0, 0];
+        const auto = [0, 0, 0, 0, 0, 0, 0];
         const weights = [0, 0, 0, 0, 0, 0, 0];
         filteredItems.forEach((item) => {
             const raw = String(item.DatePrih ?? '').trim();
@@ -2084,11 +2107,16 @@ export function DashboardPage({
             const p = dateUtils.parseDateOnly(dk);
             if (!p) return;
             const dow = (p.getDay() + 6) % 7;
-            counts[dow] += 1;
+            if (isFerry(item)) { ferry[dow] += 1; } else { auto[dow] += 1; }
             weights[dow] += typeof item.PW === 'string' ? parseFloat(item.PW) || 0 : (item.PW || 0);
         });
-        const maxCount = Math.max(...counts, 1);
-        return DAYS.map((label, i) => ({ label, count: counts[i], pw: weights[i], percent: Math.round((counts[i] / maxCount) * 100) }));
+        const maxCount = Math.max(...ferry.map((f, i) => f + auto[i]), 1);
+        return DAYS.map((label, i) => ({
+            label, count: ferry[i] + auto[i], ferry: ferry[i], auto: auto[i],
+            pw: weights[i], percent: Math.round(((ferry[i] + auto[i]) / maxCount) * 100),
+            ferryPct: Math.round((ferry[i] / maxCount) * 100),
+            autoPct: Math.round((auto[i] / maxCount) * 100),
+        }));
     }, [filteredItems, useServiceRequest]);
 
     if (!auth?.login || !auth?.password) {
@@ -2103,7 +2131,7 @@ export function DashboardPage({
         <div className="w-full">
             {/* === ВИДЖЕТ 1: Фильтры (включить: WIDGET_1_FILTERS = true) === */}
             {WIDGET_1_FILTERS && (
-            <div className="cargo-page-sticky-header" style={{ marginBottom: '1rem' }}>
+            <div className="cargo-page-sticky-header dashboard-sticky-filters" style={{ marginBottom: 0 }}>
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ flexShrink: 0 }}>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
@@ -2700,9 +2728,12 @@ export function DashboardPage({
             {/* === ВИДЖЕТ 3: График динамики (включить: WIDGET_3_CHART = true) === */}
             {WIDGET_3_CHART && !loading && !error && showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>
                         {selectedChartConfig.title}
                     </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
+                        Динамика показателя по дням за выбранный период. Выберите стиль отображения ниже.
+                    </Typography.Body>
                     {renderChart(selectedChartConfig.data, selectedChartConfig.title, selectedChartConfig.color, selectedChartConfig.formatValue, mainChartVariant)}
                     <div style={{ marginTop: '0.85rem', borderTop: '1px dashed var(--color-border)', paddingTop: '0.7rem' }}>
                         <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem' }}>
@@ -3049,13 +3080,16 @@ export function DashboardPage({
             {/* === ВИДЖЕТ 4: Монитор SLA (включить: WIDGET_4_SLA = true); в режиме "только SLA" показываем даже при 0 перевозок === */}
             {WIDGET_4_SLA && !loading && !error && (slaStats.total > 0 || showOnlySla) && (
                 <Panel className="cargo-card sla-monitor-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
-                    <Flex align="center" justify="space-between" className="sla-monitor-header" style={{ marginBottom: '0.75rem' }}>
+                    <Flex align="center" justify="space-between" className="sla-monitor-header" style={{ marginBottom: '0.2rem' }}>
                         <Typography.Headline style={{ fontSize: '0.95rem', fontWeight: 600 }}>
                             Монитор SLA
                         </Typography.Headline>
                         {slaStats.total > 0 && slaTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} title="Динамика SLA улучшается" />}
                         {slaStats.total > 0 && slaTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} title="Динамика SLA ухудшается" />}
                     </Flex>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
+                        Контроль сроков доставки: % выполнения SLA, средний срок и детали по перевозкам вне норматива.
+                    </Typography.Body>
                     {slaStats.total === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>Нет перевозок за выбранный период.</Typography.Body>
                     ) : (
@@ -3280,9 +3314,12 @@ export function DashboardPage({
             {/* 1. Воронка статусов */}
             {useServiceRequest && !loading && !error && statusFunnel.length > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>
                         Воронка статусов
                     </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.45rem' }}>
+                        Распределение грузов по этапам обработки: от приёмки до доставки получателю.
+                    </Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {(() => {
                             const maxC = Math.max(...statusFunnel.map((s) => s.count), 1);
@@ -3342,7 +3379,18 @@ export function DashboardPage({
                     </Typography.Body>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
                         {invoiceAging.buckets.map((b) => (
-                            <div key={b.label} style={{ border: `1px solid ${b.color}33`, borderRadius: 10, padding: '0.55rem', background: `${b.color}0a` }}>
+                            <div
+                                key={b.label}
+                                onClick={() => b.count > 0 && setExpandedAgingBucket(expandedAgingBucket === b.label ? null : b.label)}
+                                style={{
+                                    border: `1px solid ${expandedAgingBucket === b.label ? b.color : b.color + '33'}`,
+                                    borderRadius: 10,
+                                    padding: '0.55rem',
+                                    background: expandedAgingBucket === b.label ? `${b.color}18` : `${b.color}0a`,
+                                    cursor: b.count > 0 ? 'pointer' : 'default',
+                                    transition: 'all 0.2s',
+                                }}
+                            >
                                 <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>{b.label}</Typography.Body>
                                 <Typography.Body style={{ fontWeight: 700, fontSize: '1rem', color: b.color }}>{b.count}</Typography.Body>
                                 <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600 }}>{formatCurrency(b.sum, true)}</Typography.Body>
@@ -3354,24 +3402,60 @@ export function DashboardPage({
                             <div key={`aging-bar-${b.label}`} style={{ width: `${invoiceAging.total > 0 ? (b.sum / invoiceAging.total) * 100 : 0}%`, height: '100%', background: b.color, transition: 'width 0.3s' }} title={`${b.label}: ${formatCurrency(b.sum, true)}`} />
                         ))}
                     </div>
+                    {expandedAgingBucket && (() => {
+                        const bucket = invoiceAging.buckets.find((b) => b.label === expandedAgingBucket);
+                        if (!bucket || bucket.items.length === 0) return null;
+                        return (
+                            <div style={{ marginTop: '0.6rem' }}>
+                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem', color: bucket.color }}>
+                                    {bucket.label} — {bucket.count} {bucket.count === 1 ? 'счёт' : bucket.count < 5 ? 'счёта' : 'счетов'}
+                                </Typography.Body>
+                                <div style={{ maxHeight: 280, overflowY: 'auto', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                                        <thead>
+                                            <tr style={{ background: 'var(--color-bg-hover)', position: 'sticky', top: 0 }}>
+                                                <th style={{ padding: '0.35rem 0.5rem', textAlign: 'left', fontWeight: 600 }}>Счёт</th>
+                                                <th style={{ padding: '0.35rem 0.5rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
+                                                <th style={{ padding: '0.35rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
+                                                <th style={{ padding: '0.35rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>Дней</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {bucket.items.map((inv, idx) => (
+                                                <tr key={`aging-inv-${idx}`} style={{ borderTop: '1px solid var(--color-border)' }}>
+                                                    <td style={{ padding: '0.3rem 0.5rem', whiteSpace: 'nowrap' }}>{inv.number}</td>
+                                                    <td style={{ padding: '0.3rem 0.5rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.customer}</td>
+                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inv.sum, true)}</td>
+                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: bucket.color, fontWeight: 600 }}>{inv.days}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </Panel>
             )}
 
             {/* 6. Календарь загрузки (heatmap) */}
             {useServiceRequest && !loading && !error && loadHeatmap.cells.length > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Flex align="center" justify="space-between" style={{ marginBottom: '0.5rem' }}>
+                    <Flex align="center" justify="space-between" style={{ marginBottom: '0.15rem' }}>
                         <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
                             Календарь загрузки
                         </Typography.Headline>
                         <Flex align="center" gap="0.4rem">
-                            <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
+                            <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem' }} onClick={() => setHeatmapMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', minWidth: '8rem', textAlign: 'center' }}>
                                 {['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][loadHeatmap.month - 1]} {loadHeatmap.year}
                             </Typography.Body>
-                            <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
+                            <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem' }} onClick={() => setHeatmapMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
                         </Flex>
                     </Flex>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.4rem' }}>
+                        Интенсивность приёмок по дням месяца. Чем ярче ячейка — тем больше грузов принято в этот день.
+                    </Typography.Body>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
                         {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((wd) => (
                             <div key={`hm-h-${wd}`} style={{ textAlign: 'center', fontSize: '0.7rem', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.15rem' }}>{wd}</div>
@@ -3494,7 +3578,11 @@ export function DashboardPage({
                         {weekdayDistribution.map((d) => (
                             <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
                                 <Typography.Body style={{ fontSize: '0.68rem', fontWeight: 600, marginBottom: '0.15rem' }}>{d.count || ''}</Typography.Body>
-                                <div style={{ width: '100%', maxWidth: 36, borderRadius: '5px 5px 0 0', background: d.percent > 0 ? 'rgba(37,99,235,0.65)' : 'var(--color-bg-hover)', height: `${Math.max(d.percent, 4)}%`, transition: 'height 0.3s' }} />
+                                <div style={{ width: '100%', maxWidth: 36, display: 'flex', flexDirection: 'column', borderRadius: '5px 5px 0 0', overflow: 'hidden', height: `${Math.max(d.percent, 4)}%`, transition: 'height 0.3s' }}>
+                                    {d.ferry > 0 && <div style={{ flex: d.ferry, background: '#6366f1' }} title={`Паром: ${d.ferry}`} />}
+                                    {d.auto > 0 && <div style={{ flex: d.auto, background: '#3b82f6' }} title={`Авто: ${d.auto}`} />}
+                                    {d.count === 0 && <div style={{ flex: 1, background: 'var(--color-bg-hover)' }} />}
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -3506,6 +3594,10 @@ export function DashboardPage({
                             </div>
                         ))}
                     </div>
+                    <Flex gap="0.75rem" style={{ marginTop: '0.35rem' }}>
+                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#6366f1' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Паром</Typography.Body></Flex>
+                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Авто</Typography.Body></Flex>
+                    </Flex>
                 </Panel>
             )}
 
@@ -3738,35 +3830,6 @@ export function DashboardPage({
                                     </div>
                                 </div>
                             </div>
-                            <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.4rem' }}>
-                                Топ сотрудников по затратам
-                            </Typography.Body>
-                            {topEmployeesByTimesheetCost.length === 0 ? (
-                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                    Нет данных табеля за выбранный период.
-                                </Typography.Body>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                    {topEmployeesByTimesheetCost.map((row) => (
-                                        <div key={`timesheet-top-${row.employeeId}`} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.25rem' }}>
-                                            <Typography.Body style={{ fontSize: '0.8rem' }}>
-                                                {row.fullName || `Сотрудник #${row.employeeId}`} {row.department ? `· ${row.department}` : ''}
-                                            </Typography.Body>
-                                            <Flex align="center" gap="0.5rem" wrap="wrap" justify="flex-end">
-                                                <span style={{ fontSize: '0.74rem', padding: '0.14rem 0.4rem', borderRadius: 999, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', fontWeight: 600 }}>
-                                                    {Math.round(Number(row.totalCost || 0)).toLocaleString('ru-RU')} ₽
-                                                </span>
-                                                <span style={{ fontSize: '0.74rem', padding: '0.14rem 0.4rem', borderRadius: 999, border: '1px solid #86efac', background: '#dcfce7', color: '#166534', fontWeight: 600 }}>
-                                                    {Math.round(Number(row.totalPaid || 0)).toLocaleString('ru-RU')} ₽
-                                                </span>
-                                                <span style={{ fontSize: '0.74rem', padding: '0.14rem 0.4rem', borderRadius: 999, border: '1px solid #fcd34d', background: '#fef3c7', color: '#92400e', fontWeight: 700 }}>
-                                                    {Math.round(Number(row.totalOutstanding || 0)).toLocaleString('ru-RU')} ₽
-                                                </span>
-                                            </Flex>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
                             <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, marginTop: '0.75rem', marginBottom: '0.4rem' }}>
                                 По подразделениям
                             </Typography.Body>
