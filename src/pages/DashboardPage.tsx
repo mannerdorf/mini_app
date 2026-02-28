@@ -1452,8 +1452,17 @@ export function DashboardPage({
             );
         }
         
-        // Округляем значения до целых
-        const roundedData = data.map(d => ({ ...d, value: Math.round(d.value) }));
+        // Округляем значения до целых и нормализуем дату, чтобы график не падал на пустых значениях
+        const roundedData = data.map((d) => {
+            const numericValue = Number(d?.value);
+            const normalizedValue = Number.isFinite(numericValue) ? Math.round(numericValue) : 0;
+            const rawDate = String(d?.date ?? d?.dateKey ?? "").trim();
+            return {
+                ...d,
+                value: normalizedValue,
+                date: rawDate || "—",
+            };
+        });
         const maxValue = Math.max(...roundedData.map(d => d.value), 1);
         const scaleMax = maxValue * 1.1; // Максимум шкалы = max + 10%
         
@@ -1589,7 +1598,13 @@ export function DashboardPage({
                                         textAnchor="middle"
                                         transform={`rotate(-45 ${x + barWidth / 2} ${chartHeight - paddingBottom + 20})`}
                                     >
-                                        {d.date.split('.').slice(0, 2).join('.')}
+                                        {(() => {
+                                            const raw = String(d?.date ?? "").trim();
+                                            if (!raw || raw === "—") return "—";
+                                            if (raw.includes(".")) return raw.split(".").slice(0, 2).join(".");
+                                            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw.slice(8, 10) + "." + raw.slice(5, 7);
+                                            return raw;
+                                        })()}
                                     </text>
                                 </g>
                             );
