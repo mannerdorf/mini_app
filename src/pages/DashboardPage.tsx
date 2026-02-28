@@ -20,6 +20,7 @@ import { normalizeStatus } from "../lib/statusUtils";
 import { workingDaysBetween, workingDaysInPlan, type WorkSchedule } from "../lib/slaWorkSchedule";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry } from "../lib/cargoUtils";
 import { formatCurrency, formatInvoiceNumber, stripOoo, cityToCode, normalizeInvoiceStatus } from "../lib/formatUtils";
+import { getFirstCargoNumberFromInvoice, buildCargoStateByNumber } from "./documentsPipeline";
 import { usePerevozki, usePrevPeriodPerevozki, useInvoices } from "../hooks/useApi";
 import { fetchPerevozkaTimeline } from "../lib/perevozkaDetails";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
@@ -147,7 +148,7 @@ export function DashboardPage({
     /** Раскрытая строка в таблице «Перевозки вне SLA»: по клику показываем статусы в виде таблицы */
     const [expandedSlaCargoNumber, setExpandedSlaCargoNumber] = useState<string | null>(null);
     const [expandedAgingBucket, setExpandedAgingBucket] = useState<string | null>(null);
-    const [agingSortCol, setAgingSortCol] = useState<'number' | 'customer' | 'status' | 'sum' | 'days'>('sum');
+    const [agingSortCol, setAgingSortCol] = useState<'number' | 'customer' | 'status' | 'shipmentStatus' | 'sum' | 'days'>('sum');
     const [agingSortAsc, setAgingSortAsc] = useState(false);
     const [maChartType, setMaChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>('paidWeight');
     const [expandedSlaItem, setExpandedSlaItem] = useState<CargoItem | null>(null);
@@ -1988,9 +1989,10 @@ export function DashboardPage({
         return { rows, total };
     }, [filteredItems, useServiceRequest]);
 
-    type AgingInvoice = { number: string; customer: string; date: string; sum: number; days: number; status: string };
+    type AgingInvoice = { number: string; customer: string; date: string; sum: number; days: number; status: string; shipmentStatus: string };
     const invoiceAging = useMemo(() => {
         if (!useServiceRequest) return { buckets: [] as { label: string; count: number; sum: number; color: string; items: AgingInvoice[] }[], total: 0 };
+        const cargoStateByNumber = buildCargoStateByNumber(items);
         const now = new Date();
         const buckets = [
             { label: 'до 7 дн.', min: 0, max: 7, count: 0, sum: 0, color: '#10b981', items: [] as AgingInvoice[] },
@@ -2011,19 +2013,22 @@ export function DashboardPage({
             const invNum = String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? '').trim() || '—';
             const customer = String(inv?.Customer ?? inv?.customer ?? inv?.Контрагент ?? inv?.Contractor ?? '').trim() || '—';
             const dateStr = dateUtils.formatDate(rawDate);
+            const cargoNum = getFirstCargoNumberFromInvoice(inv);
+            const rawShipmentState = cargoNum ? cargoStateByNumber.get(cargoNum) ?? cargoStateByNumber.get(cargoNum.replace(/^0+/, '') ?? '') : undefined;
+            const shipmentStatus = rawShipmentState ? normalizeStatus(rawShipmentState) : '—';
             for (const b of buckets) {
                 if (days >= b.min && days < b.max) {
                     b.count += 1;
                     b.sum += sum;
                     total += sum;
-                    b.items.push({ number: invNum, customer: stripOoo(customer), date: dateStr, sum, days, status });
+                    b.items.push({ number: invNum, customer: stripOoo(customer), date: dateStr, sum, days, status, shipmentStatus });
                     break;
                 }
             }
         });
         buckets.forEach((b) => b.items.sort((a, b2) => b2.sum - a.sum));
         return { buckets, total };
-    }, [calendarInvoiceItems, useServiceRequest]);
+    }, [calendarInvoiceItems, items, useServiceRequest]);
 
     const heatmapRange = useMemo(() => {
         const from = dateUtils.parseDateOnly(apiDateRange.dateFrom);
@@ -3839,16 +3844,26 @@ export function DashboardPage({
                             if (agingSortCol === 'number') cmp = a.number.localeCompare(b2.number);
                             else if (agingSortCol === 'customer') cmp = a.customer.localeCompare(b2.customer);
                             else if (agingSortCol === 'status') cmp = a.status.localeCompare(b2.status);
+                            else if (agingSortCol === 'shipmentStatus') cmp = a.shipmentStatus.localeCompare(b2.shipmentStatus);
                             else if (agingSortCol === 'sum') cmp = a.sum - b2.sum;
                             else cmp = a.days - b2.days;
                             return agingSortAsc ? cmp : -cmp;
                         });
                         const toggleSort = (col: typeof agingSortCol) => {
                             if (agingSortCol === col) setAgingSortAsc(!agingSortAsc);
-                            else { setAgingSortCol(col); setAgingSortAsc(col === 'number' || col === 'customer' || col === 'status'); }
+                            else { setAgingSortCol(col); setAgingSortAsc(col === 'number' || col === 'customer' || col === 'status' || col === 'shipmentStatus'); }
                         };
                         const arrow = (col: typeof agingSortCol) => agingSortCol === col ? (agingSortAsc ? ' ↑' : ' ↓') : '';
                         const thStyle = (align: string): React.CSSProperties => ({ padding: '0.35rem 0.5rem', textAlign: align as any, fontWeight: 600, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' });
+                        const shipmentColor = (s: string) => {
+                            if (!s || s === '—') return '#94a3b8';
+                            const l = s.toLowerCase();
+                            if (l.includes('доставлен') || l.includes('заверш')) return '#10b981';
+                            if (l.includes('доставке')) return '#f59e0b';
+                            if (l.includes('готов')) return '#8b5cf6';
+                            if (l.includes('пути') || l.includes('отправлен')) return '#3b82f6';
+                            return '#94a3b8';
+                        };
                         return (
                             <div style={{ marginTop: '0.6rem' }}>
                                 <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem', color: bucket.color }}>
@@ -3861,6 +3876,7 @@ export function DashboardPage({
                                                 <th style={thStyle('left')} onClick={() => toggleSort('number')}>Счёт{arrow('number')}</th>
                                                 <th style={thStyle('left')} onClick={() => toggleSort('customer')}>Заказчик{arrow('customer')}</th>
                                                 <th style={thStyle('center')} onClick={() => toggleSort('status')}>Статус{arrow('status')}</th>
+                                                <th style={thStyle('center')} onClick={() => toggleSort('shipmentStatus')}>Статус перевозки{arrow('shipmentStatus')}</th>
                                                 <th style={thStyle('right')} onClick={() => toggleSort('sum')}>Сумма{arrow('sum')}</th>
                                                 <th style={thStyle('right')} onClick={() => toggleSort('days')}>Дней{arrow('days')}</th>
                                             </tr>
@@ -3869,12 +3885,17 @@ export function DashboardPage({
                                             {sorted.map((inv, idx) => {
                                                 const st = inv.status || '—';
                                                 const stColor = /оплач/i.test(st) ? '#10b981' : /частич/i.test(st) ? '#f59e0b' : /просроч/i.test(st) ? '#ef4444' : /выставлен|ожида/i.test(st) ? '#3b82f6' : '#94a3b8';
+                                                const shipSt = inv.shipmentStatus || '—';
+                                                const shipStColor = shipmentColor(shipSt);
                                                 return (
                                                 <tr key={`aging-inv-${idx}`} style={{ borderTop: '1px solid var(--color-border)' }}>
                                                     <td style={{ padding: '0.3rem 0.5rem', whiteSpace: 'nowrap' }}>{inv.number}</td>
                                                     <td style={{ padding: '0.3rem 0.5rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.customer}</td>
                                                     <td style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
                                                         <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${stColor}18`, color: stColor, border: `1px solid ${stColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{st}</span>
+                                                    </td>
+                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
+                                                        <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${shipStColor}18`, color: shipStColor, border: `1px solid ${shipStColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{shipSt}</span>
                                                     </td>
                                                     <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inv.sum, true)}</td>
                                                     <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: bucket.color, fontWeight: 600 }}>{inv.days}</td>
