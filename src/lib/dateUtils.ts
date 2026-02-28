@@ -228,6 +228,8 @@ const HOLIDAYS_MM_DD = new Set([
 export const parseDateOnly = (dateString: string | undefined): Date | null => {
     if (!dateString) return null;
     let clean = dateString.split("T")[0].trim();
+    // Strip space-separated time (e.g. "07.02.2025 0:00:00")
+    clean = clean.replace(/\s+\d{1,2}:\d{2}(:\d{2})?.*$/, '').trim();
     const dayDateMatch = clean.match(/,\s*(\d{2}\.\d{2}\.\d{4})$/);
     if (dayDateMatch) clean = dayDateMatch[1];
     if (!clean) return null;

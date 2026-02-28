@@ -147,6 +147,9 @@ export function DashboardPage({
     /** Раскрытая строка в таблице «Перевозки вне SLA»: по клику показываем статусы в виде таблицы */
     const [expandedSlaCargoNumber, setExpandedSlaCargoNumber] = useState<string | null>(null);
     const [expandedAgingBucket, setExpandedAgingBucket] = useState<string | null>(null);
+    const [agingSortCol, setAgingSortCol] = useState<'number' | 'customer' | 'status' | 'sum' | 'days'>('sum');
+    const [agingSortAsc, setAgingSortAsc] = useState(false);
+    const [maChartType, setMaChartType] = useState<'money' | 'paidWeight' | 'weight' | 'volume' | 'pieces'>('paidWeight');
     const [expandedSlaItem, setExpandedSlaItem] = useState<CargoItem | null>(null);
     const [slaTimelineSteps, setSlaTimelineSteps] = useState<PerevozkaTimelineStep[] | null>(null);
     const [slaTimelineLoading, setSlaTimelineLoading] = useState(false);
@@ -2039,7 +2042,7 @@ export function DashboardPage({
             if (isReceivedInfoStatus(item.State)) return;
             const raw = String(item.DatePrih ?? '').trim();
             if (!raw) return;
-            const dk = raw.includes('T') ? raw.split('T')[0] : raw;
+            const dk = raw.includes('T') ? raw.split('T')[0] : raw.split(' ')[0];
             const p = dateUtils.parseDateOnly(dk);
             if (!p) return;
             if (p.getFullYear() !== year || p.getMonth() + 1 !== month) return;
@@ -2061,7 +2064,14 @@ export function DashboardPage({
 
     const movingAverage7 = useMemo(() => {
         if (!useServiceRequest || chartData.length < 3) return null;
-        const values = chartData.map((d) => d.pw);
+        const getVal = (d: { sum: number; pw: number; w: number; mest: number; vol: number }) => {
+            if (maChartType === 'money') return d.sum;
+            if (maChartType === 'paidWeight') return d.pw;
+            if (maChartType === 'weight') return d.w;
+            if (maChartType === 'pieces') return d.mest;
+            return d.vol;
+        };
+        const values = chartData.map(getVal);
         const window = Math.min(7, values.length);
         const ma: { date: string; dateKey?: string; value: number }[] = [];
         for (let i = 0; i < values.length; i++) {
@@ -2071,7 +2081,7 @@ export function DashboardPage({
             ma.push({ date: chartData[i].date, dateKey: (chartData[i] as any).dateKey, value: Math.round(avg) });
         }
         return ma;
-    }, [chartData, useServiceRequest]);
+    }, [chartData, maChartType, useServiceRequest]);
 
     const repeatCustomers = useMemo(() => {
         if (!useServiceRequest || filteredPrevPeriodItems.length === 0) return null;
@@ -2725,6 +2735,8 @@ export function DashboardPage({
                 </Flex>
             )}
             
+            {/* ═══════ ГРУППА 1: ОБЗОР И ТРЕНДЫ ═══════ */}
+
             {/* === ВИДЖЕТ 3: График динамики (включить: WIDGET_3_CHART = true) === */}
             {WIDGET_3_CHART && !loading && !error && showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
@@ -2772,153 +2784,181 @@ export function DashboardPage({
                 </Panel>
             )}
 
-            {/* === ВИДЖЕТ 5: Платёжный календарь (включить: WIDGET_5_PAYMENT_CALENDAR = true) === */}
-            {WIDGET_5_PAYMENT_CALENDAR && showPaymentCalendar && !loading && !error && (
+            {/* 7. Скользящая средняя (overlay на основной график) */}
+            {useServiceRequest && !loading && !error && movingAverage7 && movingAverage7.length > 2 && !showOnlySla && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>Платёжный календарь</Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
-                        Рекомендуемые дни оплаты выставленных и неоплаченных счетов
+                    <Flex align="center" justify="space-between" style={{ marginBottom: '0.25rem' }}>
+                        <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
+                            Скользящая средняя (7 дн.)
+                        </Typography.Headline>
+                        <Flex gap="0.2rem" align="center">
+                            {showSums && (
+                                <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: maChartType === 'money' ? 'var(--color-primary-blue)' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => setMaChartType('money')} title="Рубли"><RussianRuble className="w-4 h-4" style={{ color: maChartType === 'money' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                            )}
+                            <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: maChartType === 'paidWeight' ? '#10b981' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => setMaChartType('paidWeight')} title="Платный вес"><Scale className="w-4 h-4" style={{ color: maChartType === 'paidWeight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                            <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: maChartType === 'weight' ? '#0d9488' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => setMaChartType('weight')} title="Вес"><Weight className="w-4 h-4" style={{ color: maChartType === 'weight' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                            <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: maChartType === 'volume' ? '#f59e0b' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => setMaChartType('volume')} title="Объём"><List className="w-4 h-4" style={{ color: maChartType === 'volume' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                            <Button className="filter-button" style={{ padding: '0.3rem', minWidth: 'auto', background: maChartType === 'pieces' ? '#8b5cf6' : 'transparent', border: 'none', borderRadius: 8 }} onClick={() => setMaChartType('pieces')} title="Места (шт)"><Package className="w-4 h-4" style={{ color: maChartType === 'pieces' ? 'white' : 'var(--color-text-secondary)' }} /></Button>
+                        </Flex>
+                    </Flex>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                        Тренд без дневных колебаний — {maChartType === 'money' ? 'выручка (₽)' : maChartType === 'paidWeight' ? 'платный вес (кг)' : maChartType === 'weight' ? 'вес (кг)' : maChartType === 'pieces' ? 'места (шт)' : 'объём (м³)'}
                     </Typography.Body>
-                    {paymentCalendarLoading ? (
-                        <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка условий оплаты...</Typography.Body></Flex>
-                    ) : (
-                        <>
-                            <Flex align="center" gap="0.5rem" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
-                                <Typography.Body style={{ fontWeight: 600, minWidth: '10rem', textAlign: 'center' }}>
-                                    {['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'][paymentCalendarMonth.month - 1]} {paymentCalendarMonth.year}
-                                </Typography.Body>
-                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
-                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem', marginLeft: '0.25rem' }} onClick={() => mutateCalendarInvoices()} title="Обновить счета с начала текущего года" aria-label="Обновить счета">
-                                    <RefreshCw className="w-4 h-4" />
-                                </Button>
-                            </Flex>
-                            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
-                                <div className="payment-calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(2.5rem, 1fr))', gap: '2px', fontSize: '0.75rem', minWidth: '22rem' }}>
-                                    {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'За неделю'].map((wd) => (
-                                        <div key={wd} style={{ textAlign: 'center', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.25rem' }}>{wd}</div>
-                                    ))}
-                                    {(() => {
-                                        const { year, month } = paymentCalendarMonth;
-                                        const first = new Date(year, month - 1, 1);
-                                        const lastDay = new Date(year, month, 0).getDate();
-                                        const startOffset = (first.getDay() + 6) % 7;
-                                        const cells: { day: number | null; key: string | null; dow: number }[] = [];
-                                        for (let i = 0; i < startOffset; i++) cells.push({ day: null, key: null, dow: i });
-                                        for (let d = 1; d <= lastDay; d++) {
-                                            const key = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-                                            const date = new Date(year, month - 1, d);
-                                            const dow = (date.getDay() + 6) % 7;
-                                            cells.push({ day: d, key, dow });
-                                        }
-                                        const weeks: { cells: typeof cells }[] = [];
-                                        for (let i = 0; i < cells.length; i += 7) {
-                                            const chunk = cells.slice(i, i + 7);
-                                            while (chunk.length < 7) chunk.push({ day: null, key: null, dow: chunk.length });
-                                            weeks.push({ cells: chunk });
-                                        }
-                                        return weeks.flatMap(({ cells: weekCells }, wi) => {
-                                            let weekSum = 0;
-                                            for (let i = 0; i < 7; i++) {
-                                                const c = weekCells[i];
-                                                if (c?.key) {
-                                                    const e = plannedByDate.get(c.key);
-                                                    if (e?.total) weekSum += e.total;
-                                                }
-                                            }
-                                            const monFri = weekCells.slice(0, 5);
-                                            const row: React.ReactNode[] = monFri.map((c, i) => {
-                                                const entry = c.key ? plannedByDate.get(c.key) : undefined;
-                                                const sum = entry?.total;
-                                                const hasSum = sum != null && sum > 0;
-                                                return (
-                                                    <div
-                                                        key={`w${wi}-${i}-${c.key ?? ''}`}
-                                                        className="payment-calendar-day-cell"
-                                                        role={hasSum ? 'button' : undefined}
-                                                        tabIndex={hasSum ? 0 : undefined}
-                                                        onClick={hasSum && c.key ? () => setPaymentCalendarSelectedDate(c.key) : undefined}
-                                                        onKeyDown={hasSum && c.key ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPaymentCalendarSelectedDate(c.key); } } : undefined}
-                                                        style={{
-                                                            padding: '0.35rem',
-                                                            textAlign: 'center',
-                                                            borderRadius: 4,
-                                                            background: hasSum ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
-                                                            color: hasSum ? 'white' : 'var(--color-text-secondary)',
-                                                            minHeight: '2.25rem',
-                                                            display: 'flex',
-                                                            flexDirection: 'column',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            cursor: hasSum ? 'pointer' : undefined,
-                                                        }}
-                                                        title={c.key && hasSum ? `${c.key}: ${Math.round(sum!).toLocaleString('ru-RU')} ₽` : undefined}
-                                                    >
-                                                        {c.day != null ? c.day : ''}
-                                                        {hasSum && <span className="payment-calendar-day-amount" style={{ fontSize: '0.65rem', lineHeight: 1 }}>{formatCurrency(sum!, true)}</span>}
-                                                    </div>
-                                                );
-                                            });
-                                            row.push(
-                                                <div
-                                                    key={`week-${wi}`}
-                                                    className="payment-calendar-week-total"
-                                                    style={{
-                                                        padding: '0.35rem',
-                                                        textAlign: 'center',
-                                                        borderRadius: 4,
-                                                        background: weekSum > 0 ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
-                                                        color: weekSum > 0 ? 'white' : 'var(--color-text-secondary)',
-                                                        minHeight: '2.25rem',
-                                                        display: 'flex',
-                                                        flexDirection: 'column',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        fontWeight: weekSum > 0 ? 600 : undefined,
-                                                    }}
-                                                >
-                                                    {weekSum > 0 ? formatCurrency(weekSum, true) : '—'}
-                                                </div>
-                                            );
-                                            return row;
-                                        });
-                                    })()}
-                                </div>
+                    {(() => {
+                        const pts = movingAverage7;
+                        const maxVal = Math.max(...pts.map((p) => p.value), 1);
+                        const w = Math.max(400, pts.length * 28);
+                        const h = 100;
+                        const pad = { l: 50, r: 16, t: 10, b: 26 };
+                        const plotW = w - pad.l - pad.r;
+                        const plotH = h - pad.t - pad.b;
+                        const polyPts = pts.map((p, i) => {
+                            const x = pad.l + (pts.length > 1 ? (i * plotW) / (pts.length - 1) : plotW / 2);
+                            const y = pad.t + plotH - (p.value / maxVal) * plotH;
+                            return `${x},${y}`;
+                        }).join(' ');
+                        const areaD = pts.length > 1
+                            ? `M ${pad.l} ${pad.t + plotH} L ${pts.map((p, i) => { const x = pad.l + (i * plotW) / (pts.length - 1); const y = pad.t + plotH - (p.value / maxVal) * plotH; return `${x} ${y}`; }).join(' L ')} L ${pad.l + plotW} ${pad.t + plotH} Z`
+                            : '';
+                        return (
+                            <div style={{ overflowX: 'auto' }}>
+                                <svg width={w} height={h} style={{ display: 'block', minWidth: `${w}px` }}>
+                                    <line x1={pad.l} y1={pad.t + plotH} x2={w - pad.r} y2={pad.t + plotH} stroke="var(--color-border)" strokeWidth="1" opacity="0.5" />
+                                    {areaD && <path d={areaD} fill="#7c3aed" opacity="0.12" />}
+                                    <polyline points={polyPts} fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    {pts.filter((_, i) => i % Math.max(1, Math.floor(pts.length / 8)) === 0 || i === pts.length - 1).map((p, i) => {
+                                        const idx = pts.indexOf(p);
+                                        const x = pad.l + (pts.length > 1 ? (idx * plotW) / (pts.length - 1) : plotW / 2);
+                                        const raw = String(p?.date ?? '').trim();
+                                        const label = raw.includes('.') ? raw.split('.').slice(0, 2).join('.') : /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw.slice(8) + '.' + raw.slice(5, 7) : raw;
+                                        return <text key={`ma-lbl-${i}`} x={x} y={h - 6} textAnchor="middle" fontSize="9" fill="var(--color-text-secondary)">{label}</text>;
+                                    })}
+                                    <text x={pad.l - 4} y={pad.t + 4} textAnchor="end" fontSize="9" fill="var(--color-text-secondary)">{maChartType === 'money' ? formatCurrency(maxVal, true) : `${maxVal.toLocaleString('ru-RU')} ${maChartType === 'volume' ? 'м³' : maChartType === 'pieces' ? 'шт' : 'кг'}`}</text>
+                                </svg>
                             </div>
-                            {paymentCalendarSelectedDate && plannedByDate.get(paymentCalendarSelectedDate) && (
-                                <div className="modal-overlay" style={{ zIndex: 10000 }} role="dialog" aria-modal="true" aria-labelledby="payment-calendar-day-title" onClick={() => setPaymentCalendarSelectedDate(null)}>
-                                    <div className="modal-content" style={{ maxWidth: '22rem', padding: '1rem', maxHeight: '80vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-                                        <Typography.Body id="payment-calendar-day-title" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
-                                            Плановое поступление — {paymentCalendarSelectedDate}
-                                        </Typography.Body>
-                                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
-                                            Заказчики и суммы:
-                                        </Typography.Body>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                            {plannedByDate.get(paymentCalendarSelectedDate)!.items.map((row, idx) => (
-                                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0', borderBottom: '1px solid var(--color-border)' }}>
-                                                    <Typography.Body style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.customer}>{row.customer}</Typography.Body>
-                                                    <Typography.Body style={{ fontWeight: 600, flexShrink: 0 }}>{formatCurrency(row.sum, true)}</Typography.Body>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <Flex justify="space-between" align="center" style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid var(--color-border)', fontWeight: 600 }}>
-                                            <Typography.Body>Итого:</Typography.Body>
-                                            <Typography.Body>{formatCurrency(plannedByDate.get(paymentCalendarSelectedDate)!.total, true)}</Typography.Body>
-                                        </Flex>
-                                        <Button type="button" className="filter-button" style={{ marginTop: '0.75rem', width: '100%' }} onClick={() => setPaymentCalendarSelectedDate(null)}>Закрыть</Button>
-                                    </div>
-                                </div>
-                            )}
-                            {plannedByDate.size === 0 && !paymentCalendarLoading && (
-                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
-                                    Нет данных за выбранный период или условия оплаты не заданы в справочнике.
-                                </Typography.Body>
-                            )}
-                        </>
-                    )}
+                        );
+                    })()}
                 </Panel>
             )}
+
+            {/* ═══════ ГРУППА 2: ОПЕРАЦИОННАЯ НАГРУЗКА ═══════ */}
+
+            {/* 10. Распределение по дням недели */}
+            {useServiceRequest && !loading && !error && weekdayDistribution.length > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        Загрузка по дням недели
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
+                        Количество приёмок и платный вес в разрезе дня недели
+                    </Typography.Body>
+                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'flex-end', height: 100, marginBottom: '0.4rem' }}>
+                        {weekdayDistribution.map((d) => (
+                            <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
+                                <div style={{ width: '100%', maxWidth: 38, display: 'flex', flexDirection: 'column', borderRadius: '5px 5px 0 0', overflow: 'hidden', height: `${Math.max(d.percent, 4)}%`, transition: 'height 0.3s' }}>
+                                    {d.ferry > 0 && <div style={{ flex: d.ferry, background: '#3b82f6' }} title={`Паром: ${d.ferry}`} />}
+                                    {d.auto > 0 && <div style={{ flex: d.auto, background: '#f59e0b' }} title={`Авто: ${d.auto}`} />}
+                                    {d.count === 0 && <div style={{ flex: 1, background: 'var(--color-bg-hover)' }} />}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.35rem' }}>
+                        {weekdayDistribution.map((d) => (
+                            <div key={`lbl-${d.label}`} style={{ flex: 1, textAlign: 'center' }}>
+                                <Typography.Body style={{ fontSize: '0.72rem', color: d.label === 'Сб' || d.label === 'Вс' ? '#ef4444' : 'var(--color-text-secondary)', fontWeight: 600, display: 'block', lineHeight: '1.2' }}>{d.label}</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)', display: 'block', lineHeight: '1.2', marginTop: '0.1rem' }}>{d.count} шт</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)', display: 'block', lineHeight: '1.2', marginTop: '0.05rem' }}>{Math.round(d.pw).toLocaleString('ru-RU')} кг</Typography.Body>
+                            </div>
+                        ))}
+                    </div>
+                    <Flex gap="0.75rem">
+                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Паром</Typography.Body></Flex>
+                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Авто</Typography.Body></Flex>
+                    </Flex>
+                </Panel>
+            )}
+
+            {/* 6. Календарь загрузки (heatmap) */}
+            {useServiceRequest && !loading && !error && loadHeatmap.cells.length > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Flex align="center" justify="space-between" style={{ marginBottom: '0.15rem' }}>
+                        <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
+                            Календарь загрузки
+                        </Typography.Headline>
+                        <Flex align="center" gap="0.4rem">
+                            {(() => {
+                                const canPrev = heatmapMonth.year > heatmapRange.minYear || (heatmapMonth.year === heatmapRange.minYear && heatmapMonth.month > heatmapRange.minMonth);
+                                const canNext = heatmapMonth.year < heatmapRange.maxYear || (heatmapMonth.year === heatmapRange.maxYear && heatmapMonth.month < heatmapRange.maxMonth);
+                                return (
+                                    <>
+                                        <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', opacity: canPrev ? 1 : 0.3 }} disabled={!canPrev} onClick={() => canPrev && setHeatmapMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', minWidth: '8rem', textAlign: 'center' }}>
+                                            {['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][loadHeatmap.month - 1]} {loadHeatmap.year}
+                                        </Typography.Body>
+                                        <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', opacity: canNext ? 1 : 0.3 }} disabled={!canNext} onClick={() => canNext && setHeatmapMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
+                                    </>
+                                );
+                            })()}
+                        </Flex>
+                    </Flex>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.4rem' }}>
+                        Интенсивность приёмок по дням месяца. Чем ярче ячейка — тем больше грузов принято в этот день.
+                    </Typography.Body>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
+                        {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((wd) => (
+                            <div key={`hm-h-${wd}`} style={{ textAlign: 'center', fontSize: '0.7rem', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.15rem' }}>{wd}</div>
+                        ))}
+                        {(() => {
+                            const first = new Date(loadHeatmap.year, loadHeatmap.month - 1, 1);
+                            const offset = (first.getDay() + 6) % 7;
+                            const blanks = Array.from({ length: offset }, (_, i) => (
+                                <div key={`hm-blank-${i}`} />
+                            ));
+                            const days = loadHeatmap.cells.map((cell) => {
+                                const intensity = cell.count / loadHeatmap.maxCount;
+                                return (
+                                    <div key={`hm-${cell.key}`} title={`${cell.key}: ${cell.count} грузов, ${Math.round(cell.pw)} кг`} style={{ textAlign: 'center', borderRadius: 5, padding: '0.3rem 0.15rem', fontSize: '0.72rem', fontWeight: cell.count > 0 ? 600 : 400, background: cell.count > 0 ? `rgba(37,99,235,${0.12 + intensity * 0.55})` : 'var(--color-bg-hover)', color: intensity > 0.5 ? 'white' : 'var(--color-text-primary)', cursor: 'default' }}>
+                                        {cell.day}
+                                        {cell.count > 0 && <div style={{ fontSize: '0.6rem', fontWeight: 400, opacity: 0.85 }}>{cell.count}</div>}
+                                    </div>
+                                );
+                            });
+                            return [...blanks, ...days];
+                        })()}
+                    </div>
+                </Panel>
+            )}
+
+            {/* 1. Воронка статусов */}
+            {useServiceRequest && !loading && !error && statusFunnel.length > 0 && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>
+                        Воронка статусов
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.45rem' }}>
+                        Распределение грузов по этапам обработки: от приёмки до доставки получателю.
+                    </Typography.Body>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        {(() => {
+                            const maxC = Math.max(...statusFunnel.map((s) => s.count), 1);
+                            const totalC = statusFunnel.reduce((a, s) => a + s.count, 0) || 1;
+                            return statusFunnel.map((stage) => (
+                                <div key={stage.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Typography.Body style={{ fontSize: '0.78rem', width: 110, flexShrink: 0, color: 'var(--color-text-secondary)' }}>{stage.label}</Typography.Body>
+                                    <div style={{ flex: 1, height: 14, borderRadius: 7, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                        <div style={{ width: `${Math.round((stage.count / maxC) * 100)}%`, height: '100%', background: stage.color, borderRadius: 7, transition: 'width 0.3s' }} />
+                                    </div>
+                                    <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, minWidth: 44, textAlign: 'right' }}>{stage.count}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', minWidth: 36, textAlign: 'right' }}>{Math.round((stage.count / totalC) * 100)}%</Typography.Body>
+                                </div>
+                            ));
+                        })()}
+                    </div>
+                </Panel>
+            )}
+
+            {/* ═══════ ГРУППА 3: ЛОГИСТИКА И СРОКИ ═══════ */}
 
             {!showOnlySla && !loading && !error && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
@@ -3309,311 +3349,10 @@ export function DashboardPage({
                 </Panel>
             )}
 
-            {/* ═══════ СЛУЖЕБНЫЕ ВИДЖЕТЫ ═══════ */}
-
-            {/* 1. Воронка статусов */}
-            {useServiceRequest && !loading && !error && statusFunnel.length > 0 && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>
-                        Воронка статусов
-                    </Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.45rem' }}>
-                        Распределение грузов по этапам обработки: от приёмки до доставки получателю.
-                    </Typography.Body>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        {(() => {
-                            const maxC = Math.max(...statusFunnel.map((s) => s.count), 1);
-                            const totalC = statusFunnel.reduce((a, s) => a + s.count, 0) || 1;
-                            return statusFunnel.map((stage) => (
-                                <div key={stage.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <Typography.Body style={{ fontSize: '0.78rem', width: 110, flexShrink: 0, color: 'var(--color-text-secondary)' }}>{stage.label}</Typography.Body>
-                                    <div style={{ flex: 1, height: 14, borderRadius: 7, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                        <div style={{ width: `${Math.round((stage.count / maxC) * 100)}%`, height: '100%', background: stage.color, borderRadius: 7, transition: 'width 0.3s' }} />
-                                    </div>
-                                    <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, minWidth: 44, textAlign: 'right' }}>{stage.count}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', minWidth: 36, textAlign: 'right' }}>{Math.round((stage.count / totalC) * 100)}%</Typography.Body>
-                                </div>
-                            ));
-                        })()}
-                    </div>
-                </Panel>
-            )}
-
-            {/* 3. Pareto / ABC-анализ клиентов */}
-            {useServiceRequest && !loading && !error && paretoByCustomer.rows.length > 0 && showSums && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                        ABC-анализ клиентов
-                    </Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>
-                        Концентрация выручки по заказчикам (Парето)
-                    </Typography.Body>
-                    <Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem', lineHeight: '1.4' }}>
-                        % после суммы — кумулятивная доля: сколько от общей выручки дают все клиенты от первого до текущего. A (≤80%) — ключевые, B (≤95%) — средние, C — остальные.
-                    </Typography.Body>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: 280, overflowY: 'auto' }}>
-                        {paretoByCustomer.rows.slice(0, 15).map((row, i) => {
-                            const zone = row.cumPercent <= 80 ? 'A' : row.cumPercent <= 95 ? 'B' : 'C';
-                            const zoneColor = zone === 'A' ? '#10b981' : zone === 'B' ? '#f59e0b' : '#94a3b8';
-                            return (
-                                <div key={`pareto-${i}`} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: zoneColor, width: 16, textAlign: 'center', flexShrink: 0 }}>{zone}</span>
-                                    <Typography.Body style={{ fontSize: '0.76rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.name}>{row.name}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, flexShrink: 0 }}>{formatCurrency(row.value, true)}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', flexShrink: 0, minWidth: 40, textAlign: 'right' }}>∑{row.cumPercent}%</Typography.Body>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '0.45rem' }}>
-                        Всего клиентов: {paretoByCustomer.rows.length} · A (80%): {paretoByCustomer.rows.filter((r) => r.cumPercent <= 80).length} · B (95%): {paretoByCustomer.rows.filter((r) => r.cumPercent > 80 && r.cumPercent <= 95).length} · C: {paretoByCustomer.rows.filter((r) => r.cumPercent > 95).length}
-                    </Typography.Body>
-                </Panel>
-            )}
-
-            {/* 4. Старение дебиторки */}
-            {useServiceRequest && !loading && !error && invoiceAging.total > 0 && showSums && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                        Старение дебиторки
-                    </Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
-                        Неоплаченные счета по давности выставления
-                    </Typography.Body>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        {invoiceAging.buckets.map((b) => (
-                            <div
-                                key={b.label}
-                                onClick={() => b.count > 0 && setExpandedAgingBucket(expandedAgingBucket === b.label ? null : b.label)}
-                                style={{
-                                    border: `1px solid ${expandedAgingBucket === b.label ? b.color : b.color + '33'}`,
-                                    borderRadius: 10,
-                                    padding: '0.55rem',
-                                    background: expandedAgingBucket === b.label ? `${b.color}18` : `${b.color}0a`,
-                                    cursor: b.count > 0 ? 'pointer' : 'default',
-                                    transition: 'all 0.2s',
-                                }}
-                            >
-                                <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem', display: 'block' }}>{b.label}</Typography.Body>
-                                <Typography.Body style={{ fontWeight: 700, fontSize: '1rem', color: b.color, display: 'block', marginBottom: '0.15rem' }}>{b.count}</Typography.Body>
-                                <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, display: 'block' }}>{formatCurrency(b.sum, true)}</Typography.Body>
-                            </div>
-                        ))}
-                    </div>
-                    <div style={{ height: 10, borderRadius: 5, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
-                        {invoiceAging.buckets.map((b) => (
-                            <div key={`aging-bar-${b.label}`} style={{ width: `${invoiceAging.total > 0 ? (b.sum / invoiceAging.total) * 100 : 0}%`, height: '100%', background: b.color, transition: 'width 0.3s' }} title={`${b.label}: ${formatCurrency(b.sum, true)}`} />
-                        ))}
-                    </div>
-                    {expandedAgingBucket && (() => {
-                        const bucket = invoiceAging.buckets.find((b) => b.label === expandedAgingBucket);
-                        if (!bucket || bucket.items.length === 0) return null;
-                        return (
-                            <div style={{ marginTop: '0.6rem' }}>
-                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem', color: bucket.color }}>
-                                    {bucket.label} — {bucket.count} {bucket.count === 1 ? 'счёт' : bucket.count < 5 ? 'счёта' : 'счетов'}
-                                </Typography.Body>
-                                <div style={{ maxHeight: 280, overflowY: 'auto', borderRadius: 8, border: '1px solid var(--color-border)' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
-                                        <thead>
-                                            <tr style={{ background: 'var(--color-bg-hover)', position: 'sticky', top: 0 }}>
-                                                <th style={{ padding: '0.35rem 0.5rem', textAlign: 'left', fontWeight: 600 }}>Счёт</th>
-                                                <th style={{ padding: '0.35rem 0.5rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
-                                                <th style={{ padding: '0.35rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
-                                                <th style={{ padding: '0.35rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>Дней</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {bucket.items.map((inv, idx) => (
-                                                <tr key={`aging-inv-${idx}`} style={{ borderTop: '1px solid var(--color-border)' }}>
-                                                    <td style={{ padding: '0.3rem 0.5rem', whiteSpace: 'nowrap' }}>{inv.number}</td>
-                                                    <td style={{ padding: '0.3rem 0.5rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.customer}</td>
-                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inv.sum, true)}</td>
-                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: bucket.color, fontWeight: 600 }}>{inv.days}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        );
-                    })()}
-                </Panel>
-            )}
-
-            {/* 6. Календарь загрузки (heatmap) */}
-            {useServiceRequest && !loading && !error && loadHeatmap.cells.length > 0 && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Flex align="center" justify="space-between" style={{ marginBottom: '0.15rem' }}>
-                        <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600 }}>
-                            Календарь загрузки
-                        </Typography.Headline>
-                        <Flex align="center" gap="0.4rem">
-                            {(() => {
-                                const canPrev = heatmapMonth.year > heatmapRange.minYear || (heatmapMonth.year === heatmapRange.minYear && heatmapMonth.month > heatmapRange.minMonth);
-                                const canNext = heatmapMonth.year < heatmapRange.maxYear || (heatmapMonth.year === heatmapRange.maxYear && heatmapMonth.month < heatmapRange.maxMonth);
-                                return (
-                                    <>
-                                        <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', opacity: canPrev ? 1 : 0.3 }} disabled={!canPrev} onClick={() => canPrev && setHeatmapMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', minWidth: '8rem', textAlign: 'center' }}>
-                                            {['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][loadHeatmap.month - 1]} {loadHeatmap.year}
-                                        </Typography.Body>
-                                        <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', opacity: canNext ? 1 : 0.3 }} disabled={!canNext} onClick={() => canNext && setHeatmapMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
-                                    </>
-                                );
-                            })()}
-                        </Flex>
-                    </Flex>
-                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.4rem' }}>
-                        Интенсивность приёмок по дням месяца. Чем ярче ячейка — тем больше грузов принято в этот день.
-                    </Typography.Body>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
-                        {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((wd) => (
-                            <div key={`hm-h-${wd}`} style={{ textAlign: 'center', fontSize: '0.7rem', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.15rem' }}>{wd}</div>
-                        ))}
-                        {(() => {
-                            const first = new Date(loadHeatmap.year, loadHeatmap.month - 1, 1);
-                            const offset = (first.getDay() + 6) % 7;
-                            const blanks = Array.from({ length: offset }, (_, i) => (
-                                <div key={`hm-blank-${i}`} />
-                            ));
-                            const days = loadHeatmap.cells.map((cell) => {
-                                const intensity = cell.count / loadHeatmap.maxCount;
-                                return (
-                                    <div key={`hm-${cell.key}`} title={`${cell.key}: ${cell.count} грузов, ${Math.round(cell.pw)} кг`} style={{ textAlign: 'center', borderRadius: 5, padding: '0.3rem 0.15rem', fontSize: '0.72rem', fontWeight: cell.count > 0 ? 600 : 400, background: cell.count > 0 ? `rgba(37,99,235,${0.12 + intensity * 0.55})` : 'var(--color-bg-hover)', color: intensity > 0.5 ? 'white' : 'var(--color-text-primary)', cursor: 'default' }}>
-                                        {cell.day}
-                                        {cell.count > 0 && <div style={{ fontSize: '0.6rem', fontWeight: 400, opacity: 0.85 }}>{cell.count}</div>}
-                                    </div>
-                                );
-                            });
-                            return [...blanks, ...days];
-                        })()}
-                    </div>
-                </Panel>
-            )}
-
-            {/* 7. Скользящая средняя (overlay на основной график) */}
-            {useServiceRequest && !loading && !error && movingAverage7 && movingAverage7.length > 2 && !showOnlySla && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                        Скользящая средняя (7 дн.)
-                    </Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                        Тренд без дневных колебаний — платный вес (кг)
-                    </Typography.Body>
-                    {(() => {
-                        const pts = movingAverage7;
-                        const maxVal = Math.max(...pts.map((p) => p.value), 1);
-                        const w = Math.max(400, pts.length * 28);
-                        const h = 100;
-                        const pad = { l: 50, r: 16, t: 10, b: 26 };
-                        const plotW = w - pad.l - pad.r;
-                        const plotH = h - pad.t - pad.b;
-                        const polyPts = pts.map((p, i) => {
-                            const x = pad.l + (pts.length > 1 ? (i * plotW) / (pts.length - 1) : plotW / 2);
-                            const y = pad.t + plotH - (p.value / maxVal) * plotH;
-                            return `${x},${y}`;
-                        }).join(' ');
-                        const areaD = pts.length > 1
-                            ? `M ${pad.l} ${pad.t + plotH} L ${pts.map((p, i) => { const x = pad.l + (i * plotW) / (pts.length - 1); const y = pad.t + plotH - (p.value / maxVal) * plotH; return `${x} ${y}`; }).join(' L ')} L ${pad.l + plotW} ${pad.t + plotH} Z`
-                            : '';
-                        return (
-                            <div style={{ overflowX: 'auto' }}>
-                                <svg width={w} height={h} style={{ display: 'block', minWidth: `${w}px` }}>
-                                    <line x1={pad.l} y1={pad.t + plotH} x2={w - pad.r} y2={pad.t + plotH} stroke="var(--color-border)" strokeWidth="1" opacity="0.5" />
-                                    {areaD && <path d={areaD} fill="#7c3aed" opacity="0.12" />}
-                                    <polyline points={polyPts} fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                                    {pts.filter((_, i) => i % Math.max(1, Math.floor(pts.length / 8)) === 0 || i === pts.length - 1).map((p, i) => {
-                                        const idx = pts.indexOf(p);
-                                        const x = pad.l + (pts.length > 1 ? (idx * plotW) / (pts.length - 1) : plotW / 2);
-                                        const raw = String(p?.date ?? '').trim();
-                                        const label = raw.includes('.') ? raw.split('.').slice(0, 2).join('.') : /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw.slice(8) + '.' + raw.slice(5, 7) : raw;
-                                        return <text key={`ma-lbl-${i}`} x={x} y={h - 6} textAnchor="middle" fontSize="9" fill="var(--color-text-secondary)">{label}</text>;
-                                    })}
-                                    <text x={pad.l - 4} y={pad.t + 4} textAnchor="end" fontSize="9" fill="var(--color-text-secondary)">{maxVal.toLocaleString('ru-RU')} кг</text>
-                                </svg>
-                            </div>
-                        );
-                    })()}
-                </Panel>
-            )}
-
-            {/* 9. Доля повторных клиентов */}
-            {useServiceRequest && !loading && !error && repeatCustomers && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                        Повторные клиенты
-                    </Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
-                        Текущий период vs предыдущий — доля возвращающихся заказчиков
-                    </Typography.Body>
-                    <Flex gap="1rem" wrap="wrap" style={{ marginBottom: '0.5rem' }}>
-                        <div style={{ textAlign: 'center' }}>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#10b981' }}>{repeatCustomers.repeatPercent}%</Typography.Body>
-                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>повторных</Typography.Body>
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem' }}>{repeatCustomers.total}</Typography.Body>
-                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>всего клиентов</Typography.Body>
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#3b82f6' }}>{repeatCustomers.repeat}</Typography.Body>
-                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>повторных</Typography.Body>
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#f59e0b' }}>{repeatCustomers.new}</Typography.Body>
-                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>новых</Typography.Body>
-                        </div>
-                    </Flex>
-                    <div style={{ height: 12, borderRadius: 6, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
-                        <div style={{ width: `${repeatCustomers.repeatPercent}%`, height: '100%', background: '#10b981', borderRadius: '6px 0 0 6px', transition: 'width 0.3s' }} />
-                        <div style={{ width: `${100 - repeatCustomers.repeatPercent}%`, height: '100%', background: '#f59e0b', borderRadius: '0 6px 6px 0', transition: 'width 0.3s' }} />
-                    </div>
-                    <Flex gap="0.75rem" style={{ marginTop: '0.3rem' }}>
-                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} /><Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Повторные</Typography.Body></Flex>
-                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Новые</Typography.Body></Flex>
-                    </Flex>
-                </Panel>
-            )}
-
-            {/* 10. Распределение по дням недели */}
-            {useServiceRequest && !loading && !error && weekdayDistribution.length > 0 && (
-                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                        Загрузка по дням недели
-                    </Typography.Headline>
-                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
-                        Количество приёмок и платный вес в разрезе дня недели
-                    </Typography.Body>
-                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'flex-end', height: 100, marginBottom: '0.4rem' }}>
-                        {weekdayDistribution.map((d) => (
-                            <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', height: '100%' }}>
-                                <div style={{ width: '100%', maxWidth: 38, display: 'flex', flexDirection: 'column', borderRadius: '5px 5px 0 0', overflow: 'hidden', height: `${Math.max(d.percent, 4)}%`, transition: 'height 0.3s' }}>
-                                    {d.ferry > 0 && <div style={{ flex: d.ferry, background: '#3b82f6' }} title={`Паром: ${d.ferry}`} />}
-                                    {d.auto > 0 && <div style={{ flex: d.auto, background: '#f59e0b' }} title={`Авто: ${d.auto}`} />}
-                                    {d.count === 0 && <div style={{ flex: 1, background: 'var(--color-bg-hover)' }} />}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.35rem' }}>
-                        {weekdayDistribution.map((d) => (
-                            <div key={`lbl-${d.label}`} style={{ flex: 1, textAlign: 'center' }}>
-                                <Typography.Body style={{ fontSize: '0.72rem', color: d.label === 'Сб' || d.label === 'Вс' ? '#ef4444' : 'var(--color-text-secondary)', fontWeight: 600, lineHeight: '1.3' }}>{d.label}</Typography.Body>
-                                <Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)', lineHeight: '1.3' }}>{d.count} шт</Typography.Body>
-                                <Typography.Body style={{ fontSize: '0.58rem', color: 'var(--color-text-secondary)', lineHeight: '1.3' }}>{Math.round(d.pw).toLocaleString('ru-RU')} кг</Typography.Body>
-                            </div>
-                        ))}
-                    </div>
-                    <Flex gap="0.75rem">
-                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#3b82f6' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Паром</Typography.Body></Flex>
-                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: 2, background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)' }}>Авто</Typography.Body></Flex>
-                    </Flex>
-                </Panel>
-            )}
+            {/* ═══════ ГРУППА 4: ФИНАНСЫ И КЛИЕНТЫ ═══════ */}
 
             {/* === ВИДЖЕТ 5: Платёжный календарь (включить: WIDGET_5_PAYMENT_CALENDAR = true) === */}
-            {false && WIDGET_5_PAYMENT_CALENDAR && showPaymentCalendar && !loading && !error && (
+            {WIDGET_5_PAYMENT_CALENDAR && showPaymentCalendar && !loading && !error && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>Платёжный календарь</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
@@ -3760,6 +3499,171 @@ export function DashboardPage({
                 </Panel>
             )}
 
+            {/* 4. Старение дебиторки */}
+            {useServiceRequest && !loading && !error && invoiceAging.total > 0 && showSums && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        Старение дебиторки
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
+                        Неоплаченные счета по давности выставления
+                    </Typography.Body>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        {invoiceAging.buckets.map((b) => (
+                            <div
+                                key={b.label}
+                                onClick={() => b.count > 0 && setExpandedAgingBucket(expandedAgingBucket === b.label ? null : b.label)}
+                                style={{
+                                    border: `1px solid ${expandedAgingBucket === b.label ? b.color : b.color + '33'}`,
+                                    borderRadius: 10,
+                                    padding: '0.55rem',
+                                    background: expandedAgingBucket === b.label ? `${b.color}18` : `${b.color}0a`,
+                                    cursor: b.count > 0 ? 'pointer' : 'default',
+                                    transition: 'all 0.2s',
+                                }}
+                            >
+                                <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem', display: 'block' }}>{b.label}</Typography.Body>
+                                <Typography.Body style={{ fontWeight: 700, fontSize: '1rem', color: b.color, display: 'block', marginBottom: '0.15rem' }}>{b.count}</Typography.Body>
+                                <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, display: 'block' }}>{formatCurrency(b.sum, true)}</Typography.Body>
+                            </div>
+                        ))}
+                    </div>
+                    <div style={{ height: 10, borderRadius: 5, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
+                        {invoiceAging.buckets.map((b) => (
+                            <div key={`aging-bar-${b.label}`} style={{ width: `${invoiceAging.total > 0 ? (b.sum / invoiceAging.total) * 100 : 0}%`, height: '100%', background: b.color, transition: 'width 0.3s' }} title={`${b.label}: ${formatCurrency(b.sum, true)}`} />
+                        ))}
+                    </div>
+                    {expandedAgingBucket && (() => {
+                        const bucket = invoiceAging.buckets.find((b) => b.label === expandedAgingBucket);
+                        if (!bucket || bucket.items.length === 0) return null;
+                        const sorted = [...bucket.items].sort((a, b2) => {
+                            let cmp = 0;
+                            if (agingSortCol === 'number') cmp = a.number.localeCompare(b2.number);
+                            else if (agingSortCol === 'customer') cmp = a.customer.localeCompare(b2.customer);
+                            else if (agingSortCol === 'status') cmp = a.status.localeCompare(b2.status);
+                            else if (agingSortCol === 'sum') cmp = a.sum - b2.sum;
+                            else cmp = a.days - b2.days;
+                            return agingSortAsc ? cmp : -cmp;
+                        });
+                        const toggleSort = (col: typeof agingSortCol) => {
+                            if (agingSortCol === col) setAgingSortAsc(!agingSortAsc);
+                            else { setAgingSortCol(col); setAgingSortAsc(col === 'number' || col === 'customer' || col === 'status'); }
+                        };
+                        const arrow = (col: typeof agingSortCol) => agingSortCol === col ? (agingSortAsc ? ' ↑' : ' ↓') : '';
+                        const thStyle = (align: string): React.CSSProperties => ({ padding: '0.35rem 0.5rem', textAlign: align as any, fontWeight: 600, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' });
+                        return (
+                            <div style={{ marginTop: '0.6rem' }}>
+                                <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem', color: bucket.color }}>
+                                    {bucket.label} — {bucket.count} {bucket.count === 1 ? 'счёт' : bucket.count < 5 ? 'счёта' : 'счетов'}
+                                </Typography.Body>
+                                <div style={{ maxHeight: 280, overflowY: 'auto', borderRadius: 8, border: '1px solid var(--color-border)' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                                        <thead>
+                                            <tr style={{ background: 'var(--color-bg-hover)', position: 'sticky', top: 0 }}>
+                                                <th style={thStyle('left')} onClick={() => toggleSort('number')}>Счёт{arrow('number')}</th>
+                                                <th style={thStyle('left')} onClick={() => toggleSort('customer')}>Заказчик{arrow('customer')}</th>
+                                                <th style={thStyle('center')} onClick={() => toggleSort('status')}>Статус{arrow('status')}</th>
+                                                <th style={thStyle('right')} onClick={() => toggleSort('sum')}>Сумма{arrow('sum')}</th>
+                                                <th style={thStyle('right')} onClick={() => toggleSort('days')}>Дней{arrow('days')}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {sorted.map((inv, idx) => {
+                                                const st = inv.status || '—';
+                                                const stColor = /оплач/i.test(st) ? '#10b981' : /частич/i.test(st) ? '#f59e0b' : /просроч/i.test(st) ? '#ef4444' : /выставлен|ожида/i.test(st) ? '#3b82f6' : '#94a3b8';
+                                                return (
+                                                <tr key={`aging-inv-${idx}`} style={{ borderTop: '1px solid var(--color-border)' }}>
+                                                    <td style={{ padding: '0.3rem 0.5rem', whiteSpace: 'nowrap' }}>{inv.number}</td>
+                                                    <td style={{ padding: '0.3rem 0.5rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.customer}</td>
+                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
+                                                        <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${stColor}18`, color: stColor, border: `1px solid ${stColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{st}</span>
+                                                    </td>
+                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inv.sum, true)}</td>
+                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: bucket.color, fontWeight: 600 }}>{inv.days}</td>
+                                                </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </Panel>
+            )}
+
+            {/* 3. Pareto / ABC-анализ клиентов */}
+            {useServiceRequest && !loading && !error && paretoByCustomer.rows.length > 0 && showSums && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        ABC-анализ клиентов
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>
+                        Концентрация выручки по заказчикам (Парето)
+                    </Typography.Body>
+                    <Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem', lineHeight: '1.4' }}>
+                        % после суммы — кумулятивная доля: сколько от общей выручки дают все клиенты от первого до текущего. A (≤80%) — ключевые, B (≤95%) — средние, C — остальные.
+                    </Typography.Body>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', maxHeight: 280, overflowY: 'auto' }}>
+                        {paretoByCustomer.rows.slice(0, 15).map((row, i) => {
+                            const zone = row.cumPercent <= 80 ? 'A' : row.cumPercent <= 95 ? 'B' : 'C';
+                            const zoneColor = zone === 'A' ? '#10b981' : zone === 'B' ? '#f59e0b' : '#94a3b8';
+                            return (
+                                <div key={`pareto-${i}`} style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: zoneColor, width: 16, textAlign: 'center', flexShrink: 0 }}>{zone}</span>
+                                    <Typography.Body style={{ fontSize: '0.76rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.name}>{row.name}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, flexShrink: 0 }}>{formatCurrency(row.value, true)}</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', flexShrink: 0, minWidth: 40, textAlign: 'right' }}>∑{row.cumPercent}%</Typography.Body>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginTop: '0.45rem' }}>
+                        Всего клиентов: {paretoByCustomer.rows.length} · A (80%): {paretoByCustomer.rows.filter((r) => r.cumPercent <= 80).length} · B (95%): {paretoByCustomer.rows.filter((r) => r.cumPercent > 80 && r.cumPercent <= 95).length} · C: {paretoByCustomer.rows.filter((r) => r.cumPercent > 95).length}
+                    </Typography.Body>
+                </Panel>
+            )}
+
+            {/* 9. Доля повторных клиентов */}
+            {useServiceRequest && !loading && !error && repeatCustomers && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                        Повторные клиенты
+                    </Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
+                        Текущий период vs предыдущий — доля возвращающихся заказчиков
+                    </Typography.Body>
+                    <Flex gap="1rem" wrap="wrap" style={{ marginBottom: '0.5rem' }}>
+                        <div style={{ textAlign: 'center' }}>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#10b981' }}>{repeatCustomers.repeatPercent}%</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>повторных</Typography.Body>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem' }}>{repeatCustomers.total}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>всего клиентов</Typography.Body>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#3b82f6' }}>{repeatCustomers.repeat}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>повторных</Typography.Body>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#f59e0b' }}>{repeatCustomers.new}</Typography.Body>
+                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>новых</Typography.Body>
+                        </div>
+                    </Flex>
+                    <div style={{ height: 12, borderRadius: 6, background: 'var(--color-bg-hover)', overflow: 'hidden', display: 'flex' }}>
+                        <div style={{ width: `${repeatCustomers.repeatPercent}%`, height: '100%', background: '#10b981', borderRadius: '6px 0 0 6px', transition: 'width 0.3s' }} />
+                        <div style={{ width: `${100 - repeatCustomers.repeatPercent}%`, height: '100%', background: '#f59e0b', borderRadius: '0 6px 6px 0', transition: 'width 0.3s' }} />
+                    </div>
+                    <Flex gap="0.75rem" style={{ marginTop: '0.3rem' }}>
+                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} /><Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Повторные</Typography.Body></Flex>
+                        <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Новые</Typography.Body></Flex>
+                    </Flex>
+                </Panel>
+            )}
+
+            {/* ═══════ ГРУППА 5: КАДРЫ ═══════ */}
+
             {canViewTimesheetCostDashboard && !loading && !error && !isVisibilityDeniedError(timesheetAnalyticsError) && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
@@ -3872,6 +3776,154 @@ export function DashboardPage({
                                         </div>
                                     ))}
                                 </div>
+                            )}
+                        </>
+                    )}
+                </Panel>
+            )}
+
+            {/* === ВИДЖЕТ 5: Платёжный календарь (включить: WIDGET_5_PAYMENT_CALENDAR = true) === */}
+            {false && WIDGET_5_PAYMENT_CALENDAR && showPaymentCalendar && !loading && !error && (
+                <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                    <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>Платёжный календарь</Typography.Headline>
+                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+                        Рекомендуемые дни оплаты выставленных и неоплаченных счетов
+                    </Typography.Body>
+                    {paymentCalendarLoading ? (
+                        <Flex align="center" gap="0.5rem"><Loader2 className="w-4 h-4 animate-spin" /><Typography.Body>Загрузка условий оплаты...</Typography.Body></Flex>
+                    ) : (
+                        <>
+                            <Flex align="center" gap="0.5rem" style={{ marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 1 ? { year: m.year - 1, month: 12 } : { year: m.year, month: m.month - 1 }))}>←</Button>
+                                <Typography.Body style={{ fontWeight: 600, minWidth: '10rem', textAlign: 'center' }}>
+                                    {['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'][paymentCalendarMonth.month - 1]} {paymentCalendarMonth.year}
+                                </Typography.Body>
+                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem' }} onClick={() => setPaymentCalendarMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
+                                <Button className="filter-button" style={{ padding: '0.35rem 0.5rem', marginLeft: '0.25rem' }} onClick={() => mutateCalendarInvoices()} title="Обновить счета с начала текущего года" aria-label="Обновить счета">
+                                    <RefreshCw className="w-4 h-4" />
+                                </Button>
+                            </Flex>
+                            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: '0.5rem' }}>
+                                <div className="payment-calendar-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(2.5rem, 1fr))', gap: '2px', fontSize: '0.75rem', minWidth: '22rem' }}>
+                                    {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'За неделю'].map((wd) => (
+                                        <div key={wd} style={{ textAlign: 'center', color: 'var(--color-text-secondary)', fontWeight: 600, padding: '0.25rem' }}>{wd}</div>
+                                    ))}
+                                    {(() => {
+                                        const { year, month } = paymentCalendarMonth;
+                                        const first = new Date(year, month - 1, 1);
+                                        const lastDay = new Date(year, month, 0).getDate();
+                                        const startOffset = (first.getDay() + 6) % 7;
+                                        const cells: { day: number | null; key: string | null; dow: number }[] = [];
+                                        for (let i = 0; i < startOffset; i++) cells.push({ day: null, key: null, dow: i });
+                                        for (let d = 1; d <= lastDay; d++) {
+                                            const key = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                                            const date = new Date(year, month - 1, d);
+                                            const dow = (date.getDay() + 6) % 7;
+                                            cells.push({ day: d, key, dow });
+                                        }
+                                        const weeks: { cells: typeof cells }[] = [];
+                                        for (let i = 0; i < cells.length; i += 7) {
+                                            const chunk = cells.slice(i, i + 7);
+                                            while (chunk.length < 7) chunk.push({ day: null, key: null, dow: chunk.length });
+                                            weeks.push({ cells: chunk });
+                                        }
+                                        return weeks.flatMap(({ cells: weekCells }, wi) => {
+                                            let weekSum = 0;
+                                            for (let i = 0; i < 7; i++) {
+                                                const c = weekCells[i];
+                                                if (c?.key) {
+                                                    const e = plannedByDate.get(c.key);
+                                                    if (e?.total) weekSum += e.total;
+                                                }
+                                            }
+                                            const monFri = weekCells.slice(0, 5);
+                                            const row: React.ReactNode[] = monFri.map((c, i) => {
+                                                const entry = c.key ? plannedByDate.get(c.key) : undefined;
+                                                const sum = entry?.total;
+                                                const hasSum = sum != null && sum > 0;
+                                                return (
+                                                    <div
+                                                        key={`w${wi}-${i}-${c.key ?? ''}`}
+                                                        className="payment-calendar-day-cell"
+                                                        role={hasSum ? 'button' : undefined}
+                                                        tabIndex={hasSum ? 0 : undefined}
+                                                        onClick={hasSum && c.key ? () => setPaymentCalendarSelectedDate(c.key) : undefined}
+                                                        onKeyDown={hasSum && c.key ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPaymentCalendarSelectedDate(c.key); } } : undefined}
+                                                        style={{
+                                                            padding: '0.35rem',
+                                                            textAlign: 'center',
+                                                            borderRadius: 4,
+                                                            background: hasSum ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
+                                                            color: hasSum ? 'white' : 'var(--color-text-secondary)',
+                                                            minHeight: '2.25rem',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            cursor: hasSum ? 'pointer' : undefined,
+                                                        }}
+                                                        title={c.key && hasSum ? `${c.key}: ${Math.round(sum!).toLocaleString('ru-RU')} ₽` : undefined}
+                                                    >
+                                                        {c.day != null ? c.day : ''}
+                                                        {hasSum && <span className="payment-calendar-day-amount" style={{ fontSize: '0.65rem', lineHeight: 1 }}>{formatCurrency(sum!, true)}</span>}
+                                                    </div>
+                                                );
+                                            });
+                                            row.push(
+                                                <div
+                                                    key={`week-${wi}`}
+                                                    className="payment-calendar-week-total"
+                                                    style={{
+                                                        padding: '0.35rem',
+                                                        textAlign: 'center',
+                                                        borderRadius: 4,
+                                                        background: weekSum > 0 ? 'var(--color-primary-blue)' : 'var(--color-bg-hover)',
+                                                        color: weekSum > 0 ? 'white' : 'var(--color-text-secondary)',
+                                                        minHeight: '2.25rem',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontWeight: weekSum > 0 ? 600 : undefined,
+                                                    }}
+                                                >
+                                                    {weekSum > 0 ? formatCurrency(weekSum, true) : '—'}
+                                                </div>
+                                            );
+                                            return row;
+                                        });
+                                    })()}
+                                </div>
+                            </div>
+                            {paymentCalendarSelectedDate && plannedByDate.get(paymentCalendarSelectedDate) && (
+                                <div className="modal-overlay" style={{ zIndex: 10000 }} role="dialog" aria-modal="true" aria-labelledby="payment-calendar-day-title" onClick={() => setPaymentCalendarSelectedDate(null)}>
+                                    <div className="modal-content" style={{ maxWidth: '22rem', padding: '1rem', maxHeight: '80vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                                        <Typography.Body id="payment-calendar-day-title" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
+                                            Плановое поступление — {paymentCalendarSelectedDate}
+                                        </Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
+                                            Заказчики и суммы:
+                                        </Typography.Body>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                            {plannedByDate.get(paymentCalendarSelectedDate)!.items.map((row, idx) => (
+                                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0', borderBottom: '1px solid var(--color-border)' }}>
+                                                    <Typography.Body style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.customer}>{row.customer}</Typography.Body>
+                                                    <Typography.Body style={{ fontWeight: 600, flexShrink: 0 }}>{formatCurrency(row.sum, true)}</Typography.Body>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <Flex justify="space-between" align="center" style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid var(--color-border)', fontWeight: 600 }}>
+                                            <Typography.Body>Итого:</Typography.Body>
+                                            <Typography.Body>{formatCurrency(plannedByDate.get(paymentCalendarSelectedDate)!.total, true)}</Typography.Body>
+                                        </Flex>
+                                        <Button type="button" className="filter-button" style={{ marginTop: '0.75rem', width: '100%' }} onClick={() => setPaymentCalendarSelectedDate(null)}>Закрыть</Button>
+                                    </div>
+                                </div>
+                            )}
+                            {plannedByDate.size === 0 && !paymentCalendarLoading && (
+                                <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
+                                    Нет данных за выбранный период или условия оплаты не заданы в справочнике.
+                                </Typography.Body>
                             )}
                         </>
                     )}
