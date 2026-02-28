@@ -1055,8 +1055,10 @@ export function DashboardPage({
         
         filteredItems.forEach(item => {
             if (!item.DatePrih) return;
-            const dateKey = item.DatePrih.split('T')[0];
-            const displayDate = formatDate(item.DatePrih);
+            const rawDate = String(item.DatePrih ?? '').trim();
+            if (!rawDate) return;
+            const dateKey = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
+            const displayDate = formatDate(rawDate);
             if (!dateKey || displayDate === '-') return;
             const existing = dataMap.get(dateKey) || { date: displayDate, dateKey, sum: 0, pw: 0, w: 0, mest: 0, vol: 0 };
             existing.sum += typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);
