@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3 } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import type { ExpenseRequestItem } from "./ExpenseRequestsPage";
@@ -369,6 +369,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [suppliersFetchTrigger, setSuppliersFetchTrigger] = useState(0);
   const [suppliersSyncLoading, setSuppliersSyncLoading] = useState(false);
   const [suppliersSyncMessage, setSuppliersSyncMessage] = useState<string | null>(null);
+  const [suppliersSyncDebugRequest, setSuppliersSyncDebugRequest] = useState<string>("");
+  const [suppliersSyncDebugResponse, setSuppliersSyncDebugResponse] = useState<string>("");
   const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
   const [autoRegisterCandidates, setAutoRegisterCandidates] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [autoRegisterStats, setAutoRegisterStats] = useState<{ total: number; withEmail: number; validEmail: number; alreadyRegistered: number } | null>(null);
@@ -2506,7 +2508,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             style={{ background: tab === "accounting" ? "#dc2626" : undefined, color: tab === "accounting" ? "white" : undefined }}
             onClick={() => setTab("accounting")}
           >
-            <Receipt className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            <Calculator className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Бухгалтерия
           </Button>
         )}
@@ -4285,17 +4287,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 onClick={async () => {
                   setSuppliersSyncLoading(true);
                   setSuppliersSyncMessage(null);
+                  setSuppliersSyncDebugResponse("");
+                  const endpoint = "/api/admin-refresh-suppliers-cache";
+                  const base = typeof window !== "undefined" ? window.location.origin : "";
+                  setSuppliersSyncDebugRequest(`curl -X POST "${base}${endpoint}" -H "Authorization: Bearer <adminToken>"`);
                   try {
-                    const res = await fetch("/api/admin-refresh-suppliers-cache", {
+                    const res = await fetch(endpoint, {
                       method: "POST",
                       headers: { Authorization: `Bearer ${adminToken}` },
                     });
-                    const data = await res.json().catch(() => ({}));
+                    const text = await res.text().catch(() => "");
+                    const data = (() => {
+                      try { return text ? JSON.parse(text) : {}; } catch { return {}; }
+                    })();
+                    setSuppliersSyncDebugResponse(`HTTP ${res.status}\n${text ? (typeof data === "object" && Object.keys(data).length > 0 ? JSON.stringify(data, null, 2) : text) : "{}"}`);
                     if (!res.ok) throw new Error(data?.error || "Не удалось обновить справочник поставщиков");
                     setSuppliersSyncMessage(`Обновлено: ${Number(data?.suppliers_count || 0)} записей`);
                     setSuppliersFetchTrigger((n) => n + 1);
                   } catch (e: unknown) {
                     setSuppliersSyncMessage((e as Error)?.message || "Не удалось обновить справочник поставщиков");
+                    if (!suppliersSyncDebugResponse) {
+                      setSuppliersSyncDebugResponse(`Ошибка: ${(e as Error)?.message || "Неизвестная ошибка"}`);
+                    }
                   } finally {
                     setSuppliersSyncLoading(false);
                   }
@@ -4310,6 +4323,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Typography.Body style={{ marginBottom: "0.65rem", fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
               {suppliersSyncMessage}
             </Typography.Body>
+          )}
+          {(suppliersSyncDebugRequest || suppliersSyncDebugResponse) && (
+            <div style={{ marginBottom: "0.75rem", padding: "0.55rem 0.65rem", borderRadius: 8, border: "1px dashed var(--color-border)", background: "var(--color-bg-hover)" }}>
+              {suppliersSyncDebugRequest ? (
+                <Typography.Body style={{ fontSize: "0.78rem", marginBottom: "0.35rem" }}>
+                  <strong>Запрос:</strong>
+                  <pre style={{ margin: "0.25rem 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.75rem" }}>{suppliersSyncDebugRequest}</pre>
+                </Typography.Body>
+              ) : null}
+              {suppliersSyncDebugResponse ? (
+                <Typography.Body style={{ fontSize: "0.78rem" }}>
+                  <strong>Ответ:</strong>
+                  <pre style={{ margin: "0.25rem 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.75rem" }}>{suppliersSyncDebugResponse}</pre>
+                </Typography.Body>
+              ) : null}
+            </div>
           )}
           {suppliersLoading ? (
             <Flex align="center" gap="0.5rem">

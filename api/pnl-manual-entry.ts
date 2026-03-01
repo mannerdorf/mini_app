@@ -91,10 +91,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .filter((e: any) => {
         const mapped = mapDepartmentToPnl(e.department);
         if (department != null && mapped.department !== department) return false;
-        if (department != null) {
-          if (logisticsStage === "" || logisticsStage === "null") return mapped.logisticsStage == null;
-          if (logisticsStage) return mapped.logisticsStage === logisticsStage;
-        }
+        // Expense requests can be entered on broader department labels (e.g. "Склад Москва").
+        // To avoid hiding approved/paid requests in the "Расходы" section, filter request rows
+        // by department only and do not strictly pin them to a single logistics stage.
         return true;
       })
       .map((e: any) => ({
