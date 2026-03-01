@@ -8,14 +8,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const pool = getPool();
-  const params: FilterParams = {
-    from: (req.query.from as string) || undefined,
-    to: (req.query.to as string) || undefined,
-    direction: (req.query.direction as string) || undefined,
-    transportType: (req.query.transportType as string) || undefined,
-  };
+  try {
+    const pool = getPool();
+    const params: FilterParams = {
+      from: (req.query.from as string) || undefined,
+      to: (req.query.to as string) || undefined,
+      direction: (req.query.direction as string) || undefined,
+      transportType: (req.query.transportType as string) || undefined,
+    };
 
-  const data = await getMonthlyMarginPerKg(pool, params);
-  return res.json(data);
+    const data = await getMonthlyMarginPerKg(pool, params);
+    return res.json(data);
+  } catch (e) {
+    console.error("pnl-charts-monthly-margin:", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    return res.status(500).json({ error: msg || "Ошибка загрузки маржи по месяцам" });
+  }
 }
