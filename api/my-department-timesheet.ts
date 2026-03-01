@@ -158,7 +158,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: "Доступ только для руководителей подразделений HAULZ" });
     }
 
-    const department = String(me.department || "").trim();
+    const departmentRaw = String(me.department || "").trim();
+    const departmentList = departmentRaw ? departmentRaw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : [];
+    const department = departmentRaw;
     const monthInfo = parseMonth(body.month || "");
     if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
     const isEditableMonth = isDepartmentTimesheetEditableMonth(monthInfo.month);
@@ -166,7 +168,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === "DELETE") {
       if (!isEditableMonth) return res.status(403).json({ error: "Руководитель может изменять табель только текущего, предыдущего месяца и декабря 2025" });
       const employeeId = Number(body.employeeId);
-      if (!department && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
+      if (departmentList.length === 0 && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
       if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
 
       const employeeRes = canViewAllDepartments
@@ -182,10 +184,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             `SELECT id
              FROM registered_users
              WHERE id = $1
-               AND lower(trim(coalesce(department, ''))) = lower(trim($2))
+               AND lower(trim(coalesce(department, ''))) = any($2::text[])
                AND coalesce((permissions->>'haulz')::boolean, false) = true
              LIMIT 1`,
-            [employeeId, department]
+            [employeeId, departmentList]
           );
       if (employeeRes.rows.length === 0) return res.status(403).json({ error: "Нет доступа к сотруднику другого подразделения" });
 
@@ -205,7 +207,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === "PUT") {
       if (!isEditableMonth) return res.status(403).json({ error: "Руководитель может изменять табель только текущего, предыдущего месяца и декабря 2025" });
-      if (!department && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
+      if (departmentList.length === 0 && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
       const existingEmployeeId = Number(body.existingEmployeeId);
       if (Number.isFinite(existingEmployeeId) && existingEmployeeId > 0) {
         const existingInDepartmentRes = canViewAllDepartments
@@ -221,10 +223,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               `SELECT id
                FROM registered_users
                WHERE id = $1
-                 AND lower(trim(coalesce(department, ''))) = lower(trim($2))
+                 AND lower(trim(coalesce(department, ''))) = any($2::text[])
                  AND coalesce((permissions->>'haulz')::boolean, false) = true
                LIMIT 1`,
-              [existingEmployeeId, department]
+              [existingEmployeeId, departmentList]
             );
         if (existingInDepartmentRes.rows.length === 0) {
           return res.status(403).json({ error: "Можно добавить только сотрудника своего подразделения" });
@@ -246,7 +248,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const employeeRole = String(body.employeeRole || "employee").trim() === "department_head" ? "department_head" : "employee";
       if (!fullName) return res.status(400).json({ error: "Укажите ФИО" });
       if (!dep) return res.status(400).json({ error: "Укажите подразделение" });
-      if (!canViewAllDepartments && dep.toLowerCase() !== department.toLowerCase()) {
+      if (!canViewAllDepartments && !departmentList.includes(dep.trim().toLowerCase())) {
         return res.status(400).json({ error: "Можно добавлять сотрудников только своего подразделения" });
       }
       if (!Number.isFinite(accrualRate) || accrualRate < 0) return res.status(400).json({ error: "Укажите корректную ставку" });
@@ -321,7 +323,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const date = String(body.date || "").trim();
       const value = String(body.value || "").trim();
       const hasShiftRatePayload = Object.prototype.hasOwnProperty.call(body, "shiftRate");
-      if (!department && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
+      if (departmentList.length === 0 && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
       if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: "date обязателен в формате YYYY-MM-DD" });
       if (!date.startsWith(`${monthInfo.month}-`)) return res.status(400).json({ error: "Дата не соответствует выбранному месяцу" });
@@ -339,10 +341,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             `SELECT id
              FROM registered_users
              WHERE id = $1
-               AND lower(trim(coalesce(department, ''))) = lower(trim($2))
+               AND lower(trim(coalesce(department, ''))) = any($2::text[])
                AND coalesce((permissions->>'haulz')::boolean, false) = true
              LIMIT 1`,
-            [employeeId, department]
+            [employeeId, departmentList]
           );
       if (employeeRes.rows.length === 0) return res.status(403).json({ error: "Нет доступа к сотруднику другого подразделения" });
       const paidDateRes = await pool.query<{ work_date: string }>(
@@ -395,7 +397,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ok: true });
     }
 
-    if (!department && !canViewAllDepartments) return res.status(200).json({ month: monthInfo.month, department: "", allDepartments: false, employees: [], availableEmployees: [], entries: {} });
+    if (departmentList.length === 0 && !canViewAllDepartments) return res.status(200).json({ month: monthInfo.month, department: "", allDepartments: false, employees: [], availableEmployees: [], entries: {} });
 
     const colsRes = await pool.query<{ column_name: string }>(
       `SELECT column_name
@@ -437,14 +439,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }, active
        FROM registered_users
        WHERE coalesce((permissions->>'haulz')::boolean, false) = true
-         ${canViewAllDepartments ? "" : "AND lower(trim(coalesce(department, ''))) = lower(trim($1))"}
+         ${canViewAllDepartments ? "" : "AND lower(trim(coalesce(department, ''))) = any($1::text[])"}
          AND id NOT IN (
            SELECT employee_id
            FROM employee_timesheet_month_exclusions
            WHERE month_key = $${canViewAllDepartments ? "1" : "2"}::date
          )
        ORDER BY coalesce(full_name, login), login`,
-      canViewAllDepartments ? [monthInfo.start] : [department, monthInfo.start]
+      canViewAllDepartments ? [monthInfo.start] : [departmentList, monthInfo.start]
     );
 
     const employeeIds = listRes.rows.map((r) => r.id);
@@ -464,14 +466,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
        FROM registered_users
        WHERE coalesce((permissions->>'haulz')::boolean, false) = true
-         ${canViewAllDepartments ? "" : "AND lower(trim(coalesce(department, ''))) = lower(trim($1))"}
+         ${canViewAllDepartments ? "" : "AND lower(trim(coalesce(department, ''))) = any($1::text[])"}
          AND id IN (
            SELECT employee_id
            FROM employee_timesheet_month_exclusions
            WHERE month_key = $${canViewAllDepartments ? "1" : "2"}::date
          )
        ORDER BY coalesce(full_name, login), login`,
-      canViewAllDepartments ? [monthInfo.start] : [department, monthInfo.start]
+      canViewAllDepartments ? [monthInfo.start] : [departmentList, monthInfo.start]
     );
     const entries: Record<string, string> = {};
     if (employeeIds.length > 0) {

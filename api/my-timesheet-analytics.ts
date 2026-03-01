@@ -154,9 +154,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: "Недостаточно прав для просмотра аналитики" });
     }
 
-    const meDepartment = String(me.department || "").trim();
+    const meDepartmentRaw = String(me.department || "").trim();
+    const meDepartmentList = meDepartmentRaw ? meDepartmentRaw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : [];
     const canViewAllDepartments = permissions.analytics === true;
-    const canUseDepartmentScope = !canViewAllDepartments && permissions.supervisor === true && !!meDepartment;
+    const canUseDepartmentScope = !canViewAllDepartments && permissions.supervisor === true && meDepartmentList.length > 0;
 
     const employeesRes = await pool.query<{
       id: number;
@@ -172,7 +173,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          AND (id <> $1 OR $2::boolean = true)
          AND (
            $2::boolean = true
-           OR ($3::boolean = true AND lower(trim(coalesce(department, ''))) = lower(trim($4)))
+           OR ($3::boolean = true AND lower(trim(coalesce(department, ''))) = any($4::text[]))
          )
          AND id NOT IN (
            SELECT employee_id
@@ -180,7 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            WHERE month_key = $5::date
          )
        ORDER BY coalesce(full_name, login), id`,
-      [me.id, canViewAllDepartments, canUseDepartmentScope, meDepartment, monthRange.from]
+      [me.id, canViewAllDepartments, canUseDepartmentScope, meDepartmentList, monthRange.from]
     );
 
     const employees = employeesRes.rows.map((row) => ({

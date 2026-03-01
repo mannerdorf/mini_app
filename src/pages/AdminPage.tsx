@@ -618,6 +618,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryEmail, setEmployeeDirectoryEmail] = useState("");
   const [employeeDirectoryFullName, setEmployeeDirectoryFullName] = useState("");
   const [employeeDirectoryDepartment, setEmployeeDirectoryDepartment] = useState<string>("");
+  const [employeeDirectoryDepartments, setEmployeeDirectoryDepartments] = useState<string[]>([]);
   const [employeeDirectoryPosition, setEmployeeDirectoryPosition] = useState("");
   const [employeeDirectoryAccrualType, setEmployeeDirectoryAccrualType] = useState<AccrualType>("hour");
   const [employeeDirectoryAccrualRate, setEmployeeDirectoryAccrualRate] = useState("0");
@@ -627,6 +628,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryEditingId, setEmployeeDirectoryEditingId] = useState<number | null>(null);
   const [employeeDirectoryEditFullName, setEmployeeDirectoryEditFullName] = useState("");
   const [employeeDirectoryEditDepartment, setEmployeeDirectoryEditDepartment] = useState<string>("");
+  const [employeeDirectoryEditDepartments, setEmployeeDirectoryEditDepartments] = useState<string[]>([]);
   const [employeeDirectoryEditPosition, setEmployeeDirectoryEditPosition] = useState("");
   const [employeeDirectoryEditAccrualType, setEmployeeDirectoryEditAccrualType] = useState<AccrualType>("hour");
   const [employeeDirectoryEditAccrualRate, setEmployeeDirectoryEditAccrualRate] = useState("0");
@@ -6555,17 +6557,31 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               placeholder="ФИО"
               onChange={(e) => setEmployeeDirectoryFullName(e.target.value)}
             />
-            <select
-              className="admin-form-input"
-              value={employeeDirectoryDepartment}
-              onChange={(e) => setEmployeeDirectoryDepartment(e.target.value)}
-              style={{ padding: "0 0.5rem" }}
-              disabled={(employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK).length === 0}
-            >
-              {(employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK).map((dep) => (
-                <option key={dep} value={dep}>{dep}</option>
-              ))}
-            </select>
+            {employeeDirectoryRole === "department_head" ? (
+              <div style={{ minWidth: 180 }}>
+                <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Подразделения (можно несколько)</label>
+                <div style={{ maxHeight: 120, overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.35rem", background: "var(--color-bg-card)" }}>
+                  {(employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK).map((dep) => (
+                    <label key={dep} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.2rem 0", cursor: "pointer", fontSize: "0.85rem" }}>
+                      <input type="checkbox" checked={employeeDirectoryDepartments.includes(dep)} onChange={(e) => setEmployeeDirectoryDepartments((prev) => e.target.checked ? [...prev, dep] : prev.filter((d) => d !== dep))} />
+                      {dep}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <select
+                className="admin-form-input"
+                value={employeeDirectoryDepartment}
+                onChange={(e) => setEmployeeDirectoryDepartment(e.target.value)}
+                style={{ padding: "0 0.5rem" }}
+                disabled={(employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK).length === 0}
+              >
+                {(employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK).map((dep) => (
+                  <option key={dep} value={dep}>{dep}</option>
+                ))}
+              </select>
+            )}
             <Input
               type="text"
               className="admin-form-input"
@@ -6606,7 +6622,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <select
               className="admin-form-input"
               value={employeeDirectoryRole}
-              onChange={(e) => setEmployeeDirectoryRole(e.target.value as "employee" | "department_head")}
+              onChange={(e) => {
+                const v = e.target.value as "employee" | "department_head";
+                setEmployeeDirectoryRole(v);
+                if (v === "department_head" && employeeDirectoryDepartments.length === 0 && employeeDirectoryDepartment) {
+                  setEmployeeDirectoryDepartments([employeeDirectoryDepartment]);
+                }
+                if (v === "employee" && employeeDirectoryDepartments.length > 0) {
+                  setEmployeeDirectoryDepartment(employeeDirectoryDepartments[0] || "");
+                }
+              }}
               style={{ padding: "0 0.5rem" }}
             >
               <option value="employee">Сотрудник</option>
@@ -6622,18 +6647,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Button
               type="button"
               className="button-primary"
-              disabled={employeeDirectorySaving || !employeeDirectoryFullName.trim() || !Number.isFinite(Number(employeeDirectoryAccrualRate)) || Number(employeeDirectoryAccrualRate) < 0}
+              disabled={employeeDirectorySaving || !employeeDirectoryFullName.trim() || !Number.isFinite(Number(employeeDirectoryAccrualRate)) || Number(employeeDirectoryAccrualRate) < 0 || (employeeDirectoryRole === "department_head" ? employeeDirectoryDepartments.length === 0 : !employeeDirectoryDepartment)}
               onClick={async () => {
                 setEmployeeDirectorySaving(true);
                 setError(null);
                 try {
+                  const departmentValue = employeeDirectoryRole === "department_head" ? employeeDirectoryDepartments.join(", ") : employeeDirectoryDepartment;
                   const res = await fetch("/api/admin-employee-directory", {
                     method: "POST",
                     headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
                     body: JSON.stringify({
                       email: employeeDirectoryEmail.trim() ? employeeDirectoryEmail.trim().toLowerCase() : "",
                       full_name: employeeDirectoryFullName.trim(),
-                      department: employeeDirectoryDepartment,
+                      department: departmentValue,
                       position: employeeDirectoryPosition.trim(),
                       cooperation_type: employeeDirectoryCooperationType,
                       accrual_type: employeeDirectoryAccrualType,
@@ -6645,6 +6671,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   if (!res.ok) throw new Error(data?.error || "Ошибка сохранения атрибутов сотрудника");
                   setEmployeeDirectoryEmail("");
                   setEmployeeDirectoryFullName("");
+                  setEmployeeDirectoryDepartment("");
+                  setEmployeeDirectoryDepartments([]);
                   setEmployeeDirectoryPosition("");
                   setEmployeeDirectoryCooperationType("staff");
                   setEmployeeDirectoryAccrualType("hour");
@@ -6679,7 +6707,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   onClick={() => {
                     setEmployeeDirectoryEditingId(emp.id);
                     setEmployeeDirectoryEditFullName(emp.full_name || "");
-                    setEmployeeDirectoryEditDepartment(emp.department || (employeeDepartments[0] ?? EMPLOYEE_DEPARTMENTS_FALLBACK[0] ?? ""));
+                    const depStr = emp.department || (employeeDepartments[0] ?? EMPLOYEE_DEPARTMENTS_FALLBACK[0] ?? "");
+                    setEmployeeDirectoryEditDepartment(depStr);
+                    setEmployeeDirectoryEditDepartments(depStr ? depStr.split(",").map((d) => d.trim()).filter(Boolean) : []);
                     setEmployeeDirectoryEditPosition(emp.position || "");
                     setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
                     setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
@@ -6694,7 +6724,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       e.preventDefault();
                       setEmployeeDirectoryEditingId(emp.id);
                       setEmployeeDirectoryEditFullName(emp.full_name || "");
-                      setEmployeeDirectoryEditDepartment(emp.department || (employeeDepartments[0] ?? EMPLOYEE_DEPARTMENTS_FALLBACK[0] ?? ""));
+                      const depStr = emp.department || (employeeDepartments[0] ?? EMPLOYEE_DEPARTMENTS_FALLBACK[0] ?? "");
+                      setEmployeeDirectoryEditDepartment(depStr);
+                      setEmployeeDirectoryEditDepartments(depStr ? depStr.split(",").map((d) => d.trim()).filter(Boolean) : []);
                       setEmployeeDirectoryEditPosition(emp.position || "");
                       setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
                       setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
@@ -6768,19 +6800,37 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           style={{ width: "100%" }}
                           autoComplete="off"
                         />
-                        <select
-                          className="admin-form-input"
-                          value={employeeDirectoryEditDepartment}
-                          onChange={(e) => setEmployeeDirectoryEditDepartment(e.target.value)}
-                          style={{ padding: "0 0.5rem" }}
-                        >
-                          {(() => {
-                            const base = employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK;
-                            const opts = [...base];
-                            if (employeeDirectoryEditDepartment && !opts.includes(employeeDirectoryEditDepartment)) opts.unshift(employeeDirectoryEditDepartment);
-                            return opts.map((dep) => <option key={dep} value={dep}>{dep}</option>);
-                          })()}
-                        </select>
+                        {employeeDirectoryEditRole === "department_head" ? (
+                          <div style={{ minWidth: 180 }}>
+                            <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Подразделения (можно несколько)</label>
+                            <div style={{ maxHeight: 120, overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.35rem", background: "var(--color-bg-card)" }}>
+                              {(() => {
+                                const base = employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK;
+                                const opts = [...new Set([...base, ...employeeDirectoryEditDepartments])].sort((a, b) => a.localeCompare(b, "ru"));
+                                return opts.map((dep) => (
+                                  <label key={dep} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.2rem 0", cursor: "pointer", fontSize: "0.85rem" }}>
+                                    <input type="checkbox" checked={employeeDirectoryEditDepartments.includes(dep)} onChange={(e) => setEmployeeDirectoryEditDepartments((prev) => e.target.checked ? [...prev, dep] : prev.filter((d) => d !== dep))} onClick={(e) => e.stopPropagation()} />
+                                    {dep}
+                                  </label>
+                                ));
+                              })()}
+                            </div>
+                          </div>
+                        ) : (
+                          <select
+                            className="admin-form-input"
+                            value={employeeDirectoryEditDepartment}
+                            onChange={(e) => setEmployeeDirectoryEditDepartment(e.target.value)}
+                            style={{ padding: "0 0.5rem" }}
+                          >
+                            {(() => {
+                              const base = employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK;
+                              const opts = [...base];
+                              if (employeeDirectoryEditDepartment && !opts.includes(employeeDirectoryEditDepartment)) opts.unshift(employeeDirectoryEditDepartment);
+                              return opts.map((dep) => <option key={dep} value={dep}>{dep}</option>);
+                            })()}
+                          </select>
+                        )}
                         <input
                           type="text"
                           className="admin-form-input"
@@ -6826,7 +6876,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <select
                           className="admin-form-input"
                           value={employeeDirectoryEditRole}
-                          onChange={(e) => setEmployeeDirectoryEditRole(e.target.value as "employee" | "department_head")}
+                          onChange={(e) => {
+                            const v = e.target.value as "employee" | "department_head";
+                            setEmployeeDirectoryEditRole(v);
+                            if (v === "department_head" && employeeDirectoryEditDepartments.length === 0 && employeeDirectoryEditDepartment) {
+                              setEmployeeDirectoryEditDepartments([employeeDirectoryEditDepartment]);
+                            }
+                            if (v === "employee" && employeeDirectoryEditDepartments.length > 0) {
+                              setEmployeeDirectoryEditDepartment(employeeDirectoryEditDepartments[0] || "");
+                            }
+                          }}
                           style={{ padding: "0 0.5rem" }}
                         >
                           <option value="employee">Сотрудник</option>
@@ -6841,17 +6900,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <Button
                           type="button"
                           className="button-primary"
-                          disabled={employeeDirectoryEditSaving || !Number.isFinite(Number(employeeDirectoryEditAccrualRate)) || Number(employeeDirectoryEditAccrualRate) < 0}
+                          disabled={employeeDirectoryEditSaving || !Number.isFinite(Number(employeeDirectoryEditAccrualRate)) || Number(employeeDirectoryEditAccrualRate) < 0 || (employeeDirectoryEditRole === "department_head" ? employeeDirectoryEditDepartments.length === 0 : !employeeDirectoryEditDepartment)}
                           onClick={async () => {
                             setEmployeeDirectoryEditSaving(true);
                             setError(null);
                             try {
+                              const departmentValue = employeeDirectoryEditRole === "department_head" ? employeeDirectoryEditDepartments.join(", ") : employeeDirectoryEditDepartment;
                               const res = await fetch(`/api/admin-employee-directory?id=${emp.id}`, {
                                 method: "PATCH",
                                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
                                 body: JSON.stringify({
                                   full_name: employeeDirectoryEditFullName.trim(),
-                                  department: employeeDirectoryEditDepartment,
+                                  department: departmentValue,
                                   position: employeeDirectoryEditPosition.trim(),
                                   cooperation_type: employeeDirectoryEditCooperationType,
                                   accrual_type: employeeDirectoryEditAccrualType,
@@ -6867,7 +6927,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     ? {
                                         ...x,
                                         full_name: employeeDirectoryEditFullName.trim(),
-                                        department: employeeDirectoryEditDepartment,
+                                        department: employeeDirectoryEditRole === "department_head" ? employeeDirectoryEditDepartments.join(", ") : employeeDirectoryEditDepartment,
                                         position: employeeDirectoryEditPosition.trim(),
                                         cooperation_type: employeeDirectoryEditCooperationType,
                                         accrual_type: employeeDirectoryEditAccrualType,
