@@ -2254,8 +2254,14 @@ export function DashboardPage({
             const lastInterval = intervals[intervals.length - 1];
             const daysSinceLast = Math.round((now.getTime() - dates[dates.length - 1].getTime()) / 86400000);
             let zone: 'green' | 'yellow' | 'red' = 'green';
-            if (daysSinceLast > avgInterval * 3 || daysSinceLast > 90) zone = 'red';
-            else if (daysSinceLast > avgInterval * 2 || daysSinceLast > 45) zone = 'yellow';
+            if (avgInterval <= 0) {
+                // Fallback for edge-cases: evaluate risk by absolute thresholds only.
+                if (daysSinceLast > 90) zone = 'red';
+                else if (daysSinceLast > 45) zone = 'yellow';
+            } else {
+                if (daysSinceLast > avgInterval * 3 || daysSinceLast > 90) zone = 'red';
+                else if (daysSinceLast > avgInterval * 2 || daysSinceLast > 45) zone = 'yellow';
+            }
             results.push({ name, avgInterval: Math.round(avgInterval), lastInterval, daysSinceLast, zone, orders: dates.length });
         });
         results.sort((a, b) => {
