@@ -370,3 +370,92 @@ create table if not exists cache_suppliers (
 
 create index if not exists cache_suppliers_supplier_name_idx on cache_suppliers(supplier_name);
 create index if not exists cache_suppliers_email_idx on cache_suppliers(email);
+
+-- ========== 034_expense_requests.sql ==========
+-- Заявки на расходы от руководителей подразделений.
+-- Хранение заявок, вложений (файлов) и справочника ТС.
+
+create table if not exists expense_vehicles (
+  id bigserial primary key,
+  plate text not null,
+  model text,
+  vin text,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists expense_vehicles_plate_uidx
+  on expense_vehicles (upper(replace(plate, ' ', '')));
+
+create table if not exists expense_categories (
+  id text primary key,
+  name text not null,
+  cost_type text,
+  sort_order int not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+insert into expense_categories (id, name, sort_order) values
+  ('fuel',        'Топливо',                 1),
+  ('repair',      'Ремонт и обслуживание',   2),
+  ('spare_parts', 'Запасные части',          3),
+  ('salary',      'Зарплата',                4),
+  ('office',      'Офис',                    5),
+  ('rent',        'Аренда',                  6),
+  ('insurance',   'Страхование',             7),
+  ('other',       'Прочее',                100)
+on conflict (id) do nothing;
+
+create table if not exists expense_requests (
+  id bigserial primary key,
+  uid text not null unique default ('er-' || extract(epoch from now())::bigint || '-' || substr(md5(random()::text), 1, 7)),
+  login text not null,
+  department text not null,
+  category_id text not null references expense_categories(id),
+  amount numeric(14, 2) not null check (amount > 0),
+  comment text not null default '',
+  vehicle_id bigint references expense_vehicles(id),
+  vehicle_text text,
+  status text not null default 'draft' check (status in ('draft', 'sent', 'approved', 'rejected', 'paid')),
+  approved_by text,
+  approved_at timestamptz,
+  rejection_reason text,
+  webhook_sent_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists expense_requests_login_idx on expense_requests(login);
+create index if not exists expense_requests_department_idx on expense_requests(department);
+create index if not exists expense_requests_status_idx on expense_requests(status);
+create index if not exists expense_requests_created_at_idx on expense_requests(created_at desc);
+create index if not exists expense_requests_category_id_idx on expense_requests(category_id);
+
+create table if not exists expense_request_attachments (
+  id bigserial primary key,
+  request_id bigint not null references expense_requests(id) on delete cascade,
+  file_name text not null,
+  mime_type text,
+  file_size bigint,
+  storage_path text,
+  file_data bytea,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists expense_request_attachments_request_id_idx
+  on expense_request_attachments(request_id);
+
+create table if not exists expense_request_status_log (
+  id bigserial primary key,
+  request_id bigint not null references expense_requests(id) on delete cascade,
+  old_status text,
+  new_status text not null,
+  changed_by text not null,
+  comment text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists expense_request_status_log_request_id_idx
+  on expense_request_status_log(request_id);
