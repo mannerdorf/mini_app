@@ -1,6 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 
+function normalizeName(raw?: string | null): string {
+  return String(raw ?? "").trim().toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ");
+}
+
 function mapDepartmentToPnl(raw?: string | null): { department: string; logisticsStage: string | null } {
   const source = String(raw ?? "").trim();
   const upper = source.toUpperCase();
@@ -102,21 +106,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .map((e: any) => String(e?.categoryId ?? "").trim())
         .filter(Boolean)
     )];
+    const requestCategoryNames = [...new Set(
+      requestExpensesRaw
+        .map((e: any) => normalizeName(e?.categoryName))
+        .filter(Boolean)
+    )];
     let pnlTypeMap = new Map<string, string>();
-    if (requestCategoryIds.length > 0) {
+    let pnlTypeByNameMap = new Map<string, string>();
+    if (requestCategoryIds.length > 0 || requestCategoryNames.length > 0) {
       try {
         const { rows: typeRows } = await pool.query(
           `SELECT expense_category_id AS "expenseCategoryId",
+                  name,
                   department,
                   logistics_stage AS "logisticsStage",
                   type
            FROM pnl_expense_categories
-           WHERE expense_category_id = ANY($1::text[])`,
-          [requestCategoryIds]
+           WHERE ($1::text[] <> '{}'::text[] AND expense_category_id = ANY($1::text[]))
+              OR ($2::text[] <> '{}'::text[] AND lower(trim(name)) = ANY($2::text[]))`,
+          [requestCategoryIds, requestCategoryNames]
         );
         pnlTypeMap = new Map<string, string>(
           typeRows.map((r: any) => [
             `${String(r.expenseCategoryId ?? "")}::${String(r.department ?? "")}::${String(r.logisticsStage ?? "")}`,
+            String(r.type ?? "").trim().toUpperCase(),
+          ])
+        );
+        pnlTypeByNameMap = new Map<string, string>(
+          typeRows.map((r: any) => [
+            `${normalizeName(r.name)}::${String(r.department ?? "")}::${String(r.logisticsStage ?? "")}`,
             String(r.type ?? "").trim().toUpperCase(),
           ])
         );
@@ -141,9 +159,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const categoryId = String(e.categoryId ?? "").trim();
         const exactKey = `${categoryId}::${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
         const depOnlyKey = `${categoryId}::${mapped.department}::`;
+        const categoryName = normalizeName(e.categoryName);
+        const exactNameKey = `${categoryName}::${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
+        const depOnlyNameKey = `${categoryName}::${mapped.department}::`;
         const resolvedType =
           pnlTypeMap.get(exactKey) ||
           pnlTypeMap.get(depOnlyKey) ||
+          pnlTypeByNameMap.get(exactNameKey) ||
+          pnlTypeByNameMap.get(depOnlyNameKey) ||
           String(e.requestCostType ?? "").trim().toUpperCase() ||
           "OPEX";
         return {
@@ -275,6 +298,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       for (const e of expenses || []) {
+        const requestId = String(e.requestId ?? "").trim();
+        if (requestId) {
+          const deleteRequest = Boolean(e.deleteRequest);
+          if (deleteRequest) {
+            await client.query(`DELETE FROM expense_requests WHERE uid = $1`, [requestId]);
+            continue;
+          }
+          const amount = parseFloat(e.amount) || 0;
+          const comment = (e.comment ?? "").trim() || null;
+          await client.query(
+            `UPDATE expense_requests
+             SET amount = $2, comment = $3, updated_at = now()
+             WHERE uid = $1`,
+            [requestId, amount, comment]
+          );
+          continue;
+        }
+
         if (!e.categoryId) continue;
         const amount = parseFloat(e.amount) || 0;
         const comment = (e.comment ?? "").trim() || null;

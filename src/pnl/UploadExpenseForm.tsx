@@ -27,6 +27,7 @@ interface SavedExpense {
 function formatRub(n: number) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽'; }
 function generateId() { return Math.random().toString(36).slice(2, 9); }
 const EXPENSE_REQUESTS_STORAGE_PREFIX = 'haulz.expense_requests.';
+function normalizeName(v?: string | null) { return String(v ?? '').trim().toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' '); }
 
 function mapDepartmentToPnl(raw?: string | null): { department: string; logisticsStage: string | null } {
   const source = String(raw ?? '').trim();
@@ -94,7 +95,7 @@ function getLocalApprovedPaidExpenses(month: number, year: number, department: s
           comment: String(item?.comment ?? '').trim() || null,
           direction: '',
           transportType: '',
-          type: 'OPEX',
+          type: null,
           department: mapped.department,
           logisticsStage: mapped.logisticsStage,
           requestDepartment: String(item?.department ?? '').trim() || null,
@@ -166,19 +167,31 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
     } finally { setSaving(false); }
   };
 
-  const handleUpdateSaved = async (categoryId: string, newAmount: number, comment?: string | null, direction = '', transportType = '') => {
+  const handleUpdateSaved = async (categoryId: string, newAmount: number, comment?: string | null, direction = '', transportType = '', requestId = '') => {
     setEditingAmount(null);
     setEditingComment(null);
     const period = `${year}-${String(month).padStart(2, '0')}-01`;
-    await pnlPost('/api/manual-entry', { period, revenues: [], expenses: [{ categoryId, amount: newAmount, comment: comment?.trim() || undefined, direction, transportType }] });
+    await pnlPost('/api/manual-entry', {
+      period,
+      revenues: [],
+      expenses: [requestId
+        ? { requestId, amount: newAmount, comment: comment?.trim() || undefined }
+        : { categoryId, amount: newAmount, comment: comment?.trim() || undefined, direction, transportType }],
+    });
     loadSaved();
   };
 
-  const handleDeleteSaved = async (categoryId: string, direction = '', transportType = '') => {
+  const handleDeleteSaved = async (categoryId: string, direction = '', transportType = '', requestId = '') => {
     if (!confirm('Удалить эту запись?')) return;
-    setDeletingId(`${categoryId}:${direction}:${transportType}`);
+    setDeletingId(requestId ? `request:${requestId}` : `manual:${categoryId}:${direction}:${transportType}`);
     const period = `${year}-${String(month).padStart(2, '0')}-01`;
-    await pnlPost('/api/manual-entry', { period, revenues: [], expenses: [{ categoryId, amount: 0, direction, transportType }] });
+    await pnlPost('/api/manual-entry', {
+      period,
+      revenues: [],
+      expenses: [requestId
+        ? { requestId, deleteRequest: true }
+        : { categoryId, amount: 0, direction, transportType }],
+    });
     setDeletingId(null); loadSaved();
   };
 
@@ -236,10 +249,13 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                   {savedExpenses.map((e) => {
                     const key = rowKey(e);
                     const isRequestExpense = e.source === 'expense_request';
+                    const requestId = isRequestExpense && key.startsWith('request:') ? key.slice('request:'.length) : '';
+                    const canEditRequest = isRequestExpense && Boolean(requestId);
+                    const canEditRow = !isRequestExpense || canEditRequest;
                     const isEA = editingAmount?.key === key;
                     const isEC = editingComment?.key === key;
                     const dir = e.direction ?? ''; const transport = e.transportType ?? '';
-                    const cat = filteredCats.find((c) => c.id === e.categoryId);
+                    const cat = filteredCats.find((c) => c.id === e.categoryId || normalizeName(c.name) === normalizeName(e.categoryName));
                     const departmentValue = e.department ?? cat?.department ?? department;
                     const logisticsStageValue = e.logisticsStage ?? cat?.logisticsStage ?? logisticsStage ?? null;
                     const typeValue = e.type ?? cat?.type ?? 'OPEX';
@@ -253,37 +269,37 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                         <td className="px-6 py-2 text-slate-600 text-sm">{getExpenseTypeLabel(typeValue)}</td>
                         {isMainline && <td className="px-6 py-2 text-slate-600 text-sm">{dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${transport === 'FERRY' ? 'паром' : 'авто'}` : '—'}</td>}
                         <td className="px-6 py-2 text-right">
-                          {isRequestExpense ? (
-                            <span className="text-slate-900 font-medium">{formatRub(e.amount)}</span>
-                          ) : (
+                          {canEditRow ? (
                             <input type="number" step="0.01" min="0" value={isEA ? editingAmount.value : String(e.amount)} onChange={(ev) => setEditingAmount({ key, value: ev.target.value })} onFocus={() => setEditingAmount({ key, value: String(e.amount) })} className="w-28 text-right border border-slate-200 rounded px-2 py-1 text-slate-900 font-medium" />
+                          ) : (
+                            <span className="text-slate-900 font-medium">{formatRub(e.amount)}</span>
                           )}
                         </td>
                         <td className="px-6 py-2">
-                          {isRequestExpense ? (
+                          {canEditRow ? (
+                            <input type="text" value={isEC ? editingComment.value : (e.comment ?? '')} onChange={(ev) => setEditingComment({ key, value: ev.target.value })} onFocus={() => setEditingComment({ key, value: e.comment ?? '' })} placeholder="Комментарий" className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-700" style={{ minWidth: 180 }} />
+                          ) : (
                             <span className="text-sm text-slate-700">
                               {(e.comment ?? '').trim() || `Из заявки (${e.requestStatus === 'paid' ? 'Оплачено' : 'Согласовано'})`}
                             </span>
-                          ) : (
-                            <input type="text" value={isEC ? editingComment.value : (e.comment ?? '')} onChange={(ev) => setEditingComment({ key, value: ev.target.value })} onFocus={() => setEditingComment({ key, value: e.comment ?? '' })} placeholder="Комментарий" className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-700" style={{ minWidth: 180 }} />
                           )}
                         </td>
                         <td className="px-6 py-2 text-right">
-                          {isRequestExpense ? null : (
+                          {canEditRow ? (
                             <div className="inline-flex items-center gap-2 whitespace-nowrap">
                               <button
                                 onClick={() => {
                                   const amountValue = isEA ? parseFloat(editingAmount.value) : e.amount;
                                   if (!Number.isFinite(amountValue) || amountValue < 0) return;
                                   const commentValue = isEC ? editingComment.value : (e.comment ?? '');
-                                  handleUpdateSaved(e.categoryId, amountValue, commentValue, dir, transport);
+                                  handleUpdateSaved(e.categoryId, amountValue, commentValue, dir, transport, requestId);
                                 }}
                                 className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
                               >
                                 Изменить
                               </button>
                               <button
-                                onClick={() => handleDeleteSaved(e.categoryId, dir, transport)}
+                                onClick={() => handleDeleteSaved(e.categoryId, dir, transport, requestId)}
                                 disabled={deletingId === key}
                                 className="px-2 py-1 text-xs rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
                               >
