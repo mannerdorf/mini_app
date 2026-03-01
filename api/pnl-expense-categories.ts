@@ -4,6 +4,7 @@ import { getPool } from "./_db.js";
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const pool = getPool();
+    await pool.query("ALTER TABLE pnl_expense_categories ADD COLUMN IF NOT EXISTS expense_category_id text");
     const id = req.query.id as string | undefined;
 
     if (req.method === "GET") {

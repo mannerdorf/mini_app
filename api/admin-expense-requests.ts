@@ -5,6 +5,7 @@
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { ensurePnlTransportColumns } from "./_pnl-ensure.js";
 import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 
 type DbRow = {
@@ -26,7 +27,29 @@ type DbRow = {
   created_at: string;
 };
 
+type RequestForPnlRow = {
+  id: number;
+  uid: string;
+  status: string;
+  amount: number;
+  department: string;
+  doc_number: string;
+  doc_date: string | null;
+  period: string;
+  login: string;
+  employee_name: string;
+  comment: string;
+  category_name: string | null;
+  category_cost_type: string | null;
+};
+
 const STATUSES = new Set(["draft", "pending_approval", "sent", "approved", "rejected", "paid"]);
+
+function normalizeOperationType(raw?: string | null): "COGS" | "OPEX" | "CAPEX" {
+  const v = String(raw ?? "").trim().toUpperCase();
+  if (v === "COGS" || v === "CAPEX") return v;
+  return "OPEX";
+}
 
 function toFrontendFormat(r: DbRow, login: string) {
   return {
@@ -102,17 +125,66 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Укажите uid и корректный status" });
     }
     try {
-      const params = newStatus === "approved"
-        ? [newStatus, rejectionReason, getAdminTokenPayload(token)?.login ?? "admin", uid]
-        : [newStatus, rejectionReason, uid];
-      const { rowCount } = await pool.query(
-        newStatus === "approved"
-          ? `UPDATE expense_requests SET status = $1, rejection_reason = $2, approved_by = $3, approved_at = now(), updated_at = now() WHERE uid = $4`
-          : `UPDATE expense_requests SET status = $1, rejection_reason = $2, updated_at = now() WHERE uid = $3`,
-        params
-      );
-      if (rowCount === 0) {
-        return res.status(404).json({ error: "Заявка не найдена" });
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        const { rows } = await client.query<RequestForPnlRow>(
+          `SELECT er.id, er.uid, er.status, er.amount, er.department, er.doc_number, er.doc_date, er.period, er.login, er.employee_name, er.comment,
+                  ec.name AS category_name, ec.cost_type AS category_cost_type
+           FROM expense_requests er
+           LEFT JOIN expense_categories ec ON ec.id = er.category_id
+           WHERE er.uid = $1
+           LIMIT 1`,
+          [uid]
+        );
+        const requestRow = rows[0];
+        if (!requestRow) {
+          await client.query("ROLLBACK");
+          return res.status(404).json({ error: "Заявка не найдена" });
+        }
+
+        const previousStatus = requestRow.status;
+        const params = newStatus === "approved"
+          ? [newStatus, rejectionReason, getAdminTokenPayload(token)?.login ?? "admin", uid]
+          : [newStatus, rejectionReason, uid];
+        await client.query(
+          newStatus === "approved"
+            ? `UPDATE expense_requests SET status = $1, rejection_reason = $2, approved_by = $3, approved_at = now(), updated_at = now() WHERE uid = $4`
+            : `UPDATE expense_requests SET status = $1, rejection_reason = $2, updated_at = now() WHERE uid = $3`,
+          params
+        );
+
+        // При переходе в "approved" ("Согласована") автоматически отражаем расход в PNL.
+        if (newStatus === "approved" && previousStatus !== "approved") {
+          await ensurePnlTransportColumns(pool);
+          const operationType = normalizeOperationType(requestRow.category_cost_type);
+          const opDate = requestRow.doc_date
+            ? new Date(String(requestRow.doc_date))
+            : new Date();
+          const amountAbs = Math.abs(Number(requestRow.amount) || 0);
+          if (amountAbs > 0) {
+            await client.query(
+              `INSERT INTO pnl_operations (date, counterparty, purpose, amount, operation_type, department, logistics_stage, direction, transport_type)
+               VALUES ($1, $2, $3, $4, $5, $6, NULL, NULL, NULL)`,
+              [
+                opDate,
+                requestRow.employee_name || requestRow.login || "expense_request",
+                `Согласование заявки ${requestRow.doc_number || requestRow.uid}${requestRow.category_name ? ` (${requestRow.category_name})` : ""}`,
+                -amountAbs,
+                operationType,
+                requestRow.department || "GENERAL",
+              ]
+            );
+          }
+        }
+
+        await client.query("COMMIT");
+      } catch (txErr) {
+        await client.query("ROLLBACK");
+        throw txErr;
+      } finally {
+        client.release();
       }
       return res.json({ ok: true });
     } catch (e) {

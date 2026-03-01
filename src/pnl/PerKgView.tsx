@@ -22,10 +22,12 @@ export function PerKgView() {
   const [unitEcon, setUnitEcon] = useState<any>(null);
   const [monthlyMargin, setMonthlyMargin] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const updateFilter = (key: string, value: string | number) => setFilters((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
     setError(null);
+    setLoading(true);
     const params = filtersToParams(filters);
     Promise.all([
       pnlGet('/api/unit-economics', params),
@@ -40,7 +42,8 @@ export function PerKgView() {
         setUnitEcon(null);
         setMonthlyMargin([]);
         setError(err?.message ?? 'Ошибка загрузки данных');
-      });
+      })
+      .finally(() => setLoading(false));
   }, [filters.month, filters.year, filters.direction, filters.transportType]);
 
   if (error && !unitEcon) return (
@@ -50,7 +53,14 @@ export function PerKgView() {
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800">{error}</div>
     </div>
   );
-  if (!unitEcon) return <div className="animate-pulse">Загрузка...</div>;
+  if (loading) return <div className="animate-pulse">Загрузка...</div>;
+  if (!unitEcon) return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold text-slate-900">Дашборд «1 кг логистики»</h1><p className="text-slate-500">KPI и графики в пересчёте на 1 кг</p></div>
+      <Filters {...filters} onChange={updateFilter} />
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800">Нет данных о весе. Загрузите продажи с полем веса (кг), чтобы рассчитать метрики на 1 кг.</div>
+    </div>
+  );
 
   const stageOrder = ['PICKUP', 'DEPARTURE_WAREHOUSE', 'MAINLINE', 'ARRIVAL_WAREHOUSE', 'LAST_MILE'];
   const stageData = stageOrder.filter((s) => (unitEcon.cogsByStagePerKg?.[s] ?? 0) > 0)

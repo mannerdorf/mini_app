@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { ensurePnlTransportColumns } from "./_pnl-ensure.js";
 import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 
@@ -114,6 +115,64 @@ async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
   `);
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_shift_rate_overrides_work_date_idx ON employee_timesheet_shift_rate_overrides(work_date)");
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_shift_rate_overrides_employee_id_idx ON employee_timesheet_shift_rate_overrides(employee_id)");
+}
+
+type DbQuery = {
+  query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }>;
+};
+
+async function ensureTimesheetPnlColumn(db: DbQuery) {
+  await db.query("ALTER TABLE pnl_operations ADD COLUMN IF NOT EXISTS source_timesheet_payout_id bigint");
+}
+
+async function upsertTimesheetPayoutToPnl(
+  db: DbQuery,
+  input: {
+    payoutId: number;
+    payoutDate: string;
+    month: string;
+    amount: number;
+    employeeId: number;
+    employeeLabel: string;
+    department: string;
+  }
+) {
+  const amountAbs = Math.abs(Number(input.amount) || 0);
+  if (!(amountAbs > 0)) return;
+  const counterparty = String(input.employeeLabel || "").trim() || `employee_${input.employeeId}`;
+  const department = String(input.department || "").trim() || "GENERAL";
+  const purpose = `ФОТ по табелю #${input.payoutId} (${input.month})`;
+  const exists = await db.query(
+    "SELECT id FROM pnl_operations WHERE source_timesheet_payout_id = $1 LIMIT 1",
+    [input.payoutId]
+  );
+  if (exists.rows[0]) {
+    await db.query(
+      `UPDATE pnl_operations
+       SET date = $2::date,
+           counterparty = $3,
+           purpose = $4,
+           amount = $5,
+           operation_type = 'OPEX',
+           department = $6,
+           logistics_stage = NULL,
+           direction = NULL,
+           transport_type = NULL,
+           updated_at = now()
+       WHERE source_timesheet_payout_id = $1`,
+      [input.payoutId, input.payoutDate, counterparty, purpose, -amountAbs, department]
+    );
+    return;
+  }
+  await db.query(
+    `INSERT INTO pnl_operations (date, counterparty, purpose, amount, operation_type, department, logistics_stage, direction, transport_type, source_timesheet_payout_id)
+     VALUES ($1::date, $2, $3, $4, 'OPEX', $5, NULL, NULL, NULL, $6)`,
+    [input.payoutDate, counterparty, purpose, -amountAbs, department, input.payoutId]
+  );
+}
+
+async function deleteTimesheetPayoutFromPnl(db: DbQuery, payoutId: number) {
+  await db.query("DELETE FROM pnl_operations WHERE source_timesheet_payout_id = $1", [payoutId]);
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
@@ -269,23 +328,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       const amount = Number(String(amountRaw ?? "").replace(",", "."));
       if (!Number.isFinite(amount) || amount < 0) return res.status(400).json({ error: "amount обязателен и не может быть меньше 0" });
 
-      const existingRes = await pool.query<{ cooperation_type: string | null }>(
-        `SELECT cooperation_type
-         FROM employee_timesheet_payouts
-         WHERE id = $1
-           AND employee_id = $2
-           AND period_month = $3::date
-         LIMIT 1`,
-        [payoutId, employeeId, monthInfo.start]
-      );
-      const existing = existingRes.rows[0];
-      if (!existing) return res.status(404).json({ error: "Выплата не найдена" });
-      const cooperationType = normalizeCooperationType(existing.cooperation_type);
-      const taxAmount = cooperationType === "ip" || cooperationType === "self_employed"
-        ? Number((amount / 0.94 - amount).toFixed(2))
-        : 0;
-
-      const updated = await pool.query<{
+      const db = await pool.connect();
+      let row: {
         id: number;
         payout_date: string;
         period_from: string;
@@ -295,19 +339,82 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         cooperation_type: string | null;
         paid_dates: unknown;
         created_at: string;
-      }>(
-        `UPDATE employee_timesheet_payouts
-         SET payout_date = $4::date,
-             amount = $5,
-             tax_amount = $6
-         WHERE id = $1
-           AND employee_id = $2
-           AND period_month = $3::date
-         RETURNING id, payout_date::text as payout_date, period_from::text as period_from, period_to::text as period_to,
-                   amount, tax_amount, cooperation_type, paid_dates, created_at::text as created_at`,
-        [payoutId, employeeId, monthInfo.start, payoutDate, amount, taxAmount]
-      );
-      const row = updated.rows[0];
+      } | null = null;
+      try {
+        await db.query("BEGIN");
+        const existingRes = await db.query<{ cooperation_type: string | null }>(
+          `SELECT cooperation_type
+           FROM employee_timesheet_payouts
+           WHERE id = $1
+             AND employee_id = $2
+             AND period_month = $3::date
+           LIMIT 1`,
+          [payoutId, employeeId, monthInfo.start]
+        );
+        const existing = existingRes.rows[0];
+        if (!existing) {
+          await db.query("ROLLBACK");
+          return res.status(404).json({ error: "Выплата не найдена" });
+        }
+        const cooperationType = normalizeCooperationType(existing.cooperation_type);
+        const taxAmount = cooperationType === "ip" || cooperationType === "self_employed"
+          ? Number((amount / 0.94 - amount).toFixed(2))
+          : 0;
+
+        const updated = await db.query<{
+          id: number;
+          payout_date: string;
+          period_from: string;
+          period_to: string;
+          amount: number;
+          tax_amount: number;
+          cooperation_type: string | null;
+          paid_dates: unknown;
+          created_at: string;
+        }>(
+          `UPDATE employee_timesheet_payouts
+           SET payout_date = $4::date,
+               amount = $5,
+               tax_amount = $6
+           WHERE id = $1
+             AND employee_id = $2
+             AND period_month = $3::date
+           RETURNING id, payout_date::text as payout_date, period_from::text as period_from, period_to::text as period_to,
+                     amount, tax_amount, cooperation_type, paid_dates, created_at::text as created_at`,
+          [payoutId, employeeId, monthInfo.start, payoutDate, amount, taxAmount]
+        );
+        row = updated.rows[0] || null;
+        if (!row) {
+          await db.query("ROLLBACK");
+          return res.status(404).json({ error: "Выплата не найдена" });
+        }
+        await ensurePnlTransportColumns(pool);
+        await ensureTimesheetPnlColumn(db);
+        const employeeRes = await db.query<{ full_name: string | null; login: string | null; department: string | null }>(
+          `SELECT full_name, login, department
+           FROM registered_users
+           WHERE id = $1
+           LIMIT 1`,
+          [employeeId]
+        );
+        const emp = employeeRes.rows[0];
+        const employeeLabel = String(emp?.full_name || "").trim() || String(emp?.login || "").trim() || `employee_${employeeId}`;
+        await upsertTimesheetPayoutToPnl(db, {
+          payoutId,
+          payoutDate,
+          month: monthInfo.month,
+          amount,
+          employeeId,
+          employeeLabel,
+          department: String(emp?.department || "").trim() || "GENERAL",
+        });
+        await db.query("COMMIT");
+      } catch (err) {
+        await db.query("ROLLBACK");
+        throw err;
+      } finally {
+        db.release();
+      }
       if (!row) return res.status(404).json({ error: "Выплата не найдена" });
       return res.status(200).json({
         ok: true,
@@ -410,8 +517,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const employeeId = Number(body?.employeeId);
     if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
 
-    const employeeRes = await pool.query<{ accrual_type: string | null; accrual_rate: number | null; cooperation_type: string | null }>(
-      `SELECT accrual_type, accrual_rate, cooperation_type
+    const employeeRes = await pool.query<{ accrual_type: string | null; accrual_rate: number | null; cooperation_type: string | null; full_name: string | null; login: string | null; department: string | null }>(
+      `SELECT accrual_type, accrual_rate, cooperation_type, full_name, login, department
        FROM registered_users
        WHERE id = $1
        LIMIT 1`,
@@ -500,33 +607,60 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       ? Number((amount / 0.94 - amount).toFixed(2))
       : 0;
 
-    const inserted = await pool.query<{ id: number; payout_date: string; created_at: string }>(
-      `INSERT INTO employee_timesheet_payouts(employee_id, payout_date, period_month, period_from, period_to, amount, tax_amount, cooperation_type, paid_dates)
-       VALUES ($1, current_date, $2::date, $3::date, $4::date, $5, $6, $7, $8::jsonb)
-       RETURNING id, payout_date::text as payout_date, created_at::text as created_at`,
-      [employeeId, monthInfo.start, periodFrom, periodTo, amount, taxAmount, cooperationType, JSON.stringify(markedDates)]
-    );
-
-    await pool.query(
-      `DELETE FROM employee_timesheet_payment_marks
-       WHERE employee_id = $1
-         AND work_date >= $2::date
-         AND work_date < $3::date`,
-      [employeeId, monthInfo.start, monthInfo.next]
-    );
+    const db = await pool.connect();
+    let insertedRow: { id: number; payout_date: string; created_at: string } | null = null;
+    try {
+      await db.query("BEGIN");
+      const inserted = await db.query<{ id: number; payout_date: string; created_at: string }>(
+        `INSERT INTO employee_timesheet_payouts(employee_id, payout_date, period_month, period_from, period_to, amount, tax_amount, cooperation_type, paid_dates)
+         VALUES ($1, current_date, $2::date, $3::date, $4::date, $5, $6, $7, $8::jsonb)
+         RETURNING id, payout_date::text as payout_date, created_at::text as created_at`,
+        [employeeId, monthInfo.start, periodFrom, periodTo, amount, taxAmount, cooperationType, JSON.stringify(markedDates)]
+      );
+      insertedRow = inserted.rows[0] || null;
+      if (!insertedRow) {
+        await db.query("ROLLBACK");
+        return res.status(500).json({ error: "Не удалось сохранить выплату" });
+      }
+      await ensurePnlTransportColumns(pool);
+      await ensureTimesheetPnlColumn(db);
+      const employeeLabel = String(employee.full_name || "").trim() || String(employee.login || "").trim() || `employee_${employeeId}`;
+      await upsertTimesheetPayoutToPnl(db, {
+        payoutId: insertedRow.id,
+        payoutDate: insertedRow.payout_date,
+        month: monthInfo.month,
+        amount,
+        employeeId,
+        employeeLabel,
+        department: String(employee.department || "").trim() || "GENERAL",
+      });
+      await db.query(
+        `DELETE FROM employee_timesheet_payment_marks
+         WHERE employee_id = $1
+           AND work_date >= $2::date
+           AND work_date < $3::date`,
+        [employeeId, monthInfo.start, monthInfo.next]
+      );
+      await db.query("COMMIT");
+    } catch (err) {
+      await db.query("ROLLBACK");
+      throw err;
+    } finally {
+      db.release();
+    }
 
     return res.status(200).json({
       ok: true,
       payout: {
-        id: inserted.rows[0]?.id,
-        payoutDate: inserted.rows[0]?.payout_date,
+        id: insertedRow?.id,
+        payoutDate: insertedRow?.payout_date,
         periodFrom,
         periodTo,
         amount,
         taxAmount,
         cooperationType,
         paidDates: markedDates,
-        createdAt: inserted.rows[0]?.created_at,
+        createdAt: insertedRow?.created_at,
       },
       clearedMarks: markedDates.map((d) => `${employeeId}__${d}`),
     });
@@ -548,15 +682,31 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     if (!Number.isFinite(payoutId) || payoutId <= 0) return res.status(400).json({ error: "payoutId обязателен" });
     if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
 
-    const deleted = await pool.query<{ id: number }>(
-      `DELETE FROM employee_timesheet_payouts
-       WHERE id = $1
-         AND employee_id = $2
-         AND period_month = $3::date
-       RETURNING id`,
-      [payoutId, employeeId, monthInfo.start]
-    );
-    if (!deleted.rows[0]) return res.status(404).json({ error: "Выплата не найдена" });
+    const db = await pool.connect();
+    try {
+      await db.query("BEGIN");
+      const deleted = await db.query<{ id: number }>(
+        `DELETE FROM employee_timesheet_payouts
+         WHERE id = $1
+           AND employee_id = $2
+           AND period_month = $3::date
+         RETURNING id`,
+        [payoutId, employeeId, monthInfo.start]
+      );
+      if (!deleted.rows[0]) {
+        await db.query("ROLLBACK");
+        return res.status(404).json({ error: "Выплата не найдена" });
+      }
+      await ensurePnlTransportColumns(pool);
+      await ensureTimesheetPnlColumn(db);
+      await deleteTimesheetPayoutFromPnl(db, payoutId);
+      await db.query("COMMIT");
+    } catch (err) {
+      await db.query("ROLLBACK");
+      throw err;
+    } finally {
+      db.release();
+    }
     return res.status(200).json({ ok: true });
   }
 
