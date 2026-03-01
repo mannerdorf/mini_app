@@ -64,28 +64,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { rows: manualExpenses } = await pool.query(expenseQuery, params);
 
-    const { rows: requestExpensesRaw } = await pool.query(
-      `SELECT er.uid,
-              er.category_id AS "categoryId",
-              coalesce(ec.name, er.category_id) AS "categoryName",
-              er.amount,
-              er.comment,
-              er.status,
-              er.department,
-              er.period,
-              er.doc_date,
-              er.approved_at,
-              er.created_at
-       FROM expense_requests er
-       LEFT JOIN expense_categories ec ON ec.id = er.category_id
-       WHERE er.status IN ('approved', 'paid')
-         AND (
-           er.period = $1
-           OR to_char(coalesce(er.doc_date, er.approved_at::date, er.created_at::date), 'YYYY-MM') = $2
-         )
-       ORDER BY coalesce(er.doc_date, er.approved_at::date, er.created_at::date) DESC`,
-      [periodKey, periodKey]
-    );
+    let requestExpensesRaw: any[] = [];
+    try {
+      const result = await pool.query(
+        `SELECT er.uid,
+                er.category_id AS "categoryId",
+                coalesce(ec.name, er.category_id) AS "categoryName",
+                er.amount,
+                er.comment,
+                er.status,
+                er.department,
+                er.period,
+                er.doc_date,
+                er.created_at
+         FROM expense_requests er
+         LEFT JOIN expense_categories ec ON ec.id = er.category_id
+         WHERE er.status IN ('approved', 'paid')
+           AND (
+             er.period = $1
+             OR to_char(coalesce(er.doc_date, er.created_at::date), 'YYYY-MM') = $2
+           )
+         ORDER BY coalesce(er.doc_date, er.created_at::date) DESC`,
+        [periodKey, periodKey]
+      );
+      requestExpensesRaw = result.rows;
+    } catch (e) {
+      console.error("pnl-manual-entry expense_requests read failed:", e);
+      requestExpensesRaw = [];
+    }
 
     let requestExpenses = requestExpensesRaw
       .filter((e: any) => {
@@ -110,20 +116,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Fallback for legacy/partially synced data: include approved request operations from pnl_operations.
     if (requestExpenses.length === 0 && department != null) {
-      const fallbackParams: unknown[] = [period, department];
-      const { rows: requestOpsRows } = await pool.query(
-        `SELECT id,
-                purpose,
-                amount,
-                operation_type
-         FROM pnl_operations
-         WHERE date_trunc('month', date) = $1::date
-           AND department = $2
-           AND purpose ILIKE 'Согласование заявки %'
-           AND operation_type IN ('COGS', 'OPEX', 'CAPEX')
-         ORDER BY date DESC`,
-        fallbackParams
-      );
+      let requestOpsRows: any[] = [];
+      try {
+        const fallbackParams: unknown[] = [period, department];
+        const result = await pool.query(
+          `SELECT id,
+                  purpose,
+                  amount,
+                  operation_type
+           FROM pnl_operations
+           WHERE date_trunc('month', date) = $1::date
+             AND department = $2
+             AND purpose ILIKE 'Согласование заявки %'
+             AND operation_type IN ('COGS', 'OPEX', 'CAPEX')
+           ORDER BY date DESC`,
+          fallbackParams
+        );
+        requestOpsRows = result.rows;
+      } catch (e) {
+        console.error("pnl-manual-entry fallback pnl_operations read failed:", e);
+        requestOpsRows = [];
+      }
       requestExpenses = requestOpsRows.map((r: any) => {
         const purpose = String(r.purpose ?? "").trim();
         const nameFromPurpose = (() => {
