@@ -367,6 +367,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [suppliersSortOrder, setSuppliersSortOrder] = useState<"asc" | "desc">("asc");
   const [suppliersLoading, setSuppliersLoading] = useState(false);
   const [suppliersFetchTrigger, setSuppliersFetchTrigger] = useState(0);
+  const [suppliersSyncLoading, setSuppliersSyncLoading] = useState(false);
+  const [suppliersSyncMessage, setSuppliersSyncMessage] = useState<string | null>(null);
   const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
   const [autoRegisterCandidates, setAutoRegisterCandidates] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [autoRegisterStats, setAutoRegisterStats] = useState<{ total: number; withEmail: number; validEmail: number; alreadyRegistered: number } | null>(null);
@@ -4266,13 +4268,49 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               type="button"
               className="filter-button"
               disabled={suppliersLoading}
-              onClick={() => setSuppliersFetchTrigger((n) => n + 1)}
+              onClick={() => {
+                setSuppliersSyncMessage(null);
+                setSuppliersFetchTrigger((n) => n + 1);
+              }}
               style={{ marginLeft: "auto" }}
             >
               {suppliersLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
               Обновить
             </Button>
+            {isSuperAdmin && (
+              <Button
+                type="button"
+                className="button-primary"
+                disabled={suppliersSyncLoading}
+                onClick={async () => {
+                  setSuppliersSyncLoading(true);
+                  setSuppliersSyncMessage(null);
+                  try {
+                    const res = await fetch("/api/admin-refresh-suppliers-cache", {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${adminToken}` },
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data?.error || "Не удалось обновить справочник поставщиков");
+                    setSuppliersSyncMessage(`Обновлено: ${Number(data?.suppliers_count || 0)} записей`);
+                    setSuppliersFetchTrigger((n) => n + 1);
+                  } catch (e: unknown) {
+                    setSuppliersSyncMessage((e as Error)?.message || "Не удалось обновить справочник поставщиков");
+                  } finally {
+                    setSuppliersSyncLoading(false);
+                  }
+                }}
+              >
+                {suppliersSyncLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+                Обновить из 1С
+              </Button>
+            )}
           </Flex>
+          {suppliersSyncMessage && (
+            <Typography.Body style={{ marginBottom: "0.65rem", fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+              {suppliersSyncMessage}
+            </Typography.Body>
+          )}
           {suppliersLoading ? (
             <Flex align="center" gap="0.5rem">
               <Loader2 className="w-4 h-4 animate-spin" />
