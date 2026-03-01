@@ -186,6 +186,75 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
       });
 
+    let salaryExpenses: any[] = [];
+    try {
+      const { rows: salaryTypeRows } = await pool.query(
+        `SELECT department,
+                logistics_stage AS "logisticsStage",
+                type,
+                name
+         FROM pnl_expense_categories
+         WHERE lower(trim(name)) LIKE 'зарплат%'`
+      );
+      const salaryTypeMap = new Map<string, string>(
+        salaryTypeRows.map((r: any) => [
+          `${String(r.department ?? "")}::${String(r.logisticsStage ?? "")}`,
+          String(r.type ?? "").trim().toUpperCase() || "OPEX",
+        ])
+      );
+      const resolveSalaryType = (dep: string, stage: string | null): string => {
+        const exact = `${dep}::${String(stage ?? "")}`;
+        const depOnly = `${dep}::`;
+        return salaryTypeMap.get(exact) || salaryTypeMap.get(depOnly) || "OPEX";
+      };
+
+      const { rows: payoutRows } = await pool.query(
+        `SELECT p.id,
+                p.amount,
+                ru.department AS "employeeDepartment"
+         FROM employee_timesheet_payouts p
+         JOIN registered_users ru ON ru.id = p.employee_id
+         WHERE p.period_month = $1::date`,
+        [period]
+      );
+
+      const grouped = new Map<string, { amount: number; count: number; department: string; logisticsStage: string | null }>();
+      payoutRows.forEach((r: any) => {
+        const amountAbs = Math.abs(Number(r.amount) || 0);
+        if (!(amountAbs > 0)) return;
+        const mapped = mapDepartmentToPnl(r.employeeDepartment);
+        if (department != null && mapped.department !== department) return;
+        if (logisticsStage === "" || logisticsStage === "null") {
+          if (mapped.logisticsStage != null) return;
+        } else if (logisticsStage && mapped.logisticsStage !== logisticsStage) {
+          return;
+        }
+        const key = `${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
+        const prev = grouped.get(key) || { amount: 0, count: 0, department: mapped.department, logisticsStage: mapped.logisticsStage };
+        prev.amount += amountAbs;
+        prev.count += 1;
+        grouped.set(key, prev);
+      });
+
+      salaryExpenses = Array.from(grouped.values()).map((g) => ({
+        id: `timesheet-salary:${periodKey}:${g.department}:${String(g.logisticsStage ?? "none")}`,
+        categoryId: `timesheet-salary:${g.department}:${String(g.logisticsStage ?? "none")}`,
+        categoryName: "Зарплата",
+        amount: g.amount,
+        comment: `По табелю (${g.count} выплат)`,
+        direction: "",
+        transportType: "",
+        type: resolveSalaryType(g.department, g.logisticsStage),
+        department: g.department,
+        logisticsStage: g.logisticsStage,
+        source: "timesheet_salary",
+        requestStatus: null,
+      }));
+    } catch (e) {
+      console.error("pnl-manual-entry timesheet salary read failed:", e);
+      salaryExpenses = [];
+    }
+
     // Fallback for legacy/partially synced data: include approved request operations from pnl_operations.
     if (requestExpenses.length === 0 && department != null) {
       let requestOpsRows: any[] = [];
@@ -251,6 +320,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         source: "manual",
         requestStatus: null,
       })),
+      ...salaryExpenses,
       ...requestExpenses,
     ];
 

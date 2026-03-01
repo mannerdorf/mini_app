@@ -20,7 +20,7 @@ interface SavedExpense {
   department?: string | null;
   logisticsStage?: string | null;
   requestDepartment?: string | null;
-  source?: 'manual' | 'expense_request';
+  source?: 'manual' | 'expense_request' | 'timesheet_salary';
   requestStatus?: string | null;
 }
 
@@ -249,9 +249,10 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                   {savedExpenses.map((e) => {
                     const key = rowKey(e);
                     const isRequestExpense = e.source === 'expense_request';
+                    const isManualExpense = !e.source || e.source === 'manual';
                     const requestId = isRequestExpense && key.startsWith('request:') ? key.slice('request:'.length) : '';
                     const canEditRequest = isRequestExpense && Boolean(requestId);
-                    const canEditRow = !isRequestExpense || canEditRequest;
+                    const canEditRow = isManualExpense || canEditRequest;
                     const isEA = editingAmount?.key === key;
                     const isEC = editingComment?.key === key;
                     const dir = e.direction ?? ''; const transport = e.transportType ?? '';
