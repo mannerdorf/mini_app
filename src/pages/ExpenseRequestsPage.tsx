@@ -135,6 +135,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [isFormOpen, setIsFormOpen] = useState(false);
 
     const [department, setDepartment] = useState(fallbackDepartment);
+    const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
     const [departmentLoading, setDepartmentLoading] = useState(false);
     const [vehicles, setVehicles] = useState<string[]>([]);
     const [vehiclesLoading, setVehiclesLoading] = useState(false);
@@ -147,6 +148,13 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const vehicleDropdownRef = useRef<HTMLDivElement>(null);
     const employeeDropdownRef = useRef<HTMLDivElement>(null);
     const formPanelRef = useRef<HTMLDivElement>(null);
+
+    const parseDepartmentList = useCallback((raw: unknown) => {
+        const text = String(raw ?? "").trim();
+        if (!text) return [] as string[];
+        const items = text.split(",").map((s) => s.trim()).filter(Boolean);
+        return [...new Set(items)];
+    }, []);
 
     useEffect(() => {
         setList(loadStoredRequests(auth?.login ?? ""));
@@ -166,7 +174,18 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         })
             .then((r) => (r.ok ? r.json() : Promise.reject()))
             .then((data: any) => {
-                if (typeof data?.department === "string" && data.department) setDepartment(data.department);
+                const departmentsFromProfile = parseDepartmentList(data?.department);
+                const departmentsFromEmployees = Array.isArray(data?.employees)
+                    ? [...new Set(data.employees.map((e: any) => String(e?.department ?? "").trim()).filter(Boolean))]
+                    : [];
+                const allowed = [...new Set([...departmentsFromProfile, ...departmentsFromEmployees])];
+                if (allowed.length > 0) {
+                    setAvailableDepartments(allowed);
+                    setDepartment((prev) => allowed.includes(prev) ? prev : allowed[0]);
+                } else if (typeof data?.department === "string" && data.department) {
+                    setDepartment(String(data.department).trim());
+                    setAvailableDepartments(parseDepartmentList(data.department));
+                }
                 if (Array.isArray(data?.employees)) {
                     setEmployees(data.employees.map((e: any) => ({
                         id: e.id,
@@ -178,7 +197,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             })
             .catch(() => { /* keep fallback */ })
             .finally(() => setDepartmentLoading(false));
-    }, [auth?.login, auth?.password]);
+    }, [auth?.login, auth?.password, parseDepartmentList]);
 
     // --- Справочник статей расходов (единый с PNL) ---
     useEffect(() => {
@@ -265,6 +284,12 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         if (!q) return employees;
         return employees.filter((e) => `${e.fullName} ${e.login} ${e.position ?? ""}`.toLowerCase().includes(q));
     }, [employees, employeeSearch]);
+
+    const departmentOptions = useMemo(() => {
+        if (availableDepartments.length > 0) return availableDepartments;
+        const base = [department, fallbackDepartment].map((x) => String(x || "").trim()).filter(Boolean);
+        return [...new Set(base)];
+    }, [availableDepartments, department, fallbackDepartment]);
 
     const addFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const chosen = e.target.files;
@@ -427,6 +452,11 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const startEdit = useCallback((item: ExpenseRequestItem) => {
         setEditingId(item.id);
         setIsFormOpen(true);
+        const itemDepartment = String(item.department || "").trim();
+        const nextDepartment = availableDepartments.includes(itemDepartment)
+            ? itemDepartment
+            : (availableDepartments[0] || fallbackDepartment);
+        setDepartment(nextDepartment);
         setDocNumber(item.docNumber ?? "");
         setDocDate(item.docDate ?? "");
         setPeriod(item.period ?? "");
@@ -437,7 +467,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setSelectedVehicle(item.vehicleOrEmployee ?? "");
         setSelectedEmployee((item as any).employeeName ?? "");
         setTimeout(() => formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-    }, []);
+    }, [availableDepartments, fallbackDepartment]);
 
     const saveEdit = useCallback(() => {
         if (!editingId) return;
@@ -448,6 +478,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setList((prev) => {
             const next = prev.map((r) => r.id === editingId ? {
                 ...r,
+                department,
                 docNumber: docNumber.trim(),
                 docDate: docDate || r.docDate,
                 period: period || r.period,
@@ -473,7 +504,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setComment("");
         setSelectedVehicle("");
         setSelectedEmployee("");
-    }, [editingId, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedVehicle, selectedEmployee, auth?.login, categories]);
+    }, [editingId, department, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedVehicle, selectedEmployee, auth?.login, categories]);
 
     const cancelEdit = useCallback(() => {
         setEditingId(null);
@@ -557,6 +588,21 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                             />
                         </div>
                     </Flex>
+
+                    {/* Department */}
+                    <div>
+                        <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Подразделение</label>
+                        <select
+                            className="admin-form-input"
+                            value={department}
+                            onChange={(e) => setDepartment(e.target.value)}
+                            style={{ width: "100%", padding: "0.5rem" }}
+                        >
+                            {departmentOptions.map((dep) => (
+                                <option key={dep} value={dep}>{dep}</option>
+                            ))}
+                        </select>
+                    </div>
 
                     {/* Category */}
                     <div>

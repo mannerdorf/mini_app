@@ -164,17 +164,11 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
     } finally { setSaving(false); }
   };
 
-  const handleUpdateAmount = async (categoryId: string, newAmount: number, comment?: string | null, direction = '', transportType = '') => {
+  const handleUpdateSaved = async (categoryId: string, newAmount: number, comment?: string | null, direction = '', transportType = '') => {
     setEditingAmount(null);
-    const period = `${year}-${String(month).padStart(2, '0')}-01`;
-    await pnlPost('/api/manual-entry', { period, revenues: [], expenses: [{ categoryId, amount: newAmount, comment: comment ?? undefined, direction, transportType }] });
-    loadSaved();
-  };
-
-  const handleUpdateComment = async (categoryId: string, newComment: string, currentAmount: number, direction = '', transportType = '') => {
     setEditingComment(null);
     const period = `${year}-${String(month).padStart(2, '0')}-01`;
-    await pnlPost('/api/manual-entry', { period, revenues: [], expenses: [{ categoryId, amount: currentAmount, comment: newComment.trim() || undefined, direction, transportType }] });
+    await pnlPost('/api/manual-entry', { period, revenues: [], expenses: [{ categoryId, amount: newAmount, comment: comment?.trim() || undefined, direction, transportType }] });
     loadSaved();
   };
 
@@ -191,7 +185,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold text-slate-900">{label}</h1><p className="text-slate-500">{description}</p></div>
-      <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm" style={{ maxWidth: 640 }}>
+      <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Ввод затрат</h2>
         <div className="flex flex-wrap items-center gap-4 mb-4">
           {subdivisionSelect}
@@ -229,13 +223,13 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
           </>
         )}
       </div>
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ maxWidth: 640 }}>
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <h2 className="text-lg font-semibold text-slate-900 px-6 py-4 border-b border-slate-100">Сохранённые затраты ({MONTHS[month - 1]} {year})</h2>
         {savedLoading ? <div className="px-6 py-6 text-slate-500 animate-pulse">Загрузка...</div> : savedExpenses.length === 0 ? <div className="px-6 py-6 text-slate-500 text-sm">Нет сохранённых затрат за этот период.</div> : (
           <>
             <div className="overflow-x-auto">
               <table className="min-w-full">
-                <thead><tr className="border-b border-slate-100 bg-slate-50"><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Статья</th><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Подразделение</th><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Тип</th>{isMainline && <th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Направление</th>}<th className="px-6 py-2 text-right text-sm font-medium text-slate-600">Сумма</th><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Комментарий</th><th className="px-6 py-2 w-12" /></tr></thead>
+                <thead><tr className="border-b border-slate-100 bg-slate-50"><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Статья</th><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Подразделение</th><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Тип</th>{isMainline && <th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Направление</th>}<th className="px-6 py-2 text-right text-sm font-medium text-slate-600">Сумма</th><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Комментарий</th><th className="px-6 py-2 text-right text-sm font-medium text-slate-600">Действия</th></tr></thead>
                 <tbody>
                   {savedExpenses.map((e) => {
                     const key = rowKey(e);
@@ -257,7 +251,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                           {isRequestExpense ? (
                             <span className="text-slate-900 font-medium">{formatRub(e.amount)}</span>
                           ) : (
-                            <input type="number" step="0.01" min="0" value={isEA ? editingAmount.value : String(e.amount)} onChange={(ev) => setEditingAmount({ key, value: ev.target.value })} onFocus={() => setEditingAmount({ key, value: String(e.amount) })} onBlur={(ev) => { const v = parseFloat(ev.target.value); if (Number.isFinite(v) && Math.abs(v - e.amount) > 0.001) handleUpdateAmount(e.categoryId, v, e.comment, dir, transport); else setEditingAmount(null); }} className="w-28 text-right border border-slate-200 rounded px-2 py-1 text-slate-900 font-medium" />
+                            <input type="number" step="0.01" min="0" value={isEA ? editingAmount.value : String(e.amount)} onChange={(ev) => setEditingAmount({ key, value: ev.target.value })} onFocus={() => setEditingAmount({ key, value: String(e.amount) })} className="w-28 text-right border border-slate-200 rounded px-2 py-1 text-slate-900 font-medium" />
                           )}
                         </td>
                         <td className="px-6 py-2">
@@ -266,12 +260,31 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                               {(e.comment ?? '').trim() || `Из заявки (${e.requestStatus === 'paid' ? 'Оплачено' : 'Согласовано'})`}
                             </span>
                           ) : (
-                            <input type="text" value={isEC ? editingComment.value : (e.comment ?? '')} onChange={(ev) => setEditingComment({ key, value: ev.target.value })} onFocus={() => setEditingComment({ key, value: e.comment ?? '' })} onBlur={(ev) => { if (ev.target.value.trim() !== (e.comment ?? '').trim()) handleUpdateComment(e.categoryId, ev.target.value, e.amount, dir, transport); else setEditingComment(null); }} placeholder="Комментарий" className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-700" style={{ minWidth: 140, maxWidth: 220 }} />
+                            <input type="text" value={isEC ? editingComment.value : (e.comment ?? '')} onChange={(ev) => setEditingComment({ key, value: ev.target.value })} onFocus={() => setEditingComment({ key, value: e.comment ?? '' })} placeholder="Комментарий" className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-700" style={{ minWidth: 180 }} />
                           )}
                         </td>
                         <td className="px-6 py-2 text-right">
                           {isRequestExpense ? null : (
-                            <button onClick={() => handleDeleteSaved(e.categoryId, dir, transport)} disabled={deletingId === key} className="p-1.5 text-slate-400 hover:text-red-600 disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
+                            <div className="inline-flex items-center gap-2 whitespace-nowrap">
+                              <button
+                                onClick={() => {
+                                  const amountValue = isEA ? parseFloat(editingAmount.value) : e.amount;
+                                  if (!Number.isFinite(amountValue) || amountValue < 0) return;
+                                  const commentValue = isEC ? editingComment.value : (e.comment ?? '');
+                                  handleUpdateSaved(e.categoryId, amountValue, commentValue, dir, transport);
+                                }}
+                                className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
+                              >
+                                Изменить
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSaved(e.categoryId, dir, transport)}
+                                disabled={deletingId === key}
+                                className="px-2 py-1 text-xs rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                Удалить
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
