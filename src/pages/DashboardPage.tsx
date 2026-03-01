@@ -157,6 +157,10 @@ export function DashboardPage({
     const [churnSortAsc, setChurnSortAsc] = useState(false);
     /** Раскрытый сегмент RFM: при клике показываем список заказчиков */
     const [expandedRfmSegment, setExpandedRfmSegment] = useState<string | null>(null);
+    /** Список заказчиков для виджета "Повторные клиенты" */
+    const [repeatCustomersListMode, setRepeatCustomersListMode] = useState<'all' | 'repeat' | 'new' | null>(null);
+    /** Выбранная строка воронки статусов для показа заказчиков */
+    const [selectedFunnelStatusKey, setSelectedFunnelStatusKey] = useState<string | null>(null);
     /** Сортировка таблицы «Платёжная дисциплина» */
     const [paymentDisciplineSortCol, setPaymentDisciplineSortCol] = useState<'name' | 'count' | 'paid' | 'unpaid' | 'paidRate'>('paidRate');
     const [paymentDisciplineSortAsc, setPaymentDisciplineSortAsc] = useState(true);
@@ -1981,6 +1985,22 @@ export function DashboardPage({
         return stages.map((s) => ({ ...s, count: counts.get(s.key) || 0 }));
     }, [filteredItems, useServiceRequest]);
 
+    const statusFunnelCustomers = useMemo(() => {
+        if (!useServiceRequest) return {} as Record<string, string[]>;
+        const byStatus = new Map<string, Set<string>>();
+        filteredItems.forEach((item) => {
+            const statusKey = getFilterKeyByStatus(item.State);
+            const customer = stripOoo((item.Customer ?? (item as any).customer ?? '').trim() || '—');
+            if (!byStatus.has(statusKey)) byStatus.set(statusKey, new Set<string>());
+            byStatus.get(statusKey)!.add(customer);
+        });
+        const result: Record<string, string[]> = {};
+        byStatus.forEach((set, key) => {
+            result[key] = [...set].sort((a, b) => a.localeCompare(b, "ru"));
+        });
+        return result;
+    }, [filteredItems, useServiceRequest]);
+
     const paretoByCustomer = useMemo(() => {
         if (!useServiceRequest) return { rows: [] as { name: string; value: number; cumPercent: number; color: string }[], total: 0 };
         const map = new Map<string, number>();
@@ -1999,7 +2019,7 @@ export function DashboardPage({
         return { rows, total };
     }, [filteredItems, useServiceRequest]);
 
-    type AgingInvoice = { number: string; customer: string; date: string; sum: number; days: number; status: string; shipmentStatus: string };
+    type AgingInvoice = { number: string; customer: string; date: string; sum: number; days: number; status: string; shipmentStatus: string; route: string };
     const invoiceAging = useMemo(() => {
         if (!useServiceRequest) return { buckets: [] as { label: string; count: number; sum: number; color: string; items: AgingInvoice[] }[], total: 0 };
         const cargoStateByNumber = buildCargoStateByNumber(items);
@@ -2023,6 +2043,14 @@ export function DashboardPage({
             const invNum = String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? '').trim() || '—';
             const customer = String(inv?.Customer ?? inv?.customer ?? inv?.Контрагент ?? inv?.Contractor ?? '').trim() || '—';
             const dateStr = dateUtils.formatDate(rawDate);
+            const dirRaw = String(inv?.Direction ?? inv?.direction ?? inv?.Направление ?? '').trim().toUpperCase();
+            const senderCode = cityToCode(inv?.CitySender ?? inv?.citySender ?? inv?.ГородОтправителя ?? inv?.city_from ?? '');
+            const receiverCode = cityToCode(inv?.CityReceiver ?? inv?.cityReceiver ?? inv?.ГородПолучателя ?? inv?.city_to ?? '');
+            const route = dirRaw.includes('MSK_TO_KGD') || dirRaw.includes('MSK-KGD')
+                ? 'MSK-KGD'
+                : dirRaw.includes('KGD_TO_MSK') || dirRaw.includes('KGD-MSK')
+                    ? 'KGD-MSK'
+                    : (senderCode && receiverCode ? `${senderCode}-${receiverCode}` : '—');
             const cargoNum = getFirstCargoNumberFromInvoice(inv);
             const rawShipmentState = cargoNum ? cargoStateByNumber.get(cargoNum) ?? cargoStateByNumber.get(cargoNum.replace(/^0+/, '') ?? '') : undefined;
             const shipmentStatus = rawShipmentState ? normalizeStatus(rawShipmentState) : '—';
@@ -2031,7 +2059,7 @@ export function DashboardPage({
                     b.count += 1;
                     b.sum += sum;
                     total += sum;
-                    b.items.push({ number: invNum, customer: stripOoo(customer), date: dateStr, sum, days, status, shipmentStatus });
+                    b.items.push({ number: invNum, customer: stripOoo(customer), date: dateStr, sum, days, status, shipmentStatus, route });
                     break;
                 }
             }
@@ -2117,11 +2145,29 @@ export function DashboardPage({
         });
         let repeat = 0;
         let newC = 0;
+        const repeatList: string[] = [];
+        const newList: string[] = [];
         current.forEach((name) => {
-            if (previous.has(name)) repeat += 1;
-            else newC += 1;
+            if (previous.has(name)) {
+                repeat += 1;
+                repeatList.push(name);
+            } else {
+                newC += 1;
+                newList.push(name);
+            }
         });
-        return { total: current.size, repeat, new: newC, repeatPercent: current.size > 0 ? Math.round((repeat / current.size) * 100) : 0 };
+        const allList = [...current].sort((a, b) => a.localeCompare(b, "ru"));
+        repeatList.sort((a, b) => a.localeCompare(b, "ru"));
+        newList.sort((a, b) => a.localeCompare(b, "ru"));
+        return {
+            total: current.size,
+            repeat,
+            new: newC,
+            repeatPercent: current.size > 0 ? Math.round((repeat / current.size) * 100) : 0,
+            allList,
+            repeatList,
+            newList,
+        };
     }, [filteredItems, filteredPrevPeriodItems, useServiceRequest]);
 
     const weekdayDistribution = useMemo(() => {
@@ -3231,18 +3277,41 @@ export function DashboardPage({
                         {(() => {
                             const maxC = Math.max(...statusFunnel.map((s) => s.count), 1);
                             const totalC = statusFunnel.reduce((a, s) => a + s.count, 0) || 1;
-                            return statusFunnel.map((stage) => (
-                                <div key={stage.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <Typography.Body style={{ fontSize: '0.78rem', width: 110, flexShrink: 0, color: 'var(--color-text-secondary)' }}>{stage.label}</Typography.Body>
-                                    <div style={{ flex: 1, height: 14, borderRadius: 7, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
-                                        <div style={{ width: `${Math.round((stage.count / maxC) * 100)}%`, height: '100%', background: stage.color, borderRadius: 7, transition: 'width 0.3s' }} />
-                                    </div>
-                                    <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, minWidth: 44, textAlign: 'right' }}>{stage.count}</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', minWidth: 36, textAlign: 'right' }}>{Math.round((stage.count / totalC) * 100)}%</Typography.Body>
-                                </div>
-                            ));
+                            return statusFunnel.map((stage) => {
+                                const isActive = selectedFunnelStatusKey === stage.key;
+                                return (
+                                    <button
+                                        key={stage.key}
+                                        type="button"
+                                        onClick={() => setSelectedFunnelStatusKey((prev) => (prev === stage.key ? null : stage.key))}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: isActive ? 'var(--color-bg-hover)' : 'transparent', border: isActive ? '1px solid var(--color-border)' : '1px solid transparent', borderRadius: 8, padding: '0.2rem 0.25rem', cursor: 'pointer', textAlign: 'left' }}
+                                        title="Показать список заказчиков по статусу"
+                                    >
+                                        <Typography.Body style={{ fontSize: '0.78rem', width: 110, flexShrink: 0, color: 'var(--color-text-secondary)' }}>{stage.label}</Typography.Body>
+                                        <div style={{ flex: 1, height: 14, borderRadius: 7, background: 'var(--color-bg-hover)', overflow: 'hidden' }}>
+                                            <div style={{ width: `${Math.round((stage.count / maxC) * 100)}%`, height: '100%', background: stage.color, borderRadius: 7, transition: 'width 0.3s' }} />
+                                        </div>
+                                        <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, minWidth: 44, textAlign: 'right' }}>{stage.count}</Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', minWidth: 36, textAlign: 'right' }}>{Math.round((stage.count / totalC) * 100)}%</Typography.Body>
+                                    </button>
+                                );
+                            });
                         })()}
                     </div>
+                    {selectedFunnelStatusKey && (
+                        <div style={{ marginTop: '0.55rem', border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.55rem', background: 'var(--color-bg-hover)' }}>
+                            <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                                Заказчики по статусу: {statusFunnel.find((s) => s.key === selectedFunnelStatusKey)?.label || selectedFunnelStatusKey}
+                            </Typography.Body>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                                {(statusFunnelCustomers[selectedFunnelStatusKey] ?? []).map((name) => (
+                                    <span key={name} style={{ fontSize: '0.72rem', padding: '0.2rem 0.45rem', borderRadius: 999, border: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
+                                        {name}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </Panel>
             )}
 
@@ -3849,6 +3918,11 @@ export function DashboardPage({
                             if (l.includes('пути') || l.includes('отправлен')) return '#3b82f6';
                             return '#94a3b8';
                         };
+                        const routeColor = (r: string) => {
+                            if (r === 'MSK-KGD') return '#2563eb';
+                            if (r === 'KGD-MSK') return '#7c3aed';
+                            return '#64748b';
+                        };
                         return (
                             <div style={{ marginTop: '0.6rem' }}>
                                 <Typography.Body style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.4rem', color: bucket.color }}>
@@ -3862,6 +3936,7 @@ export function DashboardPage({
                                                 <th style={thStyle('left')} onClick={() => toggleSort('customer')}>Заказчик{arrow('customer')}</th>
                                                 <th style={thStyle('center')} onClick={() => toggleSort('status')}>Статус{arrow('status')}</th>
                                                 <th style={thStyle('center')} onClick={() => toggleSort('shipmentStatus')}>Статус перевозки{arrow('shipmentStatus')}</th>
+                                                <th style={{ ...thStyle('center'), cursor: 'default' }}>Маршрут</th>
                                                 <th style={thStyle('right')} onClick={() => toggleSort('sum')}>Сумма{arrow('sum')}</th>
                                                 <th style={thStyle('right')} onClick={() => toggleSort('days')}>Дней{arrow('days')}</th>
                                             </tr>
@@ -3872,6 +3947,8 @@ export function DashboardPage({
                                                 const stColor = /оплач/i.test(st) ? '#10b981' : /частич/i.test(st) ? '#f59e0b' : /просроч/i.test(st) ? '#ef4444' : /выставлен|ожида/i.test(st) ? '#3b82f6' : '#94a3b8';
                                                 const shipSt = inv.shipmentStatus || '—';
                                                 const shipStColor = shipmentColor(shipSt);
+                                                const route = inv.route || '—';
+                                                const routeBadgeColor = routeColor(route);
                                                 return (
                                                 <tr key={`aging-inv-${idx}`} style={{ borderTop: '1px solid var(--color-border)' }}>
                                                     <td style={{ padding: '0.3rem 0.5rem', whiteSpace: 'nowrap' }}>{inv.number}</td>
@@ -3881,6 +3958,9 @@ export function DashboardPage({
                                                     </td>
                                                     <td style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
                                                         <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${shipStColor}18`, color: shipStColor, border: `1px solid ${shipStColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{shipSt}</span>
+                                                    </td>
+                                                    <td style={{ padding: '0.3rem 0.5rem', textAlign: 'center' }}>
+                                                        <span style={{ fontSize: '0.65rem', padding: '0.12rem 0.4rem', borderRadius: 999, background: `${routeBadgeColor}18`, color: routeBadgeColor, border: `1px solid ${routeBadgeColor}44`, fontWeight: 600, whiteSpace: 'nowrap' }}>{route}</span>
                                                     </td>
                                                     <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', fontWeight: 600 }}>{formatCurrency(inv.sum, true)}</td>
                                                     <td style={{ padding: '0.3rem 0.5rem', textAlign: 'right', color: bucket.color, fontWeight: 600 }}>{inv.days}</td>
@@ -3943,15 +4023,36 @@ export function DashboardPage({
                             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>повторных</Typography.Body>
                         </div>
                         <div style={{ textAlign: 'center' }}>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem' }}>{repeatCustomers.total}</Typography.Body>
+                            <button
+                                type="button"
+                                onClick={() => setRepeatCustomersListMode((m) => (m === 'all' ? null : 'all'))}
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit' }}
+                                title="Показать список всех заказчиков"
+                            >
+                                <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', textDecoration: repeatCustomersListMode === 'all' ? 'underline' : 'none' }}>{repeatCustomers.total}</Typography.Body>
+                            </button>
                             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>всего клиентов</Typography.Body>
                         </div>
                         <div style={{ textAlign: 'center' }}>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#3b82f6' }}>{repeatCustomers.repeat}</Typography.Body>
+                            <button
+                                type="button"
+                                onClick={() => setRepeatCustomersListMode((m) => (m === 'repeat' ? null : 'repeat'))}
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit' }}
+                                title="Показать список повторных заказчиков"
+                            >
+                                <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#3b82f6', textDecoration: repeatCustomersListMode === 'repeat' ? 'underline' : 'none' }}>{repeatCustomers.repeat}</Typography.Body>
+                            </button>
                             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>повторных</Typography.Body>
                         </div>
                         <div style={{ textAlign: 'center' }}>
-                            <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#f59e0b' }}>{repeatCustomers.new}</Typography.Body>
+                            <button
+                                type="button"
+                                onClick={() => setRepeatCustomersListMode((m) => (m === 'new' ? null : 'new'))}
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit' }}
+                                title="Показать список новых заказчиков"
+                            >
+                                <Typography.Body style={{ fontWeight: 700, fontSize: '1.5rem', color: '#f59e0b', textDecoration: repeatCustomersListMode === 'new' ? 'underline' : 'none' }}>{repeatCustomers.new}</Typography.Body>
+                            </button>
                             <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>новых</Typography.Body>
                         </div>
                     </Flex>
@@ -3963,6 +4064,29 @@ export function DashboardPage({
                         <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} /><Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Повторные</Typography.Body></Flex>
                         <Flex align="center" gap="0.25rem"><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} /><Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>Новые</Typography.Body></Flex>
                     </Flex>
+                    {repeatCustomersListMode && (
+                        <div style={{ marginTop: '0.6rem', padding: '0.55rem', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                            <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, marginBottom: '0.35rem' }}>
+                                {repeatCustomersListMode === 'all'
+                                    ? `Все заказчики (${repeatCustomers.allList.length})`
+                                    : repeatCustomersListMode === 'repeat'
+                                        ? `Повторные заказчики (${repeatCustomers.repeatList.length})`
+                                        : `Новые заказчики (${repeatCustomers.newList.length})`}
+                            </Typography.Body>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                                {(repeatCustomersListMode === 'all'
+                                    ? repeatCustomers.allList
+                                    : repeatCustomersListMode === 'repeat'
+                                        ? repeatCustomers.repeatList
+                                        : repeatCustomers.newList
+                                ).map((name) => (
+                                    <span key={name} style={{ fontSize: '0.72rem', padding: '0.2rem 0.45rem', borderRadius: 999, border: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
+                                        {stripOoo(name)}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </Panel>
             )}
 

@@ -11,13 +11,16 @@ export function PlReportView() {
   const [filters, setFilters] = useState(defaultFiltersState);
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const updateFilter = (key: string, value: string | number) => setFilters((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
     setError(null);
+    setLoading(true);
     pnlGet('/api/pnl', filtersToParams(filters))
       .then((d) => { setData(d?.error ? null : d); if (d?.error) setError(d.error); })
-      .catch((err) => { setData(null); setError(err?.message ?? 'Ошибка загрузки данных'); });
+      .catch((err) => { setData(null); setError(err?.message ?? 'Ошибка загрузки данных'); })
+      .finally(() => setLoading(false));
   }, [filters.month, filters.year, filters.direction, filters.transportType]);
 
   if (error && !data) return (
@@ -27,7 +30,14 @@ export function PlReportView() {
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800">{error}</div>
     </div>
   );
-  if (!data) return <div className="animate-pulse">Загрузка...</div>;
+  if (loading) return <div className="animate-pulse">Загрузка...</div>;
+  if (!data) return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold text-slate-900">P&L отчёт</h1><p className="text-slate-500">Структурированный отчёт о прибылях и убытках</p></div>
+      <Filters {...filters} onChange={updateFilter} />
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800">Нет данных для построения отчёта за выбранный период.</div>
+    </div>
+  );
 
   const { pnl, cogsByStage, opexByDept, revenueByDir } = data;
   const stageOrder = ['PICKUP', 'DEPARTURE_WAREHOUSE', 'MAINLINE', 'ARRIVAL_WAREHOUSE', 'LAST_MILE'];

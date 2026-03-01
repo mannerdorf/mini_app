@@ -132,6 +132,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [sending, setSending] = useState(false);
     const [list, setList] = useState<ExpenseRequestItem[]>(() => loadStoredRequests(auth?.login ?? ""));
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [isFormOpen, setIsFormOpen] = useState(false);
 
     const [department, setDepartment] = useState(fallbackDepartment);
     const [departmentLoading, setDepartmentLoading] = useState(false);
@@ -425,6 +426,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
 
     const startEdit = useCallback((item: ExpenseRequestItem) => {
         setEditingId(item.id);
+        setIsFormOpen(true);
         setDocNumber(item.docNumber ?? "");
         setDocDate(item.docDate ?? "");
         setPeriod(item.period ?? "");
@@ -498,10 +500,23 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             <Panel ref={formPanelRef} className="cargo-card" style={{ marginBottom: "1rem", background: "var(--color-bg-card)", borderRadius: "12px", padding: "1rem 1.25rem" }}>
                 <Flex justify="space-between" align="center" style={{ marginBottom: "0.75rem" }}>
                     <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600 }}>{editingId ? "Редактирование заявки" : "Новая заявка"}</Typography.Body>
-                    {editingId && (
-                        <button type="button" onClick={cancelEdit} style={{ fontSize: "0.72rem", padding: "0.25rem 0.5rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", cursor: "pointer" }}>Отмена</button>
-                    )}
+                    <Flex align="center" gap="0.35rem">
+                        {!editingId && (
+                            <button
+                                type="button"
+                                onClick={() => setIsFormOpen((v) => !v)}
+                                style={{ fontSize: "0.72rem", padding: "0.25rem 0.5rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.25rem" }}
+                            >
+                                {isFormOpen ? "Свернуть" : "Развернуть"}
+                                <ChevronDown className="w-3.5 h-3.5" style={{ transform: isFormOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                            </button>
+                        )}
+                        {editingId && (
+                            <button type="button" onClick={cancelEdit} style={{ fontSize: "0.72rem", padding: "0.25rem 0.5rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", cursor: "pointer" }}>Отмена</button>
+                        )}
+                    </Flex>
                 </Flex>
+                {(isFormOpen || !!editingId) && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                     {/* Doc number + date + period */}
                     <Flex gap="0.75rem" style={{ flexWrap: "wrap", alignItems: "flex-start" }}>
@@ -795,6 +810,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                         <span style={{ marginLeft: "0.35rem" }}>{editingId ? "Сохранить изменения" : "Отправить заявку"}</span>
                     </Button>
                 </div>
+                )}
             </Panel>
 
             <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem" }}>Мои заявки</Typography.Body>
