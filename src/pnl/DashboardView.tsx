@@ -26,20 +26,28 @@ export function DashboardView() {
   const [pnl, setPnl] = useState<any>(null);
   const [unitEcon, setUnitEcon] = useState<any>(null);
   const [charts, setCharts] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const updateFilter = (key: string, value: string | number) => setFilters((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
+    setError(null);
     const params = filtersToParams(filters);
     Promise.all([
       pnlGet('/api/pnl', params),
       pnlGet('/api/unit-economics', params),
       pnlGet('/api/charts', params),
-    ]).then(([p, u, c]: any[]) => {
-      setPnl(p?.pnl ?? p);
-      setUnitEcon(u);
-      setCharts(c);
-    });
+    ])
+      .then(([p, u, c]: any[]) => {
+        setPnl(p?.error ? null : (p?.pnl ?? p));
+        setUnitEcon(u?.error ? null : u);
+        setCharts(c?.error ? null : c);
+        if (p?.error || u?.error || c?.error) setError((p?.error || u?.error || c?.error) ?? 'Ошибка загрузки');
+      })
+      .catch((err) => {
+        setPnl(null); setUnitEcon(null); setCharts(null);
+        setError(err?.message ?? 'Ошибка загрузки данных');
+      });
   }, [filters.month, filters.year, filters.direction, filters.transportType]);
 
   const stageLabels: Record<string, string> = {
@@ -62,6 +70,11 @@ export function DashboardView() {
         <p className="text-slate-500">Ключевые показатели и графики</p>
       </div>
       <Filters {...filters} onChange={updateFilter} />
+      {error && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800">
+          {error}
+        </div>
+      )}
       {pnl && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <KpiCard title="Выручка" value={formatRub(pnl.revenue)} />

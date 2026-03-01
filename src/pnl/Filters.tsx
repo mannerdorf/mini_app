@@ -25,11 +25,11 @@ interface FiltersProps extends FiltersState {
 const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
 
 export function filtersToParams(f: FiltersState): Record<string, string> {
-  const from = new Date(f.year, f.month - 1, 1);
-  const to = new Date(f.year, f.month, 0, 23, 59, 59);
+  const ms = String(f.month).padStart(2, '0');
+  const lastDay = new Date(f.year, f.month, 0).getDate();
   const p: Record<string, string> = {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
+    from: `${f.year}-${ms}-01`,
+    to: `${f.year}-${ms}-${String(lastDay).padStart(2, '0')}`,
   };
   if (f.direction !== 'all') p.direction = f.direction;
   if (f.transportType !== 'all') p.transportType = f.transportType;
