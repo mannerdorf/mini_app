@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { pnlGet, pnlPost } from './api';
-import { DIRECTION_LABELS, MONTHS } from './constants';
+import { DEPARTMENT_LABELS, DIRECTION_LABELS, LOGISTICS_STAGE_LABELS, MONTHS } from './constants';
 import { CheckCircle, Plus, Trash2 } from 'lucide-react';
 
 const MAINLINE_DIRECTIONS = ['MSK_TO_KGD', 'KGD_TO_MSK'] as const;
@@ -16,6 +16,9 @@ interface SavedExpense {
   comment?: string | null;
   direction?: string;
   transportType?: string;
+  type?: string | null;
+  department?: string | null;
+  logisticsStage?: string | null;
   source?: 'manual' | 'expense_request';
   requestStatus?: string | null;
 }
@@ -41,6 +44,21 @@ function mapDepartmentToPnl(raw?: string | null): { department: string; logistic
   if (s.includes('сервис')) return { department: 'SERVICE', logisticsStage: null };
   if (s === 'it' || s.includes(' айти') || s.includes('it ')) return { department: 'IT', logisticsStage: null };
   return { department: source || 'GENERAL', logisticsStage: null };
+}
+
+function getExpenseTypeLabel(type?: string | null): string {
+  const t = String(type ?? '').trim().toUpperCase();
+  if (t === 'COGS' || t === 'OPEX' || t === 'CAPEX') return t;
+  return t || '—';
+}
+
+function getSubdivisionLabel(department?: string | null, logisticsStage?: string | null): string {
+  const dep = String(department ?? '').trim().toUpperCase();
+  const stage = String(logisticsStage ?? '').trim().toUpperCase();
+  const depLabel = dep ? ((DEPARTMENT_LABELS as Record<string, string>)[dep] ?? dep) : '';
+  const stageLabel = stage ? ((LOGISTICS_STAGE_LABELS as Record<string, string>)[stage] ?? stage) : '';
+  if (depLabel && stageLabel) return `${depLabel} / ${stageLabel}`;
+  return depLabel || stageLabel || '—';
 }
 
 function getLocalApprovedPaidExpenses(month: number, year: number, department: string): SavedExpense[] {
@@ -75,6 +93,9 @@ function getLocalApprovedPaidExpenses(month: number, year: number, department: s
           comment: String(item?.comment ?? '').trim() || null,
           direction: '',
           transportType: '',
+          type: 'OPEX',
+          department: mapped.department,
+          logisticsStage: mapped.logisticsStage,
           source: 'expense_request',
           requestStatus: status,
         });
@@ -214,7 +235,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
           <>
             <div className="overflow-x-auto">
               <table className="min-w-full">
-                <thead><tr className="border-b border-slate-100 bg-slate-50"><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Статья</th>{isMainline && <th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Направление</th>}<th className="px-6 py-2 text-right text-sm font-medium text-slate-600">Сумма</th><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Комментарий</th><th className="px-6 py-2 w-12" /></tr></thead>
+                <thead><tr className="border-b border-slate-100 bg-slate-50"><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Статья</th><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Подразделение</th><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Тип</th>{isMainline && <th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Направление</th>}<th className="px-6 py-2 text-right text-sm font-medium text-slate-600">Сумма</th><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Комментарий</th><th className="px-6 py-2 w-12" /></tr></thead>
                 <tbody>
                   {savedExpenses.map((e) => {
                     const key = rowKey(e);
@@ -222,9 +243,15 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                     const isEA = editingAmount?.key === key;
                     const isEC = editingComment?.key === key;
                     const dir = e.direction ?? ''; const transport = e.transportType ?? '';
+                    const cat = filteredCats.find((c) => c.id === e.categoryId);
+                    const departmentValue = e.department ?? cat?.department ?? department;
+                    const logisticsStageValue = e.logisticsStage ?? cat?.logisticsStage ?? logisticsStage ?? null;
+                    const typeValue = e.type ?? cat?.type ?? 'OPEX';
                     return (
                       <tr key={key} className="border-b border-slate-50 hover:bg-slate-50">
                         <td className="px-6 py-2 text-slate-900">{e.categoryName}</td>
+                        <td className="px-6 py-2 text-slate-600 text-sm">{getSubdivisionLabel(departmentValue, logisticsStageValue)}</td>
+                        <td className="px-6 py-2 text-slate-600 text-sm">{getExpenseTypeLabel(typeValue)}</td>
                         {isMainline && <td className="px-6 py-2 text-slate-600 text-sm">{dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${transport === 'FERRY' ? 'паром' : 'авто'}` : '—'}</td>}
                         <td className="px-6 py-2 text-right">
                           {isRequestExpense ? (

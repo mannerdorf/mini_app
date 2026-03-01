@@ -42,7 +42,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let expenseQuery = `SELECT m.category_id AS "categoryId", c.name AS "categoryName",
                                m.amount, m.comment, m.direction,
-                               m.transport_type AS "transportType"
+                               m.transport_type AS "transportType",
+                               c.type AS "type",
+                               c.department AS "department",
+                               c.logistics_stage AS "logisticsStage"
                         FROM pnl_manual_expenses m
                         JOIN pnl_expense_categories c ON c.id = m.category_id
                         WHERE m.period = $1`;
@@ -74,6 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 er.comment,
                 er.status,
                 er.department,
+                ec.cost_type AS "type",
                 er.period,
                 er.doc_date,
                 er.created_at
@@ -110,6 +114,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         comment: e.comment ?? null,
         direction: "",
         transportType: "",
+        type: e.type ?? "OPEX",
+        department: mapDepartmentToPnl(e.department).department,
+        logisticsStage: mapDepartmentToPnl(e.department).logisticsStage,
         source: "expense_request",
         requestStatus: e.status,
       }));
@@ -118,21 +125,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (requestExpenses.length === 0 && department != null) {
       let requestOpsRows: any[] = [];
       try {
-        const fallbackParams: unknown[] = [period, department];
         const result = await pool.query(
           `SELECT id,
                   purpose,
                   amount,
-                  operation_type
+                  operation_type,
+                  department
            FROM pnl_operations
            WHERE date_trunc('month', date) = $1::date
-             AND department = $2
              AND purpose ILIKE 'Согласование заявки %'
              AND operation_type IN ('COGS', 'OPEX', 'CAPEX')
            ORDER BY date DESC`,
-          fallbackParams
+          [period]
         );
-        requestOpsRows = result.rows;
+        requestOpsRows = result.rows.filter((r: any) => {
+          const mapped = mapDepartmentToPnl(r.department);
+          return mapped.department === department;
+        });
       } catch (e) {
         console.error("pnl-manual-entry fallback pnl_operations read failed:", e);
         requestOpsRows = [];
@@ -152,6 +161,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           comment: purpose || null,
           direction: "",
           transportType: "",
+          type: String(r.operation_type || "OPEX"),
+          department: mapDepartmentToPnl(r.department).department,
+          logisticsStage: mapDepartmentToPnl(r.department).logisticsStage,
           source: "expense_request",
           requestStatus: "approved",
         };
@@ -167,6 +179,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         comment: e.comment ?? null,
         direction: e.direction ?? "",
         transportType: e.transportType ?? "",
+        type: e.type ?? "OPEX",
+        department: e.department ?? null,
+        logisticsStage: e.logisticsStage ?? null,
         source: "manual",
         requestStatus: null,
       })),
