@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Filters } from './Filters';
+import { Filters, defaultFiltersState, filtersToParams } from './Filters';
 import { pnlGet, pnlPost } from './api';
 import { Plus, CreditCard, FileText } from 'lucide-react';
 
@@ -11,22 +11,19 @@ function formatDate(d: string | Date) { return new Date(d).toLocaleDateString('r
 interface Payment { id: string; date: string; counterparty: string; purpose: string | null; amount: number; type: string; }
 
 export function CreditsView() {
-  const [filters, setFilters] = useState({ from: '', to: '', direction: 'all', transportType: 'all' });
+  const [filters, setFilters] = useState(defaultFiltersState);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState('all');
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), counterparty: '', purpose: '', amount: '', type: 'CREDIT' as 'CREDIT' | 'LEASING' });
   const [saving, setSaving] = useState(false);
-  const updateFilter = (key: string, value: string) => setFilters((f) => ({ ...f, [key]: value }));
-
-  const params: Record<string, string> = {};
-  if (filters.from) params.from = filters.from;
-  if (filters.to) params.to = filters.to;
-  if (typeFilter !== 'all') params.type = typeFilter;
+  const updateFilter = (key: string, value: string | number) => setFilters((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
+    const params = filtersToParams(filters);
+    if (typeFilter !== 'all') params.type = typeFilter;
     pnlGet<Payment[]>('/api/credits', params).then(setPayments).finally(() => setLoading(false));
-  }, [filters.from, filters.to, typeFilter]);
+  }, [filters.month, filters.year, typeFilter]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

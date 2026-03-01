@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Filters } from './Filters';
+import { Filters, defaultFiltersState, filtersToParams } from './Filters';
 import { pnlGet } from './api';
 import { OPERATION_TYPE_LABELS, DEPARTMENT_LABELS, LOGISTICS_STAGE_LABELS, DIRECTION_LABELS } from './constants';
 
@@ -12,17 +12,13 @@ function formatDate(d: string | Date) {
 }
 
 export function OperationsView() {
-  const [filters, setFilters] = useState({ from: '', to: '', direction: 'all', transportType: 'all' });
+  const [filters, setFilters] = useState(defaultFiltersState);
   const [ops, setOps] = useState<any[]>([]);
-  const updateFilter = (key: string, value: string) => setFilters((f) => ({ ...f, [key]: value }));
+  const updateFilter = (key: string, value: string | number) => setFilters((f) => ({ ...f, [key]: value }));
 
-  const params: Record<string, string> = {};
-  if (filters.from) params.from = filters.from;
-  if (filters.to) params.to = filters.to;
-  if (filters.direction !== 'all') params.direction = filters.direction;
-  if (filters.transportType !== 'all') params.transportType = filters.transportType;
-
-  useEffect(() => { pnlGet<any[]>('/api/operations', params).then(setOps); }, [filters.from, filters.to, filters.direction, filters.transportType]);
+  useEffect(() => {
+    pnlGet<any[]>('/api/operations', filtersToParams(filters)).then(setOps);
+  }, [filters.month, filters.year, filters.direction, filters.transportType]);
 
   return (
     <div className="space-y-6">

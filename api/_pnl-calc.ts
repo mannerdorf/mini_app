@@ -67,6 +67,11 @@ async function opsSum(
     params.push(f.direction);
     idx.v++;
   }
+  if (f.transportType) {
+    conds.push(`transport_type = $${idx.v}`);
+    params.push(f.transportType);
+    idx.v++;
+  }
   const sql = `SELECT coalesce(sum(abs(amount)),0) AS total FROM pnl_operations WHERE ${conds.join(" AND ")}`;
   const { rows } = await pool.query(sql, params);
   return Number(rows[0].total);
@@ -126,6 +131,11 @@ export async function getPnL(
       if (f.direction) {
         c.push(`direction = $${idx.v}`);
         p.push(f.direction);
+        idx.v++;
+      }
+      if (f.transportType) {
+        c.push(`transport_type = $${idx.v}`);
+        p.push(f.transportType);
         idx.v++;
       }
       const { rows } = await pool.query(
@@ -214,6 +224,11 @@ export async function getCogsByStage(
       p.push(f.direction);
       idx.v++;
     }
+    if (f.transportType) {
+      c.push(`transport_type = $${idx.v}`);
+      p.push(f.transportType);
+      idx.v++;
+    }
     const { rows } = await pool.query(
       `SELECT logistics_stage, sum(abs(amount)) AS total FROM pnl_operations WHERE ${c.join(" AND ")} GROUP BY logistics_stage`,
       p
@@ -260,6 +275,16 @@ export async function getOpexByDepartment(
     const idx = { v: 2 };
     const c = ["operation_type = $1"];
     c.push(...buildDateWhere("date", f, p, idx));
+    if (f.direction) {
+      c.push(`direction = $${idx.v}`);
+      p.push(f.direction);
+      idx.v++;
+    }
+    if (f.transportType) {
+      c.push(`transport_type = $${idx.v}`);
+      p.push(f.transportType);
+      idx.v++;
+    }
     const { rows } = await pool.query(
       `SELECT department, sum(abs(amount)) AS total FROM pnl_operations WHERE ${c.join(" AND ")} GROUP BY department`,
       p
@@ -307,7 +332,7 @@ export async function getRevenueByDirection(
     transport && transport !== "" ? `${dir}:${transport}` : dir;
   const byKey: Record<string, number> = {};
 
-  if (!f.transportType) {
+  {
     const p: unknown[] = ["REVENUE"];
     const idx = { v: 2 };
     const c = ["operation_type = $1", "direction IS NOT NULL"];
@@ -317,12 +342,19 @@ export async function getRevenueByDirection(
       p.push(f.direction);
       idx.v++;
     }
+    if (f.transportType) {
+      c.push(`transport_type = $${idx.v}`);
+      p.push(f.transportType);
+      idx.v++;
+    }
     const { rows } = await pool.query(
-      `SELECT direction, sum(abs(amount)) AS total FROM pnl_operations WHERE ${c.join(" AND ")} GROUP BY direction`,
+      `SELECT direction, transport_type, sum(abs(amount)) AS total FROM pnl_operations WHERE ${c.join(" AND ")} GROUP BY direction, transport_type`,
       p
     );
-    for (const r of rows)
-      byKey[r.direction] = (byKey[r.direction] || 0) + Number(r.total);
+    for (const r of rows) {
+      const k = key(r.direction, r.transport_type);
+      byKey[k] = (byKey[k] || 0) + Number(r.total);
+    }
   }
 
   {
@@ -461,6 +493,11 @@ export async function getUnitEconomics(
   if (f.direction) {
     conds.push(`direction = $${idx.v}`);
     p.push(f.direction);
+    idx.v++;
+  }
+  if (f.transportType) {
+    conds.push(`transport_type = $${idx.v}`);
+    p.push(f.transportType);
     idx.v++;
   }
   const { rows } = await pool.query(

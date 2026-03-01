@@ -88,9 +88,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const purpose = direction === "MSK_TO_KGD" ? "Продажи МСК→КГД" : "Продажи КГД→МСК";
           const dept = direction === "MSK_TO_KGD" ? "LOGISTICS_MSK" : "LOGISTICS_KGD";
           await client.query(
-            `INSERT INTO pnl_operations (date, counterparty, purpose, amount, operation_type, department, direction)
-             VALUES ($1, $2, $3, $4, 'REVENUE', $5, $6)`,
-            [date, "—", `${purpose} (${transportType === "FERRY" ? "паром" : "авто"})`, revenue, dept, direction]
+            `INSERT INTO pnl_operations (date, counterparty, purpose, amount, operation_type, department, direction, transport_type)
+             VALUES ($1, $2, $3, $4, 'REVENUE', $5, $6, $7)`,
+            [date, "—", `${purpose} (${transportType === "FERRY" ? "паром" : "авто"})`, revenue, dept, direction, transportType]
           );
         }
       }

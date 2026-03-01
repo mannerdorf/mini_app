@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Filters } from './Filters';
+import { Filters, defaultFiltersState, filtersToParams } from './Filters';
 import { pnlGet } from './api';
 import { LOGISTICS_STAGE_LABELS, DEPARTMENT_LABELS } from './constants';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -18,18 +18,13 @@ function KpiCard({ title, value }: { title: string; value: string }) {
 }
 
 export function PerKgView() {
-  const [filters, setFilters] = useState({ from: '', to: '', direction: 'all', transportType: 'all' });
+  const [filters, setFilters] = useState(defaultFiltersState);
   const [unitEcon, setUnitEcon] = useState<any>(null);
   const [monthlyMargin, setMonthlyMargin] = useState<any[]>([]);
-  const updateFilter = (key: string, value: string) => setFilters((f) => ({ ...f, [key]: value }));
-
-  const params: Record<string, string> = {};
-  if (filters.from) params.from = filters.from;
-  if (filters.to) params.to = filters.to;
-  if (filters.direction !== 'all') params.direction = filters.direction;
-  if (filters.transportType !== 'all') params.transportType = filters.transportType;
+  const updateFilter = (key: string, value: string | number) => setFilters((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
+    const params = filtersToParams(filters);
     Promise.all([
       pnlGet('/api/unit-economics', params),
       pnlGet<any[]>('/api/charts/monthly-margin', params),
@@ -37,7 +32,7 @@ export function PerKgView() {
       setUnitEcon(ue);
       setMonthlyMargin(Array.isArray(margin) ? margin : []);
     });
-  }, [filters.from, filters.to, filters.direction, filters.transportType]);
+  }, [filters.month, filters.year, filters.direction, filters.transportType]);
 
   if (!unitEcon) return <div className="animate-pulse">Загрузка...</div>;
 

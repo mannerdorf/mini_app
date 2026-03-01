@@ -1,25 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Filters } from './Filters';
+import { Filters, defaultFiltersState, filtersToParams } from './Filters';
 import { pnlGet } from './api';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface Alert { type: string; message: string; severity: 'warning' | 'error'; }
 
 export function AlertsView() {
-  const [filters, setFilters] = useState({ from: '', to: '', direction: 'all', transportType: 'all' });
+  const [filters, setFilters] = useState(defaultFiltersState);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
-  const updateFilter = (key: string, value: string) => setFilters((f) => ({ ...f, [key]: value }));
-
-  const params: Record<string, string> = {};
-  if (filters.from) params.from = filters.from;
-  if (filters.to) params.to = filters.to;
-  if (filters.direction !== 'all') params.direction = filters.direction;
-  if (filters.transportType !== 'all') params.transportType = filters.transportType;
+  const updateFilter = (key: string, value: string | number) => setFilters((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
-    pnlGet<any>('/api/alerts', params).then((d) => setAlerts(d.alerts ?? [])).finally(() => setLoading(false));
-  }, [filters.from, filters.to, filters.direction, filters.transportType]);
+    pnlGet<any>('/api/alerts', filtersToParams(filters)).then((d) => setAlerts(d.alerts ?? [])).finally(() => setLoading(false));
+  }, [filters.month, filters.year, filters.direction, filters.transportType]);
 
   return (
     <div className="space-y-6">

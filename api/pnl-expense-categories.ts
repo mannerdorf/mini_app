@@ -8,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
     const { rows } = await pool.query(
       `SELECT id, name, department, type, logistics_stage AS "logisticsStage",
-              sort_order AS "sortOrder", created_at AS "createdAt"
+              sort_order AS "sortOrder", expense_category_id AS "expenseCategoryId", created_at AS "createdAt"
        FROM pnl_expense_categories ORDER BY department, sort_order, name`
     );
     return res.json(rows);
@@ -16,14 +16,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "POST") {
     const b = req.body;
-    if (!b.name?.trim()) return res.status(400).json({ error: "Название обязательно" });
     if (!b.department) return res.status(400).json({ error: "Укажите подразделение" });
+
+    let name: string;
+    let expenseCategoryId: string | null = null;
+
+    if (b.expenseCategoryId) {
+      const { rows: ec } = await pool.query(
+        `SELECT name FROM expense_categories WHERE id = $1`,
+        [b.expenseCategoryId]
+      );
+      if (!ec?.length) return res.status(400).json({ error: "Статья расхода не найдена" });
+      name = ec[0].name;
+      expenseCategoryId = b.expenseCategoryId;
+      const { rows: exist } = await pool.query(
+        `SELECT 1 FROM pnl_expense_categories WHERE expense_category_id = $1 AND department = $2 AND (logistics_stage IS NOT DISTINCT FROM $3)`,
+        [b.expenseCategoryId, b.department, b.logisticsStage ?? null]
+      );
+      if (exist?.length) return res.status(400).json({ error: "Такая статья уже есть в этом подразделении" });
+    } else if (b.name?.trim()) {
+      name = b.name.trim();
+    } else {
+      return res.status(400).json({ error: "Укажите статью расхода (expenseCategoryId или name)" });
+    }
+
     const { rows } = await pool.query(
-      `INSERT INTO pnl_expense_categories (name, department, type, logistics_stage, sort_order)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO pnl_expense_categories (name, department, type, logistics_stage, sort_order, expense_category_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, name, department, type, logistics_stage AS "logisticsStage",
-                 sort_order AS "sortOrder", created_at AS "createdAt"`,
-      [b.name.trim(), b.department, b.type || "OPEX", b.logisticsStage ?? null, b.sortOrder ?? 0]
+                 sort_order AS "sortOrder", expense_category_id AS "expenseCategoryId", created_at AS "createdAt"`,
+      [name, b.department, b.type || "OPEX", b.logisticsStage ?? null, b.sortOrder ?? 0, expenseCategoryId]
     );
     return res.json(rows[0]);
   }
@@ -43,7 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { rows } = await pool.query(
       `UPDATE pnl_expense_categories SET ${sets.join(", ")} WHERE id = $${idx}
        RETURNING id, name, department, type, logistics_stage AS "logisticsStage",
-                 sort_order AS "sortOrder", created_at AS "createdAt"`,
+                 sort_order AS "sortOrder", expense_category_id AS "expenseCategoryId", created_at AS "createdAt"`,
       params
     );
     return res.json(rows[0]);

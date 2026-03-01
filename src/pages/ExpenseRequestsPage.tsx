@@ -44,17 +44,18 @@ export type ExpenseRequestItem = {
     webhookSentAt?: string;
 };
 
-const MOCK_CATEGORIES = [
-    { id: "fuel", name: "Топливо" },
-    { id: "repair", name: "Ремонт и обслуживание" },
-    { id: "spare_parts", name: "Запасные части" },
-    { id: "salary", name: "Зарплата" },
-    { id: "office", name: "Офис" },
-    { id: "rent", name: "Аренда" },
-    { id: "insurance", name: "Страхование" },
-    { id: "mainline", name: "Магистраль" },
-    { id: "pickup_logistics", name: "Заборная логистика" },
-    { id: "other", name: "Прочее" },
+/** Статьи расходов по умолчанию (если API недоступен) — совпадают с expense_categories. */
+const FALLBACK_CATEGORIES = [
+    { id: "fuel", name: "Топливо", costType: "COGS" as const },
+    { id: "repair", name: "Ремонт и обслуживание", costType: "COGS" as const },
+    { id: "spare_parts", name: "Запасные части", costType: "COGS" as const },
+    { id: "salary", name: "Зарплата", costType: "OPEX" as const },
+    { id: "office", name: "Офис", costType: "OPEX" as const },
+    { id: "rent", name: "Аренда", costType: "OPEX" as const },
+    { id: "insurance", name: "Страхование", costType: "OPEX" as const },
+    { id: "mainline", name: "Магистраль", costType: "COGS" as const },
+    { id: "pickup_logistics", name: "Заборная логистика", costType: "COGS" as const },
+    { id: "other", name: "Прочее", costType: "OPEX" as const },
 ];
 
 /** Нормализация отображения ТС (контейнер / гос. номер / прочее). Повторяет логику DocumentsPage. */
@@ -136,6 +137,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [departmentLoading, setDepartmentLoading] = useState(false);
     const [vehicles, setVehicles] = useState<string[]>([]);
     const [vehiclesLoading, setVehiclesLoading] = useState(false);
+    const [categories, setCategories] = useState<{ id: string; name: string }[]>(FALLBACK_CATEGORIES);
     const [employees, setEmployees] = useState<{ id: number; fullName: string; login: string; position?: string }[]>([]);
     const [selectedEmployee, setSelectedEmployee] = useState("");
     const [employeeSearch, setEmployeeSearch] = useState("");
@@ -143,6 +145,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
 
     const vehicleDropdownRef = useRef<HTMLDivElement>(null);
     const employeeDropdownRef = useRef<HTMLDivElement>(null);
+    const formPanelRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setList(loadStoredRequests(auth?.login ?? ""));
@@ -175,6 +178,19 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             .catch(() => { /* keep fallback */ })
             .finally(() => setDepartmentLoading(false));
     }, [auth?.login, auth?.password]);
+
+    // --- Справочник статей расходов (единый с PNL) ---
+    useEffect(() => {
+        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        fetch(`${origin}/api/expense-request-categories`)
+            .then((r) => (r.ok ? r.json() : Promise.reject()))
+            .then((data: any[]) => {
+                if (Array.isArray(data) && data.length > 0) {
+                    setCategories(data.map((c: any) => ({ id: c.id ?? "", name: c.name ?? "" })).filter((c) => c.id && c.name));
+                }
+            })
+            .catch(() => { /* keep FALLBACK_CATEGORIES */ });
+    }, []);
 
     // --- Fetch vehicles from perevozki API (same source as Cargo page) ---
     useEffect(() => {
@@ -274,7 +290,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     }, []);
 
     const submit = useCallback(async () => {
-        const cat = MOCK_CATEGORIES.find((c) => c.id === categoryId);
+        const cat = categories.find((c) => c.id === categoryId);
         if (!cat || !amount.trim() || !docNumber.trim()) return;
         const num = parseFloat(amount.replace(",", "."));
         if (!Number.isFinite(num) || num <= 0) return;
@@ -347,7 +363,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 setSending(false);
             }
         }
-    }, [categoryId, amount, vatRate, comment, selectedVehicle, selectedEmployee, files, auth?.login, department, docNumber, docDate, period]);
+    }, [categoryId, amount, vatRate, comment, selectedVehicle, selectedEmployee, files, auth?.login, department, docNumber, docDate, period, categories]);
 
     const sendForApproval = useCallback(async (itemId: string) => {
         setSending(true);
@@ -418,11 +434,12 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setComment(item.comment);
         setSelectedVehicle(item.vehicleOrEmployee ?? "");
         setSelectedEmployee((item as any).employeeName ?? "");
+        setTimeout(() => formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     }, []);
 
     const saveEdit = useCallback(() => {
         if (!editingId) return;
-        const cat = MOCK_CATEGORIES.find((c) => c.id === categoryId);
+        const cat = categories.find((c) => c.id === categoryId);
         if (!cat || !amount.trim() || !docNumber.trim()) return;
         const num = parseFloat(amount.replace(",", "."));
         if (!Number.isFinite(num) || num <= 0) return;
@@ -454,7 +471,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setComment("");
         setSelectedVehicle("");
         setSelectedEmployee("");
-    }, [editingId, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedVehicle, selectedEmployee, auth?.login]);
+    }, [editingId, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedVehicle, selectedEmployee, auth?.login, categories]);
 
     const cancelEdit = useCallback(() => {
         setEditingId(null);
@@ -478,7 +495,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 Укажите статью расхода, сумму, комментарий и при необходимости приложите счёт или выберите транспорт.
             </Typography.Body>
 
-            <Panel className="cargo-card" style={{ marginBottom: "1rem", background: "var(--color-bg-card)", borderRadius: "12px", padding: "1rem 1.25rem" }}>
+            <Panel ref={formPanelRef} className="cargo-card" style={{ marginBottom: "1rem", background: "var(--color-bg-card)", borderRadius: "12px", padding: "1rem 1.25rem" }}>
                 <Flex justify="space-between" align="center" style={{ marginBottom: "0.75rem" }}>
                     <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600 }}>{editingId ? "Редактирование заявки" : "Новая заявка"}</Typography.Body>
                     {editingId && (
@@ -536,7 +553,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                             style={{ width: "100%", padding: "0.5rem" }}
                         >
                             <option value="">Выберите</option>
-                            {MOCK_CATEGORIES.map((c) => (
+                            {categories.map((c) => (
                                 <option key={c.id} value={c.id}>{c.name}</option>
                             ))}
                         </select>

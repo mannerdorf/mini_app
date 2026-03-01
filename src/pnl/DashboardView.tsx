@@ -3,7 +3,7 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart,
 } from 'recharts';
-import { Filters } from './Filters';
+import { Filters, defaultFiltersState, filtersToParams } from './Filters';
 import { pnlGet } from './api';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -22,20 +22,15 @@ function KpiCard({ title, value }: { title: string; value: string }) {
 }
 
 export function DashboardView() {
-  const [filters, setFilters] = useState({ from: '', to: '', direction: 'all', transportType: 'all' });
+  const [filters, setFilters] = useState(defaultFiltersState);
   const [pnl, setPnl] = useState<any>(null);
   const [unitEcon, setUnitEcon] = useState<any>(null);
   const [charts, setCharts] = useState<any>(null);
 
-  const updateFilter = (key: string, value: string) => setFilters((f) => ({ ...f, [key]: value }));
-
-  const params: Record<string, string> = {};
-  if (filters.from) params.from = filters.from;
-  if (filters.to) params.to = filters.to;
-  if (filters.direction !== 'all') params.direction = filters.direction;
-  if (filters.transportType !== 'all') params.transportType = filters.transportType;
+  const updateFilter = (key: string, value: string | number) => setFilters((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
+    const params = filtersToParams(filters);
     Promise.all([
       pnlGet('/api/pnl', params),
       pnlGet('/api/unit-economics', params),
@@ -45,7 +40,7 @@ export function DashboardView() {
       setUnitEcon(u);
       setCharts(c);
     });
-  }, [filters.from, filters.to, filters.direction, filters.transportType]);
+  }, [filters.month, filters.year, filters.direction, filters.transportType]);
 
   const stageLabels: Record<string, string> = {
     PICKUP: 'Забор', DEPARTURE_WAREHOUSE: 'Склад отпр.', MAINLINE: 'Магистраль',

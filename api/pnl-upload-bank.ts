@@ -67,7 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const pool = getPool();
   const { rows: rules } = await pool.query(
-    `SELECT counterparty, operation_type, department, logistics_stage, direction FROM pnl_classification_rules`
+    `SELECT counterparty, operation_type, department, logistics_stage, direction, transport_type FROM pnl_classification_rules`
   );
 
   let created = 0;
@@ -106,9 +106,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     await pool.query(
-      `INSERT INTO pnl_operations (date, counterparty, purpose, amount, operation_type, department, logistics_stage, direction)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [date, counterparty, purpose || counterparty, amount, rule?.operation_type ?? "OPEX", rule?.department ?? "GENERAL", rule?.logistics_stage ?? null, rule?.direction ?? null]
+      `INSERT INTO pnl_operations (date, counterparty, purpose, amount, operation_type, department, logistics_stage, direction, transport_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [date, counterparty, purpose || counterparty, amount, rule?.operation_type ?? "OPEX", rule?.department ?? "GENERAL", rule?.logistics_stage ?? null, rule?.direction ?? null, rule?.transport_type ?? null]
     );
     created++;
   }

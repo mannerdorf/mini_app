@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Filters } from './Filters';
+import { Filters, defaultFiltersState, filtersToParams } from './Filters';
 import { pnlGet } from './api';
 import { LOGISTICS_STAGE_LABELS, DEPARTMENT_LABELS } from './constants';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -18,17 +18,13 @@ function KpiCard({ title, value }: { title: string; value: string }) {
 }
 
 export function UnitEconomicsView() {
-  const [filters, setFilters] = useState({ from: '', to: '', direction: 'all', transportType: 'all' });
+  const [filters, setFilters] = useState(defaultFiltersState);
   const [data, setData] = useState<any>(null);
-  const updateFilter = (key: string, value: string) => setFilters((f) => ({ ...f, [key]: value }));
+  const updateFilter = (key: string, value: string | number) => setFilters((f) => ({ ...f, [key]: value }));
 
-  const params: Record<string, string> = {};
-  if (filters.from) params.from = filters.from;
-  if (filters.to) params.to = filters.to;
-  if (filters.direction !== 'all') params.direction = filters.direction;
-  if (filters.transportType !== 'all') params.transportType = filters.transportType;
-
-  useEffect(() => { pnlGet('/api/unit-economics', params).then(setData); }, [filters.from, filters.to, filters.direction, filters.transportType]);
+  useEffect(() => {
+    pnlGet('/api/unit-economics', filtersToParams(filters)).then(setData);
+  }, [filters.month, filters.year, filters.direction, filters.transportType]);
 
   if (!data) return <div className="animate-pulse">Загрузка...</div>;
 

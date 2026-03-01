@@ -37,7 +37,6 @@ const navMain = [
 ];
 
 const navIncome = [
-  { id: 'ref-income' as PnlView, label: 'Справочник доходов', icon: BookOpen },
   { id: 'upload-sales' as PnlView, label: 'Доходы', icon: DollarSign },
 ];
 

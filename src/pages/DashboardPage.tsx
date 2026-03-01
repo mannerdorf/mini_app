@@ -2151,7 +2151,7 @@ export function DashboardPage({
 
     // ═══════ CLIENT ANALYTICS DATA ═══════
 
-    const clientItems = useMemo(() => items.filter(i => !isReceivedInfoStatus(i.State)), [items]);
+    const clientItems = useMemo(() => filteredItems, [filteredItems]);
     const getCustomerName = (item: any) => (item.Customer ?? item.customer ?? '').trim();
     const getItemDate = (item: any): Date | null => dateUtils.parseDateOnly(String(item.DatePrih ?? '').trim());
     const getItemSum = (item: any) => typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum || 0);

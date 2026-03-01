@@ -1,4 +1,4 @@
-import { DIRECTION_LABELS } from './constants';
+import { DIRECTION_LABELS, MONTHS } from './constants';
 
 const DIRECTIONS = [
   { value: 'all', label: 'Все' },
@@ -11,33 +11,52 @@ const TRANSPORT_TYPES = [
   { value: 'FERRY', label: 'Паром' },
 ];
 
-interface FiltersProps {
-  from: string;
-  to: string;
+export interface FiltersState {
+  month: number;
+  year: number;
   direction: string;
   transportType: string;
-  onChange: (key: string, value: string) => void;
 }
 
-export function Filters({ from, to, direction, transportType, onChange }: FiltersProps) {
-  const setDefaultPeriod = () => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    onChange('from', start.toISOString().slice(0, 10));
-    onChange('to', now.toISOString().slice(0, 10));
-  };
+interface FiltersProps extends FiltersState {
+  onChange: (key: string, value: string | number) => void;
+}
 
+const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
+
+export function filtersToParams(f: FiltersState): Record<string, string> {
+  const from = new Date(f.year, f.month - 1, 1);
+  const to = new Date(f.year, f.month, 0, 23, 59, 59);
+  const p: Record<string, string> = {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+  };
+  if (f.direction !== 'all') p.direction = f.direction;
+  if (f.transportType !== 'all') p.transportType = f.transportType;
+  return p;
+}
+
+export function defaultFiltersState(): FiltersState {
+  const now = new Date();
+  return { month: now.getMonth() + 1, year: now.getFullYear(), direction: 'all', transportType: 'all' };
+}
+
+export function Filters({ month, year, direction, transportType, onChange }: FiltersProps) {
   return (
     <div className="flex flex-wrap items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Период с</label>
-        <input type="date" value={from} onChange={(e) => onChange('from', e.target.value)}
-          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900" />
+        <label className="block text-xs text-slate-500 mb-1">Месяц</label>
+        <select value={month} onChange={(e) => onChange('month', Number(e.target.value))}
+          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
+          {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+        </select>
       </div>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">по</label>
-        <input type="date" value={to} onChange={(e) => onChange('to', e.target.value)}
-          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900" />
+        <label className="block text-xs text-slate-500 mb-1">Год</label>
+        <select value={year} onChange={(e) => onChange('year', Number(e.target.value))}
+          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
+          {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
       </div>
       <div>
         <label className="block text-xs text-slate-500 mb-1">Направление</label>
@@ -52,12 +71,6 @@ export function Filters({ from, to, direction, transportType, onChange }: Filter
           className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
           {TRANSPORT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
-      </div>
-      <div className="flex items-end">
-        <button onClick={setDefaultPeriod}
-          className="px-4 py-2 text-sm text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
-          Текущий месяц
-        </button>
       </div>
     </div>
   );
