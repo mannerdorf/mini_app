@@ -22,6 +22,71 @@ interface SavedExpense {
 
 function formatRub(n: number) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽'; }
 function generateId() { return Math.random().toString(36).slice(2, 9); }
+const EXPENSE_REQUESTS_STORAGE_PREFIX = 'haulz.expense_requests.';
+
+function mapDepartmentToPnl(raw?: string | null): { department: string; logisticsStage: string | null } {
+  const source = String(raw ?? '').trim();
+  const upper = source.toUpperCase();
+  const known = new Set(['LOGISTICS_MSK', 'LOGISTICS_KGD', 'ADMINISTRATION', 'DIRECTION', 'IT', 'SALES', 'SERVICE', 'GENERAL']);
+  if (known.has(upper)) return { department: upper, logisticsStage: null };
+  const s = source.toLowerCase().replace(/ё/g, 'е');
+  if (s.includes('забор')) return { department: 'LOGISTICS_MSK', logisticsStage: 'PICKUP' };
+  if (s.includes('склад москва') || s.includes('склад отправления')) return { department: 'LOGISTICS_MSK', logisticsStage: 'DEPARTURE_WAREHOUSE' };
+  if (s.includes('магистрал')) return { department: 'LOGISTICS_MSK', logisticsStage: 'MAINLINE' };
+  if (s.includes('склад калининград') || s.includes('склад получения')) return { department: 'LOGISTICS_KGD', logisticsStage: 'ARRIVAL_WAREHOUSE' };
+  if (s.includes('последняя миля') || s.includes('last mile')) return { department: 'LOGISTICS_KGD', logisticsStage: 'LAST_MILE' };
+  if (s.includes('администрац')) return { department: 'ADMINISTRATION', logisticsStage: null };
+  if (s.includes('дирекц')) return { department: 'DIRECTION', logisticsStage: null };
+  if (s.includes('продаж')) return { department: 'SALES', logisticsStage: null };
+  if (s.includes('сервис')) return { department: 'SERVICE', logisticsStage: null };
+  if (s === 'it' || s.includes(' айти') || s.includes('it ')) return { department: 'IT', logisticsStage: null };
+  return { department: source || 'GENERAL', logisticsStage: null };
+}
+
+function getLocalApprovedPaidExpenses(month: number, year: number, department: string): SavedExpense[] {
+  if (typeof window === 'undefined') return [];
+  const periodKey = `${year}-${String(month).padStart(2, '0')}`;
+  const out: SavedExpense[] = [];
+  try {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (!key || !key.startsWith(EXPENSE_REQUESTS_STORAGE_PREFIX)) continue;
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list)) continue;
+      for (const item of list) {
+        const status = String(item?.status ?? '').trim().toLowerCase();
+        if (status !== 'approved' && status !== 'paid') continue;
+        const period = String(item?.period ?? '').trim();
+        const docDate = String(item?.docDate ?? '').trim();
+        const periodFromDate = /^\d{4}-\d{2}-\d{2}$/.test(docDate) ? docDate.slice(0, 7) : '';
+        if (period !== periodKey && periodFromDate !== periodKey) continue;
+        const mapped = mapDepartmentToPnl(item?.department);
+        if (mapped.department !== department) continue;
+        const amount = Math.abs(Number(item?.amount) || 0);
+        if (!(amount > 0)) continue;
+        const id = String(item?.id ?? '').trim() || `local-${key}-${i}`;
+        out.push({
+          id: `local-request:${id}`,
+          categoryId: String(item?.categoryId ?? id),
+          categoryName: String(item?.categoryName ?? item?.categoryId ?? 'Заявка на расходы'),
+          amount,
+          comment: String(item?.comment ?? '').trim() || null,
+          direction: '',
+          transportType: '',
+          source: 'expense_request',
+          requestStatus: status,
+        });
+      }
+    }
+  } catch {
+    return [];
+  }
+  const dedup = new Map<string, SavedExpense>();
+  out.forEach((x) => dedup.set(x.id || `${x.categoryId}:${x.amount}:${x.comment || ''}`, x));
+  return Array.from(dedup.values());
+}
 
 interface Props { department: string; logisticsStage?: string | null; label: string; description: string; subdivisionSelect?: React.ReactNode; }
 
@@ -46,7 +111,12 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const loadSaved = () => {
     const stage = logisticsStage == null ? '' : logisticsStage;
     pnlGet<any>('/api/manual-entry', { month: String(month), year: String(year), department, logisticsStage: stage })
-      .then((d) => setSavedExpenses(Array.isArray(d?.expenses) ? d.expenses : []))
+      .then((d) => {
+        const serverExpenses: SavedExpense[] = Array.isArray(d?.expenses) ? d.expenses : [];
+        const hasRequestRows = serverExpenses.some((x) => x?.source === 'expense_request');
+        const localFallback = hasRequestRows ? [] : getLocalApprovedPaidExpenses(month, year, department);
+        setSavedExpenses([...serverExpenses, ...localFallback]);
+      })
       .catch(() => setSavedExpenses([]))
       .finally(() => setSavedLoading(false));
   };
