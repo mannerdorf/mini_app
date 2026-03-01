@@ -87,7 +87,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [periodKey, periodKey]
     );
 
-    const requestExpenses = requestExpensesRaw
+    let requestExpenses = requestExpensesRaw
       .filter((e: any) => {
         const mapped = mapDepartmentToPnl(e.department);
         if (department != null && mapped.department !== department) return false;
@@ -107,6 +107,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         source: "expense_request",
         requestStatus: e.status,
       }));
+
+    // Fallback for legacy/partially synced data: include approved request operations from pnl_operations.
+    if (requestExpenses.length === 0 && department != null) {
+      const fallbackParams: unknown[] = [period, department];
+      const { rows: requestOpsRows } = await pool.query(
+        `SELECT id,
+                purpose,
+                amount,
+                operation_type
+         FROM pnl_operations
+         WHERE date_trunc('month', date) = $1::date
+           AND department = $2
+           AND purpose ILIKE 'Согласование заявки %'
+           AND operation_type IN ('COGS', 'OPEX', 'CAPEX')
+         ORDER BY date DESC`,
+        fallbackParams
+      );
+      requestExpenses = requestOpsRows.map((r: any) => {
+        const purpose = String(r.purpose ?? "").trim();
+        const nameFromPurpose = (() => {
+          const m = purpose.match(/\(([^)]+)\)\s*$/);
+          if (m && m[1]) return m[1].trim();
+          return "Заявка на расходы";
+        })();
+        return {
+          id: `op:${String(r.id)}`,
+          categoryId: `from-op:${String(r.id)}`,
+          categoryName: nameFromPurpose,
+          amount: Math.abs(Number(r.amount) || 0),
+          comment: purpose || null,
+          direction: "",
+          transportType: "",
+          source: "expense_request",
+          requestStatus: "approved",
+        };
+      });
+    }
 
     const expenses = [
       ...manualExpenses.map((e: any) => ({
