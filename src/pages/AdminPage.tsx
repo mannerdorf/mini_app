@@ -528,6 +528,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [adminExpenseRequests, setAdminExpenseRequests] = useState<(ExpenseRequestItem & { login: string })[]>([]);
   const [adminExpenseSortCol, setAdminExpenseSortCol] = useState<"createdAt" | "docNumber" | "docDate" | "period" | "department" | "categoryName" | "amount" | "status" | "login">("createdAt");
   const [adminExpenseSortAsc, setAdminExpenseSortAsc] = useState(false);
+  const [expenseFilterDate, setExpenseFilterDate] = useState("");
+  const [expenseFilterDepartment, setExpenseFilterDepartment] = useState("");
+  const [expenseFilterCategory, setExpenseFilterCategory] = useState("");
+  const [expenseFilterVehicle, setExpenseFilterVehicle] = useState("");
+  const [expenseFilterEmployee, setExpenseFilterEmployee] = useState("");
+  const [expenseFilterStatus, setExpenseFilterStatus] = useState("");
   const [expenseRejectId, setExpenseRejectId] = useState<string | null>(null);
   const [expenseRejectComment, setExpenseRejectComment] = useState("");
   const [expenseEditId, setExpenseEditId] = useState<string | null>(null);
@@ -6918,7 +6924,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           else { setAdminExpenseSortCol(col); setAdminExpenseSortAsc(true); }
         };
         const arrow = (col: typeof adminExpenseSortCol) => adminExpenseSortCol === col ? (adminExpenseSortAsc ? " ▲" : " ▼") : "";
-        const filtered = isAccounting ? adminExpenseRequests.filter((r) => r.status === "approved" || r.status === "sent" || r.status === "paid") : adminExpenseRequests;
+        const baseFiltered = isAccounting ? adminExpenseRequests.filter((r) => r.status === "approved" || r.status === "sent" || r.status === "paid") : adminExpenseRequests;
+        const filtered = baseFiltered.filter((r) => {
+          if (expenseFilterDate && (r as any).period !== expenseFilterDate) return false;
+          if (expenseFilterDepartment && r.department !== expenseFilterDepartment) return false;
+          if (expenseFilterCategory && r.categoryName !== expenseFilterCategory) return false;
+          if (expenseFilterVehicle && r.vehicleOrEmployee !== expenseFilterVehicle) return false;
+          if (expenseFilterEmployee && (r as any).employeeName !== expenseFilterEmployee) return false;
+          if (expenseFilterStatus && r.status !== expenseFilterStatus) return false;
+          return true;
+        });
+        const totalAmount = filtered.reduce((sum, r) => sum + r.amount, 0);
+        const depOptions = [...new Set(baseFiltered.map((r) => r.department).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
+        const catOptions = [...new Set(baseFiltered.map((r) => r.categoryName).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
+        const vehicleOptions = [...new Set(baseFiltered.map((r) => r.vehicleOrEmployee).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
+        const employeeOptions = [...new Set(baseFiltered.map((r) => (r as any).employeeName).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
+        const statusOptions = [...new Set(baseFiltered.map((r) => r.status))].sort();
         const sorted = [...filtered].sort((a, b) => {
           const dir = adminExpenseSortAsc ? 1 : -1;
           if (adminExpenseSortCol === "amount") return (a.amount - b.amount) * dir;
@@ -6927,9 +6948,57 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           return av.localeCompare(bv, "ru") * dir;
         });
         const title = isAccounting ? `Бухгалтерия — согласованные заявки (${filtered.length})` : `Заявки на расходы — все подразделения (${filtered.length})`;
+        const statusLabels: Record<string, string> = { draft: "Черновик", pending_approval: "На согласовании", approved: "Согласовано", rejected: "Отклонено", sent: "Отправлено", paid: "Оплачено" };
         return (
           <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
             <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>{title}</Typography.Body>
+
+            <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "0.75rem" }}>
+              <div>
+                <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Дата (период)</label>
+                <input type="month" className="admin-form-input" value={expenseFilterDate} onChange={(e) => setExpenseFilterDate(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Подразделение</label>
+                <select className="admin-form-input" value={expenseFilterDepartment} onChange={(e) => setExpenseFilterDepartment(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 140 }}>
+                  <option value="">Все</option>
+                  {depOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Статья</label>
+                <select className="admin-form-input" value={expenseFilterCategory} onChange={(e) => setExpenseFilterCategory(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 140 }}>
+                  <option value="">Все</option>
+                  {catOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>ТС</label>
+                <select className="admin-form-input" value={expenseFilterVehicle} onChange={(e) => setExpenseFilterVehicle(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 120 }}>
+                  <option value="">Все</option>
+                  {vehicleOptions.map((v) => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Сотрудник</label>
+                <select className="admin-form-input" value={expenseFilterEmployee} onChange={(e) => setExpenseFilterEmployee(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 140 }}>
+                  <option value="">Все</option>
+                  {employeeOptions.map((emp) => <option key={emp} value={emp}>{emp}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Действия</label>
+                <select className="admin-form-input" value={expenseFilterStatus} onChange={(e) => setExpenseFilterStatus(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 140 }}>
+                  <option value="">Все</option>
+                  {statusOptions.map((s) => <option key={s} value={s}>{statusLabels[s] ?? s}</option>)}
+                </select>
+              </div>
+            </Flex>
+
+            <div style={{ marginBottom: "0.75rem", padding: "0.5rem 0.75rem", background: "var(--color-bg-hover)", borderRadius: 8, fontSize: "0.9rem", fontWeight: 600 }}>
+              Итого: {totalAmount.toLocaleString("ru-RU")} ₽
+            </div>
+
             {filtered.length === 0 ? (
               <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Нет заявок</Typography.Body>
             ) : (
