@@ -176,7 +176,11 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             .then((data: any) => {
                 const departmentsFromProfile = parseDepartmentList(data?.department);
                 const departmentsFromEmployees = Array.isArray(data?.employees)
-                    ? [...new Set(data.employees.map((e: any) => String(e?.department ?? "").trim()).filter(Boolean))]
+                    ? [...new Set(
+                        data.employees
+                            .flatMap((e: any) => parseDepartmentList(e?.department))
+                            .filter(Boolean)
+                    )]
                     : [];
                 const allowed = [...new Set([...departmentsFromProfile, ...departmentsFromEmployees])];
                 if (allowed.length > 0) {

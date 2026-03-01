@@ -19,6 +19,7 @@ interface SavedExpense {
   type?: string | null;
   department?: string | null;
   logisticsStage?: string | null;
+  requestDepartment?: string | null;
   source?: 'manual' | 'expense_request';
   requestStatus?: string | null;
 }
@@ -96,6 +97,7 @@ function getLocalApprovedPaidExpenses(month: number, year: number, department: s
           type: 'OPEX',
           department: mapped.department,
           logisticsStage: mapped.logisticsStage,
+          requestDepartment: String(item?.department ?? '').trim() || null,
           source: 'expense_request',
           requestStatus: status,
         });
@@ -241,10 +243,13 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                     const departmentValue = e.department ?? cat?.department ?? department;
                     const logisticsStageValue = e.logisticsStage ?? cat?.logisticsStage ?? logisticsStage ?? null;
                     const typeValue = e.type ?? cat?.type ?? 'OPEX';
+                    const subdivisionLabel = isRequestExpense
+                      ? (String(e.requestDepartment ?? '').trim() || getSubdivisionLabel(departmentValue, logisticsStageValue))
+                      : getSubdivisionLabel(departmentValue, logisticsStageValue);
                     return (
                       <tr key={key} className="border-b border-slate-50 hover:bg-slate-50">
                         <td className="px-6 py-2 text-slate-900">{e.categoryName}</td>
-                        <td className="px-6 py-2 text-slate-600 text-sm">{getSubdivisionLabel(departmentValue, logisticsStageValue)}</td>
+                        <td className="px-6 py-2 text-slate-600 text-sm">{subdivisionLabel}</td>
                         <td className="px-6 py-2 text-slate-600 text-sm">{getExpenseTypeLabel(typeValue)}</td>
                         {isMainline && <td className="px-6 py-2 text-slate-600 text-sm">{dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${transport === 'FERRY' ? 'паром' : 'авто'}` : '—'}</td>}
                         <td className="px-6 py-2 text-right">

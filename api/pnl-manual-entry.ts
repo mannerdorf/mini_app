@@ -77,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 er.comment,
                 er.status,
                 er.department,
-                ec.cost_type AS "type",
+                ec.cost_type AS "requestCostType",
                 er.period,
                 er.doc_date,
                 er.created_at
@@ -97,6 +97,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       requestExpensesRaw = [];
     }
 
+    const requestCategoryIds = [...new Set(
+      requestExpensesRaw
+        .map((e: any) => String(e?.categoryId ?? "").trim())
+        .filter(Boolean)
+    )];
+    let pnlTypeMap = new Map<string, string>();
+    if (requestCategoryIds.length > 0) {
+      try {
+        const { rows: typeRows } = await pool.query(
+          `SELECT expense_category_id AS "expenseCategoryId",
+                  department,
+                  logistics_stage AS "logisticsStage",
+                  type
+           FROM pnl_expense_categories
+           WHERE expense_category_id = ANY($1::text[])`,
+          [requestCategoryIds]
+        );
+        pnlTypeMap = new Map<string, string>(
+          typeRows.map((r: any) => [
+            `${String(r.expenseCategoryId ?? "")}::${String(r.department ?? "")}::${String(r.logisticsStage ?? "")}`,
+            String(r.type ?? "").trim().toUpperCase(),
+          ])
+        );
+      } catch (e) {
+        console.error("pnl-manual-entry pnl_expense_categories type map read failed:", e);
+      }
+    }
+
     let requestExpenses = requestExpensesRaw
       .filter((e: any) => {
         const mapped = mapDepartmentToPnl(e.department);
@@ -106,20 +134,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // by department only and do not strictly pin them to a single logistics stage.
         return true;
       })
-      .map((e: any) => ({
-        id: `request:${e.uid}`,
-        categoryId: e.categoryId,
-        categoryName: e.categoryName,
-        amount: Number(e.amount) || 0,
-        comment: e.comment ?? null,
-        direction: "",
-        transportType: "",
-        type: e.type ?? "OPEX",
-        department: mapDepartmentToPnl(e.department).department,
-        logisticsStage: mapDepartmentToPnl(e.department).logisticsStage,
-        source: "expense_request",
-        requestStatus: e.status,
-      }));
+      .map((e: any) => {
+        // For requests, type priority is:
+        // 1) PnL category for mapped department+stage, 2) department without stage, 3) request category cost_type, 4) OPEX.
+        const mapped = mapDepartmentToPnl(e.department);
+        const categoryId = String(e.categoryId ?? "").trim();
+        const exactKey = `${categoryId}::${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
+        const depOnlyKey = `${categoryId}::${mapped.department}::`;
+        const resolvedType =
+          pnlTypeMap.get(exactKey) ||
+          pnlTypeMap.get(depOnlyKey) ||
+          String(e.requestCostType ?? "").trim().toUpperCase() ||
+          "OPEX";
+        return {
+          id: `request:${e.uid}`,
+          categoryId: e.categoryId,
+          categoryName: e.categoryName,
+          amount: Number(e.amount) || 0,
+          comment: e.comment ?? null,
+          direction: "",
+          transportType: "",
+          type: resolvedType,
+          department: mapped.department,
+          logisticsStage: mapped.logisticsStage,
+          requestDepartment: String(e.department ?? "").trim() || null,
+          source: "expense_request",
+          requestStatus: e.status,
+        };
+      });
 
     // Fallback for legacy/partially synced data: include approved request operations from pnl_operations.
     if (requestExpenses.length === 0 && department != null) {
@@ -164,6 +206,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           type: String(r.operation_type || "OPEX"),
           department: mapDepartmentToPnl(r.department).department,
           logisticsStage: mapDepartmentToPnl(r.department).logisticsStage,
+          requestDepartment: String(r.department ?? "").trim() || null,
           source: "expense_request",
           requestStatus: "approved",
         };
