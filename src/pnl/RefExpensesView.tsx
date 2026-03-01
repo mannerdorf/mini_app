@@ -64,6 +64,8 @@ export function RefExpensesView() {
       if (res?.error) { setError(res.error); return; }
       setForm({ expenseCategoryId: '', subdivision: 'pickup_msk', type: 'COGS' });
       await load();
+    } catch (err: any) {
+      setError(err?.message || 'Не удалось добавить категорию');
     } finally { setSaving(false); }
   };
 

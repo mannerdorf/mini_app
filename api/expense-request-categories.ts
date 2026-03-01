@@ -7,13 +7,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Allow", "GET");
     return res.status(405).json({ error: "Method not allowed" });
   }
-
-  const pool = getPool();
-  const { rows } = await pool.query(
-    `SELECT id, name, cost_type AS "costType", sort_order AS "sortOrder"
-     FROM expense_categories
-     WHERE active = true
-     ORDER BY sort_order, name`
-  );
-  return res.json(rows);
+  try {
+    const pool = getPool();
+    const { rows } = await pool.query(
+      `SELECT id, name, cost_type AS "costType", sort_order AS "sortOrder"
+       FROM expense_categories
+       WHERE active = true
+       ORDER BY sort_order, name`
+    );
+    return res.json(rows);
+  } catch (e) {
+    console.error("expense-request-categories:", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    return res.status(500).json({ error: msg || "Ошибка загрузки статей расходов" });
+  }
 }

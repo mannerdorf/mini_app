@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { ensurePnlTransportColumns } from "./_pnl-ensure.js";
 import { getUnitEconomics, type FilterParams } from "./_pnl-calc.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -10,6 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
+    await ensurePnlTransportColumns(pool);
     const params: FilterParams = {
       from: (req.query.from as string) || undefined,
       to: (req.query.to as string) || undefined,
