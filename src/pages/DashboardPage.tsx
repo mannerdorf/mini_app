@@ -1568,17 +1568,17 @@ export function DashboardPage({
                         
                         {/* Основной график по выбранному стилю */}
                         {(variant === 'columns' || variant === 'combo') && points.map((p, idx) => (
-                            <rect
+                                    <rect
                                 key={`bar-${idx}`}
                                 x={p.x}
                                 y={p.y}
-                                width={barWidth}
+                                        width={barWidth}
                                 height={p.barHeight}
-                                fill={`url(#${gradientId})`}
+                                        fill={`url(#${gradientId})`}
                                 opacity={variant === 'combo' ? 0.38 : 1}
-                                rx="4"
-                                style={{ transition: 'all 0.3s ease' }}
-                            />
+                                        rx="4"
+                                        style={{ transition: 'all 0.3s ease' }}
+                                    />
                         ))}
                         {variant === 'area' && areaPath && (
                             <>
@@ -1614,7 +1614,7 @@ export function DashboardPage({
                                             {formatValue(d.value)}
                                         </text>
                                     )}
-
+                                    
                                     {/* Дата вертикально под столбцом: день 1 раз, выходные/праздники — красным */}
                                     <text
                                         x={x + barWidth / 2}
@@ -3013,7 +3013,7 @@ export function DashboardPage({
             )}
             
             {/* ═══════ ГРУППА 1: ОБЗОР И ТРЕНДЫ ═══════ */}
-
+            
             {/* === ВИДЖЕТ 3: График динамики (включить: WIDGET_3_CHART = true) === */}
             {WIDGET_3_CHART && !loading && !error && showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1.5rem' }}>
@@ -3187,7 +3187,7 @@ export function DashboardPage({
                                         <Button className="filter-button" style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', opacity: canNext ? 1 : 0.3 }} disabled={!canNext} onClick={() => canNext && setHeatmapMonth((m) => (m.month === 12 ? { year: m.year + 1, month: 1 } : { year: m.year, month: m.month + 1 }))}>→</Button>
                                     </>
                                 );
-                            })()}
+                    })()}
                         </Flex>
                     </Flex>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.4rem' }}>
