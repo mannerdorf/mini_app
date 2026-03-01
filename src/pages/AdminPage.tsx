@@ -277,7 +277,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -528,6 +528,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [adminExpenseRequests, setAdminExpenseRequests] = useState<(ExpenseRequestItem & { login: string })[]>([]);
   const [adminExpenseSortCol, setAdminExpenseSortCol] = useState<"createdAt" | "docNumber" | "docDate" | "period" | "department" | "categoryName" | "amount" | "status" | "login">("createdAt");
   const [adminExpenseSortAsc, setAdminExpenseSortAsc] = useState(false);
+  const [expenseRejectId, setExpenseRejectId] = useState<string | null>(null);
+  const [expenseRejectComment, setExpenseRejectComment] = useState("");
+  const [expenseEditId, setExpenseEditId] = useState<string | null>(null);
+  const [expenseEditAmount, setExpenseEditAmount] = useState("");
+  const [expenseEditComment, setExpenseEditComment] = useState("");
+  const [expenseEditCategory, setExpenseEditCategory] = useState("");
   const [editorChangeLoginValue, setEditorChangeLoginValue] = useState("");
   const [editorChangeLoginOpen, setEditorChangeLoginOpen] = useState(false);
   const [editorChangeLoginLoading, setEditorChangeLoginLoading] = useState(false);
@@ -1521,11 +1527,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests")) setTab("users");
+    if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting")) setTab("users");
   }, [isSuperAdmin, tab]);
 
-  useEffect(() => {
-    if (tab !== "expense_requests" || !isSuperAdmin) return;
+  const reloadAllExpenseRequests = useCallback(() => {
     const prefix = "haulz.expense_requests.";
     const all: (ExpenseRequestItem & { login: string })[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -1539,7 +1544,61 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     setAdminExpenseRequests(all);
-  }, [tab, isSuperAdmin]);
+  }, []);
+
+  useEffect(() => {
+    if ((tab === "expense_requests" || tab === "accounting") && isSuperAdmin) reloadAllExpenseRequests();
+  }, [tab, isSuperAdmin, reloadAllExpenseRequests]);
+
+  const updateExpenseStatus = useCallback((itemId: string, itemLogin: string, newStatus: string, rejectReason?: string) => {
+    const storageKey = `haulz.expense_requests.${itemLogin}`;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      const items = JSON.parse(raw) as ExpenseRequestItem[];
+      if (!Array.isArray(items)) return;
+      const updated = items.map((r) =>
+        r.id === itemId ? { ...r, status: newStatus as any, ...(rejectReason !== undefined ? { rejectionReason: rejectReason } : {}) } : r
+      );
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      reloadAllExpenseRequests();
+    } catch { /* skip */ }
+  }, [reloadAllExpenseRequests]);
+
+  const deleteExpenseRequest = useCallback((itemId: string, itemLogin: string) => {
+    const storageKey = `haulz.expense_requests.${itemLogin}`;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      const items = JSON.parse(raw) as ExpenseRequestItem[];
+      if (!Array.isArray(items)) return;
+      const updated = items.filter((r) => r.id !== itemId);
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      reloadAllExpenseRequests();
+    } catch { /* skip */ }
+  }, [reloadAllExpenseRequests]);
+
+  const saveExpenseEdit = useCallback((itemId: string, itemLogin: string) => {
+    const storageKey = `haulz.expense_requests.${itemLogin}`;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return;
+      const items = JSON.parse(raw) as ExpenseRequestItem[];
+      if (!Array.isArray(items)) return;
+      const num = parseFloat(expenseEditAmount.replace(",", "."));
+      const updated = items.map((r) =>
+        r.id === itemId ? {
+          ...r,
+          ...(Number.isFinite(num) && num > 0 ? { amount: num } : {}),
+          ...(expenseEditComment ? { comment: expenseEditComment } : {}),
+          ...(expenseEditCategory ? { categoryId: expenseEditCategory, categoryName: [{ id: "fuel", name: "Топливо" }, { id: "repair", name: "Ремонт и обслуживание" }, { id: "spare_parts", name: "Запасные части" }, { id: "salary", name: "Зарплата" }, { id: "office", name: "Офис" }, { id: "rent", name: "Аренда" }, { id: "insurance", name: "Страхование" }, { id: "other", name: "Прочее" }].find((c) => c.id === expenseEditCategory)?.name ?? r.categoryName } : {}),
+        } : r
+      );
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      setExpenseEditId(null);
+      reloadAllExpenseRequests();
+    } catch { /* skip */ }
+  }, [expenseEditAmount, expenseEditComment, expenseEditCategory, reloadAllExpenseRequests]);
 
   const fetchEmployeeDirectory = useCallback(async (monthForTimesheet?: string) => {
     if (!adminToken || !isSuperAdmin) return;
@@ -2289,6 +2348,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <Receipt className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Заявки на расходы
+          </Button>
+        )}
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={{ background: tab === "accounting" ? "#dc2626" : undefined, color: tab === "accounting" ? "white" : undefined }}
+            onClick={() => setTab("accounting")}
+          >
+            <Receipt className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Бухгалтерия
           </Button>
         )}
       </Flex>
@@ -6747,28 +6816,41 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         </Panel>
       )}
 
-      {tab === "expense_requests" && isSuperAdmin && (() => {
+      {(tab === "expense_requests" || tab === "accounting") && isSuperAdmin && (() => {
+        const isAccounting = tab === "accounting";
+        const statusBadge = (s: string) => {
+          const map: Record<string, { bg: string; color: string; label: string }> = {
+            draft: { bg: "rgba(245,158,11,0.15)", color: "#f59e0b", label: "Черновик" },
+            pending_approval: { bg: "rgba(59,130,246,0.15)", color: "#3b82f6", label: "На согласовании" },
+            approved: { bg: "rgba(16,185,129,0.15)", color: "#10b981", label: "Согласовано" },
+            rejected: { bg: "rgba(239,68,68,0.15)", color: "#ef4444", label: "Отклонено" },
+            sent: { bg: "rgba(16,185,129,0.15)", color: "#10b981", label: "Отправлено" },
+            paid: { bg: "rgba(139,92,246,0.15)", color: "#8b5cf6", label: "Оплачено" },
+          };
+          const m = map[s] ?? map.draft;
+          return <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 999, fontWeight: 600, background: m.bg, color: m.color }}>{m.label}</span>;
+        };
         const toggleSort = (col: typeof adminExpenseSortCol) => {
           if (adminExpenseSortCol === col) setAdminExpenseSortAsc((p) => !p);
           else { setAdminExpenseSortCol(col); setAdminExpenseSortAsc(true); }
         };
         const arrow = (col: typeof adminExpenseSortCol) => adminExpenseSortCol === col ? (adminExpenseSortAsc ? " ▲" : " ▼") : "";
-        const sorted = [...adminExpenseRequests].sort((a, b) => {
+        const filtered = isAccounting ? adminExpenseRequests.filter((r) => r.status === "approved" || r.status === "paid") : adminExpenseRequests;
+        const sorted = [...filtered].sort((a, b) => {
           const dir = adminExpenseSortAsc ? 1 : -1;
           if (adminExpenseSortCol === "amount") return (a.amount - b.amount) * dir;
           const av = String((a as any)[adminExpenseSortCol] ?? "");
           const bv = String((b as any)[adminExpenseSortCol] ?? "");
           return av.localeCompare(bv, "ru") * dir;
         });
+        const title = isAccounting ? `Бухгалтерия — согласованные заявки (${filtered.length})` : `Заявки на расходы — все подразделения (${filtered.length})`;
         return (
           <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
-            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
-              Заявки на расходы — все подразделения ({adminExpenseRequests.length})
-            </Typography.Body>
-            {adminExpenseRequests.length === 0 ? (
+            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>{title}</Typography.Body>
+            {filtered.length === 0 ? (
               <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Нет заявок</Typography.Body>
             ) : (
-              <div style={{ maxHeight: 520, overflowY: "auto" }}>
+              <div style={{ maxHeight: 600, overflowY: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                   <thead>
                     <tr style={{ position: "sticky", top: 0, background: "var(--color-bg-card, #fff)", zIndex: 1 }}>
@@ -6783,17 +6865,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         ["amount", "Сумма"],
                         ["status", "Статус"],
                       ] as [typeof adminExpenseSortCol, string][]).map(([col, label]) => (
-                        <th
-                          key={col}
-                          onClick={() => toggleSort(col)}
-                          style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)", cursor: "pointer", whiteSpace: "nowrap", userSelect: "none" }}
-                        >
-                          {label}{arrow(col)}
-                        </th>
+                        <th key={col} onClick={() => toggleSort(col)} style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)", cursor: "pointer", whiteSpace: "nowrap", userSelect: "none" }}>{label}{arrow(col)}</th>
                       ))}
                       <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Комментарий</th>
-                      <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Транспорт/сотр.</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>ТС</th>
                       <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Вложения</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Действия</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -6807,22 +6884,95 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <td style={{ padding: "6px 8px" }}>{r.department}</td>
                         <td style={{ padding: "6px 8px" }}>{r.categoryName}</td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.amount.toLocaleString("ru-RU")} ₽</td>
-                        <td style={{ padding: "6px 8px" }}>
-                          <span style={{
-                            fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 999, fontWeight: 600,
-                            background: r.status === "sent" ? "rgba(16,185,129,0.15)" : r.status === "pending_approval" ? "rgba(59,130,246,0.15)" : "rgba(245,158,11,0.15)",
-                            color: r.status === "sent" ? "#10b981" : r.status === "pending_approval" ? "#3b82f6" : "#f59e0b",
-                          }}>{r.status === "sent" ? "Отправлено" : r.status === "pending_approval" ? "На согласовании" : "Черновик"}</span>
+                        <td style={{ padding: "6px 8px" }}>{statusBadge(r.status)}</td>
+                        <td style={{ padding: "6px 8px", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {r.comment || "—"}
+                          {(r as any).rejectionReason && <div style={{ fontSize: "0.68rem", color: "#ef4444" }}>Причина: {(r as any).rejectionReason}</div>}
                         </td>
-                        <td style={{ padding: "6px 8px", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.comment || "—"}</td>
                         <td style={{ padding: "6px 8px" }}>{r.vehicleOrEmployee || "—"}</td>
-                        <td style={{ padding: "6px 8px" }}>{r.attachmentNames.length > 0 ? r.attachmentNames.join(", ") : "—"}</td>
+                        <td style={{ padding: "6px 8px", fontSize: "0.7rem" }}>{r.attachmentNames.length > 0 ? r.attachmentNames.join(", ") : "—"}</td>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
+                          <Flex gap="0.25rem" wrap="wrap">
+                            {!isAccounting && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
+                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "approved")} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #10b981", background: "transparent", color: "#10b981", cursor: "pointer" }}>Согласовать</button>
+                            )}
+                            {!isAccounting && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
+                              <button type="button" onClick={() => { setExpenseRejectId(r.id); setExpenseRejectComment(""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Отказать</button>
+                            )}
+                            {isAccounting && r.status === "approved" && (
+                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "paid")} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
+                            )}
+                            <button type="button" onClick={() => { setExpenseEditId(r.id); setExpenseEditAmount(String(r.amount)); setExpenseEditComment(r.comment); setExpenseEditCategory(r.categoryId); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer" }}>Изменить</button>
+                            <button type="button" onClick={() => { if (window.confirm("Удалить заявку? Действие нельзя отменить.")) deleteExpenseRequest(r.id, r.login); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Удалить</button>
+                          </Flex>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             )}
+
+            {/* Reject modal */}
+            {expenseRejectId && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setExpenseRejectId(null)}>
+                <div style={{ background: "var(--color-bg-card, #fff)", borderRadius: 12, padding: "1.25rem", maxWidth: 400, width: "90%" }} onClick={(e) => e.stopPropagation()}>
+                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.75rem" }}>Отказать в заявке</Typography.Body>
+                  <textarea
+                    placeholder="Причина отказа (обязательно)"
+                    value={expenseRejectComment}
+                    onChange={(e) => setExpenseRejectComment(e.target.value)}
+                    className="admin-form-input"
+                    style={{ width: "100%", minHeight: 80, resize: "vertical", marginBottom: "0.75rem" }}
+                    rows={3}
+                    autoFocus
+                  />
+                  <Flex gap="0.5rem" justify="flex-end">
+                    <Button type="button" className="filter-button" onClick={() => setExpenseRejectId(null)}>Отмена</Button>
+                    <Button type="button" className="filter-button" style={{ background: "#ef4444", color: "white" }} disabled={!expenseRejectComment.trim()} onClick={() => {
+                      const item = adminExpenseRequests.find((r) => r.id === expenseRejectId);
+                      if (item) updateExpenseStatus(item.id, item.login, "rejected", expenseRejectComment.trim());
+                      setExpenseRejectId(null);
+                    }}>Отказать</Button>
+                  </Flex>
+                </div>
+              </div>
+            )}
+
+            {/* Edit modal */}
+            {expenseEditId && (() => {
+              const item = adminExpenseRequests.find((r) => r.id === expenseEditId);
+              if (!item) return null;
+              return (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setExpenseEditId(null)}>
+                  <div style={{ background: "var(--color-bg-card, #fff)", borderRadius: 12, padding: "1.25rem", maxWidth: 420, width: "90%" }} onClick={(e) => e.stopPropagation()}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.75rem" }}>Изменить заявку #{(item as any).docNumber || item.id.slice(-6)}</Typography.Body>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "0.75rem" }}>
+                      <div>
+                        <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Статья расхода</label>
+                        <select className="admin-form-input" value={expenseEditCategory} onChange={(e) => setExpenseEditCategory(e.target.value)} style={{ width: "100%", padding: "0.45rem" }}>
+                          {[{ id: "fuel", name: "Топливо" }, { id: "repair", name: "Ремонт и обслуживание" }, { id: "spare_parts", name: "Запасные части" }, { id: "salary", name: "Зарплата" }, { id: "office", name: "Офис" }, { id: "rent", name: "Аренда" }, { id: "insurance", name: "Страхование" }, { id: "other", name: "Прочее" }].map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Сумма (₽)</label>
+                        <Input type="text" inputMode="decimal" value={expenseEditAmount} onChange={(e) => setExpenseEditAmount(e.target.value)} className="admin-form-input" style={{ width: "100%" }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Комментарий</label>
+                        <textarea value={expenseEditComment} onChange={(e) => setExpenseEditComment(e.target.value)} className="admin-form-input" style={{ width: "100%", minHeight: 60, resize: "vertical" }} rows={2} />
+                      </div>
+                    </div>
+                    <Flex gap="0.5rem" justify="flex-end">
+                      <Button type="button" className="filter-button" onClick={() => setExpenseEditId(null)}>Отмена</Button>
+                      <Button type="button" className="filter-button" style={{ background: "var(--color-primary-blue)", color: "white" }} onClick={() => saveExpenseEdit(item.id, item.login)}>Сохранить</Button>
+                    </Flex>
+                  </div>
+                </div>
+              );
+            })()}
           </Panel>
         );
       })()}

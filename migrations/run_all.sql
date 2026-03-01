@@ -430,6 +430,27 @@ create table if not exists expense_requests (
   updated_at timestamptz not null default now()
 );
 
+alter table expense_requests add column if not exists doc_number text not null default '';
+alter table expense_requests add column if not exists doc_date date;
+alter table expense_requests add column if not exists period text not null default '';
+alter table expense_requests add column if not exists approved_by text;
+alter table expense_requests add column if not exists approved_at timestamptz;
+alter table expense_requests add column if not exists rejection_reason text;
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.table_constraints
+    where table_name = 'expense_requests' and constraint_type = 'CHECK'
+      and constraint_name = 'expense_requests_status_check'
+  ) then
+    alter table expense_requests drop constraint expense_requests_status_check;
+  end if;
+  alter table expense_requests add constraint expense_requests_status_check
+    check (status in ('draft', 'pending_approval', 'sent', 'approved', 'rejected', 'paid'));
+exception when others then null;
+end $$;
+
 create index if not exists expense_requests_login_idx on expense_requests(login);
 create index if not exists expense_requests_department_idx on expense_requests(department);
 create index if not exists expense_requests_status_idx on expense_requests(status);

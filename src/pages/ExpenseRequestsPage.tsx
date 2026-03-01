@@ -27,7 +27,8 @@ export type ExpenseRequestItem = {
     vehicleOrEmployee: string;
     attachmentNames: string[];
     attachments?: { name: string; dataUrl: string }[];
-    status: "draft" | "pending_approval" | "sent";
+    status: "draft" | "pending_approval" | "approved" | "rejected" | "sent" | "paid";
+    rejectionReason?: string;
     webhookSentAt?: string;
 };
 
@@ -614,16 +615,32 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                             padding: "0.2rem 0.5rem",
                                             borderRadius: 999,
                                             fontWeight: 600,
-                                            background: r.status === "sent" ? "rgba(16,185,129,0.15)"
+                                            background: r.status === "approved" ? "rgba(16,185,129,0.15)"
+                                                : r.status === "rejected" ? "rgba(239,68,68,0.15)"
+                                                : r.status === "paid" ? "rgba(139,92,246,0.15)"
                                                 : r.status === "pending_approval" ? "rgba(59,130,246,0.15)"
+                                                : r.status === "sent" ? "rgba(16,185,129,0.15)"
                                                 : "rgba(245,158,11,0.15)",
-                                            color: r.status === "sent" ? "#10b981"
+                                            color: r.status === "approved" ? "#10b981"
+                                                : r.status === "rejected" ? "#ef4444"
+                                                : r.status === "paid" ? "#8b5cf6"
                                                 : r.status === "pending_approval" ? "#3b82f6"
+                                                : r.status === "sent" ? "#10b981"
                                                 : "#f59e0b",
                                         }}
                                     >
-                                        {r.status === "sent" ? "Отправлено" : r.status === "pending_approval" ? "На согласовании" : "Черновик"}
+                                        {r.status === "approved" ? "Согласовано"
+                                            : r.status === "rejected" ? "Отклонено"
+                                            : r.status === "paid" ? "Оплачено"
+                                            : r.status === "pending_approval" ? "На согласовании"
+                                            : r.status === "sent" ? "Отправлено"
+                                            : "Черновик"}
                                     </span>
+                                    {(r as any).rejectionReason && (
+                                        <span style={{ fontSize: "0.65rem", color: "#ef4444", maxWidth: 180, textAlign: "right" }}>
+                                            Причина: {(r as any).rejectionReason}
+                                        </span>
+                                    )}
                                     {r.status === "draft" && (
                                         <button
                                             type="button"
