@@ -24,6 +24,19 @@ function mapDepartmentToPnl(raw?: string | null): { department: string; logistic
   return { department: source || "GENERAL", logisticsStage: null };
 }
 
+function mapDepartmentCandidates(raw?: string | null): Array<{ department: string; logisticsStage: string | null }> {
+  const source = String(raw ?? "").trim();
+  if (!source) return [{ department: "GENERAL", logisticsStage: null }];
+  const parts = source.split(",").map((x) => x.trim()).filter(Boolean);
+  const base = parts.length > 0 ? parts : [source];
+  const mapped = base.map((p) => mapDepartmentToPnl(p));
+  const uniq = new Map<string, { department: string; logisticsStage: string | null }>();
+  mapped.forEach((m) => {
+    uniq.set(`${m.department}::${String(m.logisticsStage ?? "")}`, m);
+  });
+  return Array.from(uniq.values());
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pool = getPool();
 
@@ -222,18 +235,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payoutRows.forEach((r: any) => {
         const amountAbs = Math.abs(Number(r.amount) || 0);
         if (!(amountAbs > 0)) return;
-        const mapped = mapDepartmentToPnl(r.employeeDepartment);
-        if (department != null && mapped.department !== department) return;
-        if (logisticsStage === "" || logisticsStage === "null") {
-          if (mapped.logisticsStage != null) return;
-        } else if (logisticsStage && mapped.logisticsStage !== logisticsStage) {
-          return;
+        const candidates = mapDepartmentCandidates(r.employeeDepartment);
+        let matched = candidates;
+        if (department != null) {
+          matched = matched.filter((m) => m.department === department);
         }
-        const key = `${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
-        const prev = grouped.get(key) || { amount: 0, count: 0, department: mapped.department, logisticsStage: mapped.logisticsStage };
-        prev.amount += amountAbs;
-        prev.count += 1;
-        grouped.set(key, prev);
+        if (logisticsStage === "" || logisticsStage === "null") {
+          matched = matched.filter((m) => m.logisticsStage == null);
+        } else if (logisticsStage) {
+          const strict = matched.filter((m) => m.logisticsStage === logisticsStage);
+          // If employee is assigned to a broad department without stage (e.g. LOGISTICS_MSK),
+          // include it in the currently selected stage so salary is visible in subdivision view.
+          matched = strict.length > 0
+            ? strict
+            : matched
+              .filter((m) => m.logisticsStage == null)
+              .map((m) => ({ ...m, logisticsStage }));
+        }
+        if (matched.length === 0) return;
+
+        const share = amountAbs / matched.length;
+        matched.forEach((mapped) => {
+          const key = `${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
+          const prev = grouped.get(key) || { amount: 0, count: 0, department: mapped.department, logisticsStage: mapped.logisticsStage };
+          prev.amount += share;
+          prev.count += 1;
+          grouped.set(key, prev);
+        });
       });
 
       salaryExpenses = Array.from(grouped.values()).map((g) => ({

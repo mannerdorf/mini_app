@@ -181,9 +181,42 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
     loadSaved();
   };
 
-  const handleDeleteSaved = async (categoryId: string, direction = '', transportType = '', requestId = '') => {
+  const updateLocalRequest = (localRequestId: string, updater: (item: any) => any | null) => {
+    if (typeof window === 'undefined') return false;
+    let updated = false;
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (!key || !key.startsWith(EXPENSE_REQUESTS_STORAGE_PREFIX)) continue;
+      const raw = window.localStorage.getItem(key);
+      if (!raw) continue;
+      try {
+        const list = JSON.parse(raw);
+        if (!Array.isArray(list)) continue;
+        const next = list
+          .map((item) => {
+            const id = String(item?.id ?? '').trim();
+            if (id !== localRequestId) return item;
+            updated = true;
+            return updater(item);
+          })
+          .filter((x) => x != null);
+        window.localStorage.setItem(key, JSON.stringify(next));
+      } catch {
+        // ignore broken localStorage rows
+      }
+    }
+    return updated;
+  };
+
+  const handleDeleteSaved = async (categoryId: string, direction = '', transportType = '', requestId = '', localRequestId = '', rowIdentity = '') => {
     if (!confirm('Удалить эту запись?')) return;
-    setDeletingId(requestId ? `request:${requestId}` : `manual:${categoryId}:${direction}:${transportType}`);
+    setDeletingId(rowIdentity || (requestId ? `request:${requestId}` : localRequestId ? `local-request:${localRequestId}` : `manual:${categoryId}:${direction}:${transportType}`));
+    if (localRequestId) {
+      updateLocalRequest(localRequestId, () => null);
+      setDeletingId(null);
+      loadSaved();
+      return;
+    }
     const period = `${year}-${String(month).padStart(2, '0')}-01`;
     await pnlPost('/api/manual-entry', {
       period,
@@ -193,6 +226,11 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
         : { categoryId, amount: 0, direction, transportType }],
     });
     setDeletingId(null); loadSaved();
+  };
+
+  const handleUpdateLocalRequest = (localRequestId: string, amount: number, comment: string) => {
+    const changed = updateLocalRequest(localRequestId, (item) => ({ ...item, amount, comment }));
+    if (changed) loadSaved();
   };
 
   const totalExpenses = rows.reduce((s, r) => s + (parseFloat(r.amount.replace(/\s/g, '').replace(/,/g, '.')) || 0), 0);
@@ -251,7 +289,8 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                     const isRequestExpense = e.source === 'expense_request';
                     const isManualExpense = !e.source || e.source === 'manual';
                     const requestId = isRequestExpense && key.startsWith('request:') ? key.slice('request:'.length) : '';
-                    const canEditRequest = isRequestExpense && Boolean(requestId);
+                    const localRequestId = isRequestExpense && key.startsWith('local-request:') ? key.slice('local-request:'.length) : '';
+                    const canEditRequest = isRequestExpense && (Boolean(requestId) || Boolean(localRequestId));
                     const canEditRow = isManualExpense || canEditRequest;
                     const isEA = editingAmount?.key === key;
                     const isEC = editingComment?.key === key;
@@ -293,6 +332,12 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                   const amountValue = isEA ? parseFloat(editingAmount.value) : e.amount;
                                   if (!Number.isFinite(amountValue) || amountValue < 0) return;
                                   const commentValue = isEC ? editingComment.value : (e.comment ?? '');
+                                  if (localRequestId) {
+                                    handleUpdateLocalRequest(localRequestId, amountValue, commentValue);
+                                    setEditingAmount(null);
+                                    setEditingComment(null);
+                                    return;
+                                  }
                                   handleUpdateSaved(e.categoryId, amountValue, commentValue, dir, transport, requestId);
                                 }}
                                 className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
@@ -300,7 +345,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                 Изменить
                               </button>
                               <button
-                                onClick={() => handleDeleteSaved(e.categoryId, dir, transport, requestId)}
+                                onClick={() => handleDeleteSaved(e.categoryId, dir, transport, requestId, localRequestId, key)}
                                 disabled={deletingId === key}
                                 className="px-2 py-1 text-xs rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
                               >
