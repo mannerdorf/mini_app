@@ -421,7 +421,7 @@ create table if not exists expense_requests (
   comment text not null default '',
   vehicle_id bigint references expense_vehicles(id),
   vehicle_text text,
-  status text not null default 'draft' check (status in ('draft', 'sent', 'approved', 'rejected', 'paid')),
+  status text not null default 'draft' check (status in ('draft', 'pending_approval', 'sent', 'approved', 'rejected', 'paid')),
   approved_by text,
   approved_at timestamptz,
   rejection_reason text,

@@ -6,7 +6,7 @@
  * COGS/OPEX/CAPEX не указываются (задаются в справочнике категорий).
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { Loader2, Paperclip, Send, Car, ChevronDown, Search, X } from "lucide-react";
+import { Loader2, Paperclip, Send, Car, ChevronDown, Search, X, SendHorizonal } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import { EXPENSE_REQUESTS_WEBHOOK_URL, PROXY_API_BASE_URL } from "../constants/config";
 import type { AuthData } from "../types";
@@ -27,7 +27,7 @@ export type ExpenseRequestItem = {
     vehicleOrEmployee: string;
     attachmentNames: string[];
     attachments?: { name: string; dataUrl: string }[];
-    status: "draft" | "sent";
+    status: "draft" | "pending_approval" | "sent";
     webhookSentAt?: string;
 };
 
@@ -305,6 +305,47 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         }
     }, [categoryId, amount, comment, selectedVehicle, files, auth?.login, department, docNumber, docDate, period]);
 
+    const sendForApproval = useCallback(async (itemId: string) => {
+        setSending(true);
+        try {
+            const item = list.find((r) => r.id === itemId);
+            if (!item) return;
+            if (EXPENSE_REQUESTS_WEBHOOK_URL) {
+                const payload = {
+                    ...item,
+                    status: "pending_approval",
+                    login: auth?.login ?? undefined,
+                    attachmentCount: item.attachmentNames.length,
+                    attachments: item.attachments ?? [],
+                };
+                const res = await fetch(EXPENSE_REQUESTS_WEBHOOK_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                if (res.ok) {
+                    setList((prev) => {
+                        const next = prev.map((r) =>
+                            r.id === itemId ? { ...r, status: "pending_approval" as const, webhookSentAt: new Date().toISOString() } : r
+                        );
+                        saveStoredRequests(auth?.login ?? "", next);
+                        return next;
+                    });
+                    return;
+                }
+            }
+            setList((prev) => {
+                const next = prev.map((r) =>
+                    r.id === itemId ? { ...r, status: "pending_approval" as const } : r
+                );
+                saveStoredRequests(auth?.login ?? "", next);
+                return next;
+            });
+        } catch { /* ignore */ } finally {
+            setSending(false);
+        }
+    }, [list, auth?.login]);
+
     const canSubmit = categoryId && amount.trim() && parseFloat(amount.replace(",", ".")) > 0 && docNumber.trim();
 
     return (
@@ -566,18 +607,47 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                         </Typography.Body>
                                     )}
                                 </div>
-                                <span
-                                    style={{
-                                        fontSize: "0.7rem",
-                                        padding: "0.2rem 0.5rem",
-                                        borderRadius: 999,
-                                        background: r.status === "sent" ? "rgba(16,185,129,0.15)" : "rgba(245,158,11,0.15)",
-                                        color: r.status === "sent" ? "#10b981" : "#f59e0b",
-                                        fontWeight: 600,
-                                    }}
-                                >
-                                    {r.status === "sent" ? "Отправлено" : "Черновик"}
-                                </span>
+                                <Flex direction="column" align="flex-end" gap="0.35rem">
+                                    <span
+                                        style={{
+                                            fontSize: "0.7rem",
+                                            padding: "0.2rem 0.5rem",
+                                            borderRadius: 999,
+                                            fontWeight: 600,
+                                            background: r.status === "sent" ? "rgba(16,185,129,0.15)"
+                                                : r.status === "pending_approval" ? "rgba(59,130,246,0.15)"
+                                                : "rgba(245,158,11,0.15)",
+                                            color: r.status === "sent" ? "#10b981"
+                                                : r.status === "pending_approval" ? "#3b82f6"
+                                                : "#f59e0b",
+                                        }}
+                                    >
+                                        {r.status === "sent" ? "Отправлено" : r.status === "pending_approval" ? "На согласовании" : "Черновик"}
+                                    </span>
+                                    {r.status === "draft" && (
+                                        <button
+                                            type="button"
+                                            onClick={() => sendForApproval(r.id)}
+                                            disabled={sending}
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "0.3rem",
+                                                fontSize: "0.72rem",
+                                                padding: "0.3rem 0.6rem",
+                                                borderRadius: 8,
+                                                border: "1px solid var(--color-primary-blue, #3b82f6)",
+                                                background: "transparent",
+                                                color: "var(--color-primary-blue, #3b82f6)",
+                                                cursor: "pointer",
+                                                whiteSpace: "nowrap",
+                                            }}
+                                        >
+                                            <SendHorizonal className="w-3 h-3" />
+                                            На согласование
+                                        </button>
+                                    )}
+                                </Flex>
                             </Flex>
                         </Panel>
                     ))

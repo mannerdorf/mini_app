@@ -57,7 +57,7 @@ create table if not exists expense_requests (
   comment text not null default '',
   vehicle_id bigint references expense_vehicles(id),  -- связь со справочником ТС (null = не указано)
   vehicle_text text,                      -- текстовое представление ТС на момент создания
-  status text not null default 'draft' check (status in ('draft', 'sent', 'approved', 'rejected', 'paid')),
+  status text not null default 'draft' check (status in ('draft', 'pending_approval', 'sent', 'approved', 'rejected', 'paid')),
   approved_by text,                       -- логин утвердившего (суперадмин)
   approved_at timestamptz,
   rejection_reason text,
@@ -93,7 +93,7 @@ comment on column expense_requests.doc_number is 'Номер документа 
 comment on column expense_requests.doc_date is 'Дата документа (дата выставления счёта или накладной)';
 comment on column expense_requests.period is 'Отчётный период в формате YYYY-MM (месяц/год)';
 comment on column expense_requests.uid is 'Клиентский идентификатор заявки (генерируется на фронте)';
-comment on column expense_requests.status is 'draft=черновик, sent=отправлено, approved=утверждено, rejected=отклонено, paid=оплачено';
+comment on column expense_requests.status is 'draft=черновик, pending_approval=на согласовании, sent=отправлено, approved=утверждено, rejected=отклонено, paid=оплачено';
 
 -- Вложения (файлы) к заявкам.
 create table if not exists expense_request_attachments (

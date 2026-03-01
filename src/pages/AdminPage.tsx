@@ -6810,9 +6810,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <td style={{ padding: "6px 8px" }}>
                           <span style={{
                             fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 999, fontWeight: 600,
-                            background: r.status === "sent" ? "rgba(16,185,129,0.15)" : "rgba(245,158,11,0.15)",
-                            color: r.status === "sent" ? "#10b981" : "#f59e0b",
-                          }}>{r.status === "sent" ? "Отправлено" : "Черновик"}</span>
+                            background: r.status === "sent" ? "rgba(16,185,129,0.15)" : r.status === "pending_approval" ? "rgba(59,130,246,0.15)" : "rgba(245,158,11,0.15)",
+                            color: r.status === "sent" ? "#10b981" : r.status === "pending_approval" ? "#3b82f6" : "#f59e0b",
+                          }}>{r.status === "sent" ? "Отправлено" : r.status === "pending_approval" ? "На согласовании" : "Черновик"}</span>
                         </td>
                         <td style={{ padding: "6px 8px", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.comment || "—"}</td>
                         <td style={{ padding: "6px 8px" }}>{r.vehicleOrEmployee || "—"}</td>
