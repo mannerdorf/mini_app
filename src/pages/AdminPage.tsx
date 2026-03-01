@@ -1550,53 +1550,110 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "pnl")) setTab("users");
   }, [isSuperAdmin, tab]);
 
-  const reloadAllExpenseRequests = useCallback(() => {
-    const prefix = "haulz.expense_requests.";
-    const all: (ExpenseRequestItem & { login: string })[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (!k || !k.startsWith(prefix)) continue;
-      const login = k.slice(prefix.length);
+  const reloadAllExpenseRequests = useCallback(async () => {
+    const fromLocalStorage = () => {
+      const prefix = "haulz.expense_requests.";
+      const all: (ExpenseRequestItem & { login: string })[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || !k.startsWith(prefix)) continue;
+        const login = k.slice(prefix.length);
+        try {
+          const items = JSON.parse(localStorage.getItem(k) ?? "[]") as ExpenseRequestItem[];
+          if (Array.isArray(items)) items.forEach((r) => { if (r && r.createdAt) all.push({ ...r, login }); });
+        } catch { /* skip */ }
+      }
+      all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      setAdminExpenseRequests(all);
+    };
+    if (adminToken && isSuperAdmin) {
       try {
-        const items = JSON.parse(localStorage.getItem(k) ?? "[]") as ExpenseRequestItem[];
-        if (Array.isArray(items)) items.forEach((r) => { if (r && r.createdAt) all.push({ ...r, login }); });
-      } catch { /* skip */ }
+        const res = await fetch("/api/admin-expense-requests", { headers: { Authorization: `Bearer ${adminToken}` } });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && Array.isArray(data?.items) && data.items.length > 0) {
+          setAdminExpenseRequests(data.items);
+          return;
+        }
+      } catch { /* fallback */ }
     }
-    all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    setAdminExpenseRequests(all);
-  }, []);
+    fromLocalStorage();
+  }, [adminToken, isSuperAdmin]);
 
   useEffect(() => {
     if ((tab === "expense_requests" || tab === "accounting") && isSuperAdmin) reloadAllExpenseRequests();
   }, [tab, isSuperAdmin, reloadAllExpenseRequests]);
 
-  const updateExpenseStatus = useCallback((itemId: string, itemLogin: string, newStatus: string, rejectReason?: string) => {
+  const updateExpenseStatus = useCallback(async (itemId: string, itemLogin: string, newStatus: string, rejectReason?: string, fullItem?: ExpenseRequestItem & { login: string }) => {
     const storageKey = `haulz.expense_requests.${itemLogin}`;
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) return;
-      const items = JSON.parse(raw) as ExpenseRequestItem[];
-      if (!Array.isArray(items)) return;
-      const updated = items.map((r) =>
-        r.id === itemId ? { ...r, status: newStatus as any, ...(rejectReason !== undefined ? { rejectionReason: rejectReason } : {}) } : r
-      );
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-      reloadAllExpenseRequests();
-    } catch { /* skip */ }
-  }, [reloadAllExpenseRequests]);
+    const updateLocal = () => {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return;
+        const items = JSON.parse(raw) as ExpenseRequestItem[];
+        if (!Array.isArray(items)) return;
+        const updated = items.map((r) =>
+          r.id === itemId ? { ...r, status: newStatus as any, ...(rejectReason !== undefined ? { rejectionReason: rejectReason } : {}) } : r
+        );
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch { /* skip */ }
+    };
+    if (adminToken) {
+      try {
+        let res = await fetch("/api/admin-expense-requests", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+          body: JSON.stringify({ uid: itemId, status: newStatus, rejection_reason: rejectReason }),
+        });
+        if (res.status === 404 && fullItem) {
+          await fetch("/api/expense-requests-webhook", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...fullItem, status: newStatus, login: itemLogin }),
+          });
+          res = await fetch("/api/admin-expense-requests", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+            body: JSON.stringify({ uid: itemId, status: newStatus, rejection_reason: rejectReason }),
+          });
+        }
+        if (res.ok) {
+          updateLocal();
+          reloadAllExpenseRequests();
+          return;
+        }
+      } catch { /* fallback to localStorage */ }
+    }
+    updateLocal();
+    reloadAllExpenseRequests();
+  }, [adminToken, reloadAllExpenseRequests]);
 
-  const deleteExpenseRequest = useCallback((itemId: string, itemLogin: string) => {
+  const deleteExpenseRequest = useCallback(async (itemId: string, itemLogin: string) => {
     const storageKey = `haulz.expense_requests.${itemLogin}`;
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) return;
-      const items = JSON.parse(raw) as ExpenseRequestItem[];
-      if (!Array.isArray(items)) return;
-      const updated = items.filter((r) => r.id !== itemId);
-      localStorage.setItem(storageKey, JSON.stringify(updated));
-      reloadAllExpenseRequests();
-    } catch { /* skip */ }
-  }, [reloadAllExpenseRequests]);
+    const updateLocal = () => {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return;
+        const items = JSON.parse(raw) as ExpenseRequestItem[];
+        const updated = items.filter((r) => r.id !== itemId);
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch { /* skip */ }
+    };
+    if (adminToken) {
+      try {
+        const res = await fetch(`/api/admin-expense-requests?uid=${encodeURIComponent(itemId)}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+        if (res.ok) {
+          updateLocal();
+          reloadAllExpenseRequests();
+          return;
+        }
+      } catch { /* fallback */ }
+    }
+    updateLocal();
+    reloadAllExpenseRequests();
+  }, [adminToken, reloadAllExpenseRequests]);
 
   const CATEGORIES_LIST = [{ id: "fuel", name: "Топливо" }, { id: "repair", name: "Ремонт и обслуживание" }, { id: "spare_parts", name: "Запасные части" }, { id: "salary", name: "Зарплата" }, { id: "office", name: "Офис" }, { id: "rent", name: "Аренда" }, { id: "insurance", name: "Страхование" }, { id: "mainline", name: "Магистраль" }, { id: "pickup_logistics", name: "Заборная логистика" }, { id: "other", name: "Прочее" }];
 
@@ -7007,7 +7064,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           const bv = String((b as any)[adminExpenseSortCol] ?? "");
           return av.localeCompare(bv, "ru") * dir;
         });
-        const title = isAccounting ? `Бухгалтерия — согласованные заявки (${filtered.length})` : `Заявки на расходы — все подразделения (${filtered.length})`;
+        const title = isAccounting ? `Бухгалтерия — согласованные заявки (${filtered.length})` : "Заявки на расходы";
         const statusLabels: Record<string, string> = { draft: "Черновик", pending_approval: "На согласовании", approved: "Согласовано", rejected: "Отклонено", sent: "Отправлено", paid: "Оплачено" };
         return (
           <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
@@ -7130,16 +7187,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
                           <Flex gap="0.25rem" wrap="wrap">
                             {!isAccounting && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
-                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "approved")} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #10b981", background: "transparent", color: "#10b981", cursor: "pointer" }}>Согласовать</button>
+                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "approved", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #10b981", background: "transparent", color: "#10b981", cursor: "pointer" }}>Согласовать</button>
                             )}
                             {!isAccounting && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
                               <button type="button" onClick={() => { setExpenseRejectId(r.id); setExpenseRejectComment(""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Отказать</button>
                             )}
                             {isAccounting && r.status === "approved" && (
-                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "sent")} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #2563eb", background: "transparent", color: "#2563eb", cursor: "pointer" }}>Отправлено в банк</button>
+                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "sent", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #2563eb", background: "transparent", color: "#2563eb", cursor: "pointer" }}>Отправлено в банк</button>
                             )}
                             {isAccounting && (r.status === "approved" || r.status === "sent") && (
-                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "paid")} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
+                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "paid", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
                             )}
                             <button type="button" onClick={() => { setExpenseEditId(r.id); setExpenseEditDocNumber((r as any).docNumber ?? ""); setExpenseEditDocDate((r as any).docDate ?? ""); setExpenseEditPeriod((r as any).period ?? ""); setExpenseEditDepartment(r.department); setExpenseEditCategory(r.categoryId); setExpenseEditAmount(String(r.amount)); setExpenseEditVatRate((r as any).vatRate ?? ""); setExpenseEditComment(r.comment); setExpenseEditVehicle(r.vehicleOrEmployee); setExpenseEditEmployee((r as any).employeeName ?? ""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer" }}>Изменить</button>
                             <button type="button" onClick={() => { if (window.confirm("Удалить заявку? Действие нельзя отменить.")) deleteExpenseRequest(r.id, r.login); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Удалить</button>
@@ -7170,7 +7227,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <Button type="button" className="filter-button" onClick={() => setExpenseRejectId(null)}>Отмена</Button>
                     <Button type="button" className="filter-button" style={{ background: "#ef4444", color: "white" }} disabled={!expenseRejectComment.trim()} onClick={() => {
                       const item = adminExpenseRequests.find((r) => r.id === expenseRejectId);
-                      if (item) updateExpenseStatus(item.id, item.login, "rejected", expenseRejectComment.trim());
+                      if (item) updateExpenseStatus(item.id, item.login, "rejected", expenseRejectComment.trim(), item);
                       setExpenseRejectId(null);
                     }}>Отказать</Button>
                   </Flex>

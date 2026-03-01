@@ -9,4 +9,4 @@ export const PROXY_API_ORDERS_URL = '/api/orders';
 export const PROXY_API_SENDINGS_URL = '/api/sendings';
 
 /** URL вебхука для отправки заявок на расходы (P&L / БД). Если пустой — заявки сохраняются только в localStorage. */
-export const EXPENSE_REQUESTS_WEBHOOK_URL = '';
+export const EXPENSE_REQUESTS_WEBHOOK_URL = '/api/expense-requests-webhook';

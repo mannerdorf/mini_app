@@ -21,19 +21,35 @@ export function PerKgView() {
   const [filters, setFilters] = useState(defaultFiltersState);
   const [unitEcon, setUnitEcon] = useState<any>(null);
   const [monthlyMargin, setMonthlyMargin] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const updateFilter = (key: string, value: string | number) => setFilters((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
+    setError(null);
     const params = filtersToParams(filters);
     Promise.all([
       pnlGet('/api/unit-economics', params),
       pnlGet<any[]>('/api/charts/monthly-margin', params),
-    ]).then(([ue, margin]) => {
-      setUnitEcon(ue);
-      setMonthlyMargin(Array.isArray(margin) ? margin : []);
-    });
+    ])
+      .then(([ue, margin]) => {
+        setUnitEcon(ue?.error ? null : ue);
+        setMonthlyMargin(Array.isArray(margin) ? margin : []);
+        if (ue?.error) setError(ue.error);
+      })
+      .catch((err) => {
+        setUnitEcon(null);
+        setMonthlyMargin([]);
+        setError(err?.message ?? 'Ошибка загрузки данных');
+      });
   }, [filters.month, filters.year, filters.direction, filters.transportType]);
 
+  if (error && !unitEcon) return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold text-slate-900">Дашборд «1 кг логистики»</h1><p className="text-slate-500">KPI и графики в пересчёте на 1 кг</p></div>
+      <Filters {...filters} onChange={updateFilter} />
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800">{error}</div>
+    </div>
+  );
   if (!unitEcon) return <div className="animate-pulse">Загрузка...</div>;
 
   const stageOrder = ['PICKUP', 'DEPARTURE_WAREHOUSE', 'MAINLINE', 'ARRIVAL_WAREHOUSE', 'LAST_MILE'];

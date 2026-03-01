@@ -60,9 +60,24 @@ export async function pnlFetch(path: string, init?: RequestInit): Promise<Respon
   });
 }
 
+async function parseResponse<T>(res: Response): Promise<T> {
+  const text = await res.text().catch(() => '');
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    if (!res.ok) throw new Error(text || `Ошибка ${res.status}`);
+    return {} as T;
+  }
+  try {
+    return (text ? JSON.parse(text) : {}) as T;
+  } catch {
+    if (!res.ok) throw new Error(text || `Ошибка ${res.status}`);
+    return {} as T;
+  }
+}
+
 export async function pnlGet<T = unknown>(path: string, params?: Record<string, string>): Promise<T> {
   const res = await fetch(pnlUrl(path, params));
-  return res.json();
+  return parseResponse<T>(res);
 }
 
 export async function pnlPost<T = unknown>(path: string, body: unknown): Promise<T> {
@@ -71,7 +86,7 @@ export async function pnlPost<T = unknown>(path: string, body: unknown): Promise
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return res.json();
+  return parseResponse<T>(res);
 }
 
 export async function pnlPostForm(path: string, formData: FormData): Promise<Response> {
@@ -84,7 +99,7 @@ export async function pnlPatch<T = unknown>(path: string, body: unknown): Promis
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return res.json();
+  return parseResponse<T>(res);
 }
 
 export async function pnlDelete(path: string): Promise<Response> {

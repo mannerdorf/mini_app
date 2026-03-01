@@ -10,12 +10,23 @@ function formatRub(n: number) {
 export function PlReportView() {
   const [filters, setFilters] = useState(defaultFiltersState);
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const updateFilter = (key: string, value: string | number) => setFilters((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
-    pnlGet('/api/pnl', filtersToParams(filters)).then(setData);
+    setError(null);
+    pnlGet('/api/pnl', filtersToParams(filters))
+      .then((d) => { setData(d?.error ? null : d); if (d?.error) setError(d.error); })
+      .catch((err) => { setData(null); setError(err?.message ?? 'Ошибка загрузки данных'); });
   }, [filters.month, filters.year, filters.direction, filters.transportType]);
 
+  if (error && !data) return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold text-slate-900">P&L отчёт</h1><p className="text-slate-500">Структурированный отчёт о прибылях и убытках</p></div>
+      <Filters {...filters} onChange={updateFilter} />
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800">{error}</div>
+    </div>
+  );
   if (!data) return <div className="animate-pulse">Загрузка...</div>;
 
   const { pnl, cogsByStage, opexByDept, revenueByDir } = data;
