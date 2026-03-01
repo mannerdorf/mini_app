@@ -221,15 +221,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return salaryTypeMap.get(exact) || salaryTypeMap.get(depOnly) || "OPEX";
       };
 
-      const { rows: payoutRows } = await pool.query(
-        `SELECT p.id,
-                p.amount,
-                ru.department AS "employeeDepartment"
-         FROM employee_timesheet_payouts p
-         JOIN registered_users ru ON ru.id = p.employee_id
-         WHERE p.period_month = $1::date`,
-        [period]
-      );
+      let payoutRows: any[] = [];
+      try {
+        const result = await pool.query(
+          `SELECT p.id,
+                  p.amount,
+                  ru.department AS "employeeDepartment"
+           FROM employee_timesheet_payouts p
+           JOIN registered_users ru ON ru.id = p.employee_id
+           WHERE p.period_month = $1::date`,
+          [period]
+        );
+        payoutRows = result.rows;
+      } catch (e) {
+        console.error("pnl-manual-entry employee_timesheet_payouts read failed:", e);
+        payoutRows = [];
+      }
+
+      // Fallback: if payouts table is empty/unavailable, try timesheet payouts already synced to pnl_operations.
+      if (payoutRows.length === 0) {
+        try {
+          const result = await pool.query(
+            `SELECT id,
+                    abs(amount) AS amount,
+                    department AS "employeeDepartment"
+             FROM pnl_operations
+             WHERE date_trunc('month', date) = $1::date
+               AND (
+                 source_timesheet_payout_id IS NOT NULL
+                 OR purpose ILIKE 'ФОТ по табелю %'
+               )`,
+            [period]
+          );
+          payoutRows = result.rows;
+        } catch (e) {
+          console.error("pnl-manual-entry timesheet fallback from pnl_operations failed:", e);
+          payoutRows = [];
+        }
+      }
 
       const grouped = new Map<string, { amount: number; count: number; department: string; logisticsStage: string | null }>();
       payoutRows.forEach((r: any) => {

@@ -21,6 +21,12 @@ function extractCounterpartyArray(raw: unknown): any[] {
   const from =
     obj.Items ??
     obj.items ??
+    obj.Customers ??
+    obj.customers ??
+    obj.Counterparties ??
+    obj.counterparties ??
+    obj.Counterpartys ??
+    obj.counterpartys ??
     obj.Kontragents ??
     obj.kontragents ??
     obj.Contragents ??
