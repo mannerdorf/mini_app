@@ -8,6 +8,7 @@ import { useFocusTrap } from "../hooks/useFocusTrap";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
+  { key: "accounting", label: "Бухгалтерия" },
   { key: "home", label: "Главная" },
   { key: "dashboard", label: "Дашборды" },
   { key: "cargo", label: "Грузы" },
@@ -35,6 +36,7 @@ const PERMISSION_ROW1 = [
   { key: "analytics", label: "Аналитика" as const },
   { key: "haulz", label: "HAULZ" as const },
   { key: "eor", label: "EOR" as const },
+  { key: "accounting", label: "Бухгалтерия" as const },
 ] as const;
 
 /** Вторая строка разделов: при активном — синяя */
@@ -6869,6 +6871,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       ))}
                       <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Комментарий</th>
                       <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>ТС</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Сотрудник</th>
                       <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Вложения</th>
                       <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Действия</th>
                     </tr>
@@ -6883,13 +6886,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <td style={{ padding: "6px 8px" }}>{r.login}</td>
                         <td style={{ padding: "6px 8px" }}>{r.department}</td>
                         <td style={{ padding: "6px 8px" }}>{r.categoryName}</td>
-                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.amount.toLocaleString("ru-RU")} ₽</td>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.amount.toLocaleString("ru-RU")} ₽{(r as any).vatRate ? ` (${(r as any).vatRate}%)` : ""}</td>
                         <td style={{ padding: "6px 8px" }}>{statusBadge(r.status)}</td>
                         <td style={{ padding: "6px 8px", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {r.comment || "—"}
                           {(r as any).rejectionReason && <div style={{ fontSize: "0.68rem", color: "#ef4444" }}>Причина: {(r as any).rejectionReason}</div>}
                         </td>
                         <td style={{ padding: "6px 8px" }}>{r.vehicleOrEmployee || "—"}</td>
+                        <td style={{ padding: "6px 8px" }}>{(r as any).employeeName || "—"}</td>
                         <td style={{ padding: "6px 8px", fontSize: "0.7rem" }}>{r.attachmentNames.length > 0 ? r.attachmentNames.join(", ") : "—"}</td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
                           <Flex gap="0.25rem" wrap="wrap">

@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
     LogOut, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, User as UserIcon, Users, ChevronDown,
-    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Lock,
+    Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MessageCircle, FileText, LayoutGrid, Mic, Lock, Receipt,
 } from "lucide-react";
 import { Button, Flex, Grid, Input, Panel, Switch, Typography } from "@maxhub/max-ui";
 import type { Account, AuthData, ProfileView } from "../types";
@@ -744,8 +744,13 @@ export function ProfilePage({
             icon: <LayoutGrid className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('haulz')
         }] : []),
+        ...(activeAccount?.permissions?.accounting === true ? [{
+            id: 'accounting',
+            label: 'Бухгалтерия',
+            icon: <Receipt className="w-5 h-5" style={{ color: '#dc2626' }} />,
+            onClick: () => setCurrentView('accounting')
+        }] : []),
         ...(activeAccount?.isRegisteredUser && activeAccount?.inCustomerDirectory === true ? [
-        // Сотрудники доступны только если в админке включено право «Руководитель» для этого пользователя
         ...(activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true ? [{
             id: 'employees',
             label: 'Справочник сотрудников',
@@ -1098,9 +1103,101 @@ export function ProfilePage({
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Заявки на расходы</Typography.Headline>
                 </Flex>
                 <ExpenseRequestsPage
-                    auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password } : null}
+                    auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password, inn: activeAccount.activeCustomerInn ?? undefined, ...(activeAccount.isRegisteredUser ? { isRegisteredUser: true } : {}) } : null}
                     departmentName={activeAccount?.customer ?? "Моё подразделение"}
                 />
+            </div>
+        );
+    }
+
+    if (currentView === 'accounting') {
+        const prefix = "haulz.expense_requests.";
+        const allRequests: { id: string; createdAt: string; department: string; docNumber?: string; docDate?: string; period?: string; categoryName: string; amount: number; comment: string; vehicleOrEmployee: string; attachmentNames: string[]; status: string; login: string }[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (!k || !k.startsWith(prefix)) continue;
+            const login = k.slice(prefix.length);
+            try {
+                const items = JSON.parse(localStorage.getItem(k) ?? "[]");
+                if (Array.isArray(items)) items.forEach((r: any) => {
+                    if (r && (r.status === "approved" || r.status === "paid")) allRequests.push({ ...r, login });
+                });
+            } catch { /* skip */ }
+        }
+        allRequests.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+        const markPaid = (itemId: string, itemLogin: string) => {
+            const storageKey = `haulz.expense_requests.${itemLogin}`;
+            try {
+                const raw = localStorage.getItem(storageKey);
+                if (!raw) return;
+                const items = JSON.parse(raw);
+                if (!Array.isArray(items)) return;
+                const updated = items.map((r: any) => r.id === itemId ? { ...r, status: "paid" } : r);
+                localStorage.setItem(storageKey, JSON.stringify(updated));
+                setCurrentView('main');
+                setTimeout(() => setCurrentView('accounting'), 0);
+            } catch { /* skip */ }
+        };
+
+        const statusBadge = (s: string) => {
+            const map: Record<string, { bg: string; color: string; label: string }> = {
+                approved: { bg: "rgba(16,185,129,0.15)", color: "#10b981", label: "Согласовано" },
+                paid: { bg: "rgba(139,92,246,0.15)", color: "#8b5cf6", label: "Оплачено" },
+            };
+            const m = map[s] ?? { bg: "rgba(107,114,128,0.15)", color: "#6b7280", label: s };
+            return <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 999, fontWeight: 600, background: m.bg, color: m.color }}>{m.label}</span>;
+        };
+
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Бухгалтерия</Typography.Headline>
+                </Flex>
+                <Panel className="cargo-card" style={{ padding: '1rem' }}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
+                        Согласованные заявки ({allRequests.length})
+                    </Typography.Body>
+                    {allRequests.length === 0 ? (
+                        <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Нет согласованных заявок</Typography.Body>
+                    ) : (
+                        <div style={{ maxHeight: 600, overflowY: "auto" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                                <thead>
+                                    <tr style={{ position: "sticky", top: 0, background: "var(--color-bg-card, #fff)", zIndex: 1 }}>
+                                        <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Дата</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>№ док.</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Подразделение</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Статья</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Сумма</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Статус</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Действия</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {allRequests.map((r) => (
+                                        <tr key={r.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                                            <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}</td>
+                                            <td style={{ padding: "6px 8px" }}>{r.docNumber || "—"}</td>
+                                            <td style={{ padding: "6px 8px" }}>{r.department}</td>
+                                            <td style={{ padding: "6px 8px" }}>{r.categoryName}</td>
+                                            <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.amount.toLocaleString("ru-RU")} ₽</td>
+                                            <td style={{ padding: "6px 8px" }}>{statusBadge(r.status)}</td>
+                                            <td style={{ padding: "6px 8px" }}>
+                                                {r.status === "approved" && (
+                                                    <button type="button" onClick={() => markPaid(r.id, r.login)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </Panel>
             </div>
         );
     }

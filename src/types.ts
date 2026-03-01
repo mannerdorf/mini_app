@@ -120,6 +120,7 @@ export type ProfileView =
     | "voiceAssistants"
     | "2fa"
     | "notifications"
+    | "accounting"
     | "admin"
     | "tinyurl-test"
     | "chat";

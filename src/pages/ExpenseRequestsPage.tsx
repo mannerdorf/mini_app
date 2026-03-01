@@ -6,12 +6,22 @@
  * COGS/OPEX/CAPEX не указываются (задаются в справочнике категорий).
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { Loader2, Paperclip, Send, Car, ChevronDown, Search, X, SendHorizonal } from "lucide-react";
+import { Loader2, Paperclip, Send, Car, ChevronDown, Search, X, SendHorizonal, User } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import { EXPENSE_REQUESTS_WEBHOOK_URL, PROXY_API_BASE_URL } from "../constants/config";
 import type { AuthData } from "../types";
 
 const STORAGE_KEY_PREFIX = "haulz.expense_requests";
+
+const VAT_RATES = [
+    { value: "", label: "Без НДС" },
+    { value: "0", label: "0%" },
+    { value: "5", label: "5%" },
+    { value: "7", label: "7%" },
+    { value: "10", label: "10%" },
+    { value: "20", label: "20%" },
+    { value: "22", label: "22%" },
+] as const;
 
 export type ExpenseRequestItem = {
     id: string;
@@ -23,8 +33,10 @@ export type ExpenseRequestItem = {
     categoryId: string;
     categoryName: string;
     amount: number;
+    vatRate: string;
     comment: string;
     vehicleOrEmployee: string;
+    employeeName: string;
     attachmentNames: string[];
     attachments?: { name: string; dataUrl: string }[];
     status: "draft" | "pending_approval" | "approved" | "rejected" | "sent" | "paid";
@@ -107,6 +119,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     });
     const [categoryId, setCategoryId] = useState("");
     const [amount, setAmount] = useState("");
+    const [vatRate, setVatRate] = useState("");
     const [comment, setComment] = useState("");
     const [selectedVehicle, setSelectedVehicle] = useState("");
     const [duplicateWarning, setDuplicateWarning] = useState("");
@@ -120,8 +133,13 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [departmentLoading, setDepartmentLoading] = useState(false);
     const [vehicles, setVehicles] = useState<string[]>([]);
     const [vehiclesLoading, setVehiclesLoading] = useState(false);
+    const [employees, setEmployees] = useState<{ id: number; fullName: string; login: string; position?: string }[]>([]);
+    const [selectedEmployee, setSelectedEmployee] = useState("");
+    const [employeeSearch, setEmployeeSearch] = useState("");
+    const [employeeDropdownOpen, setEmployeeDropdownOpen] = useState(false);
 
     const vehicleDropdownRef = useRef<HTMLDivElement>(null);
+    const employeeDropdownRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setList(loadStoredRequests(auth?.login ?? ""));
@@ -142,6 +160,14 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             .then((r) => (r.ok ? r.json() : Promise.reject()))
             .then((data: any) => {
                 if (typeof data?.department === "string" && data.department) setDepartment(data.department);
+                if (Array.isArray(data?.employees)) {
+                    setEmployees(data.employees.map((e: any) => ({
+                        id: e.id,
+                        fullName: e.fullName || e.full_name || e.login || "",
+                        login: e.login || "",
+                        position: e.position || "",
+                    })).filter((e: any) => e.fullName || e.login));
+                }
             })
             .catch(() => { /* keep fallback */ })
             .finally(() => setDepartmentLoading(false));
@@ -181,11 +207,14 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             .finally(() => setVehiclesLoading(false));
     }, [auth?.login, auth?.password, auth?.inn, auth?.isRegisteredUser]);
 
-    // Close vehicle dropdown on outside click
+    // Close dropdowns on outside click
     useEffect(() => {
         const handler = (e: MouseEvent) => {
             if (vehicleDropdownRef.current && !vehicleDropdownRef.current.contains(e.target as Node)) {
                 setVehicleDropdownOpen(false);
+            }
+            if (employeeDropdownRef.current && !employeeDropdownRef.current.contains(e.target as Node)) {
+                setEmployeeDropdownOpen(false);
             }
         };
         document.addEventListener("mousedown", handler);
@@ -210,6 +239,12 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         if (!q) return vehicles;
         return vehicles.filter((v) => v.toLowerCase().includes(q));
     }, [vehicles, vehicleSearch]);
+
+    const filteredEmployees = useMemo(() => {
+        const q = employeeSearch.trim().toLowerCase();
+        if (!q) return employees;
+        return employees.filter((e) => `${e.fullName} ${e.login} ${e.position ?? ""}`.toLowerCase().includes(q));
+    }, [employees, employeeSearch]);
 
     const addFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const chosen = e.target.files;
@@ -251,8 +286,10 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             categoryId: cat.id,
             categoryName: cat.name,
             amount: num,
+            vatRate,
             comment: comment.trim(),
             vehicleOrEmployee: selectedVehicle.trim(),
+            employeeName: selectedEmployee,
             attachmentNames: files.map((f) => f.name),
             attachments: files.map((f) => ({ name: f.name, dataUrl: f.dataUrl })),
             status: "draft",
@@ -269,9 +306,12 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setPeriod(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`);
         setCategoryId("");
         setAmount("");
+        setVatRate("");
         setComment("");
         setSelectedVehicle("");
         setVehicleSearch("");
+        setSelectedEmployee("");
+        setEmployeeSearch("");
         setDuplicateWarning("");
         setFiles([]);
 
@@ -304,7 +344,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 setSending(false);
             }
         }
-    }, [categoryId, amount, comment, selectedVehicle, files, auth?.login, department, docNumber, docDate, period]);
+    }, [categoryId, amount, vatRate, comment, selectedVehicle, selectedEmployee, files, auth?.login, department, docNumber, docDate, period]);
 
     const sendForApproval = useCallback(async (itemId: string) => {
         setSending(true);
@@ -363,16 +403,16 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>Новая заявка</Typography.Body>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                     {/* Doc number + date + period */}
-                    <Flex gap="0.75rem" style={{ flexWrap: "wrap" }}>
+                    <Flex gap="0.75rem" style={{ flexWrap: "wrap", alignItems: "flex-start" }}>
                         <div style={{ flex: "1 1 40%", minWidth: 140 }}>
                             <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Номер документа *</label>
-                            <Input
+                            <input
                                 type="text"
                                 placeholder="№ счёта / накладной"
                                 value={docNumber}
                                 onChange={(e) => setDocNumber(e.target.value)}
                                 className="admin-form-input"
-                                style={{ width: "100%", ...(duplicateWarning ? { borderColor: "#f59e0b" } : {}) }}
+                                style={{ width: "100%", padding: "0.5rem", height: 38, boxSizing: "border-box", ...(duplicateWarning ? { borderColor: "#f59e0b" } : {}) }}
                             />
                             {duplicateWarning && (
                                 <Typography.Body style={{ fontSize: "0.72rem", color: "#f59e0b", marginTop: "0.2rem" }}>
@@ -387,7 +427,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                 value={docDate}
                                 onChange={(e) => setDocDate(e.target.value)}
                                 className="admin-form-input"
-                                style={{ width: "100%", padding: "0.5rem" }}
+                                style={{ width: "100%", padding: "0.5rem", height: 38, boxSizing: "border-box" }}
                             />
                         </div>
                         <div style={{ flex: "1 1 28%", minWidth: 120 }}>
@@ -397,7 +437,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                 value={period}
                                 onChange={(e) => setPeriod(e.target.value)}
                                 className="admin-form-input"
-                                style={{ width: "100%", padding: "0.5rem" }}
+                                style={{ width: "100%", padding: "0.5rem", height: 38, boxSizing: "border-box" }}
                             />
                         </div>
                     </Flex>
@@ -418,19 +458,34 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                         </select>
                     </div>
 
-                    {/* Amount */}
-                    <div>
-                        <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Сумма (₽)</label>
-                        <Input
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="0"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            className="admin-form-input"
-                            style={{ width: "100%" }}
-                        />
-                    </div>
+                    {/* Amount + VAT */}
+                    <Flex gap="0.75rem" style={{ flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 55%", minWidth: 140 }}>
+                            <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Сумма (₽)</label>
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="0"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                className="admin-form-input"
+                                style={{ width: "100%", padding: "0.5rem", height: 38, boxSizing: "border-box" }}
+                            />
+                        </div>
+                        <div style={{ flex: "1 1 40%", minWidth: 120 }}>
+                            <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>НДС</label>
+                            <select
+                                value={vatRate}
+                                onChange={(e) => setVatRate(e.target.value)}
+                                className="admin-form-input"
+                                style={{ width: "100%", padding: "0.5rem", height: 38, boxSizing: "border-box" }}
+                            >
+                                {VAT_RATES.map((v) => (
+                                    <option key={v.value} value={v.value}>{v.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </Flex>
 
                     {/* Comment */}
                     <div>
@@ -548,6 +603,68 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                         )}
                     </div>
 
+                    {/* Employee */}
+                    <div ref={employeeDropdownRef} style={{ position: "relative" }}>
+                        <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>
+                            <User className="w-3.5 h-3.5 inline-block mr-1" /> Сотрудник (необязательно)
+                        </label>
+                        <div
+                            onClick={() => setEmployeeDropdownOpen((v) => !v)}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem", border: "1px solid var(--color-border)", borderRadius: 8, cursor: "pointer", minHeight: 38, boxSizing: "border-box", background: "var(--color-bg-card, #fff)" }}
+                        >
+                            <span style={{ fontSize: "0.85rem", color: selectedEmployee ? "inherit" : "var(--color-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                                {selectedEmployee || "Выберите сотрудника"}
+                            </span>
+                            <Flex align="center" gap="0.25rem">
+                                {selectedEmployee && (
+                                    <button type="button"
+                                        onClick={(e) => { e.stopPropagation(); setSelectedEmployee(""); setEmployeeSearch(""); }}
+                                        style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}
+                                        aria-label="Очистить"
+                                    >
+                                        <X className="w-3.5 h-3.5" style={{ color: "var(--color-text-secondary)" }} />
+                                    </button>
+                                )}
+                                <ChevronDown className="w-4 h-4" style={{ color: "var(--color-text-secondary)", transform: employeeDropdownOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                            </Flex>
+                        </div>
+                        {employeeDropdownOpen && (
+                            <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, marginTop: 4, background: "var(--color-bg-card, #fff)", border: "1px solid var(--color-border)", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", maxHeight: 240, display: "flex", flexDirection: "column" }}>
+                                <div style={{ padding: "0.4rem", borderBottom: "1px solid var(--color-border)", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                                    <Search className="w-3.5 h-3.5" style={{ color: "var(--color-text-secondary)" }} />
+                                    <input
+                                        type="text"
+                                        placeholder="Поиск по ФИО…"
+                                        value={employeeSearch}
+                                        onChange={(e) => setEmployeeSearch(e.target.value)}
+                                        autoFocus
+                                        style={{ border: "none", outline: "none", flex: 1, fontSize: "0.82rem", background: "transparent" }}
+                                    />
+                                </div>
+                                <div style={{ overflowY: "auto", flex: 1 }}>
+                                    {employees.length === 0 ? (
+                                        <div style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                                            {departmentLoading ? "Загрузка…" : "Нет сотрудников"}
+                                        </div>
+                                    ) : filteredEmployees.length === 0 ? (
+                                        <div style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>Не найдено</div>
+                                    ) : (
+                                        filteredEmployees.map((emp) => (
+                                            <div
+                                                key={emp.id}
+                                                onClick={() => { setSelectedEmployee(emp.fullName || emp.login); setEmployeeDropdownOpen(false); setEmployeeSearch(""); }}
+                                                style={{ padding: "0.45rem 0.6rem", cursor: "pointer", fontSize: "0.82rem", borderBottom: "1px solid var(--color-border)", background: selectedEmployee === (emp.fullName || emp.login) ? "var(--color-bg-hover)" : "transparent" }}
+                                            >
+                                                <div style={{ fontWeight: 500 }}>{emp.fullName || emp.login}</div>
+                                                {emp.position && <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>{emp.position}</div>}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Attachments */}
                     <div>
                         <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>
@@ -589,7 +706,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                             <Flex justify="space-between" align="flex-start" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
                                 <div>
                                     <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                                        {r.docNumber ? `№${r.docNumber} · ` : ""}{r.categoryName} — {r.amount.toLocaleString("ru-RU")} ₽
+                                        {r.docNumber ? `№${r.docNumber} · ` : ""}{r.categoryName} — {r.amount.toLocaleString("ru-RU")} ₽{(r as any).vatRate ? ` (НДС ${(r as any).vatRate}%)` : ""}
                                     </Typography.Body>
                                     <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
                                         {r.docDate ? new Date(r.docDate + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) + " · " : ""}
@@ -600,6 +717,11 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                     {r.vehicleOrEmployee && (
                                         <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>
                                             ТС: {r.vehicleOrEmployee}
+                                        </Typography.Body>
+                                    )}
+                                    {(r as any).employeeName && (
+                                        <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>
+                                            Сотрудник: {(r as any).employeeName}
                                         </Typography.Body>
                                     )}
                                     {r.attachmentNames.length > 0 && (

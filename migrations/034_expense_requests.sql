@@ -54,6 +54,8 @@ create table if not exists expense_requests (
   period text not null default '',        -- отчётный период (YYYY-MM)
   category_id text not null references expense_categories(id),
   amount numeric(14, 2) not null check (amount > 0),
+  vat_rate text not null default '',            -- ставка НДС: '', '0', '5', '7', '10', '20', '22'
+  employee_name text not null default '',      -- ФИО сотрудника из справочника подразделения
   comment text not null default '',
   vehicle_id bigint references expense_vehicles(id),  -- связь со справочником ТС (null = не указано)
   vehicle_text text,                      -- текстовое представление ТС на момент создания
@@ -70,6 +72,8 @@ create table if not exists expense_requests (
 alter table expense_requests add column if not exists doc_number text not null default '';
 alter table expense_requests add column if not exists doc_date date;
 alter table expense_requests add column if not exists period text not null default '';
+alter table expense_requests add column if not exists vat_rate text not null default '';
+alter table expense_requests add column if not exists employee_name text not null default '';
 alter table expense_requests add column if not exists approved_by text;
 alter table expense_requests add column if not exists approved_at timestamptz;
 alter table expense_requests add column if not exists rejection_reason text;
