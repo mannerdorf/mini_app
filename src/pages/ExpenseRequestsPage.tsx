@@ -6,7 +6,7 @@
  * COGS/OPEX/CAPEX не указываются (задаются в справочнике категорий).
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { Loader2, Paperclip, Send, Car, ChevronDown, Search, X, SendHorizonal, User } from "lucide-react";
+import { Loader2, Paperclip, Send, Car, ChevronDown, Search, X, SendHorizonal, User, Pencil, Trash2 } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import { EXPENSE_REQUESTS_WEBHOOK_URL, PROXY_API_BASE_URL } from "../constants/config";
 import type { AuthData } from "../types";
@@ -52,6 +52,8 @@ const MOCK_CATEGORIES = [
     { id: "office", name: "Офис" },
     { id: "rent", name: "Аренда" },
     { id: "insurance", name: "Страхование" },
+    { id: "mainline", name: "Магистраль" },
+    { id: "pickup_logistics", name: "Заборная логистика" },
     { id: "other", name: "Прочее" },
 ];
 
@@ -128,6 +130,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [files, setFiles] = useState<{ name: string; dataUrl: string }[]>([]);
     const [sending, setSending] = useState(false);
     const [list, setList] = useState<ExpenseRequestItem[]>(() => loadStoredRequests(auth?.login ?? ""));
+    const [editingId, setEditingId] = useState<string | null>(null);
 
     const [department, setDepartment] = useState(fallbackDepartment);
     const [departmentLoading, setDepartmentLoading] = useState(false);
@@ -387,20 +390,101 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         }
     }, [list, auth?.login]);
 
+    const deleteRequest = useCallback((itemId: string) => {
+        if (!window.confirm("Удалить заявку? Действие нельзя отменить.")) return;
+        setList((prev) => {
+            const next = prev.filter((r) => r.id !== itemId);
+            saveStoredRequests(auth?.login ?? "", next);
+            return next;
+        });
+    }, [auth?.login]);
+
+    const recallRequest = useCallback((itemId: string) => {
+        setList((prev) => {
+            const next = prev.map((r) => r.id === itemId ? { ...r, status: "draft" as const } : r);
+            saveStoredRequests(auth?.login ?? "", next);
+            return next;
+        });
+    }, [auth?.login]);
+
+    const startEdit = useCallback((item: ExpenseRequestItem) => {
+        setEditingId(item.id);
+        setDocNumber(item.docNumber ?? "");
+        setDocDate(item.docDate ?? "");
+        setPeriod(item.period ?? "");
+        setCategoryId(item.categoryId);
+        setAmount(String(item.amount));
+        setVatRate((item as any).vatRate ?? "");
+        setComment(item.comment);
+        setSelectedVehicle(item.vehicleOrEmployee ?? "");
+        setSelectedEmployee((item as any).employeeName ?? "");
+    }, []);
+
+    const saveEdit = useCallback(() => {
+        if (!editingId) return;
+        const cat = MOCK_CATEGORIES.find((c) => c.id === categoryId);
+        if (!cat || !amount.trim() || !docNumber.trim()) return;
+        const num = parseFloat(amount.replace(",", "."));
+        if (!Number.isFinite(num) || num <= 0) return;
+        setList((prev) => {
+            const next = prev.map((r) => r.id === editingId ? {
+                ...r,
+                docNumber: docNumber.trim(),
+                docDate: docDate || r.docDate,
+                period: period || r.period,
+                categoryId: cat.id,
+                categoryName: cat.name,
+                amount: num,
+                vatRate,
+                comment: comment.trim(),
+                vehicleOrEmployee: selectedVehicle.trim(),
+                employeeName: selectedEmployee,
+                status: "draft" as const,
+            } : r);
+            saveStoredRequests(auth?.login ?? "", next);
+            return next;
+        });
+        setEditingId(null);
+        setDocNumber("");
+        setDocDate(new Date().toISOString().slice(0, 10));
+        setPeriod(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`);
+        setCategoryId("");
+        setAmount("");
+        setVatRate("");
+        setComment("");
+        setSelectedVehicle("");
+        setSelectedEmployee("");
+    }, [editingId, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedVehicle, selectedEmployee, auth?.login]);
+
+    const cancelEdit = useCallback(() => {
+        setEditingId(null);
+        setDocNumber("");
+        setDocDate(new Date().toISOString().slice(0, 10));
+        setPeriod(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`);
+        setCategoryId("");
+        setAmount("");
+        setVatRate("");
+        setComment("");
+        setSelectedVehicle("");
+        setSelectedEmployee("");
+    }, []);
+
     const canSubmit = categoryId && amount.trim() && parseFloat(amount.replace(",", ".")) > 0 && docNumber.trim();
 
     return (
         <div className="w-full" style={{ padding: "1rem", paddingBottom: "5rem" }}>
-            <Typography.Headline style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "0.25rem" }}>
-                Заявки на расходы
-            </Typography.Headline>
             <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
                 Подразделение: {departmentLoading ? "загрузка…" : department}.{" "}
                 Укажите статью расхода, сумму, комментарий и при необходимости приложите счёт или выберите транспорт.
             </Typography.Body>
 
             <Panel className="cargo-card" style={{ marginBottom: "1rem", background: "var(--color-bg-card)", borderRadius: "12px", padding: "1rem 1.25rem" }}>
-                <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>Новая заявка</Typography.Body>
+                <Flex justify="space-between" align="center" style={{ marginBottom: "0.75rem" }}>
+                    <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600 }}>{editingId ? "Редактирование заявки" : "Новая заявка"}</Typography.Body>
+                    {editingId && (
+                        <button type="button" onClick={cancelEdit} style={{ fontSize: "0.72rem", padding: "0.25rem 0.5rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", cursor: "pointer" }}>Отмена</button>
+                    )}
+                </Flex>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                     {/* Doc number + date + period */}
                     <Flex gap="0.75rem" style={{ flexWrap: "wrap", alignItems: "flex-start" }}>
@@ -686,12 +770,12 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                     <Button
                         type="button"
                         className="button-primary"
-                        onClick={submit}
+                        onClick={editingId ? saveEdit : submit}
                         disabled={!canSubmit || sending}
                         style={{ alignSelf: "flex-start" }}
                     >
-                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                        <span style={{ marginLeft: "0.35rem" }}>Отправить заявку</span>
+                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : editingId ? <Pencil className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                        <span style={{ marginLeft: "0.35rem" }}>{editingId ? "Сохранить изменения" : "Отправить заявку"}</span>
                     </Button>
                 </div>
             </Panel>
@@ -763,28 +847,27 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                             Причина: {(r as any).rejectionReason}
                                         </span>
                                     )}
-                                    {r.status === "draft" && (
-                                        <button
-                                            type="button"
-                                            onClick={() => sendForApproval(r.id)}
-                                            disabled={sending}
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: "0.3rem",
-                                                fontSize: "0.72rem",
-                                                padding: "0.3rem 0.6rem",
-                                                borderRadius: 8,
-                                                border: "1px solid var(--color-primary-blue, #3b82f6)",
-                                                background: "transparent",
-                                                color: "var(--color-primary-blue, #3b82f6)",
-                                                cursor: "pointer",
-                                                whiteSpace: "nowrap",
-                                            }}
-                                        >
-                                            <SendHorizonal className="w-3 h-3" />
-                                            На согласование
+                                    {r.status === "pending_approval" && (
+                                        <button type="button" onClick={() => recallRequest(r.id)}
+                                            style={{ display: "flex", alignItems: "center", gap: "0.2rem", fontSize: "0.7rem", padding: "0.25rem 0.5rem", borderRadius: 7, border: "1px solid #f59e0b", background: "transparent", color: "#f59e0b", cursor: "pointer", whiteSpace: "nowrap" }}>
+                                            <X className="w-3 h-3" /> Отозвать
                                         </button>
+                                    )}
+                                    {(r.status === "draft" || r.status === "rejected") && (
+                                        <Flex gap="0.3rem" wrap="wrap" justify="flex-end">
+                                            <button type="button" onClick={() => sendForApproval(r.id)} disabled={sending}
+                                                style={{ display: "flex", alignItems: "center", gap: "0.2rem", fontSize: "0.7rem", padding: "0.25rem 0.5rem", borderRadius: 7, border: "1px solid var(--color-primary-blue, #3b82f6)", background: "transparent", color: "var(--color-primary-blue, #3b82f6)", cursor: "pointer", whiteSpace: "nowrap" }}>
+                                                <SendHorizonal className="w-3 h-3" /> На согласование
+                                            </button>
+                                            <button type="button" onClick={() => startEdit(r)}
+                                                style={{ display: "flex", alignItems: "center", gap: "0.2rem", fontSize: "0.7rem", padding: "0.25rem 0.5rem", borderRadius: 7, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer", whiteSpace: "nowrap" }}>
+                                                <Pencil className="w-3 h-3" /> Изменить
+                                            </button>
+                                            <button type="button" onClick={() => deleteRequest(r.id)}
+                                                style={{ display: "flex", alignItems: "center", gap: "0.2rem", fontSize: "0.7rem", padding: "0.25rem 0.5rem", borderRadius: 7, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer", whiteSpace: "nowrap" }}>
+                                                <Trash2 className="w-3 h-3" /> Удалить
+                                            </button>
+                                        </Flex>
                                     )}
                                 </Flex>
                             </Flex>

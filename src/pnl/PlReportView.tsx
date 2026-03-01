@@ -1,0 +1,106 @@
+import { useEffect, useState } from 'react';
+import { Filters } from './Filters';
+import { pnlGet } from './api';
+import { LOGISTICS_STAGE_LABELS, DEPARTMENT_LABELS, DIRECTION_LABELS } from './constants';
+
+function formatRub(n: number) {
+  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽';
+}
+
+export function PlReportView() {
+  const [filters, setFilters] = useState({ from: '', to: '', direction: 'all', transportType: 'all' });
+  const [data, setData] = useState<any>(null);
+  const updateFilter = (key: string, value: string) => setFilters((f) => ({ ...f, [key]: value }));
+
+  const params: Record<string, string> = {};
+  if (filters.from) params.from = filters.from;
+  if (filters.to) params.to = filters.to;
+  if (filters.direction !== 'all') params.direction = filters.direction;
+  if (filters.transportType !== 'all') params.transportType = filters.transportType;
+
+  useEffect(() => {
+    pnlGet('/api/pnl', params).then(setData);
+  }, [filters.from, filters.to, filters.direction, filters.transportType]);
+
+  if (!data) return <div className="animate-pulse">Загрузка...</div>;
+
+  const { pnl, cogsByStage, opexByDept, revenueByDir } = data;
+  const stageOrder = ['PICKUP', 'DEPARTURE_WAREHOUSE', 'MAINLINE', 'ARRIVAL_WAREHOUSE', 'LAST_MILE'];
+  const cogsMap = Object.fromEntries((cogsByStage ?? []).map((c: any) => [c.stage, c.amount]));
+  const totalCogs = (cogsByStage ?? []).reduce((s: number, c: any) => s + c.amount, 0);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">P&L отчёт</h1>
+        <p className="text-slate-500">Структурированный отчёт о прибылях и убытках</p>
+      </div>
+      <Filters {...filters} onChange={updateFilter} />
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="divide-y divide-slate-100">
+          <section className="p-6">
+            <h2 className="font-semibold text-slate-800 mb-4">1. Выручка</h2>
+            <div className="space-y-2 pl-4">
+              {(revenueByDir ?? []).map((r: any) => (
+                <div key={r.direction} className="flex justify-between">
+                  <span>{r.label ?? (DIRECTION_LABELS as Record<string, string>)[r.direction] ?? r.direction}</span>
+                  <span>{formatRub(r.amount)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between font-semibold pt-2 border-t"><span>Итого</span><span>{formatRub(pnl.revenue)}</span></div>
+            </div>
+          </section>
+          <section className="p-6">
+            <h2 className="font-semibold text-slate-800 mb-4">2. COGS (по этапам)</h2>
+            <div className="space-y-2 pl-4">
+              {stageOrder.map((s) => (
+                <div key={s} className="flex justify-between">
+                  <span>{(LOGISTICS_STAGE_LABELS as Record<string, string>)[s]}</span>
+                  <span>{formatRub(cogsMap[s] ?? 0)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between font-semibold pt-2 border-t"><span>Итого COGS</span><span>{formatRub(totalCogs)}</span></div>
+            </div>
+          </section>
+          <section className="p-6">
+            <h2 className="font-semibold text-slate-800 mb-4">3. Валовая прибыль</h2>
+            <div className="pl-4"><span className="font-semibold">{formatRub(pnl.grossProfit)}</span></div>
+          </section>
+          <section className="p-6">
+            <h2 className="font-semibold text-slate-800 mb-4">4. OPEX</h2>
+            <div className="space-y-2 pl-4">
+              {(opexByDept ?? []).map((o: any) => (
+                <div key={o.dept} className="flex justify-between">
+                  <span>{(DEPARTMENT_LABELS as Record<string, string>)[o.dept] ?? o.dept}</span>
+                  <span>{formatRub(o.amount)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between font-semibold pt-2 border-t"><span>Итого OPEX</span><span>{formatRub(pnl.opex)}</span></div>
+            </div>
+          </section>
+          <section className="p-6">
+            <h2 className="font-semibold text-slate-800 mb-4">5. EBITDA</h2>
+            <div className="pl-4"><span className="font-semibold" style={{ color: '#10b981' }}>{formatRub(pnl.ebitda)}</span></div>
+          </section>
+          <section className="p-6">
+            <h2 className="font-semibold text-slate-800 mb-4">6. CAPEX</h2>
+            <div className="pl-4"><span className="font-semibold">{formatRub(pnl.capex ?? 0)}</span></div>
+          </section>
+          <section className="p-6">
+            <h2 className="font-semibold text-slate-800 mb-4">7. Валовая прибыль – OPEX – CAPEX</h2>
+            <div className="pl-4"><span className="font-semibold">{formatRub(pnl.netAfterCapex ?? 0)}</span></div>
+          </section>
+          <section className="p-6">
+            <h2 className="font-semibold text-slate-800 mb-4">8. Ниже EBITDA</h2>
+            <div className="space-y-2 pl-4">
+              <div className="flex justify-between"><span>Дивиденды</span><span>—</span></div>
+              <div className="flex justify-between"><span>Кредиты и лизинг</span><span>{formatRub(pnl.creditPayments ?? 0)}</span></div>
+              <div className="flex justify-between"><span>Транзит</span><span>—</span></div>
+              <div className="flex justify-between font-semibold pt-2 border-t"><span>Итого</span><span>{formatRub(pnl.belowEbitda)}</span></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}

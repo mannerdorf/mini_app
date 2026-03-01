@@ -40,6 +40,8 @@ insert into expense_categories (id, name, sort_order) values
   ('office',      'Офис',                    5),
   ('rent',        'Аренда',                  6),
   ('insurance',   'Страхование',             7),
+  ('mainline',    'Магистраль',              8),
+  ('pickup_logistics', 'Заборная логистика', 9),
   ('other',       'Прочее',                100)
 on conflict (id) do nothing;
 

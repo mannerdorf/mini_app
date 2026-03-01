@@ -1,0 +1,22 @@
+@tailwind utilities;
+
+.pnl-section {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.pnl-section input,
+.pnl-section select,
+.pnl-section textarea {
+  color: #0f172a;
+}
+
+.pnl-section .animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}

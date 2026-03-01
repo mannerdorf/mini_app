@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3 } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import type { ExpenseRequestItem } from "./ExpenseRequestsPage";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { PnlSection } from "../pnl/PnlSection";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -279,7 +280,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "pnl">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -323,7 +324,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [expandedCustomerLabels, setExpandedCustomerLabels] = useState<Set<string>>(new Set());
   const [usersSortBy, setUsersSortBy] = useState<"email" | "date" | "active">("email");
   const [usersSortOrder, setUsersSortOrder] = useState<"asc" | "desc">("asc");
-  const [usersFilterBy, setUsersFilterBy] = useState<"all" | "cms" | "no_cms" | "service_mode" | "supervisor" | "no_supervisor" | "analytics" | "no_analytics">("all");
+  const [usersFilterBy, setUsersFilterBy] = useState<"all" | "cms" | "no_cms" | "service_mode" | "supervisor" | "no_supervisor" | "analytics" | "no_analytics" | "home" | "no_home" | "dashboard" | "no_dashboard">("all");
   const [usersFilterLastLogin, setUsersFilterLastLogin] = useState<"all" | "7d" | "30d" | "never" | "old">("all");
   const [usersFilterActive, setUsersFilterActive] = useState<"all" | "active" | "inactive">("all");
   const [usersFilterPresetId, setUsersFilterPresetId] = useState<string>("");
@@ -533,9 +534,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [expenseRejectId, setExpenseRejectId] = useState<string | null>(null);
   const [expenseRejectComment, setExpenseRejectComment] = useState("");
   const [expenseEditId, setExpenseEditId] = useState<string | null>(null);
-  const [expenseEditAmount, setExpenseEditAmount] = useState("");
-  const [expenseEditComment, setExpenseEditComment] = useState("");
+  const [expenseEditDocNumber, setExpenseEditDocNumber] = useState("");
+  const [expenseEditDocDate, setExpenseEditDocDate] = useState("");
+  const [expenseEditPeriod, setExpenseEditPeriod] = useState("");
+  const [expenseEditDepartment, setExpenseEditDepartment] = useState("");
   const [expenseEditCategory, setExpenseEditCategory] = useState("");
+  const [expenseEditAmount, setExpenseEditAmount] = useState("");
+  const [expenseEditVatRate, setExpenseEditVatRate] = useState("");
+  const [expenseEditComment, setExpenseEditComment] = useState("");
+  const [expenseEditVehicle, setExpenseEditVehicle] = useState("");
+  const [expenseEditEmployee, setExpenseEditEmployee] = useState("");
   const [editorChangeLoginValue, setEditorChangeLoginValue] = useState("");
   const [editorChangeLoginOpen, setEditorChangeLoginOpen] = useState(false);
   const [editorChangeLoginLoading, setEditorChangeLoginLoading] = useState(false);
@@ -1122,6 +1130,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       no_supervisor: base.filter((u) => !u.permissions?.supervisor).length,
       analytics: base.filter((u) => !!u.permissions?.analytics).length,
       no_analytics: base.filter((u) => !u.permissions?.analytics).length,
+      home: base.filter((u) => !!u.permissions?.home).length,
+      no_home: base.filter((u) => !u.permissions?.home).length,
+      dashboard: base.filter((u) => !!u.permissions?.dashboard).length,
+      no_dashboard: base.filter((u) => !u.permissions?.dashboard).length,
       active: base.filter((u) => !!u.active).length,
       inactive: base.filter((u) => !u.active).length,
       last_login_7d: withLastLogin((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d),
@@ -1529,7 +1541,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting")) setTab("users");
+    if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "pnl")) setTab("users");
   }, [isSuperAdmin, tab]);
 
   const reloadAllExpenseRequests = useCallback(() => {
@@ -1580,6 +1592,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     } catch { /* skip */ }
   }, [reloadAllExpenseRequests]);
 
+  const CATEGORIES_LIST = [{ id: "fuel", name: "Топливо" }, { id: "repair", name: "Ремонт и обслуживание" }, { id: "spare_parts", name: "Запасные части" }, { id: "salary", name: "Зарплата" }, { id: "office", name: "Офис" }, { id: "rent", name: "Аренда" }, { id: "insurance", name: "Страхование" }, { id: "mainline", name: "Магистраль" }, { id: "pickup_logistics", name: "Заборная логистика" }, { id: "other", name: "Прочее" }];
+
   const saveExpenseEdit = useCallback((itemId: string, itemLogin: string) => {
     const storageKey = `haulz.expense_requests.${itemLogin}`;
     try {
@@ -1588,19 +1602,27 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       const items = JSON.parse(raw) as ExpenseRequestItem[];
       if (!Array.isArray(items)) return;
       const num = parseFloat(expenseEditAmount.replace(",", "."));
+      const catObj = CATEGORIES_LIST.find((c) => c.id === expenseEditCategory);
       const updated = items.map((r) =>
         r.id === itemId ? {
           ...r,
+          docNumber: expenseEditDocNumber,
+          docDate: expenseEditDocDate,
+          period: expenseEditPeriod,
+          department: expenseEditDepartment || r.department,
+          ...(catObj ? { categoryId: catObj.id, categoryName: catObj.name } : {}),
           ...(Number.isFinite(num) && num > 0 ? { amount: num } : {}),
-          ...(expenseEditComment ? { comment: expenseEditComment } : {}),
-          ...(expenseEditCategory ? { categoryId: expenseEditCategory, categoryName: [{ id: "fuel", name: "Топливо" }, { id: "repair", name: "Ремонт и обслуживание" }, { id: "spare_parts", name: "Запасные части" }, { id: "salary", name: "Зарплата" }, { id: "office", name: "Офис" }, { id: "rent", name: "Аренда" }, { id: "insurance", name: "Страхование" }, { id: "other", name: "Прочее" }].find((c) => c.id === expenseEditCategory)?.name ?? r.categoryName } : {}),
+          vatRate: expenseEditVatRate,
+          comment: expenseEditComment,
+          vehicleOrEmployee: expenseEditVehicle,
+          employeeName: expenseEditEmployee,
         } : r
       );
       localStorage.setItem(storageKey, JSON.stringify(updated));
       setExpenseEditId(null);
       reloadAllExpenseRequests();
     } catch { /* skip */ }
-  }, [expenseEditAmount, expenseEditComment, expenseEditCategory, reloadAllExpenseRequests]);
+  }, [expenseEditDocNumber, expenseEditDocDate, expenseEditPeriod, expenseEditDepartment, expenseEditCategory, expenseEditAmount, expenseEditVatRate, expenseEditComment, expenseEditVehicle, expenseEditEmployee, reloadAllExpenseRequests]);
 
   const fetchEmployeeDirectory = useCallback(async (monthForTimesheet?: string) => {
     if (!adminToken || !isSuperAdmin) return;
@@ -2362,6 +2384,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             Бухгалтерия
           </Button>
         )}
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={{ background: tab === "pnl" ? "#7c3aed" : undefined, color: tab === "pnl" ? "white" : undefined }}
+            onClick={() => setTab("pnl")}
+          >
+            <BarChart3 className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            PNL
+          </Button>
+        )}
       </Flex>
 
       {isDirectoryTab && (
@@ -2712,6 +2744,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <option value="no_supervisor">Руководитель — без права ({usersFilterCounts.no_supervisor})</option>
                   <option value="analytics">Аналитика — с правом ({usersFilterCounts.analytics})</option>
                   <option value="no_analytics">Аналитика — без права ({usersFilterCounts.no_analytics})</option>
+                  <option value="home">Главная — с правом ({usersFilterCounts.home})</option>
+                  <option value="no_home">Без главной ({usersFilterCounts.no_home})</option>
+                  <option value="dashboard">Дашборд — с правом ({usersFilterCounts.dashboard})</option>
+                  <option value="no_dashboard">Без дашборда ({usersFilterCounts.no_dashboard})</option>
                 </select>
               </Flex>
               <Flex align="center" gap="var(--space-2, 0.35rem)">
@@ -2798,6 +2834,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     else if (usersFilterBy === "no_supervisor") list = list.filter((u) => !u.permissions?.supervisor);
                     else if (usersFilterBy === "analytics") list = list.filter((u) => !!u.permissions?.analytics);
                     else if (usersFilterBy === "no_analytics") list = list.filter((u) => !u.permissions?.analytics);
+                    else if (usersFilterBy === "home") list = list.filter((u) => !!u.permissions?.home);
+                    else if (usersFilterBy === "no_home") list = list.filter((u) => !u.permissions?.home);
+                    else if (usersFilterBy === "dashboard") list = list.filter((u) => !!u.permissions?.dashboard);
+                    else if (usersFilterBy === "no_dashboard") list = list.filter((u) => !u.permissions?.dashboard);
                     if (usersFilterActive === "active") list = list.filter((u) => !!u.active);
                     else if (usersFilterActive === "inactive") list = list.filter((u) => !u.active);
                     if (usersFilterLastLogin === "7d") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
@@ -2844,6 +2884,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               else if (usersFilterBy === "no_supervisor") filtered = filtered.filter((u) => !u.permissions?.supervisor);
               else if (usersFilterBy === "analytics") filtered = filtered.filter((u) => !!u.permissions?.analytics);
               else if (usersFilterBy === "no_analytics") filtered = filtered.filter((u) => !u.permissions?.analytics);
+              else if (usersFilterBy === "home") filtered = filtered.filter((u) => !!u.permissions?.home);
+              else if (usersFilterBy === "no_home") filtered = filtered.filter((u) => !u.permissions?.home);
+              else if (usersFilterBy === "dashboard") filtered = filtered.filter((u) => !!u.permissions?.dashboard);
+              else if (usersFilterBy === "no_dashboard") filtered = filtered.filter((u) => !u.permissions?.dashboard);
               if (usersFilterActive === "active") filtered = filtered.filter((u) => !!u.active);
               else if (usersFilterActive === "inactive") filtered = filtered.filter((u) => !u.active);
               if (usersFilterLastLogin === "7d") filtered = filtered.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
@@ -6906,7 +6950,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             {isAccounting && r.status === "approved" && (
                               <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "paid")} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
                             )}
-                            <button type="button" onClick={() => { setExpenseEditId(r.id); setExpenseEditAmount(String(r.amount)); setExpenseEditComment(r.comment); setExpenseEditCategory(r.categoryId); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer" }}>Изменить</button>
+                            <button type="button" onClick={() => { setExpenseEditId(r.id); setExpenseEditDocNumber((r as any).docNumber ?? ""); setExpenseEditDocDate((r as any).docDate ?? ""); setExpenseEditPeriod((r as any).period ?? ""); setExpenseEditDepartment(r.department); setExpenseEditCategory(r.categoryId); setExpenseEditAmount(String(r.amount)); setExpenseEditVatRate((r as any).vatRate ?? ""); setExpenseEditComment(r.comment); setExpenseEditVehicle(r.vehicleOrEmployee); setExpenseEditEmployee((r as any).employeeName ?? ""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer" }}>Изменить</button>
                             <button type="button" onClick={() => { if (window.confirm("Удалить заявку? Действие нельзя отменить.")) deleteExpenseRequest(r.id, r.login); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Удалить</button>
                           </Flex>
                         </td>
@@ -6947,25 +6991,67 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             {expenseEditId && (() => {
               const item = adminExpenseRequests.find((r) => r.id === expenseEditId);
               if (!item) return null;
+              const fieldLabel = { fontSize: "0.72rem", color: "var(--color-text-secondary)", display: "block" as const, marginBottom: "0.15rem" };
+              const fieldInput = { width: "100%", padding: "0.45rem", height: 36, boxSizing: "border-box" as const };
               return (
                 <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setExpenseEditId(null)}>
-                  <div style={{ background: "var(--color-bg-card, #fff)", borderRadius: 12, padding: "1.25rem", maxWidth: 420, width: "90%" }} onClick={(e) => e.stopPropagation()}>
-                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.75rem" }}>Изменить заявку #{(item as any).docNumber || item.id.slice(-6)}</Typography.Body>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", marginBottom: "0.75rem" }}>
+                  <div style={{ background: "var(--color-bg-card, #fff)", borderRadius: 12, padding: "1.25rem", maxWidth: 520, width: "92%", maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.75rem" }}>Изменить заявку #{expenseEditDocNumber || item.id.slice(-6)}</Typography.Body>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem", marginBottom: "0.75rem" }}>
+                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 40%", minWidth: 120 }}>
+                          <label style={fieldLabel}>№ документа</label>
+                          <input type="text" className="admin-form-input" value={expenseEditDocNumber} onChange={(e) => setExpenseEditDocNumber(e.target.value)} style={fieldInput} />
+                        </div>
+                        <div style={{ flex: "1 1 28%", minWidth: 110 }}>
+                          <label style={fieldLabel}>Дата документа</label>
+                          <input type="date" className="admin-form-input" value={expenseEditDocDate} onChange={(e) => setExpenseEditDocDate(e.target.value)} style={fieldInput} />
+                        </div>
+                        <div style={{ flex: "1 1 28%", minWidth: 110 }}>
+                          <label style={fieldLabel}>Период</label>
+                          <input type="month" className="admin-form-input" value={expenseEditPeriod} onChange={(e) => setExpenseEditPeriod(e.target.value)} style={fieldInput} />
+                        </div>
+                      </div>
                       <div>
-                        <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Статья расхода</label>
-                        <select className="admin-form-input" value={expenseEditCategory} onChange={(e) => setExpenseEditCategory(e.target.value)} style={{ width: "100%", padding: "0.45rem" }}>
-                          {[{ id: "fuel", name: "Топливо" }, { id: "repair", name: "Ремонт и обслуживание" }, { id: "spare_parts", name: "Запасные части" }, { id: "salary", name: "Зарплата" }, { id: "office", name: "Офис" }, { id: "rent", name: "Аренда" }, { id: "insurance", name: "Страхование" }, { id: "other", name: "Прочее" }].map((c) => (
+                        <label style={fieldLabel}>Подразделение</label>
+                        <input type="text" className="admin-form-input" value={expenseEditDepartment} onChange={(e) => setExpenseEditDepartment(e.target.value)} style={fieldInput} />
+                      </div>
+                      <div>
+                        <label style={fieldLabel}>Статья расхода</label>
+                        <select className="admin-form-input" value={expenseEditCategory} onChange={(e) => setExpenseEditCategory(e.target.value)} style={{ ...fieldInput, height: 36 }}>
+                          {CATEGORIES_LIST.map((c) => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                           ))}
                         </select>
                       </div>
-                      <div>
-                        <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Сумма (₽)</label>
-                        <Input type="text" inputMode="decimal" value={expenseEditAmount} onChange={(e) => setExpenseEditAmount(e.target.value)} className="admin-form-input" style={{ width: "100%" }} />
+                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 55%", minWidth: 120 }}>
+                          <label style={fieldLabel}>Сумма (₽)</label>
+                          <input type="text" inputMode="decimal" className="admin-form-input" value={expenseEditAmount} onChange={(e) => setExpenseEditAmount(e.target.value)} style={fieldInput} />
+                        </div>
+                        <div style={{ flex: "1 1 40%", minWidth: 100 }}>
+                          <label style={fieldLabel}>НДС</label>
+                          <select className="admin-form-input" value={expenseEditVatRate} onChange={(e) => setExpenseEditVatRate(e.target.value)} style={{ ...fieldInput, height: 36 }}>
+                            <option value="">Без НДС</option>
+                            <option value="0">0%</option>
+                            <option value="5">5%</option>
+                            <option value="7">7%</option>
+                            <option value="10">10%</option>
+                            <option value="20">20%</option>
+                            <option value="22">22%</option>
+                          </select>
+                        </div>
                       </div>
                       <div>
-                        <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Комментарий</label>
+                        <label style={fieldLabel}>Транспортное средство</label>
+                        <input type="text" className="admin-form-input" value={expenseEditVehicle} onChange={(e) => setExpenseEditVehicle(e.target.value)} style={fieldInput} placeholder="Номер / модель ТС" />
+                      </div>
+                      <div>
+                        <label style={fieldLabel}>Сотрудник</label>
+                        <input type="text" className="admin-form-input" value={expenseEditEmployee} onChange={(e) => setExpenseEditEmployee(e.target.value)} style={fieldInput} placeholder="ФИО сотрудника" />
+                      </div>
+                      <div>
+                        <label style={fieldLabel}>Комментарий</label>
                         <textarea value={expenseEditComment} onChange={(e) => setExpenseEditComment(e.target.value)} className="admin-form-input" style={{ width: "100%", minHeight: 60, resize: "vertical" }} rows={2} />
                       </div>
                     </div>
@@ -6995,6 +7081,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         }}
         fetchCustomers={fetchCustomersForModal}
       />
+
+      {tab === "pnl" && isSuperAdmin && <PnlSection />}
     </div>
   );
 }

@@ -1,0 +1,163 @@
+import { useState, useEffect } from 'react';
+import { pnlGet, pnlPost } from './api';
+import { DIRECTION_LABELS, MONTHS } from './constants';
+import { CheckCircle, Plus, Trash2 } from 'lucide-react';
+
+const MAINLINE_DIRECTIONS = ['MSK_TO_KGD', 'KGD_TO_MSK'] as const;
+const MAINLINE_TRANSPORT = [{ value: 'AUTO', label: 'авто' }, { value: 'FERRY', label: 'паром' }] as const;
+
+interface ExpenseCat { id: string; name: string; department: string; type: string; logisticsStage: string | null; }
+interface ExpenseRow { id: string; categoryId: string; amount: string; direction: string; transportType: string; }
+interface SavedExpense { categoryId: string; categoryName: string; amount: number; comment?: string | null; direction?: string; transportType?: string; }
+
+function formatRub(n: number) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽'; }
+function generateId() { return Math.random().toString(36).slice(2, 9); }
+
+interface Props { department: string; logisticsStage?: string | null; label: string; description: string; subdivisionSelect?: React.ReactNode; }
+
+export function UploadExpenseForm({ department, logisticsStage, label, description, subdivisionSelect }: Props) {
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+  const [filteredCats, setFilteredCats] = useState<ExpenseCat[]>([]);
+  const isMainline = logisticsStage === 'MAINLINE';
+  const [rows, setRows] = useState<ExpenseRow[]>([{ id: generateId(), categoryId: '', amount: '', direction: 'MSK_TO_KGD', transportType: 'AUTO' }]);
+  const [savedExpenses, setSavedExpenses] = useState<SavedExpense[]>([]);
+  const [savedLoading, setSavedLoading] = useState(true);
+  const [catsLoading, setCatsLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [editingAmount, setEditingAmount] = useState<{ key: string; value: string } | null>(null);
+  const [editingComment, setEditingComment] = useState<{ key: string; value: string } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const rowKey = (e: SavedExpense) => `${e.categoryId}:${e.direction ?? ''}:${e.transportType ?? ''}`;
+
+  const loadSaved = () => {
+    const stage = logisticsStage == null ? '' : logisticsStage;
+    pnlGet<any>('/api/manual-entry', { month: String(month), year: String(year), department, logisticsStage: stage })
+      .then((d) => setSavedExpenses(Array.isArray(d?.expenses) ? d.expenses : []))
+      .catch(() => setSavedExpenses([]))
+      .finally(() => setSavedLoading(false));
+  };
+
+  useEffect(loadSaved, [month, year, department, logisticsStage]);
+
+  useEffect(() => {
+    pnlGet<ExpenseCat[]>('/api/expense-categories').then((cats) => {
+      setFilteredCats(cats.filter((c) => c.department === department && (logisticsStage === null ? c.logisticsStage === null : c.logisticsStage === logisticsStage)));
+      setCatsLoading(false);
+    });
+  }, [department, logisticsStage]);
+
+  const updateRow = (id: string, field: keyof ExpenseRow, value: string) => { setRows((r) => r.map((row) => row.id === id ? { ...row, [field]: value } : row)); setSaveSuccess(false); };
+
+  const handleSaveExpenses = async () => {
+    const validRows = rows.filter((r) => r.categoryId && parseFloat(r.amount.replace(/\s/g, '').replace(/,/g, '.')) > 0);
+    if (validRows.length === 0) return;
+    setSaving(true); setSaveSuccess(false);
+    try {
+      const period = `${year}-${String(month).padStart(2, '0')}-01`;
+      await pnlPost('/api/manual-entry', { period, revenues: [], expenses: validRows.map((r) => ({ categoryId: r.categoryId, amount: parseFloat(r.amount.replace(/\s/g, '').replace(/,/g, '.')) || 0, direction: isMainline ? r.direction : '', transportType: isMainline ? r.transportType : '' })) });
+      setSaveSuccess(true); loadSaved();
+    } finally { setSaving(false); }
+  };
+
+  const handleUpdateAmount = async (categoryId: string, newAmount: number, comment?: string | null, direction = '', transportType = '') => {
+    setEditingAmount(null);
+    const period = `${year}-${String(month).padStart(2, '0')}-01`;
+    await pnlPost('/api/manual-entry', { period, revenues: [], expenses: [{ categoryId, amount: newAmount, comment: comment ?? undefined, direction, transportType }] });
+    loadSaved();
+  };
+
+  const handleUpdateComment = async (categoryId: string, newComment: string, currentAmount: number, direction = '', transportType = '') => {
+    setEditingComment(null);
+    const period = `${year}-${String(month).padStart(2, '0')}-01`;
+    await pnlPost('/api/manual-entry', { period, revenues: [], expenses: [{ categoryId, amount: currentAmount, comment: newComment.trim() || undefined, direction, transportType }] });
+    loadSaved();
+  };
+
+  const handleDeleteSaved = async (categoryId: string, direction = '', transportType = '') => {
+    if (!confirm('Удалить эту запись?')) return;
+    setDeletingId(`${categoryId}:${direction}:${transportType}`);
+    const period = `${year}-${String(month).padStart(2, '0')}-01`;
+    await pnlPost('/api/manual-entry', { period, revenues: [], expenses: [{ categoryId, amount: 0, direction, transportType }] });
+    setDeletingId(null); loadSaved();
+  };
+
+  const totalExpenses = rows.reduce((s, r) => s + (parseFloat(r.amount.replace(/\s/g, '').replace(/,/g, '.')) || 0), 0);
+
+  return (
+    <div className="space-y-6">
+      <div><h1 className="text-2xl font-bold text-slate-900">{label}</h1><p className="text-slate-500">{description}</p></div>
+      <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm" style={{ maxWidth: 640 }}>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Ввод затрат</h2>
+        <div className="flex flex-wrap items-center gap-4 mb-4">
+          {subdivisionSelect}
+          <div className="flex gap-2">
+            <select value={month} onChange={(e) => setMonth(parseInt(e.target.value))} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900">{MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}</select>
+            <select value={year} onChange={(e) => setYear(parseInt(e.target.value))} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900">{[year - 2, year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}</select>
+          </div>
+        </div>
+        {catsLoading ? <div className="animate-pulse text-slate-500">Загрузка справочника...</div> : filteredCats.length === 0 ? <p className="text-slate-500 text-sm">Нет статей расходов для этого подразделения.</p> : (
+          <>
+            <div className="space-y-3">
+              {rows.map((row) => (
+                <div key={row.id} className="flex flex-wrap items-center gap-2">
+                  <select value={row.categoryId} onChange={(e) => updateRow(row.id, 'categoryId', e.target.value)} className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-slate-900" style={{ minWidth: 140 }}>
+                    <option value="">— Выберите статью —</option>
+                    {filteredCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  {isMainline && (
+                    <>
+                      <select value={row.direction} onChange={(e) => updateRow(row.id, 'direction', e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900" style={{ width: 130 }}>{MAINLINE_DIRECTIONS.map((d) => <option key={d} value={d}>{(DIRECTION_LABELS as Record<string, string>)[d]}</option>)}</select>
+                      <select value={row.transportType} onChange={(e) => updateRow(row.id, 'transportType', e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900" style={{ width: 90 }}>{MAINLINE_TRANSPORT.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select>
+                    </>
+                  )}
+                  <input type="text" value={row.amount} onChange={(e) => updateRow(row.id, 'amount', e.target.value)} placeholder="Сумма" className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-right" style={{ width: 112 }} />
+                  {rows.length > 1 && <button onClick={() => setRows((r) => r.filter((x) => x.id !== row.id))} className="p-2 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setRows((r) => [...r, { id: generateId(), categoryId: '', amount: '', direction: 'MSK_TO_KGD', transportType: 'AUTO' }])} className="mt-3 text-sm flex items-center gap-1" style={{ color: '#2563eb' }}><Plus className="w-4 h-4" /> Добавить строку</button>
+            <div className="mt-4 pt-4 border-t flex items-center justify-between">
+              <span className="font-medium">Итого: {formatRub(totalExpenses)}</span>
+              <button onClick={handleSaveExpenses} disabled={saving || rows.every((r) => !r.categoryId || !r.amount)} className="px-4 py-2 text-white rounded-lg disabled:opacity-50 flex items-center gap-2" style={{ background: '#2563eb' }}>{saving ? 'Сохранение...' : 'Сохранить'}</button>
+            </div>
+            {saveSuccess && <div className="mt-3 p-3 bg-emerald-50 rounded-lg flex items-center gap-2" style={{ color: '#047857' }}><CheckCircle className="w-5 h-5" /><span>Сохранено</span></div>}
+          </>
+        )}
+      </div>
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden" style={{ maxWidth: 640 }}>
+        <h2 className="text-lg font-semibold text-slate-900 px-6 py-4 border-b border-slate-100">Сохранённые затраты ({MONTHS[month - 1]} {year})</h2>
+        {savedLoading ? <div className="px-6 py-6 text-slate-500 animate-pulse">Загрузка...</div> : savedExpenses.length === 0 ? <div className="px-6 py-6 text-slate-500 text-sm">Нет сохранённых затрат за этот период.</div> : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead><tr className="border-b border-slate-100 bg-slate-50"><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Статья</th>{isMainline && <th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Направление</th>}<th className="px-6 py-2 text-right text-sm font-medium text-slate-600">Сумма</th><th className="px-6 py-2 text-left text-sm font-medium text-slate-600">Комментарий</th><th className="px-6 py-2 w-12" /></tr></thead>
+                <tbody>
+                  {savedExpenses.map((e) => {
+                    const key = rowKey(e);
+                    const isEA = editingAmount?.key === key;
+                    const isEC = editingComment?.key === key;
+                    const dir = e.direction ?? ''; const transport = e.transportType ?? '';
+                    return (
+                      <tr key={key} className="border-b border-slate-50 hover:bg-slate-50">
+                        <td className="px-6 py-2 text-slate-900">{e.categoryName}</td>
+                        {isMainline && <td className="px-6 py-2 text-slate-600 text-sm">{dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${transport === 'FERRY' ? 'паром' : 'авто'}` : '—'}</td>}
+                        <td className="px-6 py-2 text-right"><input type="number" step="0.01" min="0" value={isEA ? editingAmount.value : String(e.amount)} onChange={(ev) => setEditingAmount({ key, value: ev.target.value })} onFocus={() => setEditingAmount({ key, value: String(e.amount) })} onBlur={(ev) => { const v = parseFloat(ev.target.value); if (Number.isFinite(v) && Math.abs(v - e.amount) > 0.001) handleUpdateAmount(e.categoryId, v, e.comment, dir, transport); else setEditingAmount(null); }} className="w-28 text-right border border-slate-200 rounded px-2 py-1 text-slate-900 font-medium" /></td>
+                        <td className="px-6 py-2"><input type="text" value={isEC ? editingComment.value : (e.comment ?? '')} onChange={(ev) => setEditingComment({ key, value: ev.target.value })} onFocus={() => setEditingComment({ key, value: e.comment ?? '' })} onBlur={(ev) => { if (ev.target.value.trim() !== (e.comment ?? '').trim()) handleUpdateComment(e.categoryId, ev.target.value, e.amount, dir, transport); else setEditingComment(null); }} placeholder="Комментарий" className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-700" style={{ minWidth: 140, maxWidth: 220 }} /></td>
+                        <td className="px-6 py-2 text-right"><button onClick={() => handleDeleteSaved(e.categoryId, dir, transport)} disabled={deletingId === key} className="p-1.5 text-slate-400 hover:text-red-600 disabled:opacity-50"><Trash2 className="w-4 h-4" /></button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-6 py-2 bg-slate-50 border-t border-slate-100 flex justify-end"><span className="font-semibold text-slate-900">Итого: {formatRub(savedExpenses.reduce((s, e) => s + e.amount, 0))}</span></div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
