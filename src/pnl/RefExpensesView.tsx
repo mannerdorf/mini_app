@@ -1,10 +1,34 @@
 import { useEffect, useState } from 'react';
 import { pnlGet, pnlPost, pnlPatch, pnlDelete } from './api';
 import { SUBDIVISIONS } from './constants';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Info } from 'lucide-react';
 
 interface BaseCategory { id: string; name: string; costType?: string; sortOrder?: number; }
 interface Category { id: string; name: string; department: string; type: string; logisticsStage: string | null; sortOrder: number; expenseCategoryId?: string; }
+
+const COST_TYPE_LEGEND = [
+  {
+    type: 'COGS',
+    title: 'COGS (Cost of Goods Sold) — себестоимость перевозки',
+    desc: 'Прямые затраты на доставку груза, которые можно отнести к конкретной перевозке. Уменьшают валовую прибыль и влияют на маржу за кг.',
+    articles: 'Топливо, Запасные части, Ремонт и обслуживание ТС, Магистраль, Заборная логистика, Прочее (таможня, накладные по перевозке)',
+    borderColor: '#3b82f6',
+  },
+  {
+    type: 'OPEX',
+    title: 'OPEX (Operating Expenses) — операционные расходы',
+    desc: 'Затраты на ведение бизнеса: офис, персонал, аренда, страхование. Не привязаны к конкретной перевозке, учитываются в EBITDA.',
+    articles: 'Зарплата, Офис, Аренда, Страхование, Юристы, Маркетинг, Административные расходы',
+    borderColor: '#10b981',
+  },
+  {
+    type: 'CAPEX',
+    title: 'CAPEX (Capital Expenditures) — капитальные затраты',
+    desc: 'Единоразовые инвестиции в основные средства: покупка ТС, оборудования. Не входят в EBITDA, вычитаются после.',
+    articles: 'Покупка ТС, Оборудование, Недвижимость, Крупные единоразовые инвестиции',
+    borderColor: '#f59e0b',
+  },
+];
 
 export function RefExpensesView() {
   const [cats, setCats] = useState<Category[]>([]);
@@ -63,6 +87,28 @@ export function RefExpensesView() {
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold text-slate-900">Справочник расходов</h1><p className="text-slate-500">Категории по подразделениям для ручного ввода затрат (статьи те же, что в заявках на расходы)</p></div>
+
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+        <h3 className="font-medium text-slate-800 mb-3 flex items-center gap-2">
+          <Info className="w-4 h-4 text-slate-600" />
+          Типы затрат в привязке к статьям
+        </h3>
+        <div className="space-y-4">
+          {COST_TYPE_LEGEND.map((item) => (
+            <div key={item.type} className="pl-3 py-1" style={{ borderLeft: `4px solid ${item.borderColor}` }}>
+              <div className="font-semibold text-slate-800">{item.title}</div>
+              <p className="text-sm text-slate-600 mt-0.5">{item.desc}</p>
+              <p className="text-xs text-slate-500 mt-1">
+                <span className="font-medium">Типичные статьи:</span> {item.articles}
+              </p>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-slate-500 mt-3">
+          Одна и та же статья может относиться к разным типам в зависимости от подразделения и назначения. Например, «Топливо» для магистрали — COGS; «Ремонт офиса» — OPEX.
+        </p>
+      </div>
+
       <form onSubmit={handleAdd} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
         <h3 className="font-medium text-slate-800">Добавить категорию</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

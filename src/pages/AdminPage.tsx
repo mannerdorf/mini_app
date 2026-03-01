@@ -6,6 +6,7 @@ import { CustomerPickModal, type CustomerItem } from "../components/modals/Custo
 import type { ExpenseRequestItem } from "./ExpenseRequestsPage";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { PnlSection } from "../pnl/PnlSection";
+import { RefSubdivisionsView } from "../pnl/RefSubdivisionsView";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -141,12 +142,8 @@ type EmployeeDirectoryRow = {
 
 type AccrualType = "hour" | "shift" | "month";
 
-const EMPLOYEE_DEPARTMENTS = [
-  "Склад Москва",
-  "Склад Калининград",
-  "Отдел продаж",
-  "Управляющая компания",
-] as const;
+/** Fallback при пустом справочнике подразделений */
+const EMPLOYEE_DEPARTMENTS_FALLBACK = ["Склад Москва", "Склад Калининград", "Отдел продаж", "Управляющая компания"];
 const COOPERATION_TYPE_OPTIONS = [
   { value: "self_employed", label: "Самозанятость" },
   { value: "ip", label: "ИП" },
@@ -280,7 +277,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "pnl">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "subdivisions" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "pnl">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -611,9 +608,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [userChangeQuery, setUserChangeQuery] = useState("");
   const [employeeDirectoryItems, setEmployeeDirectoryItems] = useState<EmployeeDirectoryRow[]>([]);
   const [employeeDirectoryLoading, setEmployeeDirectoryLoading] = useState(false);
+  const [employeeDepartments, setEmployeeDepartments] = useState<string[]>([]);
   const [employeeDirectoryEmail, setEmployeeDirectoryEmail] = useState("");
   const [employeeDirectoryFullName, setEmployeeDirectoryFullName] = useState("");
-  const [employeeDirectoryDepartment, setEmployeeDirectoryDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
+  const [employeeDirectoryDepartment, setEmployeeDirectoryDepartment] = useState<string>("");
   const [employeeDirectoryPosition, setEmployeeDirectoryPosition] = useState("");
   const [employeeDirectoryAccrualType, setEmployeeDirectoryAccrualType] = useState<AccrualType>("hour");
   const [employeeDirectoryAccrualRate, setEmployeeDirectoryAccrualRate] = useState("0");
@@ -622,7 +620,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectorySaving, setEmployeeDirectorySaving] = useState(false);
   const [employeeDirectoryEditingId, setEmployeeDirectoryEditingId] = useState<number | null>(null);
   const [employeeDirectoryEditFullName, setEmployeeDirectoryEditFullName] = useState("");
-  const [employeeDirectoryEditDepartment, setEmployeeDirectoryEditDepartment] = useState<string>(EMPLOYEE_DEPARTMENTS[0]);
+  const [employeeDirectoryEditDepartment, setEmployeeDirectoryEditDepartment] = useState<string>("");
   const [employeeDirectoryEditPosition, setEmployeeDirectoryEditPosition] = useState("");
   const [employeeDirectoryEditAccrualType, setEmployeeDirectoryEditAccrualType] = useState<AccrualType>("hour");
   const [employeeDirectoryEditAccrualRate, setEmployeeDirectoryEditAccrualRate] = useState("0");
@@ -1541,7 +1539,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "pnl")) setTab("users");
+    if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "pnl")) setTab("users");
   }, [isSuperAdmin, tab]);
 
   const reloadAllExpenseRequests = useCallback(() => {
@@ -1648,6 +1646,21 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setEmployeeDirectoryLoading(false);
     }
   }, [adminToken, isSuperAdmin]);
+
+  const fetchEmployeeDepartments = useCallback(async () => {
+    try {
+      const res = await fetch("/api/pnl-subdivisions");
+      const data = await res.json().catch(() => []);
+      const names = Array.isArray(data) ? data.map((s: { name?: string }) => s?.name ?? "").filter(Boolean) : [];
+      setEmployeeDepartments(names);
+      setEmployeeDirectoryDepartment((prev) => {
+        if (prev && names.includes(prev)) return prev;
+        return names[0] ?? "";
+      });
+    } catch {
+      setEmployeeDepartments([]);
+    }
+  }, []);
 
   const fetchTimesheetEntries = useCallback(async () => {
     if (!adminToken || !isSuperAdmin || !/^\d{4}-\d{2}$/.test(timesheetMonth)) return;
@@ -1884,8 +1897,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (tab === "employee_directory" && isSuperAdmin) {
       fetchEmployeeDirectory();
+      fetchEmployeeDepartments();
     }
-  }, [tab, isSuperAdmin, fetchEmployeeDirectory]);
+    if ((tab === "expense_requests" || tab === "accounting") && isSuperAdmin) {
+      fetchEmployeeDirectory();
+    }
+  }, [tab, isSuperAdmin, fetchEmployeeDirectory, fetchEmployeeDepartments]);
 
   useEffect(() => {
     if (tab === "timesheet" && isSuperAdmin) {
@@ -2286,7 +2303,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     return items;
   }, [selectedUser, editorPermissions, editorFinancial, editorAccessAllInns, editorCustomers]);
-  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "employee_directory" || tab === "presets";
+  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
 
   return (
     <div className={theme === "light" ? "light-mode w-full" : "w-full"}>
@@ -2430,6 +2447,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             >
               <Users className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
               Справочник сотрудников
+            </Button>
+          )}
+          {isSuperAdmin && (
+            <Button
+              className="filter-button"
+              style={{ background: tab === "subdivisions" ? "var(--color-primary-blue)" : undefined, color: tab === "subdivisions" ? "white" : undefined }}
+              onClick={() => setTab("subdivisions")}
+            >
+              <Building2 className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+              Справочник подразделений
             </Button>
           )}
           {isSuperAdmin && (
@@ -6492,6 +6519,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         </Panel>
       )}
 
+      {tab === "subdivisions" && isSuperAdmin && (
+        <div style={{ padding: "var(--pad-card, 1rem)" }}>
+          <RefSubdivisionsView />
+        </div>
+      )}
+
       {tab === "employee_directory" && isSuperAdmin && (
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник сотрудников HAULZ</Typography.Body>
@@ -6521,8 +6554,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               value={employeeDirectoryDepartment}
               onChange={(e) => setEmployeeDirectoryDepartment(e.target.value)}
               style={{ padding: "0 0.5rem" }}
+              disabled={(employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK).length === 0}
             >
-              {EMPLOYEE_DEPARTMENTS.map((dep) => (
+              {(employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK).map((dep) => (
                 <option key={dep} value={dep}>{dep}</option>
               ))}
             </select>
@@ -6639,7 +6673,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   onClick={() => {
                     setEmployeeDirectoryEditingId(emp.id);
                     setEmployeeDirectoryEditFullName(emp.full_name || "");
-                    setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
+                    setEmployeeDirectoryEditDepartment(emp.department || (employeeDepartments[0] ?? EMPLOYEE_DEPARTMENTS_FALLBACK[0] ?? ""));
                     setEmployeeDirectoryEditPosition(emp.position || "");
                     setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
                     setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
@@ -6654,7 +6688,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       e.preventDefault();
                       setEmployeeDirectoryEditingId(emp.id);
                       setEmployeeDirectoryEditFullName(emp.full_name || "");
-                      setEmployeeDirectoryEditDepartment(emp.department || EMPLOYEE_DEPARTMENTS[0]);
+                      setEmployeeDirectoryEditDepartment(emp.department || (employeeDepartments[0] ?? EMPLOYEE_DEPARTMENTS_FALLBACK[0] ?? ""));
                       setEmployeeDirectoryEditPosition(emp.position || "");
                       setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
                       setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
@@ -6734,9 +6768,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           onChange={(e) => setEmployeeDirectoryEditDepartment(e.target.value)}
                           style={{ padding: "0 0.5rem" }}
                         >
-                          {EMPLOYEE_DEPARTMENTS.map((dep) => (
-                            <option key={dep} value={dep}>{dep}</option>
-                          ))}
+                          {(() => {
+                            const base = employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK;
+                            const opts = [...base];
+                            if (employeeDirectoryEditDepartment && !opts.includes(employeeDirectoryEditDepartment)) opts.unshift(employeeDirectoryEditDepartment);
+                            return opts.map((dep) => <option key={dep} value={dep}>{dep}</option>);
+                          })()}
                         </select>
                         <input
                           type="text"
@@ -6874,14 +6911,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             paid: { bg: "rgba(139,92,246,0.15)", color: "#8b5cf6", label: "Оплачено" },
           };
           const m = map[s] ?? map.draft;
-          return <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 999, fontWeight: 600, background: m.bg, color: m.color }}>{m.label}</span>;
+          return <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 999, fontWeight: 600, background: m.bg, color: m.color, whiteSpace: "nowrap" }}>{m.label}</span>;
         };
         const toggleSort = (col: typeof adminExpenseSortCol) => {
           if (adminExpenseSortCol === col) setAdminExpenseSortAsc((p) => !p);
           else { setAdminExpenseSortCol(col); setAdminExpenseSortAsc(true); }
         };
         const arrow = (col: typeof adminExpenseSortCol) => adminExpenseSortCol === col ? (adminExpenseSortAsc ? " ▲" : " ▼") : "";
-        const filtered = isAccounting ? adminExpenseRequests.filter((r) => r.status === "approved" || r.status === "paid") : adminExpenseRequests;
+        const filtered = isAccounting ? adminExpenseRequests.filter((r) => r.status === "approved" || r.status === "sent" || r.status === "paid") : adminExpenseRequests;
         const sorted = [...filtered].sort((a, b) => {
           const dir = adminExpenseSortAsc ? 1 : -1;
           if (adminExpenseSortCol === "amount") return (a.amount - b.amount) * dir;
@@ -6938,7 +6975,29 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         </td>
                         <td style={{ padding: "6px 8px" }}>{r.vehicleOrEmployee || "—"}</td>
                         <td style={{ padding: "6px 8px" }}>{(r as any).employeeName || "—"}</td>
-                        <td style={{ padding: "6px 8px", fontSize: "0.7rem" }}>{r.attachmentNames.length > 0 ? r.attachmentNames.join(", ") : "—"}</td>
+                        <td style={{ padding: "6px 8px", fontSize: "0.7rem" }}>
+                          {(r as any).attachments?.length
+                            ? (r as any).attachments.map((att: { name: string; dataUrl: string }, i: number) => (
+                                <React.Fragment key={att.name}>
+                                  {i > 0 && ", "}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const a = document.createElement("a");
+                                      a.href = att.dataUrl;
+                                      a.download = att.name;
+                                      a.click();
+                                    }}
+                                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--color-primary-blue, #2563eb)", textDecoration: "underline", fontSize: "inherit" }}
+                                  >
+                                    {att.name}
+                                  </button>
+                                </React.Fragment>
+                              ))
+                            : r.attachmentNames.length > 0
+                              ? r.attachmentNames.join(", ")
+                              : "—"}
+                        </td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
                           <Flex gap="0.25rem" wrap="wrap">
                             {!isAccounting && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
@@ -6948,6 +7007,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               <button type="button" onClick={() => { setExpenseRejectId(r.id); setExpenseRejectComment(""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Отказать</button>
                             )}
                             {isAccounting && r.status === "approved" && (
+                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "sent")} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #2563eb", background: "transparent", color: "#2563eb", cursor: "pointer" }}>Отправлено в банк</button>
+                            )}
+                            {isAccounting && (r.status === "approved" || r.status === "sent") && (
                               <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "paid")} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
                             )}
                             <button type="button" onClick={() => { setExpenseEditId(r.id); setExpenseEditDocNumber((r as any).docNumber ?? ""); setExpenseEditDocDate((r as any).docDate ?? ""); setExpenseEditPeriod((r as any).period ?? ""); setExpenseEditDepartment(r.department); setExpenseEditCategory(r.categoryId); setExpenseEditAmount(String(r.amount)); setExpenseEditVatRate((r as any).vatRate ?? ""); setExpenseEditComment(r.comment); setExpenseEditVehicle(r.vehicleOrEmployee); setExpenseEditEmployee((r as any).employeeName ?? ""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer" }}>Изменить</button>
@@ -7044,11 +7106,38 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </div>
                       <div>
                         <label style={fieldLabel}>Транспортное средство</label>
-                        <input type="text" className="admin-form-input" value={expenseEditVehicle} onChange={(e) => setExpenseEditVehicle(e.target.value)} style={fieldInput} placeholder="Номер / модель ТС" />
+                        <input
+                          list="expense-edit-vehicle-list"
+                          type="text"
+                          className="admin-form-input"
+                          value={expenseEditVehicle}
+                          onChange={(e) => setExpenseEditVehicle(e.target.value)}
+                          style={fieldInput}
+                          placeholder="Выберите или введите номер / модель ТС"
+                        />
+                        <datalist id="expense-edit-vehicle-list">
+                          {[...new Set(adminExpenseRequests.map((r) => (r as any).vehicleOrEmployee).filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b), "ru")).map((v) => (
+                            <option key={v} value={v} />
+                          ))}
+                        </datalist>
                       </div>
                       <div>
                         <label style={fieldLabel}>Сотрудник</label>
-                        <input type="text" className="admin-form-input" value={expenseEditEmployee} onChange={(e) => setExpenseEditEmployee(e.target.value)} style={fieldInput} placeholder="ФИО сотрудника" />
+                        <select
+                          className="admin-form-input"
+                          value={expenseEditEmployee}
+                          onChange={(e) => setExpenseEditEmployee(e.target.value)}
+                          style={{ ...fieldInput, height: 36 }}
+                        >
+                          <option value="">—</option>
+                          {(() => {
+                            const names = employeeDirectoryItems.map((e) => e.full_name || e.login).filter(Boolean);
+                            const uniq = [...new Set(names)];
+                            const opts = [...uniq];
+                            if (expenseEditEmployee && !opts.includes(expenseEditEmployee)) opts.unshift(expenseEditEmployee);
+                            return opts.map((n) => <option key={n} value={n}>{n}</option>);
+                          })()}
+                        </select>
                       </div>
                       <div>
                         <label style={fieldLabel}>Комментарий</label>

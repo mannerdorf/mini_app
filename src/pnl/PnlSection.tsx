@@ -2,7 +2,7 @@ import { useState } from 'react';
 import './pnl.css';
 import {
   LayoutDashboard, FileText, TrendingUp, BarChart3, Bell,
-  BookOpen, DollarSign, FileUp, Truck, Building2, SlidersHorizontal, CreditCard, PenLine,
+  BookOpen, DollarSign, FileUp, Truck, SlidersHorizontal, CreditCard, PenLine,
 } from 'lucide-react';
 
 import { DashboardView } from './DashboardView';
@@ -20,13 +20,11 @@ import { UploadStatementView } from './UploadStatementView';
 import { UploadExpensesView } from './UploadExpensesView';
 import { RefExpensesView } from './RefExpensesView';
 import { RefIncomeView } from './RefIncomeView';
-import { RefSubdivisionsView } from './RefSubdivisionsView';
-
 type PnlView =
   | 'dashboard' | 'pl' | 'unit-economics' | 'per-kg' | 'alerts'
   | 'operations' | 'credits' | 'entry' | 'settings'
   | 'upload-bank' | 'upload-sales' | 'upload-statement' | 'upload-expenses'
-  | 'ref-expenses' | 'ref-income' | 'ref-subdivisions';
+  | 'ref-expenses' | 'ref-income';
 
 const navMain = [
   { id: 'dashboard' as PnlView, label: 'Dashboard', icon: LayoutDashboard },
@@ -47,7 +45,6 @@ const navExpenses = [
 ];
 
 const navOther = [
-  { id: 'ref-subdivisions' as PnlView, label: 'Справочник подразделений', icon: Building2 },
   { id: 'credits' as PnlView, label: 'Кредиты', icon: CreditCard },
   { id: 'entry' as PnlView, label: 'Ручной ввод', icon: PenLine },
   { id: 'operations' as PnlView, label: 'Операции', icon: FileText },
@@ -107,7 +104,6 @@ export function PnlSection() {
       case 'upload-expenses': return <UploadExpensesView />;
       case 'ref-expenses': return <RefExpensesView />;
       case 'ref-income': return <RefIncomeView />;
-      case 'ref-subdivisions': return <RefSubdivisionsView />;
       default: return <DashboardView />;
     }
   };

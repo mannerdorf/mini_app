@@ -827,7 +827,21 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                     )}
                                     {r.attachmentNames.length > 0 && (
                                         <Typography.Body style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)" }}>
-                                            Вложения: {r.attachmentNames.join(", ")}
+                                            Вложения:{" "}
+                                            {(r as any).attachments?.length
+                                                ? (r as any).attachments.map((att: { name: string; dataUrl: string }, i: number) => (
+                                                    <React.Fragment key={att.name}>
+                                                        {i > 0 && ", "}
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => { e.stopPropagation(); const a = document.createElement("a"); a.href = att.dataUrl; a.download = att.name; a.click(); }}
+                                                            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--color-primary-blue, #2563eb)", textDecoration: "underline" }}
+                                                        >
+                                                            {att.name}
+                                                        </button>
+                                                    </React.Fragment>
+                                                ))
+                                                : r.attachmentNames.join(", ")}
                                         </Typography.Body>
                                     )}
                                 </div>
@@ -838,6 +852,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                             padding: "0.2rem 0.5rem",
                                             borderRadius: 999,
                                             fontWeight: 600,
+                                            whiteSpace: "nowrap",
                                             background: r.status === "approved" ? "rgba(16,185,129,0.15)"
                                                 : r.status === "rejected" ? "rgba(239,68,68,0.15)"
                                                 : r.status === "paid" ? "rgba(139,92,246,0.15)"
