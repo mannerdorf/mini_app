@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator, ClipboardList } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import type { ExpenseRequestItem } from "./ExpenseRequestsPage";
@@ -2498,7 +2498,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             style={{ background: tab === "expense_requests" ? "var(--color-primary-blue)" : undefined, color: tab === "expense_requests" ? "white" : undefined }}
             onClick={() => setTab("expense_requests")}
           >
-            <Receipt className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            <ClipboardList className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Заявки на расходы
           </Button>
         )}
@@ -4288,9 +4288,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   setSuppliersSyncLoading(true);
                   setSuppliersSyncMessage(null);
                   setSuppliersSyncDebugResponse("");
+                  setSuppliersSyncDebugRequest("");
                   const endpoint = "/api/admin-refresh-suppliers-cache";
                   const base = typeof window !== "undefined" ? window.location.origin : "";
-                  setSuppliersSyncDebugRequest(`curl -X POST "${base}${endpoint}" -H "Authorization: Bearer <adminToken>"`);
+                  const internalCurl = `curl -X POST "${base}${endpoint}" -H "Authorization: Bearer <adminToken>"`;
                   try {
                     const res = await fetch(endpoint, {
                       method: "POST",
@@ -4300,15 +4301,21 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     const data = (() => {
                       try { return text ? JSON.parse(text) : {}; } catch { return {}; }
                     })();
+                    const upstreamCurl = typeof data?.upstream_curl === "string" ? data.upstream_curl : "";
+                    const upstreamUrl = typeof data?.upstream_url === "string" ? data.upstream_url : "";
+                    setSuppliersSyncDebugRequest(
+                      upstreamCurl
+                        ? upstreamCurl
+                        : (upstreamUrl ? `curl --location '${upstreamUrl}'` : internalCurl)
+                    );
                     setSuppliersSyncDebugResponse(`HTTP ${res.status}\n${text ? (typeof data === "object" && Object.keys(data).length > 0 ? JSON.stringify(data, null, 2) : text) : "{}"}`);
                     if (!res.ok) throw new Error(data?.error || "Не удалось обновить справочник поставщиков");
                     setSuppliersSyncMessage(`Обновлено: ${Number(data?.suppliers_count || 0)} записей`);
                     setSuppliersFetchTrigger((n) => n + 1);
                   } catch (e: unknown) {
                     setSuppliersSyncMessage((e as Error)?.message || "Не удалось обновить справочник поставщиков");
-                    if (!suppliersSyncDebugResponse) {
-                      setSuppliersSyncDebugResponse(`Ошибка: ${(e as Error)?.message || "Неизвестная ошибка"}`);
-                    }
+                    setSuppliersSyncDebugRequest(internalCurl);
+                    setSuppliersSyncDebugResponse(`Ошибка: ${(e as Error)?.message || "Неизвестная ошибка"}`);
                   } finally {
                     setSuppliersSyncLoading(false);
                   }
