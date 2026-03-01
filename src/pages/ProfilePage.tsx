@@ -13,6 +13,7 @@ import { CompaniesPage } from "./CompaniesPage";
 import { AddCompanyByINNPage } from "./AddCompanyByINNPage";
 import { AddCompanyByLoginPage } from "./AddCompanyByLoginPage";
 import { TinyUrlTestPage } from "./TinyUrlTestPage";
+import { ExpenseRequestsPage } from "./ExpenseRequestsPage";
 import { AboutCompanyPage } from "./AboutCompanyPage";
 import { NotificationsPage } from "./NotificationsPage";
 export function ProfilePage({ 
@@ -1069,15 +1070,37 @@ export function ProfilePage({
                 </Flex>
                 <Flex align="center" gap="0.6rem" wrap="wrap">
                     {activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true ? (
-                        <Button type="button" className="button-primary" onClick={() => setCurrentView('departmentTimesheet')}>
-                            Табель учета рабочего времени
-                        </Button>
+                        <>
+                            <Button type="button" className="button-primary" onClick={() => setCurrentView('departmentTimesheet')}>
+                                Табель учета рабочего времени
+                            </Button>
+                            <Button type="button" className="button-primary" onClick={() => setCurrentView('expenseRequests')}>
+                                Заявки на расходы
+                            </Button>
+                        </>
                     ) : (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>
-                            Раздел табеля доступен только руководителю подразделения HAULZ.
+                            Раздел доступен только руководителю подразделения HAULZ.
                         </Typography.Body>
                     )}
                 </Flex>
+            </div>
+        );
+    }
+
+    if (currentView === 'expenseRequests') {
+        return (
+            <div className="w-full">
+                <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('haulz')} style={{ padding: '0.5rem' }}>
+                        <ArrowLeft className="w-4 h-4" />
+                    </Button>
+                    <Typography.Headline style={{ fontSize: '1.25rem' }}>Заявки на расходы</Typography.Headline>
+                </Flex>
+                <ExpenseRequestsPage
+                    auth={activeAccount ? { login: activeAccount.login, password: activeAccount.password } : null}
+                    departmentName={activeAccount?.customer ?? "Моё подразделение"}
+                />
             </div>
         );
     }

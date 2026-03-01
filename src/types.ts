@@ -111,6 +111,7 @@ export type ProfileView =
     | "roles"
     | "employees"
     | "departmentTimesheet"
+    | "expenseRequests"
     | "addCompanyMethod"
     | "addCompanyByINN"
     | "addCompanyByLogin"
