@@ -338,10 +338,56 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         [perevozkiItems]
     );
 
-    const cargoTransportByNumber = useMemo(
-        () => buildCargoTransportByNumber(perevozkiItems || []),
-        [perevozkiItems]
-    );
+    const cargoTransportByNumber = useMemo(() => {
+        const base = buildCargoTransportByNumber(perevozkiItems || []);
+        (sendingsItems || []).forEach((row: any) => {
+            const transport = String(
+                row?.АвтомобильCMRНаименование
+                ?? row?.AutoReg
+                ?? row?.autoReg
+                ?? row?.AutoType
+                ?? ''
+            ).trim();
+            if (!transport) return;
+            const numbers: string[] = [];
+            const addNumber = (value: unknown) => {
+                const v = String(value ?? '').trim();
+                if (v) numbers.push(v);
+            };
+            addNumber(row?.НомерПеревозки);
+            addNumber(row?.CargoNumber);
+            addNumber(row?.NumberPerevozki);
+            addNumber(row?.ИДОтправления);
+            const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
+            const parcels = Array.isArray(rawParcels)
+                ? rawParcels
+                : (rawParcels && typeof rawParcels === 'object'
+                    ? Object.values(rawParcels as Record<string, any>)
+                    : []);
+            parcels.forEach((parcel: any) => {
+                addNumber(parcel?.ИДОтправления);
+                addNumber(parcel?.НомерПеревозки);
+                addNumber(parcel?.CargoNumber);
+                addNumber(parcel?.NumberPerevozki);
+                const goodsRaw = parcel?.Товары;
+                const goods = Array.isArray(goodsRaw)
+                    ? (goodsRaw[0] ?? {})
+                    : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : null);
+                if (goods && typeof goods === 'object') {
+                    addNumber((goods as any)?.ИДОтправления);
+                    addNumber((goods as any)?.НомерПеревозки);
+                    addNumber((goods as any)?.CargoNumber);
+                    addNumber((goods as any)?.NumberPerevozki);
+                }
+            });
+            Array.from(new Set(numbers)).forEach((raw) => {
+                const key = normCargoKey(raw);
+                base.set(key, transport);
+                if (key !== raw) base.set(raw, transport);
+            });
+        });
+        return base;
+    }, [perevozkiItems, sendingsItems, normCargoKey]);
     const normalizeTransportDisplay = useCallback((value: unknown): string => {
         const s = String(value ?? '').toUpperCase().trim();
         if (!s) return '';
@@ -2261,6 +2307,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('route')} title="Сортировка">Маршрут {sendingsSortColumn === 'route' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('type')} title="Сортировка">Тип {sendingsSortColumn === 'type' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('transitHours')} title="Сортировка">В пути, ч {sendingsSortColumn === 'transitHours' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус доставки</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 {showEorColumn && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="Exit of Records (Запись о выходе)">EOR</th>}
@@ -2298,6 +2345,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
                                 const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
                                 const transportType = getSendingTransportType(vehicle);
+                                const sendingStatusKey = getSendingStatusKey(row);
+                                const sendingStatusLabel = sendingStatusKey === 'all' ? '' : STATUS_MAP[sendingStatusKey];
                                 const transitHours = getSendingTransitHours(row);
                                 const transitDays = transitHours == null ? null : Math.round((transitHours / 24) * 10) / 10;
                                 const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
@@ -2353,6 +2402,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                     </div>
                                                 )}
                                             </td>
+                                            <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>
+                                                {sendingStatusLabel ? <StatusBadge status={sendingStatusLabel} /> : '—'}
+                                            </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
                                             {showEorColumn && (
@@ -2382,7 +2434,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={(showEorColumn ? 8 : 7) + (canEditEor ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={(showEorColumn ? 9 : 8) + (canEditEor ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button
