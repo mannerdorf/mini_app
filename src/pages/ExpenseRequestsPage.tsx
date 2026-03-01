@@ -2,13 +2,13 @@
  * HAULZ — Заявки на расходы.
  * Руководитель подразделения формирует заявки только по своему подразделению.
  * Подразделение определяется из справочника сотрудников (API /api/my-department-timesheet).
- * Транспорт — выпадающее меню с поиском из справочника ТС (API /api/expense-vehicles).
+ * Транспорт — выпадающее меню с поиском из данных перевозок (/api/perevozki).
  * COGS/OPEX/CAPEX не указываются (задаются в справочнике категорий).
  */
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Loader2, Paperclip, Send, Car, ChevronDown, Search, X } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
-import { EXPENSE_REQUESTS_WEBHOOK_URL } from "../constants/config";
+import { EXPENSE_REQUESTS_WEBHOOK_URL, PROXY_API_BASE_URL } from "../constants/config";
 import type { AuthData } from "../types";
 
 const STORAGE_KEY_PREFIX = "haulz.expense_requests";
@@ -17,6 +17,9 @@ export type ExpenseRequestItem = {
     id: string;
     createdAt: string;
     department: string;
+    docNumber: string;
+    docDate: string;
+    period: string;
     categoryId: string;
     categoryName: string;
     amount: number;
@@ -39,7 +42,33 @@ const MOCK_CATEGORIES = [
     { id: "other", name: "Прочее" },
 ];
 
-type VehicleOption = { id: number | string; plate: string; model?: string };
+/** Нормализация отображения ТС (контейнер / гос. номер / прочее). Повторяет логику DocumentsPage. */
+function normalizeTransportDisplay(value: unknown): string {
+    const s = String(value ?? "").toUpperCase().trim();
+    if (!s) return "";
+    const ns = s.replace(/\s+/g, " ");
+    const container = ns.match(/([A-ZА-Я]{4})[\s\-]*([0-9]{7})$/u);
+    if (container) return `${container[1]} ${container[2]}`;
+    const vehicle = ns.match(/([A-ZА-Я][0-9]{3}[A-ZА-Я]{2})(\s*\/?\s*([0-9]{2,3}))?$/u);
+    if (vehicle) {
+        const base = vehicle[1];
+        const region = vehicle[3] ?? "";
+        if (!region) return base;
+        return (vehicle[2] ?? "").includes("/") ? `${base}/${region}` : `${base}${region}`;
+    }
+    const loose = ns.match(/([A-ZА-Я])[\s\-]*([0-9]{3})[\s\-]*([A-ZА-Я]{2})(?:[\s\-]*\/?[\s\-]*([0-9]{2,3}))?$/u);
+    if (loose) {
+        const base = `${loose[1]}${loose[2]}${loose[3]}`;
+        const region = loose[4] ?? "";
+        if (!region) return base;
+        return ns.includes("/") ? `${base}/${region}` : `${base}${region}`;
+    }
+    return ns
+        .replace(/\bнаименование\s*тс\b[:\-]?\s*/giu, "")
+        .replace(/\bконтейнер\b[:\-]?\s*/giu, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+}
 
 function storageKey(login: string) {
     return `${STORAGE_KEY_PREFIX}.${login || "anon"}`;
@@ -69,10 +98,17 @@ type Props = {
 };
 
 export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment = "Моё подразделение" }: Props) {
+    const [docNumber, setDocNumber] = useState("");
+    const [docDate, setDocDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const [period, setPeriod] = useState(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    });
     const [categoryId, setCategoryId] = useState("");
     const [amount, setAmount] = useState("");
     const [comment, setComment] = useState("");
     const [selectedVehicle, setSelectedVehicle] = useState("");
+    const [duplicateWarning, setDuplicateWarning] = useState("");
     const [vehicleSearch, setVehicleSearch] = useState("");
     const [vehicleDropdownOpen, setVehicleDropdownOpen] = useState(false);
     const [files, setFiles] = useState<{ name: string; dataUrl: string }[]>([]);
@@ -81,7 +117,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
 
     const [department, setDepartment] = useState(fallbackDepartment);
     const [departmentLoading, setDepartmentLoading] = useState(false);
-    const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
+    const [vehicles, setVehicles] = useState<string[]>([]);
     const [vehiclesLoading, setVehiclesLoading] = useState(false);
 
     const vehicleDropdownRef = useRef<HTMLDivElement>(null);
@@ -110,29 +146,39 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             .finally(() => setDepartmentLoading(false));
     }, [auth?.login, auth?.password]);
 
-    // --- Fetch vehicles from directory ---
+    // --- Fetch vehicles from perevozki API (same source as Cargo page) ---
     useEffect(() => {
         if (!auth?.login || !auth?.password) return;
         setVehiclesLoading(true);
-        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
-        fetch(`${origin}/api/expense-vehicles`, {
+        const now = new Date();
+        const dateTo = now.toISOString().slice(0, 10);
+        const dateFrom = new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString().slice(0, 10);
+        fetch(PROXY_API_BASE_URL, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ login: auth.login, password: auth.password }),
+            body: JSON.stringify({
+                login: auth.login,
+                password: auth.password,
+                dateFrom,
+                dateTo,
+                ...(auth.inn ? { inn: auth.inn } : {}),
+                ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
+            }),
         })
             .then((r) => (r.ok ? r.json() : Promise.reject()))
             .then((data: any) => {
-                if (Array.isArray(data?.vehicles)) {
-                    setVehicles(data.vehicles.map((v: any) => ({
-                        id: v.id ?? v.plate ?? "",
-                        plate: String(v.plate ?? v.regNumber ?? v.number ?? "").trim(),
-                        model: v.model ?? v.brand ?? undefined,
-                    })).filter((v: VehicleOption) => v.plate));
-                }
+                const list = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+                const set = new Set<string>();
+                list.forEach((item: any) => {
+                    const raw = item?.АвтомобильCMRНаименование ?? item?.AutoReg ?? item?.autoReg ?? item?.AutoType ?? "";
+                    const normalized = normalizeTransportDisplay(raw);
+                    if (normalized) set.add(normalized);
+                });
+                setVehicles([...set].sort((a, b) => a.localeCompare(b, "ru")));
             })
-            .catch(() => { /* endpoint may not exist yet */ })
+            .catch(() => { /* ignore */ })
             .finally(() => setVehiclesLoading(false));
-    }, [auth?.login, auth?.password]);
+    }, [auth?.login, auth?.password, auth?.inn, auth?.isRegisteredUser]);
 
     // Close vehicle dropdown on outside click
     useEffect(() => {
@@ -145,13 +191,23 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         return () => document.removeEventListener("mousedown", handler);
     }, []);
 
+    // --- Duplicate detection by document number ---
+    useEffect(() => {
+        const num = docNumber.trim();
+        if (!num) { setDuplicateWarning(""); return; }
+        const dup = list.find((r) => r.docNumber && r.docNumber.trim().toLowerCase() === num.toLowerCase());
+        if (dup) {
+            const date = new Date(dup.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+            setDuplicateWarning(`Документ №${num} уже заведён ${date} (${dup.categoryName}, ${dup.amount.toLocaleString("ru-RU")} ₽)`);
+        } else {
+            setDuplicateWarning("");
+        }
+    }, [docNumber, list]);
+
     const filteredVehicles = useMemo(() => {
         const q = vehicleSearch.trim().toLowerCase();
         if (!q) return vehicles;
-        return vehicles.filter((v) => {
-            const hay = `${v.plate} ${v.model ?? ""}`.toLowerCase();
-            return hay.includes(q);
-        });
+        return vehicles.filter((v) => v.toLowerCase().includes(q));
     }, [vehicles, vehicleSearch]);
 
     const addFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,7 +236,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
 
     const submit = useCallback(async () => {
         const cat = MOCK_CATEGORIES.find((c) => c.id === categoryId);
-        if (!cat || !amount.trim()) return;
+        if (!cat || !amount.trim() || !docNumber.trim()) return;
         const num = parseFloat(amount.replace(",", "."));
         if (!Number.isFinite(num) || num <= 0) return;
 
@@ -188,6 +244,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             id: `er-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
             createdAt: new Date().toISOString(),
             department,
+            docNumber: docNumber.trim(),
+            docDate: docDate || new Date().toISOString().slice(0, 10),
+            period: period || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`,
             categoryId: cat.id,
             categoryName: cat.name,
             amount: num,
@@ -204,11 +263,15 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             return next;
         });
 
+        setDocNumber("");
+        setDocDate(new Date().toISOString().slice(0, 10));
+        setPeriod(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`);
         setCategoryId("");
         setAmount("");
         setComment("");
         setSelectedVehicle("");
         setVehicleSearch("");
+        setDuplicateWarning("");
         setFiles([]);
 
         if (EXPENSE_REQUESTS_WEBHOOK_URL) {
@@ -240,9 +303,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 setSending(false);
             }
         }
-    }, [categoryId, amount, comment, selectedVehicle, files, auth?.login, department]);
+    }, [categoryId, amount, comment, selectedVehicle, files, auth?.login, department, docNumber, docDate, period]);
 
-    const canSubmit = categoryId && amount.trim() && parseFloat(amount.replace(",", ".")) > 0;
+    const canSubmit = categoryId && amount.trim() && parseFloat(amount.replace(",", ".")) > 0 && docNumber.trim();
 
     return (
         <div className="w-full" style={{ padding: "1rem", paddingBottom: "5rem" }}>
@@ -257,6 +320,46 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             <Panel className="cargo-card" style={{ marginBottom: "1rem", background: "var(--color-bg-card)", borderRadius: "12px", padding: "1rem 1.25rem" }}>
                 <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.75rem" }}>Новая заявка</Typography.Body>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {/* Doc number + date + period */}
+                    <Flex gap="0.75rem" style={{ flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 40%", minWidth: 140 }}>
+                            <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Номер документа *</label>
+                            <Input
+                                type="text"
+                                placeholder="№ счёта / накладной"
+                                value={docNumber}
+                                onChange={(e) => setDocNumber(e.target.value)}
+                                className="admin-form-input"
+                                style={{ width: "100%", ...(duplicateWarning ? { borderColor: "#f59e0b" } : {}) }}
+                            />
+                            {duplicateWarning && (
+                                <Typography.Body style={{ fontSize: "0.72rem", color: "#f59e0b", marginTop: "0.2rem" }}>
+                                    ⚠ {duplicateWarning}
+                                </Typography.Body>
+                            )}
+                        </div>
+                        <div style={{ flex: "1 1 28%", minWidth: 120 }}>
+                            <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Дата документа</label>
+                            <input
+                                type="date"
+                                value={docDate}
+                                onChange={(e) => setDocDate(e.target.value)}
+                                className="admin-form-input"
+                                style={{ width: "100%", padding: "0.5rem" }}
+                            />
+                        </div>
+                        <div style={{ flex: "1 1 28%", minWidth: 120 }}>
+                            <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Период (месяц/год)</label>
+                            <input
+                                type="month"
+                                value={period}
+                                onChange={(e) => setPeriod(e.target.value)}
+                                className="admin-form-input"
+                                style={{ width: "100%", padding: "0.5rem" }}
+                            />
+                        </div>
+                    </Flex>
+
                     {/* Category */}
                     <div>
                         <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Статья расхода</label>
@@ -380,10 +483,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                     ) : (
                                         filteredVehicles.map((v) => (
                                             <div
-                                                key={v.id}
+                                                key={v}
                                                 onClick={() => {
-                                                    const display = v.model ? `${v.plate} — ${v.model}` : v.plate;
-                                                    setSelectedVehicle(display);
+                                                    setSelectedVehicle(v);
                                                     setVehicleSearch("");
                                                     setVehicleDropdownOpen(false);
                                                 }}
@@ -392,11 +494,10 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                                     cursor: "pointer",
                                                     fontSize: "0.83rem",
                                                     borderBottom: "1px solid var(--color-border)",
-                                                    background: selectedVehicle.startsWith(v.plate) ? "var(--color-bg-hover)" : undefined,
+                                                    background: selectedVehicle === v ? "var(--color-bg-hover)" : undefined,
                                                 }}
                                             >
-                                                <span style={{ fontWeight: 600 }}>{v.plate}</span>
-                                                {v.model && <span style={{ marginLeft: "0.5rem", color: "var(--color-text-secondary)", fontSize: "0.78rem" }}>{v.model}</span>}
+                                                {v}
                                             </div>
                                         ))
                                     )}
@@ -445,8 +546,12 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                         <Panel key={r.id} className="cargo-card" style={{ background: "var(--color-bg-card)", borderRadius: "10px", padding: "0.75rem 1rem" }}>
                             <Flex justify="space-between" align="flex-start" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
                                 <div>
-                                    <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>{r.categoryName} — {r.amount.toLocaleString("ru-RU")} ₽</Typography.Body>
+                                    <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>
+                                        {r.docNumber ? `№${r.docNumber} · ` : ""}{r.categoryName} — {r.amount.toLocaleString("ru-RU")} ₽
+                                    </Typography.Body>
                                     <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
+                                        {r.docDate ? new Date(r.docDate + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) + " · " : ""}
+                                        {r.period ? `период ${r.period} · ` : ""}
                                         {new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
                                         {r.comment ? ` · ${r.comment}` : ""}
                                     </Typography.Body>

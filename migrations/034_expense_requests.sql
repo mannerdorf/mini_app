@@ -49,6 +49,9 @@ create table if not exists expense_requests (
   uid text not null unique default ('er-' || extract(epoch from now())::bigint || '-' || substr(md5(random()::text), 1, 7)),
   login text not null,                    -- логин автора (руководителя подразделения)
   department text not null,               -- подразделение из справочника сотрудников
+  doc_number text not null default '',    -- номер документа (счёт, накладная)
+  doc_date date,                          -- дата документа
+  period text not null default '',        -- отчётный период (YYYY-MM)
   category_id text not null references expense_categories(id),
   amount numeric(14, 2) not null check (amount > 0),
   comment text not null default '',
@@ -78,7 +81,17 @@ create index if not exists expense_requests_created_at_idx
 create index if not exists expense_requests_category_id_idx
   on expense_requests(category_id);
 
+create unique index if not exists expense_requests_login_doc_number_uidx
+  on expense_requests (login, lower(trim(doc_number)))
+  where doc_number <> '';
+
 comment on table expense_requests is 'Заявки на расходы от руководителей подразделений';
+create index if not exists expense_requests_period_idx
+  on expense_requests(period);
+
+comment on column expense_requests.doc_number is 'Номер документа (счёт / накладная). Уникален в пределах логина.';
+comment on column expense_requests.doc_date is 'Дата документа (дата выставления счёта или накладной)';
+comment on column expense_requests.period is 'Отчётный период в формате YYYY-MM (месяц/год)';
 comment on column expense_requests.uid is 'Клиентский идентификатор заявки (генерируется на фронте)';
 comment on column expense_requests.status is 'draft=черновик, sent=отправлено, approved=утверждено, rejected=отклонено, paid=оплачено';
 

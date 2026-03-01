@@ -413,6 +413,9 @@ create table if not exists expense_requests (
   uid text not null unique default ('er-' || extract(epoch from now())::bigint || '-' || substr(md5(random()::text), 1, 7)),
   login text not null,
   department text not null,
+  doc_number text not null default '',
+  doc_date date,
+  period text not null default '',
   category_id text not null references expense_categories(id),
   amount numeric(14, 2) not null check (amount > 0),
   comment text not null default '',
@@ -432,6 +435,12 @@ create index if not exists expense_requests_department_idx on expense_requests(d
 create index if not exists expense_requests_status_idx on expense_requests(status);
 create index if not exists expense_requests_created_at_idx on expense_requests(created_at desc);
 create index if not exists expense_requests_category_id_idx on expense_requests(category_id);
+
+create unique index if not exists expense_requests_login_doc_number_uidx
+  on expense_requests (login, lower(trim(doc_number)))
+  where doc_number <> '';
+
+create index if not exists expense_requests_period_idx on expense_requests(period);
 
 create table if not exists expense_request_attachments (
   id bigserial primary key,

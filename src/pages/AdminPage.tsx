@@ -526,7 +526,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [adminExpenseRequests, setAdminExpenseRequests] = useState<(ExpenseRequestItem & { login: string })[]>([]);
-  const [adminExpenseSortCol, setAdminExpenseSortCol] = useState<"createdAt" | "department" | "categoryName" | "amount" | "status" | "login">("createdAt");
+  const [adminExpenseSortCol, setAdminExpenseSortCol] = useState<"createdAt" | "docNumber" | "docDate" | "period" | "department" | "categoryName" | "amount" | "status" | "login">("createdAt");
   const [adminExpenseSortAsc, setAdminExpenseSortAsc] = useState(false);
   const [editorChangeLoginValue, setEditorChangeLoginValue] = useState("");
   const [editorChangeLoginOpen, setEditorChangeLoginOpen] = useState(false);
@@ -6773,7 +6773,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <thead>
                     <tr style={{ position: "sticky", top: 0, background: "var(--color-bg-card, #fff)", zIndex: 1 }}>
                       {([
-                        ["createdAt", "Дата"],
+                        ["createdAt", "Создано"],
+                        ["docNumber", "№ док."],
+                        ["docDate", "Дата док."],
+                        ["period", "Период"],
                         ["login", "Логин"],
                         ["department", "Подразделение"],
                         ["categoryName", "Статья"],
@@ -6797,6 +6800,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     {sorted.map((r) => (
                       <tr key={r.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}</td>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).docNumber || "—"}</td>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).docDate ? new Date((r as any).docDate + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).period || "—"}</td>
                         <td style={{ padding: "6px 8px" }}>{r.login}</td>
                         <td style={{ padding: "6px 8px" }}>{r.department}</td>
                         <td style={{ padding: "6px 8px" }}>{r.categoryName}</td>
