@@ -60,7 +60,7 @@ export type Account = {
     twoFactorGoogleSecretSet?: boolean;
 };
 
-export type Tab = "home" | "cargo" | "docs" | "profile" | "dashboard";
+export type Tab = "home" | "cargo" | "docs" | "profile" | "dashboard" | "expense_requests";
 
 export type DateFilter = "все" | "сегодня" | "вчера" | "неделя" | "месяц" | "год" | "период";
 

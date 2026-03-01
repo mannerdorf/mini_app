@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
+import type { ExpenseRequestItem } from "./ExpenseRequestsPage";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 
 const PERMISSION_KEYS = [
@@ -276,7 +277,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -524,6 +525,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [adminExpenseRequests, setAdminExpenseRequests] = useState<(ExpenseRequestItem & { login: string })[]>([]);
+  const [adminExpenseSortCol, setAdminExpenseSortCol] = useState<"createdAt" | "department" | "categoryName" | "amount" | "status" | "login">("createdAt");
+  const [adminExpenseSortAsc, setAdminExpenseSortAsc] = useState(false);
   const [editorChangeLoginValue, setEditorChangeLoginValue] = useState("");
   const [editorChangeLoginOpen, setEditorChangeLoginOpen] = useState(false);
   const [editorChangeLoginLoading, setEditorChangeLoginLoading] = useState(false);
@@ -1517,8 +1521,25 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet")) setTab("users");
+    if (!isSuperAdmin && (tab === "employee_directory" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests")) setTab("users");
   }, [isSuperAdmin, tab]);
+
+  useEffect(() => {
+    if (tab !== "expense_requests" || !isSuperAdmin) return;
+    const prefix = "haulz.expense_requests.";
+    const all: (ExpenseRequestItem & { login: string })[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || !k.startsWith(prefix)) continue;
+      const login = k.slice(prefix.length);
+      try {
+        const items = JSON.parse(localStorage.getItem(k) ?? "[]") as ExpenseRequestItem[];
+        if (Array.isArray(items)) items.forEach((r) => { if (r && r.createdAt) all.push({ ...r, login }); });
+      } catch { /* skip */ }
+    }
+    all.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    setAdminExpenseRequests(all);
+  }, [tab, isSuperAdmin]);
 
   const fetchEmployeeDirectory = useCallback(async (monthForTimesheet?: string) => {
     if (!adminToken || !isSuperAdmin) return;
@@ -2258,6 +2279,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <Calendar className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Табель учета рабочего времени
+          </Button>
+        )}
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={{ background: tab === "expense_requests" ? "var(--color-primary-blue)" : undefined, color: tab === "expense_requests" ? "white" : undefined }}
+            onClick={() => setTab("expense_requests")}
+          >
+            <Receipt className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Заявки на расходы
           </Button>
         )}
       </Flex>
@@ -6715,6 +6746,80 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           )}
         </Panel>
       )}
+
+      {tab === "expense_requests" && isSuperAdmin && (() => {
+        const toggleSort = (col: typeof adminExpenseSortCol) => {
+          if (adminExpenseSortCol === col) setAdminExpenseSortAsc((p) => !p);
+          else { setAdminExpenseSortCol(col); setAdminExpenseSortAsc(true); }
+        };
+        const arrow = (col: typeof adminExpenseSortCol) => adminExpenseSortCol === col ? (adminExpenseSortAsc ? " ▲" : " ▼") : "";
+        const sorted = [...adminExpenseRequests].sort((a, b) => {
+          const dir = adminExpenseSortAsc ? 1 : -1;
+          if (adminExpenseSortCol === "amount") return (a.amount - b.amount) * dir;
+          const av = String((a as any)[adminExpenseSortCol] ?? "");
+          const bv = String((b as any)[adminExpenseSortCol] ?? "");
+          return av.localeCompare(bv, "ru") * dir;
+        });
+        return (
+          <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
+              Заявки на расходы — все подразделения ({adminExpenseRequests.length})
+            </Typography.Body>
+            {adminExpenseRequests.length === 0 ? (
+              <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Нет заявок</Typography.Body>
+            ) : (
+              <div style={{ maxHeight: 520, overflowY: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                  <thead>
+                    <tr style={{ position: "sticky", top: 0, background: "var(--color-bg-card, #fff)", zIndex: 1 }}>
+                      {([
+                        ["createdAt", "Дата"],
+                        ["login", "Логин"],
+                        ["department", "Подразделение"],
+                        ["categoryName", "Статья"],
+                        ["amount", "Сумма"],
+                        ["status", "Статус"],
+                      ] as [typeof adminExpenseSortCol, string][]).map(([col, label]) => (
+                        <th
+                          key={col}
+                          onClick={() => toggleSort(col)}
+                          style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)", cursor: "pointer", whiteSpace: "nowrap", userSelect: "none" }}
+                        >
+                          {label}{arrow(col)}
+                        </th>
+                      ))}
+                      <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Комментарий</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Транспорт/сотр.</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Вложения</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.map((r) => (
+                      <tr key={r.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}</td>
+                        <td style={{ padding: "6px 8px" }}>{r.login}</td>
+                        <td style={{ padding: "6px 8px" }}>{r.department}</td>
+                        <td style={{ padding: "6px 8px" }}>{r.categoryName}</td>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.amount.toLocaleString("ru-RU")} ₽</td>
+                        <td style={{ padding: "6px 8px" }}>
+                          <span style={{
+                            fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 999, fontWeight: 600,
+                            background: r.status === "sent" ? "rgba(16,185,129,0.15)" : "rgba(245,158,11,0.15)",
+                            color: r.status === "sent" ? "#10b981" : "#f59e0b",
+                          }}>{r.status === "sent" ? "Отправлено" : "Черновик"}</span>
+                        </td>
+                        <td style={{ padding: "6px 8px", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.comment || "—"}</td>
+                        <td style={{ padding: "6px 8px" }}>{r.vehicleOrEmployee || "—"}</td>
+                        <td style={{ padding: "6px 8px" }}>{r.attachmentNames.length > 0 ? r.attachmentNames.join(", ") : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+        );
+      })()}
 
       <CustomerPickModal
         isOpen={customerPickModalOpen}

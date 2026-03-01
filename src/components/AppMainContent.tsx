@@ -3,6 +3,7 @@ import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Package } from "lucide-react";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { CargoPage } from "../pages/CargoPage";
+import { ExpenseRequestsPage } from "../pages/ExpenseRequestsPage";
 import type { Account, AuthData, Tab } from "../types";
 
 type Props = {
@@ -152,6 +153,15 @@ export function AppMainContent({
             hasDashboard={true}
           />
         </Suspense>
+        </SectionBoundary>
+      )}
+
+      {activeTab === "expense_requests" && auth && (
+        <SectionBoundary section="Заявки на расходы">
+          <ExpenseRequestsPage
+            auth={auth}
+            departmentName={activeAccount?.customer ?? "Моё подразделение"}
+          />
         </SectionBoundary>
       )}
 

@@ -4131,10 +4131,10 @@ export function DashboardPage({
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
                         Доля оплаченных перевозок по каждому клиенту. Чем ниже процент оплаты — тем хуже дисциплина.
                     </Typography.Body>
-                    <div style={{ overflowX: 'auto', fontSize: '0.7rem' }}>
+                    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 320, fontSize: '0.7rem', borderRadius: 8, border: '1px solid var(--color-border)' }}>
                         <table style={{ borderCollapse: 'collapse', width: '100%' }}>
                             <thead>
-                                <tr>
+                                <tr style={{ background: 'var(--color-bg-hover)', position: 'sticky', top: 0, zIndex: 1 }}>
                                     {(() => {
                                         const togglePaySort = (col: typeof paymentDisciplineSortCol) => {
                                             if (paymentDisciplineSortCol === col) setPaymentDisciplineSortAsc(!paymentDisciplineSortAsc);
@@ -4142,7 +4142,7 @@ export function DashboardPage({
                                         };
                                         const payArrow = (col: typeof paymentDisciplineSortCol) => paymentDisciplineSortCol === col ? (paymentDisciplineSortAsc ? ' ↑' : ' ↓') : '';
                                         const payTh = (label: string, col: typeof paymentDisciplineSortCol, align: 'left' | 'center') => (
-                                            <th key={col} style={{ padding: '0.3rem 0.4rem', textAlign: align, fontWeight: 600, borderBottom: '2px solid var(--color-border)', cursor: 'pointer', userSelect: 'none' }} onClick={() => togglePaySort(col)} title="Сортировка">{label}{payArrow(col)}</th>
+                                            <th key={col} style={{ padding: '0.3rem 0.4rem', textAlign: align, fontWeight: 600, borderBottom: '2px solid var(--color-border)', cursor: 'pointer', userSelect: 'none', background: 'var(--color-bg-hover)' }} onClick={() => togglePaySort(col)} title="Сортировка">{label}{payArrow(col)}</th>
                                         );
                                         return (
                                             <>
@@ -4167,7 +4167,6 @@ export function DashboardPage({
                                         else cmp = a.paidRate - b.paidRate;
                                         return paymentDisciplineSortAsc ? cmp : -cmp;
                                     })
-                                    .slice(0, 15)
                                     .map(c => {
                                     const color = c.paidRate >= 80 ? '#10b981' : c.paidRate >= 50 ? '#f59e0b' : '#ef4444';
                                     return (

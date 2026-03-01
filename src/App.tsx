@@ -54,6 +54,7 @@ import { CompaniesListPage } from "./pages/CompaniesListPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { CargoPage } from "./pages/CargoPage";
 const ProfilePage = lazy(() => import("./pages/ProfilePage").then((m) => ({ default: m.ProfilePage })));
+import { ExpenseRequestsPage } from "./pages/ExpenseRequestsPage";
 import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
 import { getInitialAuthState } from "./lib/authState";
 import { PUBLIC_OFFER_TEXT, PERSONAL_DATA_CONSENT_TEXT } from "./constants/legalTexts";
@@ -450,14 +451,16 @@ export default function App() {
             perms.doc_acts_settlement ||
             perms.doc_tariffs
         );
+        const canExpenseRequests = !!(perms.supervisor && perms.haulz);
         const isAllowed =
             activeTab === "profile" ? true :
             activeTab === "cargo" ? canCargo :
             activeTab === "docs" ? canDocs :
+            activeTab === "expense_requests" ? canExpenseRequests :
             activeTab === "dashboard" || activeTab === "home" ? canHome :
             true;
         if (isAllowed) return;
-        const fallback: Tab = canHome ? "dashboard" : canDocs ? "docs" : canCargo ? "cargo" : "profile";
+        const fallback: Tab = canHome ? "dashboard" : canDocs ? "docs" : canCargo ? "cargo" : canExpenseRequests ? "expense_requests" : "profile";
         if (fallback !== activeTab) setActiveTab(fallback);
     }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.permissions, activeTab]);
 
