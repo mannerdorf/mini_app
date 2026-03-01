@@ -307,7 +307,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                 Удалить
                               </button>
                             </div>
-                          )}
+                          ) : null}
                         </td>
                       </tr>
                     );
