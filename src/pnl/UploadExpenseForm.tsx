@@ -8,7 +8,17 @@ const MAINLINE_TRANSPORT = [{ value: 'AUTO', label: 'авто' }, { value: 'FERR
 
 interface ExpenseCat { id: string; name: string; department: string; type: string; logisticsStage: string | null; }
 interface ExpenseRow { id: string; categoryId: string; amount: string; direction: string; transportType: string; }
-interface SavedExpense { categoryId: string; categoryName: string; amount: number; comment?: string | null; direction?: string; transportType?: string; }
+interface SavedExpense {
+  id?: string;
+  categoryId: string;
+  categoryName: string;
+  amount: number;
+  comment?: string | null;
+  direction?: string;
+  transportType?: string;
+  source?: 'manual' | 'expense_request';
+  requestStatus?: string | null;
+}
 
 function formatRub(n: number) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽'; }
 function generateId() { return Math.random().toString(36).slice(2, 9); }
@@ -31,7 +41,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const [editingComment, setEditingComment] = useState<{ key: string; value: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const rowKey = (e: SavedExpense) => `${e.categoryId}:${e.direction ?? ''}:${e.transportType ?? ''}`;
+  const rowKey = (e: SavedExpense) => e.id || `${e.categoryId}:${e.direction ?? ''}:${e.transportType ?? ''}`;
 
   const loadSaved = () => {
     const stage = logisticsStage == null ? '' : logisticsStage;
@@ -138,6 +148,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                 <tbody>
                   {savedExpenses.map((e) => {
                     const key = rowKey(e);
+                    const isRequestExpense = e.source === 'expense_request';
                     const isEA = editingAmount?.key === key;
                     const isEC = editingComment?.key === key;
                     const dir = e.direction ?? ''; const transport = e.transportType ?? '';
@@ -145,9 +156,27 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                       <tr key={key} className="border-b border-slate-50 hover:bg-slate-50">
                         <td className="px-6 py-2 text-slate-900">{e.categoryName}</td>
                         {isMainline && <td className="px-6 py-2 text-slate-600 text-sm">{dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${transport === 'FERRY' ? 'паром' : 'авто'}` : '—'}</td>}
-                        <td className="px-6 py-2 text-right"><input type="number" step="0.01" min="0" value={isEA ? editingAmount.value : String(e.amount)} onChange={(ev) => setEditingAmount({ key, value: ev.target.value })} onFocus={() => setEditingAmount({ key, value: String(e.amount) })} onBlur={(ev) => { const v = parseFloat(ev.target.value); if (Number.isFinite(v) && Math.abs(v - e.amount) > 0.001) handleUpdateAmount(e.categoryId, v, e.comment, dir, transport); else setEditingAmount(null); }} className="w-28 text-right border border-slate-200 rounded px-2 py-1 text-slate-900 font-medium" /></td>
-                        <td className="px-6 py-2"><input type="text" value={isEC ? editingComment.value : (e.comment ?? '')} onChange={(ev) => setEditingComment({ key, value: ev.target.value })} onFocus={() => setEditingComment({ key, value: e.comment ?? '' })} onBlur={(ev) => { if (ev.target.value.trim() !== (e.comment ?? '').trim()) handleUpdateComment(e.categoryId, ev.target.value, e.amount, dir, transport); else setEditingComment(null); }} placeholder="Комментарий" className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-700" style={{ minWidth: 140, maxWidth: 220 }} /></td>
-                        <td className="px-6 py-2 text-right"><button onClick={() => handleDeleteSaved(e.categoryId, dir, transport)} disabled={deletingId === key} className="p-1.5 text-slate-400 hover:text-red-600 disabled:opacity-50"><Trash2 className="w-4 h-4" /></button></td>
+                        <td className="px-6 py-2 text-right">
+                          {isRequestExpense ? (
+                            <span className="text-slate-900 font-medium">{formatRub(e.amount)}</span>
+                          ) : (
+                            <input type="number" step="0.01" min="0" value={isEA ? editingAmount.value : String(e.amount)} onChange={(ev) => setEditingAmount({ key, value: ev.target.value })} onFocus={() => setEditingAmount({ key, value: String(e.amount) })} onBlur={(ev) => { const v = parseFloat(ev.target.value); if (Number.isFinite(v) && Math.abs(v - e.amount) > 0.001) handleUpdateAmount(e.categoryId, v, e.comment, dir, transport); else setEditingAmount(null); }} className="w-28 text-right border border-slate-200 rounded px-2 py-1 text-slate-900 font-medium" />
+                          )}
+                        </td>
+                        <td className="px-6 py-2">
+                          {isRequestExpense ? (
+                            <span className="text-sm text-slate-700">
+                              {(e.comment ?? '').trim() || `Из заявки (${e.requestStatus === 'paid' ? 'Оплачено' : 'Согласовано'})`}
+                            </span>
+                          ) : (
+                            <input type="text" value={isEC ? editingComment.value : (e.comment ?? '')} onChange={(ev) => setEditingComment({ key, value: ev.target.value })} onFocus={() => setEditingComment({ key, value: e.comment ?? '' })} onBlur={(ev) => { if (ev.target.value.trim() !== (e.comment ?? '').trim()) handleUpdateComment(e.categoryId, ev.target.value, e.amount, dir, transport); else setEditingComment(null); }} placeholder="Комментарий" className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-700" style={{ minWidth: 140, maxWidth: 220 }} />
+                          )}
+                        </td>
+                        <td className="px-6 py-2 text-right">
+                          {isRequestExpense ? null : (
+                            <button onClick={() => handleDeleteSaved(e.categoryId, dir, transport)} disabled={deletingId === key} className="p-1.5 text-slate-400 hover:text-red-600 disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
