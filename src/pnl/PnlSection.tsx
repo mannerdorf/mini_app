@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import './pnl.css';
 import {
   LayoutDashboard, FileText, TrendingUp, BarChart3, Bell,
@@ -25,6 +25,14 @@ type PnlView =
   | 'operations' | 'credits' | 'entry' | 'settings'
   | 'upload-bank' | 'upload-sales' | 'upload-statement' | 'upload-expenses'
   | 'ref-expenses' | 'ref-income';
+
+type ExpenseCategoryPrefill = {
+  requestId: string;
+  expenseCategoryId?: string;
+  categoryName?: string;
+  subdivision?: string;
+  type?: 'COGS' | 'OPEX' | 'CAPEX';
+};
 
 const navMain = [
   { id: 'dashboard' as PnlView, label: 'Dashboard', icon: LayoutDashboard },
@@ -84,8 +92,22 @@ function Divider() {
   return <div style={{ margin: '12px 0', borderTop: '1px solid #334155' }} />;
 }
 
-export function PnlSection() {
-  const [view, setView] = useState<PnlView>('dashboard');
+export function PnlSection({
+  initialView = 'dashboard',
+  expenseCategoryPrefill = null,
+}: {
+  initialView?: PnlView;
+  expenseCategoryPrefill?: ExpenseCategoryPrefill | null;
+}) {
+  const [view, setView] = useState<PnlView>(initialView);
+
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
+
+  useEffect(() => {
+    if (expenseCategoryPrefill) setView('ref-expenses');
+  }, [expenseCategoryPrefill]);
 
   const renderView = () => {
     switch (view) {
@@ -102,7 +124,7 @@ export function PnlSection() {
       case 'upload-sales': return <UploadSalesView />;
       case 'upload-statement': return <UploadStatementView />;
       case 'upload-expenses': return <UploadExpensesView />;
-      case 'ref-expenses': return <RefExpensesView />;
+      case 'ref-expenses': return <RefExpensesView initialPrefill={expenseCategoryPrefill} />;
       case 'ref-income': return <RefIncomeView />;
       default: return <DashboardView />;
     }

@@ -7,6 +7,7 @@ import type { ExpenseRequestItem } from "./ExpenseRequestsPage";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { PnlSection } from "../pnl/PnlSection";
 import { RefSubdivisionsView } from "../pnl/RefSubdivisionsView";
+import { SUBDIVISIONS } from "../pnl/constants";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -158,6 +159,21 @@ const normalizeCooperationType = (value: unknown): CooperationType => {
 };
 const cooperationTypeLabel = (value: unknown) =>
   COOPERATION_TYPE_OPTIONS.find((x) => x.value === normalizeCooperationType(value))?.label || "Штатный сотрудник";
+
+type PnlExpenseCategoryLink = {
+  expenseCategoryId?: string | null;
+  name?: string | null;
+  department: string;
+  logisticsStage: string | null;
+};
+
+type PnlExpensePrefill = {
+  requestId: string;
+  expenseCategoryId?: string;
+  categoryName?: string;
+  subdivision: string;
+  type: "OPEX";
+};
 
 function UserRow({
   user,
@@ -534,6 +550,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [expenseFilterVehicle, setExpenseFilterVehicle] = useState("");
   const [expenseFilterEmployee, setExpenseFilterEmployee] = useState("");
   const [expenseFilterStatus, setExpenseFilterStatus] = useState("");
+  const [pnlExpenseCategoryLinks, setPnlExpenseCategoryLinks] = useState<PnlExpenseCategoryLink[]>([]);
+  const [pnlExpensePrefill, setPnlExpensePrefill] = useState<PnlExpensePrefill | null>(null);
   const [expenseRejectId, setExpenseRejectId] = useState<string | null>(null);
   const [expenseRejectComment, setExpenseRejectComment] = useState("");
   const [expenseEditId, setExpenseEditId] = useState<string | null>(null);
@@ -619,6 +637,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryFullName, setEmployeeDirectoryFullName] = useState("");
   const [employeeDirectoryDepartment, setEmployeeDirectoryDepartment] = useState<string>("");
   const [employeeDirectoryDepartments, setEmployeeDirectoryDepartments] = useState<string[]>([]);
+  const [employeeDirectoryPrimaryDepartment, setEmployeeDirectoryPrimaryDepartment] = useState<string>("");
   const [employeeDirectoryPosition, setEmployeeDirectoryPosition] = useState("");
   const [employeeDirectoryAccrualType, setEmployeeDirectoryAccrualType] = useState<AccrualType>("hour");
   const [employeeDirectoryAccrualRate, setEmployeeDirectoryAccrualRate] = useState("0");
@@ -629,6 +648,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [employeeDirectoryEditFullName, setEmployeeDirectoryEditFullName] = useState("");
   const [employeeDirectoryEditDepartment, setEmployeeDirectoryEditDepartment] = useState<string>("");
   const [employeeDirectoryEditDepartments, setEmployeeDirectoryEditDepartments] = useState<string[]>([]);
+  const [employeeDirectoryEditPrimaryDepartment, setEmployeeDirectoryEditPrimaryDepartment] = useState<string>("");
   const [employeeDirectoryEditPosition, setEmployeeDirectoryEditPosition] = useState("");
   const [employeeDirectoryEditAccrualType, setEmployeeDirectoryEditAccrualType] = useState<AccrualType>("hour");
   const [employeeDirectoryEditAccrualRate, setEmployeeDirectoryEditAccrualRate] = useState("0");
@@ -1582,6 +1602,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if ((tab === "expense_requests" || tab === "accounting") && isSuperAdmin) reloadAllExpenseRequests();
   }, [tab, isSuperAdmin, reloadAllExpenseRequests]);
+
+  const loadPnlExpenseCategoryLinks = useCallback(async () => {
+    try {
+      const res = await fetch("/api/pnl-expense-categories");
+      const data = await res.json().catch(() => []);
+      if (!res.ok || !Array.isArray(data)) return;
+      setPnlExpenseCategoryLinks(
+        data.map((row: any) => ({
+          expenseCategoryId: row?.expenseCategoryId ? String(row.expenseCategoryId) : null,
+          name: row?.name ? String(row.name) : null,
+          department: String(row?.department || ""),
+          logisticsStage: row?.logisticsStage ? String(row.logisticsStage) : null,
+        }))
+      );
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  useEffect(() => {
+    if ((tab === "expense_requests" || tab === "accounting") && isSuperAdmin) loadPnlExpenseCategoryLinks();
+  }, [tab, isSuperAdmin, loadPnlExpenseCategoryLinks]);
 
   const updateExpenseStatus = useCallback(async (itemId: string, itemLogin: string, newStatus: string, rejectReason?: string, fullItem?: ExpenseRequestItem & { login: string }) => {
     const storageKey = `haulz.expense_requests.${itemLogin}`;
@@ -6620,11 +6662,39 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <div style={{ maxHeight: 120, overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.35rem", background: "var(--color-bg-card)" }}>
                   {(employeeDepartments.length ? employeeDepartments : EMPLOYEE_DEPARTMENTS_FALLBACK).map((dep) => (
                     <label key={dep} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.2rem 0", cursor: "pointer", fontSize: "0.85rem" }}>
-                      <input type="checkbox" checked={employeeDirectoryDepartments.includes(dep)} onChange={(e) => setEmployeeDirectoryDepartments((prev) => e.target.checked ? [...prev, dep] : prev.filter((d) => d !== dep))} />
+                      <input
+                        type="checkbox"
+                        checked={employeeDirectoryDepartments.includes(dep)}
+                        onChange={(e) => {
+                          setEmployeeDirectoryDepartments((prev) => {
+                            const next = e.target.checked ? [...prev, dep] : prev.filter((d) => d !== dep);
+                            if (e.target.checked && !employeeDirectoryPrimaryDepartment) {
+                              setEmployeeDirectoryPrimaryDepartment(dep);
+                            }
+                            if (!e.target.checked && employeeDirectoryPrimaryDepartment === dep) {
+                              setEmployeeDirectoryPrimaryDepartment(next[0] || "");
+                            }
+                            return next;
+                          });
+                        }}
+                      />
                       {dep}
                     </label>
                   ))}
                 </div>
+                <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", display: "block", marginTop: "0.35rem", marginBottom: "0.2rem" }}>Основное подразделение</label>
+                <select
+                  className="admin-form-input"
+                  value={employeeDirectoryPrimaryDepartment}
+                  onChange={(e) => setEmployeeDirectoryPrimaryDepartment(e.target.value)}
+                  style={{ padding: "0 0.5rem", width: "100%" }}
+                  disabled={employeeDirectoryDepartments.length === 0}
+                >
+                  <option value="">Выберите</option>
+                  {employeeDirectoryDepartments.map((dep) => (
+                    <option key={`primary-${dep}`} value={dep}>{dep}</option>
+                  ))}
+                </select>
               </div>
             ) : (
               <select
@@ -6684,6 +6754,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 setEmployeeDirectoryRole(v);
                 if (v === "department_head" && employeeDirectoryDepartments.length === 0 && employeeDirectoryDepartment) {
                   setEmployeeDirectoryDepartments([employeeDirectoryDepartment]);
+                  setEmployeeDirectoryPrimaryDepartment(employeeDirectoryDepartment);
+                } else if (v === "department_head" && employeeDirectoryDepartments.length > 0 && !employeeDirectoryPrimaryDepartment) {
+                  setEmployeeDirectoryPrimaryDepartment(employeeDirectoryDepartments[0] || "");
                 }
                 if (v === "employee" && employeeDirectoryDepartments.length > 0) {
                   setEmployeeDirectoryDepartment(employeeDirectoryDepartments[0] || "");
@@ -6704,12 +6777,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Button
               type="button"
               className="button-primary"
-              disabled={employeeDirectorySaving || !employeeDirectoryFullName.trim() || !Number.isFinite(Number(employeeDirectoryAccrualRate)) || Number(employeeDirectoryAccrualRate) < 0 || (employeeDirectoryRole === "department_head" ? employeeDirectoryDepartments.length === 0 : !employeeDirectoryDepartment)}
+              disabled={employeeDirectorySaving || !employeeDirectoryFullName.trim() || !Number.isFinite(Number(employeeDirectoryAccrualRate)) || Number(employeeDirectoryAccrualRate) < 0 || (employeeDirectoryRole === "department_head" ? (employeeDirectoryDepartments.length === 0 || !employeeDirectoryPrimaryDepartment) : !employeeDirectoryDepartment)}
               onClick={async () => {
                 setEmployeeDirectorySaving(true);
                 setError(null);
                 try {
-                  const departmentValue = employeeDirectoryRole === "department_head" ? employeeDirectoryDepartments.join(", ") : employeeDirectoryDepartment;
+                  const departmentValue = employeeDirectoryRole === "department_head"
+                    ? [employeeDirectoryPrimaryDepartment, ...employeeDirectoryDepartments.filter((d) => d !== employeeDirectoryPrimaryDepartment)].join(", ")
+                    : employeeDirectoryDepartment;
                   const res = await fetch("/api/admin-employee-directory", {
                     method: "POST",
                     headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
@@ -6730,6 +6805,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   setEmployeeDirectoryFullName("");
                   setEmployeeDirectoryDepartment("");
                   setEmployeeDirectoryDepartments([]);
+                  setEmployeeDirectoryPrimaryDepartment("");
                   setEmployeeDirectoryPosition("");
                   setEmployeeDirectoryCooperationType("staff");
                   setEmployeeDirectoryAccrualType("hour");
@@ -6766,7 +6842,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     setEmployeeDirectoryEditFullName(emp.full_name || "");
                     const depStr = emp.department || (employeeDepartments[0] ?? EMPLOYEE_DEPARTMENTS_FALLBACK[0] ?? "");
                     setEmployeeDirectoryEditDepartment(depStr);
-                    setEmployeeDirectoryEditDepartments(depStr ? depStr.split(",").map((d) => d.trim()).filter(Boolean) : []);
+                    const depList = depStr ? depStr.split(",").map((d) => d.trim()).filter(Boolean) : [];
+                    setEmployeeDirectoryEditDepartments(depList);
+                    setEmployeeDirectoryEditPrimaryDepartment(depList[0] || "");
                     setEmployeeDirectoryEditPosition(emp.position || "");
                     setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
                     setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
@@ -6783,7 +6861,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       setEmployeeDirectoryEditFullName(emp.full_name || "");
                       const depStr = emp.department || (employeeDepartments[0] ?? EMPLOYEE_DEPARTMENTS_FALLBACK[0] ?? "");
                       setEmployeeDirectoryEditDepartment(depStr);
-                      setEmployeeDirectoryEditDepartments(depStr ? depStr.split(",").map((d) => d.trim()).filter(Boolean) : []);
+                      const depList = depStr ? depStr.split(",").map((d) => d.trim()).filter(Boolean) : [];
+                      setEmployeeDirectoryEditDepartments(depList);
+                      setEmployeeDirectoryEditPrimaryDepartment(depList[0] || "");
                       setEmployeeDirectoryEditPosition(emp.position || "");
                       setEmployeeDirectoryEditCooperationType(normalizeCooperationType(emp.cooperation_type || "staff"));
                       setEmployeeDirectoryEditAccrualType(normalizeAccrualType(emp.accrual_type));
@@ -6866,12 +6946,42 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 const opts = [...new Set([...base, ...employeeDirectoryEditDepartments])].sort((a, b) => a.localeCompare(b, "ru"));
                                 return opts.map((dep) => (
                                   <label key={dep} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.2rem 0", cursor: "pointer", fontSize: "0.85rem" }}>
-                                    <input type="checkbox" checked={employeeDirectoryEditDepartments.includes(dep)} onChange={(e) => setEmployeeDirectoryEditDepartments((prev) => e.target.checked ? [...prev, dep] : prev.filter((d) => d !== dep))} onClick={(e) => e.stopPropagation()} />
+                                    <input
+                                      type="checkbox"
+                                      checked={employeeDirectoryEditDepartments.includes(dep)}
+                                      onChange={(e) => {
+                                        setEmployeeDirectoryEditDepartments((prev) => {
+                                          const next = e.target.checked ? [...prev, dep] : prev.filter((d) => d !== dep);
+                                          if (e.target.checked && !employeeDirectoryEditPrimaryDepartment) {
+                                            setEmployeeDirectoryEditPrimaryDepartment(dep);
+                                          }
+                                          if (!e.target.checked && employeeDirectoryEditPrimaryDepartment === dep) {
+                                            setEmployeeDirectoryEditPrimaryDepartment(next[0] || "");
+                                          }
+                                          return next;
+                                        });
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
                                     {dep}
                                   </label>
                                 ));
                               })()}
                             </div>
+                            <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", display: "block", marginTop: "0.35rem", marginBottom: "0.2rem" }}>Основное подразделение</label>
+                            <select
+                              className="admin-form-input"
+                              value={employeeDirectoryEditPrimaryDepartment}
+                              onChange={(e) => setEmployeeDirectoryEditPrimaryDepartment(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ padding: "0 0.5rem", width: "100%" }}
+                              disabled={employeeDirectoryEditDepartments.length === 0}
+                            >
+                              <option value="">Выберите</option>
+                              {employeeDirectoryEditDepartments.map((dep) => (
+                                <option key={`edit-primary-${dep}`} value={dep}>{dep}</option>
+                              ))}
+                            </select>
                           </div>
                         ) : (
                           <select
@@ -6938,6 +7048,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             setEmployeeDirectoryEditRole(v);
                             if (v === "department_head" && employeeDirectoryEditDepartments.length === 0 && employeeDirectoryEditDepartment) {
                               setEmployeeDirectoryEditDepartments([employeeDirectoryEditDepartment]);
+                              setEmployeeDirectoryEditPrimaryDepartment(employeeDirectoryEditDepartment);
+                            } else if (v === "department_head" && employeeDirectoryEditDepartments.length > 0 && !employeeDirectoryEditPrimaryDepartment) {
+                              setEmployeeDirectoryEditPrimaryDepartment(employeeDirectoryEditDepartments[0] || "");
                             }
                             if (v === "employee" && employeeDirectoryEditDepartments.length > 0) {
                               setEmployeeDirectoryEditDepartment(employeeDirectoryEditDepartments[0] || "");
@@ -6957,12 +7070,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <Button
                           type="button"
                           className="button-primary"
-                          disabled={employeeDirectoryEditSaving || !Number.isFinite(Number(employeeDirectoryEditAccrualRate)) || Number(employeeDirectoryEditAccrualRate) < 0 || (employeeDirectoryEditRole === "department_head" ? employeeDirectoryEditDepartments.length === 0 : !employeeDirectoryEditDepartment)}
+                          disabled={employeeDirectoryEditSaving || !Number.isFinite(Number(employeeDirectoryEditAccrualRate)) || Number(employeeDirectoryEditAccrualRate) < 0 || (employeeDirectoryEditRole === "department_head" ? (employeeDirectoryEditDepartments.length === 0 || !employeeDirectoryEditPrimaryDepartment) : !employeeDirectoryEditDepartment)}
                           onClick={async () => {
                             setEmployeeDirectoryEditSaving(true);
                             setError(null);
                             try {
-                              const departmentValue = employeeDirectoryEditRole === "department_head" ? employeeDirectoryEditDepartments.join(", ") : employeeDirectoryEditDepartment;
+                              const departmentValue = employeeDirectoryEditRole === "department_head"
+                                ? [employeeDirectoryEditPrimaryDepartment, ...employeeDirectoryEditDepartments.filter((d) => d !== employeeDirectoryEditPrimaryDepartment)].join(", ")
+                                : employeeDirectoryEditDepartment;
                               const res = await fetch(`/api/admin-employee-directory?id=${emp.id}`, {
                                 method: "PATCH",
                                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
@@ -6984,7 +7099,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                     ? {
                                         ...x,
                                         full_name: employeeDirectoryEditFullName.trim(),
-                                        department: employeeDirectoryEditRole === "department_head" ? employeeDirectoryEditDepartments.join(", ") : employeeDirectoryEditDepartment,
+                                        department: employeeDirectoryEditRole === "department_head"
+                                          ? [employeeDirectoryEditPrimaryDepartment, ...employeeDirectoryEditDepartments.filter((d) => d !== employeeDirectoryEditPrimaryDepartment)].join(", ")
+                                          : employeeDirectoryEditDepartment,
                                         position: employeeDirectoryEditPosition.trim(),
                                         cooperation_type: employeeDirectoryEditCooperationType,
                                         accrual_type: employeeDirectoryEditAccrualType,
@@ -7024,6 +7141,39 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
       {(tab === "expense_requests" || tab === "accounting") && isSuperAdmin && (() => {
         const isAccounting = tab === "accounting";
+        const normalizeMatch = (value: unknown) => String(value ?? "").trim().toLowerCase();
+        const resolveSubdivisionId = (departmentLabel: string) => {
+          const norm = normalizeMatch(departmentLabel);
+          const byLabel = SUBDIVISIONS.find((s) => normalizeMatch(s.label) === norm);
+          if (byLabel) return byLabel.id;
+          const byId = SUBDIVISIONS.find((s) => normalizeMatch(s.id) === norm);
+          return byId?.id || "";
+        };
+        const hasPnlExpenseCombination = (item: ExpenseRequestItem) => {
+          const subdivisionId = resolveSubdivisionId(item.department);
+          const subdivision = SUBDIVISIONS.find((s) => s.id === subdivisionId);
+          if (!subdivision) return false;
+          const reqCategoryId = String(item.categoryId || "").trim();
+          const reqCategoryName = normalizeMatch(item.categoryName);
+          return pnlExpenseCategoryLinks.some((row) => {
+            if (row.department !== subdivision.department) return false;
+            if ((row.logisticsStage ?? null) !== (subdivision.logisticsStage ?? null)) return false;
+            if (reqCategoryId && row.expenseCategoryId && String(row.expenseCategoryId) === reqCategoryId) return true;
+            if (reqCategoryName && normalizeMatch(row.name) === reqCategoryName) return true;
+            return false;
+          });
+        };
+        const openPnlExpenseDirectory = (item: ExpenseRequestItem) => {
+          const subdivisionId = resolveSubdivisionId(item.department) || "administration";
+          setPnlExpensePrefill({
+            requestId: item.id,
+            expenseCategoryId: item.categoryId || undefined,
+            categoryName: item.categoryName || undefined,
+            subdivision: subdivisionId,
+            type: "OPEX",
+          });
+          setTab("pnl");
+        };
         const statusBadge = (s: string) => {
           const map: Record<string, { bg: string; color: string; label: string }> = {
             draft: { bg: "rgba(245,158,11,0.15)", color: "#f59e0b", label: "Черновик" },
@@ -7186,7 +7336,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         </td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
                           <Flex gap="0.25rem" wrap="wrap">
-                            {!isAccounting && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
+                            {!hasPnlExpenseCombination(r) && (
+                              <button
+                                type="button"
+                                onClick={() => openPnlExpenseDirectory(r)}
+                                style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #f97316", background: "rgba(249,115,22,0.12)", color: "#c2410c", cursor: "pointer", fontWeight: 600 }}
+                              >
+                                Добавить в PnL
+                              </button>
+                            )}
+                            {!isAccounting && hasPnlExpenseCombination(r) && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
                               <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "approved", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #10b981", background: "transparent", color: "#10b981", cursor: "pointer" }}>Согласовать</button>
                             )}
                             {!isAccounting && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
@@ -7357,7 +7516,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         fetchCustomers={fetchCustomersForModal}
       />
 
-      {tab === "pnl" && isSuperAdmin && <PnlSection />}
+      {tab === "pnl" && isSuperAdmin && (
+        <PnlSection
+          initialView={pnlExpensePrefill ? "ref-expenses" : "dashboard"}
+          expenseCategoryPrefill={pnlExpensePrefill}
+        />
+      )}
     </div>
   );
 }

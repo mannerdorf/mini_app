@@ -1,10 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { pnlGet, pnlPost, pnlPatch, pnlDelete } from './api';
 import { SUBDIVISIONS } from './constants';
 import { Plus, Trash2, Info } from 'lucide-react';
 
 interface BaseCategory { id: string; name: string; costType?: string; sortOrder?: number; }
 interface Category { id: string; name: string; department: string; type: string; logisticsStage: string | null; sortOrder: number; expenseCategoryId?: string; }
+type ExpenseCategoryPrefill = {
+  requestId: string;
+  expenseCategoryId?: string;
+  categoryName?: string;
+  subdivision?: string;
+  type?: 'COGS' | 'OPEX' | 'CAPEX';
+};
 
 const COST_TYPE_LEGEND = [
   {
@@ -30,7 +37,7 @@ const COST_TYPE_LEGEND = [
   },
 ];
 
-export function RefExpensesView() {
+export function RefExpensesView({ initialPrefill = null }: { initialPrefill?: ExpenseCategoryPrefill | null }) {
   const [cats, setCats] = useState<Category[]>([]);
   const [baseCats, setBaseCats] = useState<BaseCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +54,28 @@ export function RefExpensesView() {
         .then((r) => (r.ok ? r.json() : [])).then((d: BaseCategory[]) => setBaseCats(Array.isArray(d) ? d : [])),
     ]).finally(() => setLoading(false));
   }, []);
+
+  const allowedSubdivisionIds = useMemo(() => new Set(SUBDIVISIONS.map((s) => s.id)), []);
+
+  useEffect(() => {
+    if (!initialPrefill) return;
+    const normalizedName = String(initialPrefill.categoryName || '').trim().toLowerCase();
+    const resolvedExpenseCategoryId =
+      (initialPrefill.expenseCategoryId && baseCats.some((c) => c.id === initialPrefill.expenseCategoryId)
+        ? initialPrefill.expenseCategoryId
+        : undefined)
+      || baseCats.find((c) => c.name.trim().toLowerCase() === normalizedName)?.id
+      || '';
+    const resolvedSubdivision =
+      initialPrefill.subdivision && allowedSubdivisionIds.has(initialPrefill.subdivision)
+        ? initialPrefill.subdivision
+        : 'administration';
+    setForm({
+      expenseCategoryId: resolvedExpenseCategoryId,
+      subdivision: resolvedSubdivision,
+      type: 'OPEX',
+    });
+  }, [initialPrefill, baseCats, allowedSubdivisionIds]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
