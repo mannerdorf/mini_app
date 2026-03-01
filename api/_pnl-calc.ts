@@ -213,11 +213,24 @@ export async function getCogsByStage(
 ): Promise<{ stage: string; amount: number }[]> {
   const f = parseFilter(params);
   const byStage: Record<string, number> = {};
+  const stageExpr = `
+    coalesce(
+      logistics_stage,
+      case
+        when lower(department) like '%забор%' then 'PICKUP'
+        when lower(department) like '%склад москва%' or lower(department) like '%склад отправления%' then 'DEPARTURE_WAREHOUSE'
+        when lower(department) like '%магистрал%' then 'MAINLINE'
+        when lower(department) like '%склад калининград%' or lower(department) like '%склад получения%' then 'ARRIVAL_WAREHOUSE'
+        when lower(department) like '%последняя миля%' then 'LAST_MILE'
+        else null
+      end
+    )
+  `;
 
   {
     const p: unknown[] = ["COGS"];
     const idx = { v: 2 };
-    const c = ["operation_type = $1", "logistics_stage IS NOT NULL"];
+    const c = ["operation_type = $1", `${stageExpr} IS NOT NULL`];
     c.push(...buildDateWhere("date", f, p, idx));
     if (f.direction) {
       c.push(`direction = $${idx.v}`);
@@ -230,7 +243,10 @@ export async function getCogsByStage(
       idx.v++;
     }
     const { rows } = await pool.query(
-      `SELECT logistics_stage, sum(abs(amount)) AS total FROM pnl_operations WHERE ${c.join(" AND ")} GROUP BY logistics_stage`,
+      `SELECT ${stageExpr} AS logistics_stage, sum(abs(amount)) AS total
+       FROM pnl_operations
+       WHERE ${c.join(" AND ")}
+       GROUP BY ${stageExpr}`,
       p
     );
     for (const r of rows)

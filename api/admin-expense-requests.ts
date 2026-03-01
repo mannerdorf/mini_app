@@ -51,6 +51,27 @@ function normalizeOperationType(raw?: string | null): "COGS" | "OPEX" | "CAPEX" 
   return "OPEX";
 }
 
+function mapDepartmentToPnl(raw?: string | null): { department: string; logisticsStage: string | null } {
+  const source = String(raw ?? "").trim();
+  const upper = source.toUpperCase();
+  const known = new Set(["LOGISTICS_MSK", "LOGISTICS_KGD", "ADMINISTRATION", "DIRECTION", "IT", "SALES", "SERVICE", "GENERAL"]);
+  if (known.has(upper)) {
+    return { department: upper, logisticsStage: null };
+  }
+  const s = source.toLowerCase().replace(/ё/g, "е");
+  if (s.includes("забор")) return { department: "LOGISTICS_MSK", logisticsStage: "PICKUP" };
+  if (s.includes("склад москва") || s.includes("склад отправления")) return { department: "LOGISTICS_MSK", logisticsStage: "DEPARTURE_WAREHOUSE" };
+  if (s.includes("магистрал")) return { department: "LOGISTICS_MSK", logisticsStage: "MAINLINE" };
+  if (s.includes("склад калининград") || s.includes("склад получения")) return { department: "LOGISTICS_KGD", logisticsStage: "ARRIVAL_WAREHOUSE" };
+  if (s.includes("последняя миля") || s.includes("last mile")) return { department: "LOGISTICS_KGD", logisticsStage: "LAST_MILE" };
+  if (s.includes("администрац")) return { department: "ADMINISTRATION", logisticsStage: null };
+  if (s.includes("дирекц")) return { department: "DIRECTION", logisticsStage: null };
+  if (s.includes("продаж")) return { department: "SALES", logisticsStage: null };
+  if (s.includes("сервис")) return { department: "SERVICE", logisticsStage: null };
+  if (s === "it" || s.includes(" айти") || s.includes("it ")) return { department: "IT", logisticsStage: null };
+  return { department: source || "GENERAL", logisticsStage: null };
+}
+
 function toFrontendFormat(r: DbRow, login: string) {
   return {
     id: r.uid,
@@ -159,21 +180,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (newStatus === "approved" && previousStatus !== "approved") {
           await ensurePnlTransportColumns(pool);
           const operationType = normalizeOperationType(requestRow.category_cost_type);
+          const deptMap = mapDepartmentToPnl(requestRow.department);
           const opDate = requestRow.doc_date
             ? new Date(String(requestRow.doc_date))
             : new Date();
           const amountAbs = Math.abs(Number(requestRow.amount) || 0);
           if (amountAbs > 0) {
+            const logisticsStage = operationType === "COGS" ? deptMap.logisticsStage : null;
             await client.query(
               `INSERT INTO pnl_operations (date, counterparty, purpose, amount, operation_type, department, logistics_stage, direction, transport_type)
-               VALUES ($1, $2, $3, $4, $5, $6, NULL, NULL, NULL)`,
+               VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL)`,
               [
                 opDate,
                 requestRow.employee_name || requestRow.login || "expense_request",
                 `Согласование заявки ${requestRow.doc_number || requestRow.uid}${requestRow.category_name ? ` (${requestRow.category_name})` : ""}`,
                 -amountAbs,
                 operationType,
-                requestRow.department || "GENERAL",
+                deptMap.department || "GENERAL",
+                logisticsStage,
               ]
             );
           }
