@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { pnlGet, pnlPost } from './api';
 import { DEPARTMENT_LABELS, DIRECTION_LABELS, MONTHS } from './constants';
 import { CheckCircle, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
@@ -183,6 +183,9 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const [savedFilterType, setSavedFilterType] = useState('ALL');
   const [subdivisionDirectory, setSubdivisionDirectory] = useState<SubdivisionDirectoryRow[]>([]);
   const [timesheetOverrides, setTimesheetOverrides] = useState<Record<string, TimesheetRowOverride>>({});
+  const [expandedAccrualKey, setExpandedAccrualKey] = useState<string | null>(null);
+  const [accrualDetails, setAccrualDetails] = useState<Array<{ employeeName: string; workDate: string; valueText: string; amount: number }>>([]);
+  const [accrualDetailsLoading, setAccrualDetailsLoading] = useState(false);
 
   const rowKey = (e: SavedExpense) => e.id || `${e.categoryId}:${e.direction ?? ''}:${e.transportType ?? ''}`;
 
@@ -222,6 +225,32 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
       setTimesheetOverrides({});
     }
   }, [savedFilterMonth, savedFilterYear]);
+
+  const toggleAccrualDetails = (e: SavedExpense, key: string) => {
+    if (e.source !== 'timesheet_salary' || !e.id) return;
+    const parts = e.id.split(':');
+    if (parts.length < 4) return;
+    const periodKey = parts[1];
+    const [y, m] = periodKey.split('-');
+    const dept = parts[2];
+    const stage = parts[3] === 'none' ? '' : parts[3];
+    if (expandedAccrualKey === key) {
+      setExpandedAccrualKey(null);
+      setAccrualDetails([]);
+      return;
+    }
+    setExpandedAccrualKey(key);
+    setAccrualDetailsLoading(true);
+    pnlGet<{ accruals: Array<{ employeeName: string; workDate: string; valueText: string; amount: number }> }>('/api/timesheet-accruals', {
+      month: m,
+      year: y,
+      department: dept,
+      logisticsStage: stage,
+    })
+      .then((d) => setAccrualDetails(Array.isArray(d?.accruals) ? d.accruals : []))
+      .catch(() => setAccrualDetails([]))
+      .finally(() => setAccrualDetailsLoading(false));
+  };
 
   const saveTimesheetOverride = (rowId: string, patch: TimesheetRowOverride) => {
     if (typeof window === 'undefined') return;
@@ -471,8 +500,13 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                     const logisticsStageValue = e.logisticsStage ?? cat?.logisticsStage ?? logisticsStage ?? null;
                     const typeValue = e.type ?? cat?.type ?? 'OPEX';
                     const subdivisionLabel = getSubdivisionDirectoryLabel(departmentValue, logisticsStageValue);
+                    const isAccrualExpanded = expandedAccrualKey === key;
                     return (
-                      <tr key={key} className="border-b border-slate-50 hover:bg-slate-50">
+                      <React.Fragment key={key}>
+                      <tr
+                        className={`border-b border-slate-50 hover:bg-slate-50 ${isTimesheetSalary ? 'cursor-pointer' : ''}`}
+                        onClick={() => isTimesheetSalary && !isEditingRow && toggleAccrualDetails(e, key)}
+                      >
                         <td className="px-6 py-2 text-slate-900">{e.categoryName}</td>
                         <td className="px-6 py-2 text-slate-600 text-sm">{subdivisionLabel}</td>
                         <td className="px-6 py-2 text-slate-600 text-sm">{getExpenseTypeLabel(typeValue)}</td>
@@ -493,7 +527,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-2 text-right">
+                        <td className="px-6 py-2 text-right" onClick={(ev) => ev.stopPropagation()}>
                           {canEditRow ? (
                             <div className="inline-flex items-center gap-2 whitespace-nowrap">
                               {isEditingRow ? (
@@ -559,6 +593,44 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                           ) : null}
                         </td>
                       </tr>
+                      {isTimesheetSalary && isAccrualExpanded && (
+                        <tr key={`${key}-detail`} className="border-b border-slate-100 bg-slate-50/50">
+                          <td colSpan={isMainline ? 7 : 6} className="px-6 py-4">
+                            {accrualDetailsLoading ? (
+                              <div className="text-sm text-slate-500 animate-pulse">Загрузка начислений...</div>
+                            ) : accrualDetails.length === 0 ? (
+                              <div className="text-sm text-slate-500">Нет начислений</div>
+                            ) : (
+                              <div className=" rounded-lg border border-slate-200 overflow-hidden" style={{ maxHeight: 320, overflowY: 'auto' }}>
+                                <table className="min-w-full text-sm">
+                                  <thead className="bg-slate-100 sticky top-0">
+                                    <tr>
+                                      <th className="px-4 py-2 text-left font-medium text-slate-600">Сотрудник</th>
+                                      <th className="px-4 py-2 text-left font-medium text-slate-600">Дата</th>
+                                      <th className="px-4 py-2 text-left font-medium text-slate-600">Табель</th>
+                                      <th className="px-4 py-2 text-right font-medium text-slate-600">Сумма</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {accrualDetails.map((a, i) => (
+                                      <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                                        <td className="px-4 py-2 text-slate-900">{a.employeeName}</td>
+                                        <td className="px-4 py-2 text-slate-600">{a.workDate}</td>
+                                        <td className="px-4 py-2 text-slate-600">{a.valueText}</td>
+                                        <td className="px-4 py-2 text-right font-medium text-slate-900">{formatRub(a.amount)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                                <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 text-sm font-medium text-slate-700">
+                                  Итого: {formatRub(accrualDetails.reduce((s, a) => s + a.amount, 0))} ({accrualDetails.length} начислений)
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>

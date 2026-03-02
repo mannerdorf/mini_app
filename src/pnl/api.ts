@@ -19,6 +19,7 @@ const PATH_MAP: Record<string, string> = {
   '/api/upload/statement': '/api/pnl-upload-statement',
   '/api/upload/expenses': '/api/pnl-upload-expenses',
   '/api/pnl-sales-auto': '/api/pnl-sales-auto',
+  '/api/timesheet-accruals': '/api/pnl-timesheet-accruals',
 };
 
 const DYN_PREFIXES = [
