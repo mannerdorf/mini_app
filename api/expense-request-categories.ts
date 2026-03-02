@@ -1,7 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 
-/** Справочник статей расходов для заявок на расходы (единый с PNL). */
+/**
+ * Справочник статей расходов для заявок на расходы.
+ * Берём из Справочника расходов (pnl_expense_categories), чтобы не терять статьи.
+ * Включаем также expense_categories без записей в pnl (обратная совместимость).
+ */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -10,9 +14,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const pool = getPool();
     const { rows } = await pool.query(
-      `SELECT id, name, cost_type AS "costType", sort_order AS "sortOrder"
-       FROM expense_categories
-       WHERE active = true
+      `WITH from_catalog AS (
+         SELECT DISTINCT ON (ec.id) ec.id, ec.name, ec.cost_type, ec.sort_order
+         FROM pnl_expense_categories p
+         JOIN expense_categories ec ON ec.id = p.expense_category_id
+         WHERE ec.active = true
+         ORDER BY ec.id, ec.sort_order, ec.name
+       ),
+       not_in_catalog AS (
+         SELECT ec.id, ec.name, ec.cost_type, ec.sort_order
+         FROM expense_categories ec
+         WHERE ec.active = true
+           AND NOT EXISTS (SELECT 1 FROM pnl_expense_categories p WHERE p.expense_category_id = ec.id)
+       )
+       SELECT id, name, cost_type AS "costType", sort_order AS "sortOrder"
+       FROM (SELECT * FROM from_catalog UNION ALL SELECT * FROM not_in_catalog) u
        ORDER BY sort_order, name`
     );
     return res.json(rows);
