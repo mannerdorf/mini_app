@@ -24,17 +24,11 @@ function mapDepartmentToPnl(raw?: string | null): { department: string; logistic
   return { department: source || "GENERAL", logisticsStage: null };
 }
 
-function mapDepartmentCandidates(raw?: string | null): Array<{ department: string; logisticsStage: string | null }> {
+function mapPrimaryDepartmentCandidate(raw?: string | null): { department: string; logisticsStage: string | null } {
   const source = String(raw ?? "").trim();
-  if (!source) return [{ department: "GENERAL", logisticsStage: null }];
-  const parts = source.split(",").map((x) => x.trim()).filter(Boolean);
-  const base = parts.length > 0 ? parts : [source];
-  const mapped = base.map((p) => mapDepartmentToPnl(p));
-  const uniq = new Map<string, { department: string; logisticsStage: string | null }>();
-  mapped.forEach((m) => {
-    uniq.set(`${m.department}::${String(m.logisticsStage ?? "")}`, m);
-  });
-  return Array.from(uniq.values());
+  if (!source) return { department: "GENERAL", logisticsStage: null };
+  const primary = source.split(",").map((x) => x.trim()).find(Boolean) || source;
+  return mapDepartmentToPnl(primary);
 }
 
 function normalizeAccrualType(value: unknown): "hour" | "shift" | "month" {
@@ -257,6 +251,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           String(r.type ?? "").trim().toUpperCase() || "OPEX",
         ])
       );
+      const salaryTypeByStage = new Map<string, string>();
+      salaryTypeRows.forEach((r: any) => {
+        const stageKey = String(r.logisticsStage ?? "").trim().toUpperCase();
+        const typeValue = String(r.type ?? "").trim().toUpperCase();
+        if (!stageKey || !typeValue || salaryTypeByStage.has(stageKey)) return;
+        salaryTypeByStage.set(stageKey, typeValue);
+      });
       const resolveSalaryType = (dep: string, stage: string | null): string => {
         // Priority:
         // 1) exact row subdivision
@@ -266,11 +267,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 5) any salary type from directory
         const exact = `${dep}::${String(stage ?? "")}`;
         const depOnly = `${dep}::`;
+        const stageOnly = String(stage ?? "").trim().toUpperCase();
         const selectedExact = `${String(department ?? "")}::${String(logisticsStage ?? "")}`;
         const selectedDepOnly = `${String(department ?? "")}::`;
         return (
           salaryTypeMap.get(exact) ||
           salaryTypeMap.get(depOnly) ||
+          salaryTypeByStage.get(stageOnly) ||
           salaryTypeMap.get(selectedExact) ||
           salaryTypeMap.get(selectedDepOnly) ||
           salaryTypeRows.map((r: any) => String(r.type ?? "").trim().toUpperCase()).find(Boolean) ||
@@ -323,8 +326,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           amountAbs = Math.abs(hours * (rate || 0));
         }
         if (!(amountAbs > 0)) return;
-        const candidates = mapDepartmentCandidates(r.employeeDepartment);
-        let matched = candidates;
+        const primary = mapPrimaryDepartmentCandidate(r.employeeDepartment);
+        let matched: Array<{ department: string; logisticsStage: string | null }> = [primary];
         if (department != null) {
           matched = matched.filter((m) => m.department === department);
         }
@@ -341,12 +344,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               .map((m) => ({ ...m, logisticsStage }));
         }
         if (matched.length === 0) return;
-
-        const share = amountAbs / matched.length;
         matched.forEach((mapped) => {
           const key = `${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
           const prev = grouped.get(key) || { amount: 0, count: 0, department: mapped.department, logisticsStage: mapped.logisticsStage };
-          prev.amount += share;
+          prev.amount += amountAbs;
           prev.count += 1;
           grouped.set(key, prev);
         });
