@@ -236,7 +236,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             body: JSON.stringify({
                 login: auth.login,
                 password: auth.password,
-                limit: 700,
+                limit: 10000,
             }),
         })
             .then((r) => (r.ok ? r.json() : Promise.reject()))

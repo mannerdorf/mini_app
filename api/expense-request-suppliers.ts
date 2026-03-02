@@ -46,8 +46,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const q = String(body.q ?? "").trim();
     const requestedLimit = Number(body.limit);
     const limit = Number.isFinite(requestedLimit)
-      ? Math.max(20, Math.min(1000, Math.trunc(requestedLimit)))
-      : (q.length >= 2 ? 200 : 500);
+      ? Math.max(20, Math.min(10000, Math.trunc(requestedLimit)))
+      : (q.length >= 2 ? 500 : 10000);
 
     if (q.length >= 2) {
       const pattern = `%${q.replace(/[%_]/g, "")}%`;
