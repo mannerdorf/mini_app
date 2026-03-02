@@ -10,13 +10,23 @@ function mapDepartmentToPnl(raw?: string | null): { department: string; logistic
   const upper = source.toUpperCase();
   const known = new Set(["LOGISTICS_MSK", "LOGISTICS_KGD", "ADMINISTRATION", "DIRECTION", "IT", "SALES", "SERVICE", "GENERAL"]);
   if (known.has(upper)) return { department: upper, logisticsStage: null };
-  const s = source.toLowerCase().replace(/ё/g, "е");
+  // Нормализация: ё->е, множественные пробелы в один, lowercase
+  const s = source.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+  // Заборная логистика Москва
   if (s.includes("забор")) return { department: "LOGISTICS_MSK", logisticsStage: "PICKUP" };
-  if (s.includes("склад москва") || s.includes("склад отправления")) return { department: "LOGISTICS_MSK", logisticsStage: "DEPARTURE_WAREHOUSE" };
+  // Склад Москва — поддерживаем варианты: "склад москва", "склад мск", "москва склад", "склад отправления"
+  const hasMsk = s.includes("москва") || s.includes("мск");
+  const hasKgd = s.includes("калининград") || s.includes("кгд");
+  if (s.includes("склад") && hasMsk && !hasKgd) return { department: "LOGISTICS_MSK", logisticsStage: "DEPARTURE_WAREHOUSE" };
+  if (s.includes("склад отправления")) return { department: "LOGISTICS_MSK", logisticsStage: "DEPARTURE_WAREHOUSE" };
   if (s.includes("магистрал")) return { department: "LOGISTICS_MSK", logisticsStage: "MAINLINE" };
-  if (s.includes("склад калининград") || s.includes("склад получения")) return { department: "LOGISTICS_KGD", logisticsStage: "ARRIVAL_WAREHOUSE" };
-  if (s.includes("последняя миля") || s.includes("last mile")) return { department: "LOGISTICS_KGD", logisticsStage: "LAST_MILE" };
-  if (s.includes("администрац")) return { department: "ADMINISTRATION", logisticsStage: null };
+  // Склад Калининград
+  if (s.includes("склад") && hasKgd) return { department: "LOGISTICS_KGD", logisticsStage: "ARRIVAL_WAREHOUSE" };
+  if (s.includes("склад получения")) return { department: "LOGISTICS_KGD", logisticsStage: "ARRIVAL_WAREHOUSE" };
+  // Последняя миля Калининград
+  if (s.includes("последняя миля") || s.includes("last mile") || (s.includes("миля") && hasKgd)) return { department: "LOGISTICS_KGD", logisticsStage: "LAST_MILE" };
+  // Администрация / Управляющая компания
+  if (s.includes("администрац") || s.includes("управляющ")) return { department: "ADMINISTRATION", logisticsStage: null };
   if (s.includes("дирекц")) return { department: "DIRECTION", logisticsStage: null };
   if (s.includes("продаж")) return { department: "SALES", logisticsStage: null };
   if (s.includes("сервис")) return { department: "SERVICE", logisticsStage: null };
@@ -371,7 +381,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         id: `timesheet-salary:${periodKey}:${g.department}:${String(g.logisticsStage ?? "none")}`,
         categoryId: `timesheet-salary:${g.department}:${String(g.logisticsStage ?? "none")}`,
         categoryName: "Зарплата",
-        amount: g.amount,
+        amount: Number(Number(g.amount).toFixed(2)),
         comment: `По табелю (${g.count} начислений)`,
         direction: "",
         transportType: "",

@@ -58,13 +58,17 @@ function mapDepartmentToPnl(raw?: string | null): { department: string; logistic
   if (known.has(upper)) {
     return { department: upper, logisticsStage: null };
   }
-  const s = source.toLowerCase().replace(/ё/g, "е");
+  const s = source.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
   if (s.includes("забор")) return { department: "LOGISTICS_MSK", logisticsStage: "PICKUP" };
-  if (s.includes("склад москва") || s.includes("склад отправления")) return { department: "LOGISTICS_MSK", logisticsStage: "DEPARTURE_WAREHOUSE" };
+  const hasMsk = s.includes("москва") || s.includes("мск");
+  const hasKgd = s.includes("калининград") || s.includes("кгд");
+  if (s.includes("склад") && hasMsk && !hasKgd) return { department: "LOGISTICS_MSK", logisticsStage: "DEPARTURE_WAREHOUSE" };
+  if (s.includes("склад отправления")) return { department: "LOGISTICS_MSK", logisticsStage: "DEPARTURE_WAREHOUSE" };
   if (s.includes("магистрал")) return { department: "LOGISTICS_MSK", logisticsStage: "MAINLINE" };
-  if (s.includes("склад калининград") || s.includes("склад получения")) return { department: "LOGISTICS_KGD", logisticsStage: "ARRIVAL_WAREHOUSE" };
-  if (s.includes("последняя миля") || s.includes("last mile")) return { department: "LOGISTICS_KGD", logisticsStage: "LAST_MILE" };
-  if (s.includes("администрац")) return { department: "ADMINISTRATION", logisticsStage: null };
+  if (s.includes("склад") && hasKgd) return { department: "LOGISTICS_KGD", logisticsStage: "ARRIVAL_WAREHOUSE" };
+  if (s.includes("склад получения")) return { department: "LOGISTICS_KGD", logisticsStage: "ARRIVAL_WAREHOUSE" };
+  if (s.includes("последняя миля") || s.includes("last mile") || (s.includes("миля") && hasKgd)) return { department: "LOGISTICS_KGD", logisticsStage: "LAST_MILE" };
+  if (s.includes("администрац") || s.includes("управляющ")) return { department: "ADMINISTRATION", logisticsStage: null };
   if (s.includes("дирекц")) return { department: "DIRECTION", logisticsStage: null };
   if (s.includes("продаж")) return { department: "SALES", logisticsStage: null };
   if (s.includes("сервис")) return { department: "SERVICE", logisticsStage: null };
