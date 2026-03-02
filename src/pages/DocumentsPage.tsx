@@ -518,6 +518,16 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             ?? row?.Дата
         );
         if (!start) return null;
+        const rowStatusKey = getSendingStatusKey(row);
+        const rowStopDate = parseDateTimeValue(
+            row?.StatusDate
+            ?? row?.DateStatus
+            ?? row?.DateState
+            ?? row?.UpdatedAt
+            ?? row?.updated_at
+            ?? row?.ДатаСтатуса
+            ?? row?.ДатаИзменения
+        );
         const explicitEnd = parseDateTimeValue(
             row?.DatePrih
             ?? row?.DateVr
@@ -537,13 +547,44 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             if (!cargoStopDate) return;
             if (!stopDateByCargo || cargoStopDate.getTime() < stopDateByCargo.getTime()) stopDateByCargo = cargoStopDate;
         });
-        const end = hasStopStatus
-            ? (stopDateByCargo ?? explicitEnd ?? new Date())
+        const hasReadyStatusInRow = rowStatusKey === 'ready' || rowStatusKey === 'delivered';
+        const end = (hasStopStatus || hasReadyStatusInRow)
+            ? (stopDateByCargo ?? explicitEnd ?? rowStopDate ?? new Date())
             : (explicitEnd ?? new Date());
         const diffMs = end.getTime() - start.getTime();
         if (!Number.isFinite(diffMs) || diffMs < 0) return null;
         return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
-    }, [parseDateTimeValue, getSendingCargoNumbers, cargoStateByNumber, normCargoKey, cargoStopDateByNumber]);
+    }, [parseDateTimeValue, getSendingCargoNumbers, cargoStateByNumber, normCargoKey, cargoStopDateByNumber, getSendingStatusKey]);
+    const getSendingPlannedArrivalDate = useCallback((row: any): Date | null => {
+        const plannedKeys = [
+            'ДатаПрибытияПлан', 'ДатаДоставкиПлан', 'ПланДатаПрибытия', 'ПлановаяДатаПрибытия', 'ПлановаяДатаДоставки',
+            'DateArrivalPlan', 'DateDeliveryPlan', 'DeliveryDatePlan', 'PlannedDeliveryDate', 'PlanDeliveryDate',
+            'DateArrival', 'PlanDate', 'DateVrPlan', 'DatePrihPlan',
+        ];
+        const dates: Date[] = [];
+        const addDate = (value: unknown) => {
+            const parsed = parseDateTimeValue(value);
+            if (parsed) dates.push(parsed);
+        };
+        const collectFrom = (obj: any) => {
+            if (!obj || typeof obj !== 'object') return;
+            plannedKeys.forEach((k) => addDate(obj?.[k]));
+        };
+
+        const parcels = getRequestParcels(row);
+        parcels.forEach((parcel: any) => {
+            collectFrom(parcel);
+            const goodsRaw = parcel?.Товары ?? parcel?.Goods ?? parcel?.goods;
+            if (Array.isArray(goodsRaw)) {
+                goodsRaw.forEach((g) => collectFrom(g));
+            } else if (goodsRaw && typeof goodsRaw === 'object') {
+                Object.values(goodsRaw as Record<string, any>).forEach((g) => collectFrom(g));
+            }
+        });
+
+        if (dates.length === 0) return null;
+        return dates.reduce((min, d) => (d.getTime() < min.getTime() ? d : min), dates[0]);
+    }, [getRequestParcels, parseDateTimeValue]);
     const cargoCustomerByNumber = useMemo(() => {
         const m = new Map<string, string>();
         (perevozkiItems || []).forEach((c: any) => {
@@ -2308,6 +2349,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('type')} title="Сортировка">Тип {sendingsSortColumn === 'type' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('transitHours')} title="Сортировка">В пути, ч {sendingsSortColumn === 'transitHours' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус доставки</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата прибытия</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 {showEorColumn && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="Exit of Records (Запись о выходе)">EOR</th>}
@@ -2349,6 +2391,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const sendingStatusLabel = sendingStatusKey === 'all' ? '' : STATUS_MAP[sendingStatusKey];
                                 const transitHours = getSendingTransitHours(row);
                                 const transitDays = transitHours == null ? null : Math.round((transitHours / 24) * 10) / 10;
+                                const plannedArrivalDate = getSendingPlannedArrivalDate(row);
                                 const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
@@ -2395,7 +2438,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                 {transitHours == null ? '—' : (
                                                     <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.15 }}>
-                                                        <span>{Number.isInteger(transitHours) ? transitHours : transitHours.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ч</span>
+                                                        <span style={sendingStatusKey === 'ready' ? { color: '#16a34a', fontWeight: 600 } : undefined}>
+                                                            {Number.isInteger(transitHours) ? transitHours : transitHours.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ч
+                                                        </span>
                                                         <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.75rem' }}>
                                                             {(transitDays != null && Number.isInteger(transitDays) ? transitDays : (transitDays ?? 0).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 }))} д
                                                         </span>
@@ -2404,6 +2449,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>
                                                 {sendingStatusLabel ? <StatusBadge status={sendingStatusLabel} /> : '—'}
+                                            </td>
+                                            <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>
+                                                {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
