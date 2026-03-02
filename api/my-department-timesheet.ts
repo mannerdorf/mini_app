@@ -207,10 +207,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          DO UPDATE SET created_by_user_id = EXCLUDED.created_by_user_id`,
         [employeeId, monthInfo.start, me.id]
       );
-      await pool.query(
-        "DELETE FROM employee_timesheet_entries WHERE employee_id = $1 AND work_date >= $2::date AND work_date < $3::date",
-        [employeeId, monthInfo.start, monthInfo.next]
-      );
       return res.status(200).json({ ok: true });
     }
 
