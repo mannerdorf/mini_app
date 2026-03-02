@@ -115,14 +115,7 @@ export function ProfilePage({
         const month = String(now.getMonth() + 1).padStart(2, "0");
         return `${now.getFullYear()}-${month}`;
     });
-    const departmentTimesheetEditableMonthKeys = useMemo(() => {
-        const now = new Date();
-        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const previousMonthKey = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
-        return new Set([currentMonthKey, previousMonthKey, "2025-12"]);
-    }, []);
-    const departmentTimesheetIsEditableMonth = departmentTimesheetEditableMonthKeys.has(departmentTimesheetMonth);
+    const departmentTimesheetIsEditableMonth = true;
     const [departmentTimesheetHours, setDepartmentTimesheetHours] = useState<Record<string, string>>({});
     const [departmentTimesheetPayoutsByEmployee, setDepartmentTimesheetPayoutsByEmployee] = useState<Record<string, number>>({});
     const [departmentTimesheetPaidDayMarks, setDepartmentTimesheetPaidDayMarks] = useState<Record<string, boolean>>({});

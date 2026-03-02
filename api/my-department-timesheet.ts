@@ -51,21 +51,6 @@ function parseMonth(value: unknown): { month: string; start: string; next: strin
   return { month, start, next };
 }
 
-function getCurrentMonthKey(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function getPreviousMonthKey(): string {
-  const now = new Date();
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function isDepartmentTimesheetEditableMonth(monthKey: string): boolean {
-  return monthKey === getCurrentMonthKey() || monthKey === getPreviousMonthKey() || monthKey === "2025-12";
-}
-
 function parseBody(req: VercelRequest): Body {
   let body: unknown = req.body;
   if (typeof body === "string") {
@@ -184,10 +169,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const departmentList = parseDepartmentList(me.department);
     const monthInfo = parseMonth(body.month || "");
     if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
-    const isEditableMonth = isDepartmentTimesheetEditableMonth(monthInfo.month);
-
     if (req.method === "DELETE") {
-      if (!isEditableMonth) return res.status(403).json({ error: "Руководитель может изменять табель только текущего, предыдущего месяца и декабря 2025" });
       const employeeId = Number(body.employeeId);
       if (departmentList.length === 0 && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
       if (!Number.isFinite(employeeId) || employeeId <= 0) return res.status(400).json({ error: "employeeId обязателен" });
@@ -227,7 +209,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "PUT") {
-      if (!isEditableMonth) return res.status(403).json({ error: "Руководитель может изменять табель только текущего, предыдущего месяца и декабря 2025" });
       if (departmentList.length === 0 && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
       const existingEmployeeId = Number(body.existingEmployeeId);
       if (Number.isFinite(existingEmployeeId) && existingEmployeeId > 0) {
@@ -343,7 +324,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "PATCH") {
-      if (!isEditableMonth) return res.status(403).json({ error: "Руководитель может изменять табель только текущего, предыдущего месяца и декабря 2025" });
       const employeeId = Number(body.employeeId);
       const date = String(body.date || "").trim();
       const value = String(body.value || "").trim();
