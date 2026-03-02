@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { pnlGet, pnlPost } from './api';
 import { DEPARTMENT_LABELS, DIRECTION_LABELS, LOGISTICS_STAGE_LABELS, MONTHS } from './constants';
-import { CheckCircle, Plus, Trash2 } from 'lucide-react';
+import { CheckCircle, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 
 const MAINLINE_DIRECTIONS = ['MSK_TO_KGD', 'KGD_TO_MSK'] as const;
 const MAINLINE_TRANSPORT = [{ value: 'AUTO', label: 'авто' }, { value: 'FERRY', label: 'паром' }] as const;
@@ -63,7 +63,7 @@ function getSubdivisionLabel(department?: string | null, logisticsStage?: string
   return depLabel || stageLabel || '—';
 }
 
-function getLocalApprovedPaidExpenses(month: number, year: number, department: string): SavedExpense[] {
+function getLocalApprovedPaidExpenses(month: number, year: number, department?: string | null): SavedExpense[] {
   if (typeof window === 'undefined') return [];
   const periodKey = `${year}-${String(month).padStart(2, '0')}`;
   const out: SavedExpense[] = [];
@@ -83,7 +83,7 @@ function getLocalApprovedPaidExpenses(month: number, year: number, department: s
         const periodFromDate = /^\d{4}-\d{2}-\d{2}$/.test(docDate) ? docDate.slice(0, 7) : '';
         if (period !== periodKey && periodFromDate !== periodKey) continue;
         const mapped = mapDepartmentToPnl(item?.department);
-        if (mapped.department !== department) continue;
+        if (department && mapped.department !== department) continue;
         const amount = Math.abs(Number(item?.amount) || 0);
         if (!(amount > 0)) continue;
         const id = String(item?.id ?? '').trim() || `local-${key}-${i}`;
@@ -118,10 +118,11 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
+  const [inputExpanded, setInputExpanded] = useState(false);
   const [filteredCats, setFilteredCats] = useState<ExpenseCat[]>([]);
   const isMainline = logisticsStage === 'MAINLINE';
   const [rows, setRows] = useState<ExpenseRow[]>([{ id: generateId(), categoryId: '', amount: '', direction: 'MSK_TO_KGD', transportType: 'AUTO' }]);
-  const [savedExpenses, setSavedExpenses] = useState<SavedExpense[]>([]);
+  const [savedExpensesAll, setSavedExpensesAll] = useState<SavedExpense[]>([]);
   const [savedLoading, setSavedLoading] = useState(true);
   const [catsLoading, setCatsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -129,23 +130,27 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const [editingAmount, setEditingAmount] = useState<{ key: string; value: string } | null>(null);
   const [editingComment, setEditingComment] = useState<{ key: string; value: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [savedFilterMonth, setSavedFilterMonth] = useState(now.getMonth() + 1);
+  const [savedFilterYear, setSavedFilterYear] = useState(now.getFullYear());
+  const [savedFilterDepartment, setSavedFilterDepartment] = useState('ALL');
+  const [savedFilterType, setSavedFilterType] = useState('ALL');
 
   const rowKey = (e: SavedExpense) => e.id || `${e.categoryId}:${e.direction ?? ''}:${e.transportType ?? ''}`;
 
   const loadSaved = () => {
-    const stage = logisticsStage == null ? '' : logisticsStage;
-    pnlGet<any>('/api/manual-entry', { month: String(month), year: String(year), department, logisticsStage: stage })
+    setSavedLoading(true);
+    pnlGet<any>('/api/manual-entry', { month: String(savedFilterMonth), year: String(savedFilterYear) })
       .then((d) => {
         const serverExpenses: SavedExpense[] = Array.isArray(d?.expenses) ? d.expenses : [];
         const hasRequestRows = serverExpenses.some((x) => x?.source === 'expense_request');
-        const localFallback = hasRequestRows ? [] : getLocalApprovedPaidExpenses(month, year, department);
-        setSavedExpenses([...serverExpenses, ...localFallback]);
+        const localFallback = hasRequestRows ? [] : getLocalApprovedPaidExpenses(savedFilterMonth, savedFilterYear);
+        setSavedExpensesAll([...serverExpenses, ...localFallback]);
       })
-      .catch(() => setSavedExpenses([]))
+      .catch(() => setSavedExpensesAll([]))
       .finally(() => setSavedLoading(false));
   };
 
-  useEffect(loadSaved, [month, year, department, logisticsStage]);
+  useEffect(loadSaved, [savedFilterMonth, savedFilterYear]);
 
   useEffect(() => {
     pnlGet<ExpenseCat[]>('/api/expense-categories').then((cats) => {
@@ -170,7 +175,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const handleUpdateSaved = async (categoryId: string, newAmount: number, comment?: string | null, direction = '', transportType = '', requestId = '') => {
     setEditingAmount(null);
     setEditingComment(null);
-    const period = `${year}-${String(month).padStart(2, '0')}-01`;
+    const period = `${savedFilterYear}-${String(savedFilterMonth).padStart(2, '0')}-01`;
     await pnlPost('/api/manual-entry', {
       period,
       revenues: [],
@@ -217,7 +222,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
       loadSaved();
       return;
     }
-    const period = `${year}-${String(month).padStart(2, '0')}-01`;
+    const period = `${savedFilterYear}-${String(savedFilterMonth).padStart(2, '0')}-01`;
     await pnlPost('/api/manual-entry', {
       period,
       revenues: [],
@@ -234,50 +239,106 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   };
 
   const totalExpenses = rows.reduce((s, r) => s + (parseFloat(r.amount.replace(/\s/g, '').replace(/,/g, '.')) || 0), 0);
+  const savedDepartmentOptions = useMemo(() => {
+    const set = new Set<string>();
+    savedExpensesAll.forEach((e) => {
+      const dep = getSubdivisionLabel(e.department, e.logisticsStage);
+      if (dep && dep !== '—') set.add(dep);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [savedExpensesAll]);
+  const savedTypeOptions = useMemo(() => {
+    const set = new Set<string>();
+    savedExpensesAll.forEach((e) => set.add(getExpenseTypeLabel(e.type)));
+    return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [savedExpensesAll]);
+  const savedExpenses = useMemo(() => {
+    return savedExpensesAll.filter((e) => {
+      const depLabel = getSubdivisionLabel(e.department, e.logisticsStage);
+      const typeLabel = getExpenseTypeLabel(e.type);
+      if (savedFilterDepartment !== 'ALL' && depLabel !== savedFilterDepartment) return false;
+      if (savedFilterType !== 'ALL' && typeLabel !== savedFilterType) return false;
+      return true;
+    });
+  }, [savedExpensesAll, savedFilterDepartment, savedFilterType]);
+  const savedTotal = savedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
   return (
     <div className="space-y-6">
       <div><h1 className="text-2xl font-bold text-slate-900">{label}</h1><p className="text-slate-500">{description}</p></div>
       <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900 mb-4">Ввод затрат</h2>
-        <div className="flex flex-wrap items-center gap-4 mb-4">
-          {subdivisionSelect}
-          <div className="flex gap-2">
-            <select value={month} onChange={(e) => setMonth(parseInt(e.target.value))} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900">{MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}</select>
-            <select value={year} onChange={(e) => setYear(parseInt(e.target.value))} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900">{[year - 2, year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}</select>
-          </div>
-        </div>
-        {catsLoading ? <div className="animate-pulse text-slate-500">Загрузка справочника...</div> : filteredCats.length === 0 ? <p className="text-slate-500 text-sm">Нет статей расходов для этого подразделения.</p> : (
+        <button
+          type="button"
+          onClick={() => setInputExpanded((v) => !v)}
+          className="w-full flex items-center justify-between"
+          style={{ marginBottom: inputExpanded ? '1rem' : 0 }}
+        >
+          <h2 className="text-lg font-semibold text-slate-900">Ввод затрат</h2>
+          {inputExpanded ? <ChevronDown className="w-5 h-5 text-slate-500" /> : <ChevronRight className="w-5 h-5 text-slate-500" />}
+        </button>
+        {inputExpanded ? (
           <>
-            <div className="space-y-3">
-              {rows.map((row) => (
-                <div key={row.id} className="flex flex-wrap items-center gap-2">
-                  <select value={row.categoryId} onChange={(e) => updateRow(row.id, 'categoryId', e.target.value)} className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-slate-900" style={{ minWidth: 140 }}>
-                    <option value="">— Выберите статью —</option>
-                    {filteredCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  {isMainline && (
-                    <>
-                      <select value={row.direction} onChange={(e) => updateRow(row.id, 'direction', e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900" style={{ width: 130 }}>{MAINLINE_DIRECTIONS.map((d) => <option key={d} value={d}>{(DIRECTION_LABELS as Record<string, string>)[d]}</option>)}</select>
-                      <select value={row.transportType} onChange={(e) => updateRow(row.id, 'transportType', e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900" style={{ width: 90 }}>{MAINLINE_TRANSPORT.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select>
-                    </>
-                  )}
-                  <input type="text" value={row.amount} onChange={(e) => updateRow(row.id, 'amount', e.target.value)} placeholder="Сумма" className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-right" style={{ width: 112 }} />
-                  {rows.length > 1 && <button onClick={() => setRows((r) => r.filter((x) => x.id !== row.id))} className="p-2 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
+            <div className="flex flex-wrap items-center gap-4 mb-4">
+              {subdivisionSelect}
+              <div className="flex gap-2">
+                <select value={month} onChange={(e) => setMonth(parseInt(e.target.value))} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900">{MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}</select>
+                <select value={year} onChange={(e) => setYear(parseInt(e.target.value))} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900">{[year - 2, year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}</select>
+              </div>
+            </div>
+            {catsLoading ? <div className="animate-pulse text-slate-500">Загрузка справочника...</div> : filteredCats.length === 0 ? <p className="text-slate-500 text-sm">Нет статей расходов для этого подразделения.</p> : (
+              <>
+                <div className="space-y-3">
+                  {rows.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center gap-2">
+                      <select value={row.categoryId} onChange={(e) => updateRow(row.id, 'categoryId', e.target.value)} className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-slate-900" style={{ minWidth: 140 }}>
+                        <option value="">— Выберите статью —</option>
+                        {filteredCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                      {isMainline && (
+                        <>
+                          <select value={row.direction} onChange={(e) => updateRow(row.id, 'direction', e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900" style={{ width: 130 }}>{MAINLINE_DIRECTIONS.map((d) => <option key={d} value={d}>{(DIRECTION_LABELS as Record<string, string>)[d]}</option>)}</select>
+                          <select value={row.transportType} onChange={(e) => updateRow(row.id, 'transportType', e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900" style={{ width: 90 }}>{MAINLINE_TRANSPORT.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select>
+                        </>
+                      )}
+                      <input type="text" value={row.amount} onChange={(e) => updateRow(row.id, 'amount', e.target.value)} placeholder="Сумма" className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900 text-right" style={{ width: 112 }} />
+                      {rows.length > 1 && <button onClick={() => setRows((r) => r.filter((x) => x.id !== row.id))} className="p-2 text-slate-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <button onClick={() => setRows((r) => [...r, { id: generateId(), categoryId: '', amount: '', direction: 'MSK_TO_KGD', transportType: 'AUTO' }])} className="mt-3 text-sm flex items-center gap-1" style={{ color: '#2563eb' }}><Plus className="w-4 h-4" /> Добавить строку</button>
-            <div className="mt-4 pt-4 border-t flex items-center justify-between">
-              <span className="font-medium">Итого: {formatRub(totalExpenses)}</span>
-              <button onClick={handleSaveExpenses} disabled={saving || rows.every((r) => !r.categoryId || !r.amount)} className="px-4 py-2 text-white rounded-lg disabled:opacity-50 flex items-center gap-2" style={{ background: '#2563eb' }}>{saving ? 'Сохранение...' : 'Сохранить'}</button>
-            </div>
-            {saveSuccess && <div className="mt-3 p-3 bg-emerald-50 rounded-lg flex items-center gap-2" style={{ color: '#047857' }}><CheckCircle className="w-5 h-5" /><span>Сохранено</span></div>}
+                <button onClick={() => setRows((r) => [...r, { id: generateId(), categoryId: '', amount: '', direction: 'MSK_TO_KGD', transportType: 'AUTO' }])} className="mt-3 text-sm flex items-center gap-1" style={{ color: '#2563eb' }}><Plus className="w-4 h-4" /> Добавить строку</button>
+                <div className="mt-4 pt-4 border-t flex items-center justify-between">
+                  <span className="font-medium">Итого: {formatRub(totalExpenses)}</span>
+                  <button onClick={handleSaveExpenses} disabled={saving || rows.every((r) => !r.categoryId || !r.amount)} className="px-4 py-2 text-white rounded-lg disabled:opacity-50 flex items-center gap-2" style={{ background: '#2563eb' }}>{saving ? 'Сохранение...' : 'Сохранить'}</button>
+                </div>
+                {saveSuccess && <div className="mt-3 p-3 bg-emerald-50 rounded-lg flex items-center gap-2" style={{ color: '#047857' }}><CheckCircle className="w-5 h-5" /><span>Сохранено</span></div>}
+              </>
+            )}
           </>
-        )}
+        ) : null}
       </div>
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <h2 className="text-lg font-semibold text-slate-900 px-6 py-4 border-b border-slate-100">Сохранённые затраты ({MONTHS[month - 1]} {year})</h2>
+        <h2 className="text-lg font-semibold text-slate-900 px-6 py-4 border-b border-slate-100">Сохранённые затраты ({MONTHS[savedFilterMonth - 1]} {savedFilterYear})</h2>
+        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+          <div className="flex flex-wrap items-center gap-3">
+            <select value={savedFilterMonth} onChange={(e) => setSavedFilterMonth(parseInt(e.target.value))} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900">
+              {MONTHS.map((m, i) => <option key={`saved-month-${i}`} value={i + 1}>{m}</option>)}
+            </select>
+            <select value={savedFilterYear} onChange={(e) => setSavedFilterYear(parseInt(e.target.value))} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900">
+              {[year - 2, year - 1, year, year + 1].map((y) => <option key={`saved-year-${y}`} value={y}>{y}</option>)}
+            </select>
+            <select value={savedFilterDepartment} onChange={(e) => setSavedFilterDepartment(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900" style={{ minWidth: 280 }}>
+              <option value="ALL">Все подразделения</option>
+              {savedDepartmentOptions.map((opt) => <option key={`saved-dep-${opt}`} value={opt}>{opt}</option>)}
+            </select>
+            <select value={savedFilterType} onChange={(e) => setSavedFilterType(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900" style={{ minWidth: 140 }}>
+              <option value="ALL">Все типы</option>
+              {savedTypeOptions.map((opt) => <option key={`saved-type-${opt}`} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+          <div className="mt-3 text-sm font-medium text-slate-700">
+            Сумма по фильтрам: {formatRub(savedTotal)}
+          </div>
+        </div>
         {savedLoading ? <div className="px-6 py-6 text-slate-500 animate-pulse">Загрузка...</div> : savedExpenses.length === 0 ? <div className="px-6 py-6 text-slate-500 text-sm">Нет сохранённых затрат за этот период.</div> : (
           <>
             <div className="overflow-x-auto">
