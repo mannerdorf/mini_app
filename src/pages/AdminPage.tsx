@@ -337,7 +337,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [expandedCustomerLabels, setExpandedCustomerLabels] = useState<Set<string>>(new Set());
   const [usersSortBy, setUsersSortBy] = useState<"email" | "date" | "active">("email");
   const [usersSortOrder, setUsersSortOrder] = useState<"asc" | "desc">("asc");
-  const [usersFilterBy, setUsersFilterBy] = useState<"all" | "cms" | "no_cms" | "service_mode" | "supervisor" | "no_supervisor" | "analytics" | "no_analytics" | "home" | "no_home" | "dashboard" | "no_dashboard">("all");
+  const [usersFilterBy, setUsersFilterBy] = useState<"all" | "cms" | "no_cms" | "service_mode" | "supervisor" | "no_supervisor" | "analytics" | "no_analytics" | "home" | "no_home" | "dashboard" | "no_dashboard" | "sendings" | "no_sendings">("all");
   const [usersFilterLastLogin, setUsersFilterLastLogin] = useState<"all" | "7d" | "30d" | "never" | "old">("all");
   const [usersFilterActive, setUsersFilterActive] = useState<"all" | "active" | "inactive">("all");
   const [usersFilterPresetId, setUsersFilterPresetId] = useState<string>("");
@@ -1171,6 +1171,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       no_home: base.filter((u) => !u.permissions?.home).length,
       dashboard: base.filter((u) => !!u.permissions?.dashboard).length,
       no_dashboard: base.filter((u) => !u.permissions?.dashboard).length,
+      sendings: base.filter((u) => !!u.permissions?.doc_sendings).length,
+      no_sendings: base.filter((u) => !u.permissions?.doc_sendings).length,
       active: base.filter((u) => !!u.active).length,
       inactive: base.filter((u) => !u.active).length,
       last_login_7d: withLastLogin((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d),
@@ -2893,6 +2895,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <option value="no_home">Без главной ({usersFilterCounts.no_home})</option>
                   <option value="dashboard">Дашборд — с правом ({usersFilterCounts.dashboard})</option>
                   <option value="no_dashboard">Без дашборда ({usersFilterCounts.no_dashboard})</option>
+                  <option value="sendings">Отправки — с правом ({usersFilterCounts.sendings})</option>
+                  <option value="no_sendings">Отправки — без права ({usersFilterCounts.no_sendings})</option>
                 </select>
               </Flex>
               <Flex align="center" gap="var(--space-2, 0.35rem)">
@@ -2983,6 +2987,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     else if (usersFilterBy === "no_home") list = list.filter((u) => !u.permissions?.home);
                     else if (usersFilterBy === "dashboard") list = list.filter((u) => !!u.permissions?.dashboard);
                     else if (usersFilterBy === "no_dashboard") list = list.filter((u) => !u.permissions?.dashboard);
+                    else if (usersFilterBy === "sendings") list = list.filter((u) => !!u.permissions?.doc_sendings);
+                    else if (usersFilterBy === "no_sendings") list = list.filter((u) => !u.permissions?.doc_sendings);
                     if (usersFilterActive === "active") list = list.filter((u) => !!u.active);
                     else if (usersFilterActive === "inactive") list = list.filter((u) => !u.active);
                     if (usersFilterLastLogin === "7d") list = list.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
@@ -3033,6 +3039,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               else if (usersFilterBy === "no_home") filtered = filtered.filter((u) => !u.permissions?.home);
               else if (usersFilterBy === "dashboard") filtered = filtered.filter((u) => !!u.permissions?.dashboard);
               else if (usersFilterBy === "no_dashboard") filtered = filtered.filter((u) => !u.permissions?.dashboard);
+              else if (usersFilterBy === "sendings") filtered = filtered.filter((u) => !!u.permissions?.doc_sendings);
+              else if (usersFilterBy === "no_sendings") filtered = filtered.filter((u) => !u.permissions?.doc_sendings);
               if (usersFilterActive === "active") filtered = filtered.filter((u) => !!u.active);
               else if (usersFilterActive === "inactive") filtered = filtered.filter((u) => !u.active);
               if (usersFilterLastLogin === "7d") filtered = filtered.filter((u) => u.last_login_at != null && now - new Date(u.last_login_at).getTime() <= ms7d);
