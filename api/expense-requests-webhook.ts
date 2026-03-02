@@ -36,6 +36,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     employeeName?: string;
     comment?: string;
     vehicleOrEmployee?: string;
+    supplierName?: string;
+    supplierInn?: string;
     status?: string;
     attachmentNames?: string[];
   };
@@ -54,6 +56,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const employeeName = String(b?.employeeName ?? "").trim();
   const comment = String(b?.comment ?? "").trim();
   const vehicleText = String(b?.vehicleOrEmployee ?? "").trim() || null;
+  const supplierName = String(b?.supplierName ?? "").trim() || null;
+  const supplierInn = String(b?.supplierInn ?? "").trim() || null;
   const status = STATUSES.has(String(b?.status ?? "")) ? String(b.status) : "draft";
 
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -63,8 +67,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const pool = getPool();
     await pool.query(
-      `INSERT INTO expense_requests (uid, login, department, doc_number, doc_date, period, category_id, amount, vat_rate, employee_name, comment, vehicle_text, status, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::timestamptz, now())
+      `INSERT INTO expense_requests (uid, login, department, doc_number, doc_date, period, category_id, amount, vat_rate, employee_name, comment, vehicle_text, supplier_name, supplier_inn, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::timestamptz, now())
        ON CONFLICT (uid) DO UPDATE SET
          login = EXCLUDED.login,
          department = EXCLUDED.department,
@@ -77,6 +81,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          employee_name = EXCLUDED.employee_name,
          comment = EXCLUDED.comment,
          vehicle_text = EXCLUDED.vehicle_text,
+         supplier_name = EXCLUDED.supplier_name,
+         supplier_inn = EXCLUDED.supplier_inn,
          status = EXCLUDED.status,
          updated_at = now()`,
       [
@@ -92,6 +98,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         employeeName,
         comment,
         vehicleText,
+        supplierName,
+        supplierInn,
         status,
         b?.createdAt ?? new Date().toISOString(),
       ]

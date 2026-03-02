@@ -129,6 +129,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 ec.cost_type AS "requestCostType",
                 er.period,
                 er.doc_date,
+                er.doc_number AS "docNumber",
+                er.vat_rate AS "vatRate",
+                er.employee_name AS "employeeName",
+                er.vehicle_text AS "vehicleText",
+                er.supplier_name AS "supplierName",
+                er.supplier_inn AS "supplierInn",
                 er.created_at
          FROM expense_requests er
          LEFT JOIN expense_categories ec ON ec.id = er.category_id
@@ -228,6 +234,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           requestDepartment: String(e.department ?? "").trim() || null,
           source: "expense_request",
           requestStatus: e.status,
+          docNumber: String(e.docNumber ?? "").trim() || null,
+          docDate: e.doc_date ? String(e.doc_date).slice(0, 10) : null,
+          period: String(e.period ?? "").trim() || null,
+          vatRate: String(e.vatRate ?? "").trim() || null,
+          employeeName: String(e.employeeName ?? "").trim() || null,
+          vehicleText: String(e.vehicleText ?? "").trim() || null,
+          supplierName: String(e.supplierName ?? "").trim() || null,
+          supplierInn: String(e.supplierInn ?? "").trim() || null,
         };
       });
 

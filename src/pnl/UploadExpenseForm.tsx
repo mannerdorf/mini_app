@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { pnlGet, pnlPost } from './api';
-import { DIRECTION_LABELS, MONTHS } from './constants';
+import { DEPARTMENT_LABELS, DIRECTION_LABELS, MONTHS } from './constants';
 import { CheckCircle, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 
 const MAINLINE_DIRECTIONS = ['MSK_TO_KGD', 'KGD_TO_MSK'] as const;
@@ -22,6 +22,14 @@ interface SavedExpense {
   requestDepartment?: string | null;
   source?: 'manual' | 'expense_request' | 'timesheet_salary';
   requestStatus?: string | null;
+  docNumber?: string | null;
+  docDate?: string | null;
+  period?: string | null;
+  vatRate?: string | null;
+  employeeName?: string | null;
+  vehicleText?: string | null;
+  supplierName?: string | null;
+  supplierInn?: string | null;
 }
 interface SubdivisionDirectoryRow {
   id: string;
@@ -64,6 +72,21 @@ function getExpenseTypeLabel(type?: string | null): string {
   const t = String(type ?? '').trim().toUpperCase();
   if (t === 'COGS' || t === 'OPEX' || t === 'CAPEX') return t;
   return t || '—';
+}
+
+function buildRequestAnalyticsDisplay(e: SavedExpense): string {
+  const parts: string[] = [];
+  if (e.docNumber?.trim()) parts.push(`№${e.docNumber.trim()}`);
+  if (e.docDate?.trim()) parts.push(`от ${e.docDate.trim()}`);
+  if (e.supplierName?.trim()) parts.push(e.supplierInn?.trim() ? `${e.supplierName.trim()} (${e.supplierInn.trim()})` : e.supplierName.trim());
+  if (e.employeeName?.trim()) parts.push(e.employeeName.trim());
+  if (e.vehicleText?.trim()) parts.push(`ТС: ${e.vehicleText.trim()}`);
+  if (e.vatRate?.trim()) parts.push(`НДС ${e.vatRate}%`);
+  const base = parts.length ? parts.join(' • ') : '';
+  const comment = (e.comment ?? '').trim();
+  const status = e.source === 'expense_request' && e.requestStatus ? `(${e.requestStatus === 'paid' ? 'Оплачено' : 'Согласовано'})` : '';
+  const main = comment ? (base ? `${base}. ${comment}` : comment) : (base || '');
+  return main ? (status ? `${main} ${status}` : main) : status || '—';
 }
 
 function getSubdivisionKey(department?: string | null, logisticsStage?: string | null): string {
@@ -112,6 +135,14 @@ function getLocalApprovedPaidExpenses(month: number, year: number, department?: 
           requestDepartment: String(item?.department ?? '').trim() || null,
           source: 'expense_request',
           requestStatus: status,
+          docNumber: String(item?.docNumber ?? '').trim() || null,
+          docDate: String(item?.docDate ?? '').trim().slice(0, 10) || null,
+          period: String(item?.period ?? '').trim() || null,
+          vatRate: String(item?.vatRate ?? '').trim() || null,
+          employeeName: String(item?.employeeName ?? '').trim() || null,
+          vehicleText: String(item?.vehicleOrEmployee ?? item?.vehicleText ?? '').trim() || null,
+          supplierName: String(item?.supplierName ?? '').trim() || null,
+          supplierInn: String(item?.supplierInn ?? '').trim() || null,
         });
       }
     }
@@ -138,8 +169,9 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const [catsLoading, setCatsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [editingAmount, setEditingAmount] = useState<{ key: string; value: string } | null>(null);
-  const [editingComment, setEditingComment] = useState<{ key: string; value: string } | null>(null);
+  const [editingRowKey, setEditingRowKey] = useState<string | null>(null);
+  const [editingAmount, setEditingAmount] = useState<string>('');
+  const [editingComment, setEditingComment] = useState<string>('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [savedFilterMonth, setSavedFilterMonth] = useState(now.getMonth() + 1);
   const [savedFilterYear, setSavedFilterYear] = useState(now.getFullYear());
@@ -214,8 +246,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   };
 
   const handleUpdateSaved = async (categoryId: string, newAmount: number, comment?: string | null, direction = '', transportType = '', requestId = '') => {
-    setEditingAmount(null);
-    setEditingComment(null);
+    setEditingRowKey(null);
     const period = `${savedFilterYear}-${String(savedFilterMonth).padStart(2, '0')}-01`;
     await pnlPost('/api/manual-entry', {
       period,
@@ -288,7 +319,15 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
     return m;
   }, [subdivisionDirectory]);
   const getSubdivisionDirectoryLabel = (departmentValue?: string | null, logisticsStageValue?: string | null) => {
-    return subdivisionLabelByKey.get(getSubdivisionKey(departmentValue, logisticsStageValue)) || '—';
+    const key = getSubdivisionKey(departmentValue, logisticsStageValue);
+    const fromDir = subdivisionLabelByKey.get(key);
+    if (fromDir) return fromDir;
+    const dept = String(departmentValue ?? '').trim().toUpperCase();
+    if (dept) {
+      const fallback = dept === 'SALES' ? 'Отдел продаж' : (DEPARTMENT_LABELS as Record<string, string>)[dept];
+      if (fallback) return fallback;
+    }
+    return '—';
   };
   const savedDepartmentOptions = useMemo(() => {
     const set = new Set<string>();
@@ -325,7 +364,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
       return true;
     });
   }, [savedExpensesAll, savedFilterDepartment, savedFilterType, subdivisionLabelByKey, timesheetOverrides]);
-  const savedTotal = savedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const savedTotal = savedExpenses.reduce((s, e) => s + Math.round(Number(e.amount) || 0), 0);
 
   return (
     <div className="space-y-6" style={{ color: 'var(--color-text, #0f172a)' }}>
@@ -421,8 +460,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                     const localRequestId = isRequestExpense && key.startsWith('local-request:') ? key.slice('local-request:'.length) : '';
                     const canEditRequest = isRequestExpense && (Boolean(requestId) || Boolean(localRequestId));
                     const canEditRow = isManualExpense || canEditRequest || isTimesheetSalary;
-                    const isEA = editingAmount?.key === key;
-                    const isEC = editingComment?.key === key;
+                    const isEditingRow = editingRowKey === key;
                     const dir = e.direction ?? ''; const transport = e.transportType ?? '';
                     const cat = filteredCats.find((c) => c.id === e.categoryId || normalizeName(c.name) === normalizeName(e.categoryName));
                     const departmentValue = e.department ?? cat?.department ?? department;
@@ -436,62 +474,83 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                         <td className="px-6 py-2 text-slate-600 text-sm">{getExpenseTypeLabel(typeValue)}</td>
                         {isMainline && <td className="px-6 py-2 text-slate-600 text-sm">{dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${transport === 'FERRY' ? 'паром' : 'авто'}` : '—'}</td>}
                         <td className="px-6 py-2 text-right">
-                          {canEditRow ? (
-                            <input type="number" step="0.01" min="0" value={isEA ? editingAmount.value : String(e.amount)} onChange={(ev) => setEditingAmount({ key, value: ev.target.value })} onFocus={() => setEditingAmount({ key, value: String(e.amount) })} className="w-28 text-right border border-slate-200 rounded px-2 py-1 text-slate-900 font-medium" />
+                          {canEditRow && isEditingRow ? (
+                            <input type="number" step="1" min="0" value={editingAmount} onChange={(ev) => setEditingAmount(ev.target.value)} className="w-28 text-right border border-slate-200 rounded px-2 py-1 text-slate-900 font-medium" />
                           ) : (
-                            <span className="text-slate-900 font-medium">{formatRub(e.amount)}</span>
+                            <span className="text-slate-900 font-medium">{formatRub(Math.round(Number(e.amount) || 0))}</span>
                           )}
                         </td>
                         <td className="px-6 py-2">
-                          {canEditRow ? (
-                            <input type="text" value={isEC ? editingComment.value : (e.comment ?? '')} onChange={(ev) => setEditingComment({ key, value: ev.target.value })} onFocus={() => setEditingComment({ key, value: e.comment ?? '' })} placeholder="Комментарий" className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-700" style={{ minWidth: 180 }} />
+                          {canEditRow && isEditingRow ? (
+                            <input type="text" value={editingComment} onChange={(ev) => setEditingComment(ev.target.value)} placeholder="Комментарий" className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-700" style={{ minWidth: 180 }} />
                           ) : (
-                            <span className="text-sm text-slate-700">
-                              {(e.comment ?? '').trim() || `Из заявки (${e.requestStatus === 'paid' ? 'Оплачено' : 'Согласовано'})`}
+                            <span className="text-sm text-slate-700" title={isRequestExpense ? buildRequestAnalyticsDisplay(e) : undefined}>
+                              {isRequestExpense ? buildRequestAnalyticsDisplay(e) : ((e.comment ?? '').trim() || '—')}
                             </span>
                           )}
                         </td>
                         <td className="px-6 py-2 text-right">
                           {canEditRow ? (
                             <div className="inline-flex items-center gap-2 whitespace-nowrap">
-                              <button
-                                onClick={() => {
-                                  const amountValue = isEA ? parseFloat(editingAmount.value) : e.amount;
-                                  if (!Number.isFinite(amountValue) || amountValue < 0) return;
-                                  const commentValue = isEC ? editingComment.value : (e.comment ?? '');
-                                  if (isTimesheetSalary && e.id) {
-                                    saveTimesheetOverride(e.id, { amount: amountValue, comment: commentValue });
-                                    setEditingAmount(null);
-                                    setEditingComment(null);
-                                    return;
-                                  }
-                                  if (localRequestId) {
-                                    handleUpdateLocalRequest(localRequestId, amountValue, commentValue);
-                                    setEditingAmount(null);
-                                    setEditingComment(null);
-                                    return;
-                                  }
-                                  handleUpdateSaved(e.categoryId, amountValue, commentValue, dir, transport, requestId);
-                                }}
-                                className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
-                              >
-                                Изменить
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (isTimesheetSalary && e.id) {
-                                    const confirmed = typeof window !== 'undefined' ? window.confirm('Скрыть эту запись из сохранённых затрат за выбранный период?') : true;
-                                    if (!confirmed) return;
-                                    saveTimesheetOverride(e.id, { hidden: true });
-                                    return;
-                                  }
-                                  handleDeleteSaved(e.categoryId, dir, transport, requestId, localRequestId, key);
-                                }}
-                                disabled={deletingId === key}
-                                className="px-2 py-1 text-xs rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
-                              >
-                                Удалить
-                              </button>
+                              {isEditingRow ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      const amountValue = Math.round(parseFloat(editingAmount) || 0);
+                                      if (amountValue < 0) return;
+                                      if (isTimesheetSalary && e.id) {
+                                        saveTimesheetOverride(e.id, { amount: amountValue, comment: editingComment });
+                                        setEditingRowKey(null);
+                                        return;
+                                      }
+                                      if (localRequestId) {
+                                        handleUpdateLocalRequest(localRequestId, amountValue, editingComment);
+                                        setEditingRowKey(null);
+                                        return;
+                                      }
+                                      handleUpdateSaved(e.categoryId, amountValue, editingComment, dir, transport, requestId);
+                                      setEditingRowKey(null);
+                                    }}
+                                    className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
+                                  >
+                                    Сохранить
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingRowKey(null)}
+                                    className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
+                                  >
+                                    Отмена
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setEditingRowKey(key);
+                                      setEditingAmount(String(Math.round(Number(e.amount) || 0)));
+                                      setEditingComment((e.comment ?? '').trim());
+                                    }}
+                                    className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
+                                  >
+                                    Изменить
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (isTimesheetSalary && e.id) {
+                                        const confirmed = typeof window !== 'undefined' ? window.confirm('Скрыть эту запись из сохранённых затрат за выбранный период?') : true;
+                                        if (!confirmed) return;
+                                        saveTimesheetOverride(e.id, { hidden: true });
+                                        return;
+                                      }
+                                      handleDeleteSaved(e.categoryId, dir, transport, requestId, localRequestId, key);
+                                    }}
+                                    disabled={deletingId === key}
+                                    className="px-2 py-1 text-xs rounded border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                                  >
+                                    Удалить
+                                  </button>
+                                </>
+                              )}
                             </div>
                           ) : null}
                         </td>
@@ -501,7 +560,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                 </tbody>
               </table>
             </div>
-            <div className="px-6 py-2 flex justify-end" style={{ background: 'var(--color-bg-hover, #f8fafc)', borderTop: '1px solid var(--color-border, #e2e8f0)' }}><span className="font-semibold" style={{ color: 'var(--color-text, #0f172a)' }}>Итого: {formatRub(savedExpenses.reduce((s, e) => s + e.amount, 0))}</span></div>
+            <div className="px-6 py-2 flex justify-end" style={{ background: 'var(--color-bg-hover, #f8fafc)', borderTop: '1px solid var(--color-border, #e2e8f0)' }}><span className="font-semibold" style={{ color: 'var(--color-text, #0f172a)' }}>Итого: {formatRub(savedExpenses.reduce((s, e) => s + Math.round(Number(e.amount) || 0), 0))}</span></div>
           </>
         )}
       </div>
