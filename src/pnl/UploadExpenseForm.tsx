@@ -600,24 +600,31 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                               <div className="text-sm text-slate-500 animate-pulse">Загрузка начислений...</div>
                             ) : accrualDetails.length === 0 ? (
                               <div className="text-sm text-slate-500">Нет начислений</div>
-                            ) : (
-                              <div className=" rounded-lg border border-slate-200 overflow-hidden" style={{ maxHeight: 320, overflowY: 'auto' }}>
+                            ) : (() => {
+                              const byEmployee = accrualDetails.reduce((acc, a) => {
+                                const name = a.employeeName || '—';
+                                if (!acc[name]) acc[name] = { amount: 0, count: 0 };
+                                acc[name].amount += a.amount;
+                                acc[name].count += 1;
+                                return acc;
+                              }, {} as Record<string, { amount: number; count: number }>);
+                              const rows = Object.entries(byEmployee).sort(([, a], [, b]) => b.amount - a.amount);
+                              return (
+                              <div className="rounded-lg border border-slate-200 overflow-hidden" style={{ maxHeight: 320, overflowY: 'auto' }}>
                                 <table className="min-w-full text-sm">
                                   <thead className="bg-slate-100 sticky top-0">
                                     <tr>
                                       <th className="px-4 py-2 text-left font-medium text-slate-600">Сотрудник</th>
-                                      <th className="px-4 py-2 text-left font-medium text-slate-600">Дата</th>
-                                      <th className="px-4 py-2 text-left font-medium text-slate-600">Табель</th>
+                                      <th className="px-4 py-2 text-right font-medium text-slate-600">Начислений</th>
                                       <th className="px-4 py-2 text-right font-medium text-slate-600">Сумма</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {accrualDetails.map((a, i) => (
+                                    {rows.map(([name, { amount, count }], i) => (
                                       <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                        <td className="px-4 py-2 text-slate-900">{a.employeeName}</td>
-                                        <td className="px-4 py-2 text-slate-600">{a.workDate}</td>
-                                        <td className="px-4 py-2 text-slate-600">{a.valueText}</td>
-                                        <td className="px-4 py-2 text-right font-medium text-slate-900">{formatRub(a.amount)}</td>
+                                        <td className="px-4 py-2 text-slate-900">{name}</td>
+                                        <td className="px-4 py-2 text-right text-slate-600">{count}</td>
+                                        <td className="px-4 py-2 text-right font-medium text-slate-900">{formatRub(amount)}</td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -626,7 +633,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                   Итого: {formatRub(accrualDetails.reduce((s, a) => s + a.amount, 0))} ({accrualDetails.length} начислений)
                                 </div>
                               </div>
-                            )}
+                            ); })()}
                           </td>
                         </tr>
                       )}
