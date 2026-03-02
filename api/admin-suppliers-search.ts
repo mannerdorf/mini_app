@@ -20,7 +20,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   const requestedLimit = Math.max(5, parseInt(String(req.query.limit || 50), 10) || 50);
-  const limit = !q || q.length < 2 ? Math.min(2000, requestedLimit) : Math.min(200, requestedLimit);
+  const limit = !q || q.length < 2 ? Math.min(10000, requestedLimit) : Math.min(500, requestedLimit);
 
   try {
     const pool = getPool();

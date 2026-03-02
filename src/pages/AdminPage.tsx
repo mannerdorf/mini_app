@@ -1398,7 +1398,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     const query = suppliersSearch.trim();
     const url = query.length >= 2
       ? `/api/admin-suppliers-search?q=${encodeURIComponent(query)}&limit=500`
-      : `/api/admin-suppliers-search?q=&limit=2000`;
+      : `/api/admin-suppliers-search?q=&limit=10000`;
     fetch(url, { headers: { Authorization: `Bearer ${adminToken}` } })
       .then((res) => res.json())
       .then((data: { suppliers?: { inn: string; supplier_name: string; email: string }[] }) => {

@@ -660,79 +660,6 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                         </div>
                     </Flex>
 
-                    {/* Department */}
-                    <div>
-                        <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Подразделение</label>
-                        <select
-                            className="admin-form-input"
-                            value={department}
-                            onChange={(e) => setDepartment(e.target.value)}
-                            style={{ width: "100%", padding: "0.5rem" }}
-                        >
-                            {departmentOptions.map((dep) => (
-                                <option key={dep} value={dep}>{dep}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Category */}
-                    <div>
-                        <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Статья расхода</label>
-                        <select
-                            className="admin-form-input"
-                            value={categoryId}
-                            onChange={(e) => setCategoryId(e.target.value)}
-                            style={{ width: "100%", padding: "0.5rem" }}
-                        >
-                            <option value="">Выберите</option>
-                            {categories.map((c) => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Amount + VAT */}
-                    <Flex gap="0.75rem" style={{ flexWrap: "wrap" }}>
-                        <div style={{ flex: "1 1 55%", minWidth: 140 }}>
-                            <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Сумма (₽)</label>
-                            <input
-                                type="text"
-                                inputMode="decimal"
-                                placeholder="0"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                className="admin-form-input"
-                                style={{ width: "100%", padding: "0.5rem", height: 38, boxSizing: "border-box" }}
-                            />
-                        </div>
-                        <div style={{ flex: "1 1 40%", minWidth: 120 }}>
-                            <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>НДС</label>
-                            <select
-                                value={vatRate}
-                                onChange={(e) => setVatRate(e.target.value)}
-                                className="admin-form-input"
-                                style={{ width: "100%", padding: "0.5rem", height: 38, boxSizing: "border-box" }}
-                            >
-                                {VAT_RATES.map((v) => (
-                                    <option key={v.value} value={v.value}>{v.label}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </Flex>
-
-                    {/* Comment */}
-                    <div>
-                        <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Комментарий (основание)</label>
-                        <textarea
-                            placeholder="Назначение расхода, обоснование"
-                            value={comment}
-                            onChange={(e) => setComment(e.target.value)}
-                            className="admin-form-input"
-                            style={{ width: "100%", minHeight: 72, resize: "vertical" }}
-                            rows={3}
-                        />
-                    </div>
-
                     {/* Supplier — searchable dropdown */}
                     <div ref={supplierDropdownRef} style={{ position: "relative" }}>
                         <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>
@@ -839,6 +766,79 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                 </div>
                             </div>
                         )}
+                    </div>
+
+                    {/* Department */}
+                    <div>
+                        <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Подразделение</label>
+                        <select
+                            className="admin-form-input"
+                            value={department}
+                            onChange={(e) => setDepartment(e.target.value)}
+                            style={{ width: "100%", padding: "0.5rem" }}
+                        >
+                            {departmentOptions.map((dep) => (
+                                <option key={dep} value={dep}>{dep}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Category */}
+                    <div>
+                        <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Статья расхода</label>
+                        <select
+                            className="admin-form-input"
+                            value={categoryId}
+                            onChange={(e) => setCategoryId(e.target.value)}
+                            style={{ width: "100%", padding: "0.5rem" }}
+                        >
+                            <option value="">Выберите</option>
+                            {categories.map((c) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Amount + VAT */}
+                    <Flex gap="0.75rem" style={{ flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 55%", minWidth: 140 }}>
+                            <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Сумма (₽)</label>
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="0"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                className="admin-form-input"
+                                style={{ width: "100%", padding: "0.5rem", height: 38, boxSizing: "border-box" }}
+                            />
+                        </div>
+                        <div style={{ flex: "1 1 40%", minWidth: 120 }}>
+                            <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>НДС</label>
+                            <select
+                                value={vatRate}
+                                onChange={(e) => setVatRate(e.target.value)}
+                                className="admin-form-input"
+                                style={{ width: "100%", padding: "0.5rem", height: 38, boxSizing: "border-box" }}
+                            >
+                                {VAT_RATES.map((v) => (
+                                    <option key={v.value} value={v.value}>{v.label}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </Flex>
+
+                    {/* Comment */}
+                    <div>
+                        <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Комментарий (основание)</label>
+                        <textarea
+                            placeholder="Назначение расхода, обоснование"
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                            className="admin-form-input"
+                            style={{ width: "100%", minHeight: 72, resize: "vertical" }}
+                            rows={3}
+                        />
                     </div>
 
                     {/* Vehicle — searchable dropdown */}
