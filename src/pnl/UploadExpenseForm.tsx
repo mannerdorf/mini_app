@@ -186,6 +186,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const [expandedAccrualKey, setExpandedAccrualKey] = useState<string | null>(null);
   const [accrualDetails, setAccrualDetails] = useState<Array<{ employeeName: string; workDate: string; valueText: string; amount: number }>>([]);
   const [accrualDetailsLoading, setAccrualDetailsLoading] = useState(false);
+  const [expandedEmployeeName, setExpandedEmployeeName] = useState<string | null>(null);
 
   const rowKey = (e: SavedExpense) => e.id || `${e.categoryId}:${e.direction ?? ''}:${e.transportType ?? ''}`;
 
@@ -237,6 +238,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
     if (expandedAccrualKey === key) {
       setExpandedAccrualKey(null);
       setAccrualDetails([]);
+      setExpandedEmployeeName(null);
       return;
     }
     setExpandedAccrualKey(key);
@@ -609,6 +611,9 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                 return acc;
                               }, {} as Record<string, { amount: number; count: number }>);
                               const rows = Object.entries(byEmployee).sort(([, a], [, b]) => b.amount - a.amount);
+                              const employeeShifts = expandedEmployeeName
+                                ? accrualDetails.filter((a) => (a.employeeName || '—') === expandedEmployeeName).sort((a, b) => a.workDate.localeCompare(b.workDate))
+                                : [];
                               return (
                               <div className="rounded-lg border border-slate-200 overflow-hidden" style={{ maxHeight: 320, overflowY: 'auto' }}>
                                 <table className="min-w-full text-sm">
@@ -621,11 +626,31 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                   </thead>
                                   <tbody>
                                     {rows.map(([name, { amount, count }], i) => (
-                                      <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
-                                        <td className="px-4 py-2 text-slate-900">{name}</td>
-                                        <td className="px-4 py-2 text-right text-slate-600">{count}</td>
-                                        <td className="px-4 py-2 text-right font-medium text-slate-900">{formatRub(amount)}</td>
-                                      </tr>
+                                      <React.Fragment key={i}>
+                                        <tr
+                                          className={`border-t border-slate-100 hover:bg-slate-50 ${expandedEmployeeName === name ? 'bg-slate-100' : ''} cursor-pointer`}
+                                          onClick={() => setExpandedEmployeeName((prev) => (prev === name ? null : name))}
+                                        >
+                                          <td className="px-4 py-2 text-slate-900">{name}</td>
+                                          <td className="px-4 py-2 text-right text-slate-600">{count}</td>
+                                          <td className="px-4 py-2 text-right font-medium text-slate-900">{formatRub(amount)}</td>
+                                        </tr>
+                                        {expandedEmployeeName === name && employeeShifts.length > 0 && (
+                                          <tr className="bg-slate-50/80">
+                                            <td colSpan={3} className="px-4 py-3">
+                                              <div className="text-xs font-medium text-slate-600 mb-2">Учитываемые смены ({name}):</div>
+                                              <table className="min-w-full text-xs border border-slate-200 rounded overflow-hidden">
+                                                <thead><tr className="bg-slate-100"><th className="px-3 py-1.5 text-left">Дата</th><th className="px-3 py-1.5 text-left">Табель</th><th className="px-3 py-1.5 text-right">Сумма</th></tr></thead>
+                                                <tbody>
+                                                  {employeeShifts.map((s, j) => (
+                                                    <tr key={j} className="border-t border-slate-100"><td className="px-3 py-1.5 text-slate-700">{s.workDate}</td><td className="px-3 py-1.5 text-slate-600">{s.valueText}</td><td className="px-3 py-1.5 text-right font-medium">{formatRub(s.amount)}</td></tr>
+                                                  ))}
+                                                </tbody>
+                                              </table>
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </React.Fragment>
                                     ))}
                                   </tbody>
                                 </table>
