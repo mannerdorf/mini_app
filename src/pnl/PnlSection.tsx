@@ -43,7 +43,7 @@ const navMain = [
 ];
 
 const navIncome = [
-  { id: 'upload-sales' as PnlView, label: 'Доходы', icon: DollarSign },
+  { id: 'upload-sales' as PnlView, label: 'Доходы', icon: TrendingUp },
 ];
 
 const navExpenses = [
