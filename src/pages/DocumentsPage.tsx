@@ -518,7 +518,16 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             ?? row?.Дата
         );
         if (!start) return null;
-        const rowStatusKey = getSendingStatusKey(row);
+        const rowStatusKey = getFilterKeyByStatus(
+            String(
+                row?.State
+                ?? row?.state
+                ?? row?.Статус
+                ?? row?.Status
+                ?? row?.StatusName
+                ?? ''
+            )
+        );
         const rowStopDate = parseDateTimeValue(
             row?.StatusDate
             ?? row?.DateStatus
@@ -554,41 +563,45 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         const diffMs = end.getTime() - start.getTime();
         if (!Number.isFinite(diffMs) || diffMs < 0) return null;
         return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
-    }, [parseDateTimeValue, getSendingCargoNumbers, cargoStateByNumber, normCargoKey, cargoStopDateByNumber, getSendingStatusKey]);
+    }, [parseDateTimeValue, getSendingCargoNumbers, cargoStateByNumber, normCargoKey, cargoStopDateByNumber]);
     const getSendingPlannedArrivalDate = useCallback((row: any): Date | null => {
-        const plannedKeys = [
-            'ДатаПрибытияПлан', 'ДатаДоставкиПлан', 'ПланДатаПрибытия', 'ПлановаяДатаПрибытия', 'ПлановаяДатаДоставки',
-            'DateArrivalPlan', 'DateDeliveryPlan', 'DeliveryDatePlan', 'PlannedDeliveryDate', 'PlanDeliveryDate',
-            'DateArrival', 'PlanDate', 'DateVrPlan', 'DatePrihPlan',
-        ];
-        const dates: Date[] = [];
-        const addDate = (value: unknown) => {
-            const parsed = parseDateTimeValue(value);
-            if (parsed) dates.push(parsed);
-        };
-        const collectFrom = (obj: any) => {
-            if (!obj || typeof obj !== 'object') return;
-            plannedKeys.forEach((k) => addDate(obj?.[k]));
-        };
+        try {
+            const plannedKeys = [
+                'ДатаПрибытияПлан', 'ДатаДоставкиПлан', 'ПланДатаПрибытия', 'ПлановаяДатаПрибытия', 'ПлановаяДатаДоставки',
+                'DateArrivalPlan', 'DateDeliveryPlan', 'DeliveryDatePlan', 'PlannedDeliveryDate', 'PlanDeliveryDate',
+                'DateArrival', 'PlanDate', 'DateVrPlan', 'DatePrihPlan',
+            ];
+            const dates: Date[] = [];
+            const addDate = (value: unknown) => {
+                const parsed = parseDateTimeValue(value);
+                if (parsed) dates.push(parsed);
+            };
+            const collectFrom = (obj: any) => {
+                if (!obj || typeof obj !== 'object') return;
+                plannedKeys.forEach((k) => addDate(obj?.[k]));
+            };
 
-        const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
-        const parcels = Array.isArray(rawParcels)
-            ? rawParcels
-            : (rawParcels && typeof rawParcels === 'object'
-                ? Object.values(rawParcels as Record<string, any>)
-                : []);
-        parcels.forEach((parcel: any) => {
-            collectFrom(parcel);
-            const goodsRaw = parcel?.Товары ?? parcel?.Goods ?? parcel?.goods;
-            if (Array.isArray(goodsRaw)) {
-                goodsRaw.forEach((g) => collectFrom(g));
-            } else if (goodsRaw && typeof goodsRaw === 'object') {
-                Object.values(goodsRaw as Record<string, any>).forEach((g) => collectFrom(g));
-            }
-        });
+            const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
+            const parcels = Array.isArray(rawParcels)
+                ? rawParcels
+                : (rawParcels && typeof rawParcels === 'object'
+                    ? Object.values(rawParcels as Record<string, any>)
+                    : []);
+            parcels.forEach((parcel: any) => {
+                collectFrom(parcel);
+                const goodsRaw = parcel?.Товары ?? parcel?.Goods ?? parcel?.goods;
+                if (Array.isArray(goodsRaw)) {
+                    goodsRaw.forEach((g) => collectFrom(g));
+                } else if (goodsRaw && typeof goodsRaw === 'object') {
+                    Object.values(goodsRaw as Record<string, any>).forEach((g) => collectFrom(g));
+                }
+            });
 
-        if (dates.length === 0) return null;
-        return dates.reduce((min, d) => (d.getTime() < min.getTime() ? d : min), dates[0]);
+            if (dates.length === 0) return null;
+            return dates.reduce((min, d) => (d.getTime() < min.getTime() ? d : min), dates[0]);
+        } catch {
+            return null;
+        }
     }, [parseDateTimeValue]);
     const cargoCustomerByNumber = useMemo(() => {
         const m = new Map<string, string>();
