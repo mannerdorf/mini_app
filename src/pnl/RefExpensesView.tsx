@@ -44,6 +44,8 @@ export function RefExpensesView({ initialPrefill = null }: { initialPrefill?: Ex
   const [form, setForm] = useState({ expenseCategoryId: '', subdivision: 'pickup_msk', type: 'COGS' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filterName, setFilterName] = useState('');
+  const [filterType, setFilterType] = useState('');
 
   const load = () => pnlGet<Category[]>('/api/expense-categories').then((d) => setCats(Array.isArray(d) ? d : []));
 
@@ -109,7 +111,17 @@ export function RefExpensesView({ initialPrefill = null }: { initialPrefill?: Ex
     await pnlDelete(`/api/expense-categories/${id}`); await load();
   };
 
-  const bySubdivision = cats.reduce((acc: Record<string, Category[]>, c) => {
+  const filteredCats = useMemo(() => {
+    return cats.filter((c) => {
+      if (filterName && c.name !== filterName) return false;
+      if (filterType && c.type !== filterType) return false;
+      return true;
+    });
+  }, [cats, filterName, filterType]);
+
+  const uniqueNames = useMemo(() => [...new Set(cats.map((c) => c.name))].sort(), [cats]);
+
+  const bySubdivision = filteredCats.reduce((acc: Record<string, Category[]>, c) => {
     const sub = SUBDIVISIONS.find((s) => s.department === c.department && s.logisticsStage === c.logisticsStage);
     const key = sub ? sub.id : c.department;
     (acc[key] = acc[key] || []).push(c); return acc;
@@ -156,6 +168,26 @@ export function RefExpensesView({ initialPrefill = null }: { initialPrefill?: Ex
         {error && <p className="text-red-600 text-sm">{error}</p>}
         <button type="submit" disabled={saving || baseCats.length === 0} className="px-4 py-2 text-white rounded-lg disabled:opacity-50 flex items-center gap-2" style={{ background: '#2563eb' }}><Plus className="w-4 h-4" /> Добавить</button>
       </form>
+
+      <div className="flex flex-wrap gap-3 items-end">
+        <div>
+          <label className="block text-sm text-slate-600 mb-1">Наименование</label>
+          <select value={filterName} onChange={(e) => setFilterName(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900 min-w-[180px]">
+            <option value="">Все</option>
+            {uniqueNames.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm text-slate-600 mb-1">Тип</label>
+          <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="border border-slate-300 rounded-lg px-3 py-2 text-slate-900 min-w-[120px]">
+            <option value="">Все</option>
+            <option value="COGS">COGS</option>
+            <option value="OPEX">OPEX</option>
+            <option value="CAPEX">CAPEX</option>
+          </select>
+        </div>
+      </div>
+
       <div className="space-y-4">
         {Object.entries(bySubdivision).map(([key, items]) => (
           <div key={key} className="bg-white rounded-xl border border-slate-200 overflow-hidden">

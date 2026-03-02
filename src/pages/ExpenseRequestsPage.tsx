@@ -57,6 +57,8 @@ const FALLBACK_CATEGORIES = [
     { id: "insurance", name: "Страхование", costType: "OPEX" as const },
     { id: "mainline", name: "Магистраль", costType: "COGS" as const },
     { id: "pickup_logistics", name: "Заборная логистика", costType: "COGS" as const },
+    { id: "ferry", name: "Паром", costType: "COGS" as const },
+    { id: "auto", name: "Авто", costType: "COGS" as const },
     { id: "other", name: "Прочее", costType: "OPEX" as const },
 ];
 
