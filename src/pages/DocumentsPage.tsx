@@ -571,7 +571,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             plannedKeys.forEach((k) => addDate(obj?.[k]));
         };
 
-        const parcels = getRequestParcels(row);
+        const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
+        const parcels = Array.isArray(rawParcels)
+            ? rawParcels
+            : (rawParcels && typeof rawParcels === 'object'
+                ? Object.values(rawParcels as Record<string, any>)
+                : []);
         parcels.forEach((parcel: any) => {
             collectFrom(parcel);
             const goodsRaw = parcel?.Товары ?? parcel?.Goods ?? parcel?.goods;
@@ -584,7 +589,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
 
         if (dates.length === 0) return null;
         return dates.reduce((min, d) => (d.getTime() < min.getTime() ? d : min), dates[0]);
-    }, [getRequestParcels, parseDateTimeValue]);
+    }, [parseDateTimeValue]);
     const cargoCustomerByNumber = useMemo(() => {
         const m = new Map<string, string>();
         (perevozkiItems || []).forEach((c: any) => {
