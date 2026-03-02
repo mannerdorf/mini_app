@@ -88,6 +88,18 @@ function normalizePrimaryDepartment(value: unknown): string {
   return first || "";
 }
 
+function parseDepartmentList(value: unknown): string[] {
+  const raw = String(value ?? "").trim();
+  if (!raw) return [];
+  const uniq = new Set<string>();
+  raw
+    .split(",")
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean)
+    .forEach((dep) => uniq.add(dep));
+  return Array.from(uniq.values());
+}
+
 async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS employee_timesheet_entries (
@@ -169,7 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const department = normalizePrimaryDepartment(me.department);
-    const departmentList = department ? [department.toLowerCase()] : [];
+    const departmentList = parseDepartmentList(me.department);
     const monthInfo = parseMonth(body.month || "");
     if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
     const isEditableMonth = isDepartmentTimesheetEditableMonth(monthInfo.month);
@@ -193,7 +205,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             `SELECT id
              FROM registered_users
              WHERE id = $1
-               AND lower(trim(coalesce(department, ''))) = any($2::text[])
+               AND EXISTS (
+                 SELECT 1
+                 FROM unnest(string_to_array(lower(coalesce(department, '')), ',')) dep(value)
+                 WHERE trim(dep.value) = any($2::text[])
+               )
                AND coalesce((permissions->>'haulz')::boolean, false) = true
              LIMIT 1`,
             [employeeId, departmentList]
@@ -228,7 +244,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               `SELECT id
                FROM registered_users
                WHERE id = $1
-                 AND lower(trim(coalesce(department, ''))) = any($2::text[])
+                 AND EXISTS (
+                   SELECT 1
+                   FROM unnest(string_to_array(lower(coalesce(department, '')), ',')) dep(value)
+                   WHERE trim(dep.value) = any($2::text[])
+                 )
                  AND coalesce((permissions->>'haulz')::boolean, false) = true
                LIMIT 1`,
               [existingEmployeeId, departmentList]
@@ -346,7 +366,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             `SELECT id
              FROM registered_users
              WHERE id = $1
-               AND lower(trim(coalesce(department, ''))) = any($2::text[])
+               AND EXISTS (
+                 SELECT 1
+                 FROM unnest(string_to_array(lower(coalesce(department, '')), ',')) dep(value)
+                 WHERE trim(dep.value) = any($2::text[])
+               )
                AND coalesce((permissions->>'haulz')::boolean, false) = true
              LIMIT 1`,
             [employeeId, departmentList]
@@ -444,7 +468,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }, active
        FROM registered_users
        WHERE coalesce((permissions->>'haulz')::boolean, false) = true
-         ${canViewAllDepartments ? "" : "AND lower(trim(coalesce(department, ''))) = any($1::text[])"}
+         ${canViewAllDepartments ? "" : `AND EXISTS (
+              SELECT 1
+              FROM unnest(string_to_array(lower(coalesce(department, '')), ',')) dep(value)
+              WHERE trim(dep.value) = any($1::text[])
+            )`}
          AND id NOT IN (
            SELECT employee_id
            FROM employee_timesheet_month_exclusions
@@ -471,7 +499,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
        FROM registered_users
        WHERE coalesce((permissions->>'haulz')::boolean, false) = true
-         ${canViewAllDepartments ? "" : "AND lower(trim(coalesce(department, ''))) = any($1::text[])"}
+         ${canViewAllDepartments ? "" : `AND EXISTS (
+              SELECT 1
+              FROM unnest(string_to_array(lower(coalesce(department, '')), ',')) dep(value)
+              WHERE trim(dep.value) = any($1::text[])
+            )`}
          AND id IN (
            SELECT employee_id
            FROM employee_timesheet_month_exclusions
