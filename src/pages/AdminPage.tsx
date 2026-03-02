@@ -841,17 +841,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [timesheetMonth]);
 
   const timesheetEmployeesByDepartment = useMemo(() => {
+    const getTimesheetDepartmentLabel = (emp: EmployeeDirectoryRow): string => {
+      const raw = String(emp.department || "").trim();
+      if (!raw) return "Без подразделения";
+      // For department heads, keep only the primary (first) subdivision.
+      // For regular employees, department should be single, but we still normalize defensively.
+      return raw.split(",").map((part) => part.trim()).find(Boolean) || "Без подразделения";
+    };
     const q = timesheetSearch.trim().toLowerCase();
     const filtered = employeeDirectoryItems.filter((emp) => {
       if (!q) return true;
-      const haystack = [emp.full_name, emp.login, emp.department, emp.position]
+      const haystack = [emp.full_name, emp.login, getTimesheetDepartmentLabel(emp), emp.position]
         .map((x) => String(x || "").toLowerCase())
         .join(" ");
       return haystack.includes(q);
     });
     const grouped = new Map<string, EmployeeDirectoryRow[]>();
     for (const emp of filtered) {
-      const dep = (emp.department || "Без подразделения").trim() || "Без подразделения";
+      const dep = getTimesheetDepartmentLabel(emp);
       const list = grouped.get(dep) || [];
       list.push(emp);
       grouped.set(dep, list);
