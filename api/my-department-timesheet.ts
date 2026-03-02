@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyPassword, hashPassword, generatePassword } from "../lib/passwordUtils.js";
+import { computeTimesheetEntryAmount } from "./_timesheet-amount.js";
 
 type Body = {
   login?: string;
@@ -125,6 +126,7 @@ async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
   `);
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_shift_rate_overrides_work_date_idx ON employee_timesheet_shift_rate_overrides(work_date)");
   await pool.query("CREATE INDEX IF NOT EXISTS employee_timesheet_shift_rate_overrides_employee_id_idx ON employee_timesheet_shift_rate_overrides(employee_id)");
+  await pool.query("ALTER TABLE employee_timesheet_entries ADD COLUMN IF NOT EXISTS amount numeric(12, 2)");
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -376,6 +378,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             "DELETE FROM employee_timesheet_shift_rate_overrides WHERE employee_id = $1 AND work_date = $2::date",
             [employeeId, date]
           );
+          const empRow = await pool.query<{ accrual_type: string | null; accrual_rate: number | null }>(
+            "SELECT accrual_type, accrual_rate FROM registered_users WHERE id = $1",
+            [employeeId]
+          );
+          const emp = empRow.rows[0];
+          const accType = normalizeAccrualType(emp?.accrual_type) as "hour" | "shift" | "month";
+          const accRate = Number(emp?.accrual_rate ?? 0);
+          const entryRow = await pool.query<{ value_text: string }>(
+            "SELECT value_text FROM employee_timesheet_entries WHERE employee_id = $1 AND work_date = $2::date",
+            [employeeId, date]
+          );
+          const amount = entryRow.rows[0]
+            ? computeTimesheetEntryAmount(accType, accRate, entryRow.rows[0].value_text, null)
+            : 0;
+          await pool.query(
+            "UPDATE employee_timesheet_entries SET amount = $3, updated_at = now() WHERE employee_id = $1 AND work_date = $2::date",
+            [employeeId, date, amount]
+          );
           return res.status(200).json({ ok: true });
         }
         const shiftRate = Number(String(rawShiftRate).replace(",", "."));
@@ -389,6 +409,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            DO UPDATE SET shift_rate = EXCLUDED.shift_rate, updated_at = now(), created_by_user_id = EXCLUDED.created_by_user_id`,
           [employeeId, date, Number(shiftRate.toFixed(2)), me.id]
         );
+        const empRow = await pool.query<{ accrual_type: string | null; accrual_rate: number | null }>(
+          "SELECT accrual_type, accrual_rate FROM registered_users WHERE id = $1",
+          [employeeId]
+        );
+        const emp = empRow.rows[0];
+        const accType = normalizeAccrualType(emp?.accrual_type) as "hour" | "shift" | "month";
+        const accRate = Number(emp?.accrual_rate ?? 0);
+        const entryRow = await pool.query<{ value_text: string }>(
+          "SELECT value_text FROM employee_timesheet_entries WHERE employee_id = $1 AND work_date = $2::date",
+          [employeeId, date]
+        );
+        const amount = entryRow.rows[0]
+          ? computeTimesheetEntryAmount(accType, accRate, entryRow.rows[0].value_text, shiftRate)
+          : 0;
+        await pool.query(
+          "UPDATE employee_timesheet_entries SET amount = $3, updated_at = now() WHERE employee_id = $1 AND work_date = $2::date",
+          [employeeId, date, amount]
+        );
         return res.status(200).json({ ok: true });
       }
 
@@ -396,12 +434,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await pool.query("DELETE FROM employee_timesheet_entries WHERE employee_id = $1 AND work_date = $2::date", [employeeId, date]);
         return res.status(200).json({ ok: true });
       }
+      const empRow = await pool.query<{ accrual_type: string | null; accrual_rate: number | null }>(
+        "SELECT accrual_type, accrual_rate FROM registered_users WHERE id = $1",
+        [employeeId]
+      );
+      const overrideRow = await pool.query<{ shift_rate: number }>(
+        "SELECT shift_rate FROM employee_timesheet_shift_rate_overrides WHERE employee_id = $1 AND work_date = $2::date",
+        [employeeId, date]
+      );
+      const emp = empRow.rows[0];
+      const accType = normalizeAccrualType(emp?.accrual_type) as "hour" | "shift" | "month";
+      const accRate = Number(emp?.accrual_rate ?? 0);
+      const override = overrideRow.rows[0] ? Number(overrideRow.rows[0].shift_rate) : null;
+      const amount = computeTimesheetEntryAmount(accType, accRate, value, override);
       await pool.query(
-        `INSERT INTO employee_timesheet_entries(employee_id, work_date, value_text)
-         VALUES ($1, $2::date, $3)
+        `INSERT INTO employee_timesheet_entries(employee_id, work_date, value_text, amount)
+         VALUES ($1, $2::date, $3, $4)
          ON CONFLICT (employee_id, work_date)
-         DO UPDATE SET value_text = EXCLUDED.value_text, updated_at = now()`,
-        [employeeId, date, value]
+         DO UPDATE SET value_text = EXCLUDED.value_text, amount = EXCLUDED.amount, updated_at = now()`,
+        [employeeId, date, value, amount]
       );
       return res.status(200).json({ ok: true });
     }

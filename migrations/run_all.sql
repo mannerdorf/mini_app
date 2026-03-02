@@ -662,6 +662,9 @@ where e.id in ('ferry', 'auto') and not exists (select 1 from pnl_expense_catego
 alter table expense_requests add column if not exists supplier_name text;
 alter table expense_requests add column if not exists supplier_inn text;
 
+-- ========== 041_employee_timesheet_amount.sql ==========
+alter table employee_timesheet_entries add column if not exists amount numeric(12, 2);
+
 -- ========== 039_add_ferry_auto_categories.sql ==========
 insert into expense_categories (id, name, cost_type, sort_order) values ('ferry', 'Паром', 'COGS', 10), ('auto', 'Авто', 'COGS', 11) on conflict (id) do nothing;
 insert into pnl_expense_categories (id, name, department, type, logistics_stage, expense_category_id, sort_order)
@@ -672,3 +675,6 @@ where e.id in ('ferry', 'auto') and not exists (select 1 from pnl_expense_catego
 -- ========== 040_expense_requests_supplier.sql ==========
 alter table expense_requests add column if not exists supplier_name text;
 alter table expense_requests add column if not exists supplier_inn text;
+
+-- ========== 041_employee_timesheet_amount.sql ==========
+alter table employee_timesheet_entries add column if not exists amount numeric(12, 2);
