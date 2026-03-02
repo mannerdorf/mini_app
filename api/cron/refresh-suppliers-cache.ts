@@ -20,6 +20,12 @@ function extractCounterpartyArray(raw: unknown): any[] {
   const from =
     obj.Items ??
     obj.items ??
+    obj.Customers ??
+    obj.customers ??
+    obj.Counterparties ??
+    obj.counterparties ??
+    obj.Counterpartys ??
+    obj.counterpartys ??
     obj.Kontragents ??
     obj.kontragents ??
     obj.Contragents ??
@@ -81,14 +87,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Нет доступа" });
   }
 
-  const login = process.env.PEREVOZKI_SERVICE_LOGIN;
-  const password = process.env.PEREVOZKI_SERVICE_PASSWORD;
+  const login = process.env.SUPPLIERS_1C_LOGIN || process.env.PEREVOZKI_SERVICE_LOGIN;
+  const password = process.env.SUPPLIERS_1C_PASSWORD || process.env.PEREVOZKI_SERVICE_PASSWORD;
   if (!login || !password) {
-    return res.status(503).json({ error: "Не заданы PEREVOZKI_SERVICE_LOGIN и PEREVOZKI_SERVICE_PASSWORD" });
+    return res.status(503).json({ error: "Не заданы SUPPLIERS_1C_LOGIN/PASSWORD или PEREVOZKI_SERVICE_LOGIN/PASSWORD" });
   }
 
   try {
-    const upstream = await fetch(`${GETAPI_URL}?metod=GETALLKontragents`, {
+    const upstreamUrl = `${GETAPI_URL}?metod=GETALLKontragents`;
+    const upstream = await fetch(upstreamUrl, {
       method: "GET",
       headers: {
         Auth: `Basic ${login}:${password}`,
@@ -107,23 +114,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const rows = normalizeSuppliers(json);
+    if (rows.length === 0) {
+      return res.status(502).json({
+        error: "1С вернул пустой список поставщиков — кэш не перезаписан",
+        upstream_url: upstreamUrl,
+      });
+    }
     const pool = getPool();
     await pool.query("delete from cache_suppliers");
-    if (rows.length > 0) {
-      const inns = rows.map((r) => r.inn);
-      const names = rows.map((r) => r.supplier_name);
-      const emails = rows.map((r) => r.email);
-      await pool.query(
-        `insert into cache_suppliers (inn, supplier_name, email, fetched_at)
-         select inn, supplier_name, email, now()
-         from unnest($1::text[], $2::text[], $3::text[]) as t(inn, supplier_name, email)
-         on conflict (inn) do update
-           set supplier_name = excluded.supplier_name,
-               email = excluded.email,
-               fetched_at = now()`,
-        [inns, names, emails]
-      );
-    }
+    const inns = rows.map((r) => r.inn);
+    const names = rows.map((r) => r.supplier_name);
+    const emails = rows.map((r) => r.email);
+    await pool.query(
+      `insert into cache_suppliers (inn, supplier_name, email, fetched_at)
+       select inn, supplier_name, email, now()
+       from unnest($1::text[], $2::text[], $3::text[]) as t(inn, supplier_name, email)
+       on conflict (inn) do update
+         set supplier_name = excluded.supplier_name,
+             email = excluded.email,
+             fetched_at = now()`,
+      [inns, names, emails]
+    );
 
     return res.status(200).json({ ok: true, suppliers_count: rows.length, refreshed_at: new Date().toISOString() });
   } catch (e: any) {

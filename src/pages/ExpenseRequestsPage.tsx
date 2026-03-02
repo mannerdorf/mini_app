@@ -35,6 +35,8 @@ export type ExpenseRequestItem = {
     amount: number;
     vatRate: string;
     comment: string;
+    supplierName?: string;
+    supplierInn?: string;
     vehicleOrEmployee: string;
     employeeName: string;
     attachmentNames: string[];
@@ -124,6 +126,10 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [amount, setAmount] = useState("");
     const [vatRate, setVatRate] = useState("");
     const [comment, setComment] = useState("");
+    const [selectedSupplierName, setSelectedSupplierName] = useState("");
+    const [selectedSupplierInn, setSelectedSupplierInn] = useState("");
+    const [supplierSearch, setSupplierSearch] = useState("");
+    const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState("");
     const [duplicateWarning, setDuplicateWarning] = useState("");
     const [vehicleSearch, setVehicleSearch] = useState("");
@@ -139,12 +145,15 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [departmentLoading, setDepartmentLoading] = useState(false);
     const [vehicles, setVehicles] = useState<string[]>([]);
     const [vehiclesLoading, setVehiclesLoading] = useState(false);
+    const [suppliers, setSuppliers] = useState<{ inn: string; supplier_name: string; email?: string }[]>([]);
+    const [suppliersLoading, setSuppliersLoading] = useState(false);
     const [categories, setCategories] = useState<{ id: string; name: string }[]>(FALLBACK_CATEGORIES);
     const [employees, setEmployees] = useState<{ id: number; fullName: string; login: string; position?: string }[]>([]);
     const [selectedEmployee, setSelectedEmployee] = useState("");
     const [employeeSearch, setEmployeeSearch] = useState("");
     const [employeeDropdownOpen, setEmployeeDropdownOpen] = useState(false);
 
+    const supplierDropdownRef = useRef<HTMLDivElement>(null);
     const vehicleDropdownRef = useRef<HTMLDivElement>(null);
     const employeeDropdownRef = useRef<HTMLDivElement>(null);
     const formPanelRef = useRef<HTMLDivElement>(null);
@@ -216,6 +225,36 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             .catch(() => { /* keep FALLBACK_CATEGORIES */ });
     }, []);
 
+    // --- Поставщики услуг (из cache_suppliers) ---
+    useEffect(() => {
+        if (!auth?.login || !auth?.password) return;
+        setSuppliersLoading(true);
+        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        fetch(`${origin}/api/expense-request-suppliers`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                login: auth.login,
+                password: auth.password,
+                limit: 700,
+            }),
+        })
+            .then((r) => (r.ok ? r.json() : Promise.reject()))
+            .then((data: any) => {
+                const list = Array.isArray(data?.suppliers) ? data.suppliers : [];
+                setSuppliers(list
+                    .map((s: any) => ({
+                        inn: String(s?.inn ?? "").trim(),
+                        supplier_name: String(s?.supplier_name ?? "").trim(),
+                        email: String(s?.email ?? "").trim(),
+                    }))
+                    .filter((s: any) => s.supplier_name || s.inn)
+                );
+            })
+            .catch(() => setSuppliers([]))
+            .finally(() => setSuppliersLoading(false));
+    }, [auth?.login, auth?.password]);
+
     // --- Fetch vehicles from perevozki API (same source as Cargo page) ---
     useEffect(() => {
         if (!auth?.login || !auth?.password) return;
@@ -253,6 +292,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     // Close dropdowns on outside click
     useEffect(() => {
         const handler = (e: MouseEvent) => {
+            if (supplierDropdownRef.current && !supplierDropdownRef.current.contains(e.target as Node)) {
+                setSupplierDropdownOpen(false);
+            }
             if (vehicleDropdownRef.current && !vehicleDropdownRef.current.contains(e.target as Node)) {
                 setVehicleDropdownOpen(false);
             }
@@ -282,6 +324,15 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         if (!q) return vehicles;
         return vehicles.filter((v) => v.toLowerCase().includes(q));
     }, [vehicles, vehicleSearch]);
+
+    const filteredSuppliers = useMemo(() => {
+        const q = supplierSearch.trim().toLowerCase();
+        if (!q) return suppliers;
+        return suppliers.filter((s) => {
+            const text = `${s.supplier_name} ${s.inn} ${s.email ?? ""}`.toLowerCase();
+            return text.includes(q);
+        });
+    }, [suppliers, supplierSearch]);
 
     const filteredEmployees = useMemo(() => {
         const q = employeeSearch.trim().toLowerCase();
@@ -337,6 +388,8 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             amount: num,
             vatRate,
             comment: comment.trim(),
+            supplierName: selectedSupplierName.trim(),
+            supplierInn: selectedSupplierInn.trim(),
             vehicleOrEmployee: selectedVehicle.trim(),
             employeeName: selectedEmployee,
             attachmentNames: files.map((f) => f.name),
@@ -357,6 +410,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setAmount("");
         setVatRate("");
         setComment("");
+        setSelectedSupplierName("");
+        setSelectedSupplierInn("");
+        setSupplierSearch("");
         setSelectedVehicle("");
         setVehicleSearch("");
         setSelectedEmployee("");
@@ -393,7 +449,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 setSending(false);
             }
         }
-    }, [categoryId, amount, vatRate, comment, selectedVehicle, selectedEmployee, files, auth?.login, department, docNumber, docDate, period, categories]);
+    }, [categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, selectedEmployee, files, auth?.login, department, docNumber, docDate, period, categories]);
 
     const sendForApproval = useCallback(async (itemId: string) => {
         setSending(true);
@@ -468,6 +524,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setAmount(String(item.amount));
         setVatRate((item as any).vatRate ?? "");
         setComment(item.comment);
+        setSelectedSupplierName(String((item as any).supplierName ?? "").trim());
+        setSelectedSupplierInn(String((item as any).supplierInn ?? "").trim());
+        setSupplierSearch("");
         setSelectedVehicle(item.vehicleOrEmployee ?? "");
         setSelectedEmployee((item as any).employeeName ?? "");
         setTimeout(() => formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -491,6 +550,8 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 amount: num,
                 vatRate,
                 comment: comment.trim(),
+                supplierName: selectedSupplierName.trim(),
+                supplierInn: selectedSupplierInn.trim(),
                 vehicleOrEmployee: selectedVehicle.trim(),
                 employeeName: selectedEmployee,
                 status: "draft" as const,
@@ -506,9 +567,12 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setAmount("");
         setVatRate("");
         setComment("");
+        setSelectedSupplierName("");
+        setSelectedSupplierInn("");
+        setSupplierSearch("");
         setSelectedVehicle("");
         setSelectedEmployee("");
-    }, [editingId, department, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedVehicle, selectedEmployee, auth?.login, categories]);
+    }, [editingId, department, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, selectedEmployee, auth?.login, categories]);
 
     const cancelEdit = useCallback(() => {
         setEditingId(null);
@@ -519,6 +583,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setAmount("");
         setVatRate("");
         setComment("");
+        setSelectedSupplierName("");
+        setSelectedSupplierInn("");
+        setSupplierSearch("");
         setSelectedVehicle("");
         setSelectedEmployee("");
     }, []);
@@ -664,6 +731,114 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                             style={{ width: "100%", minHeight: 72, resize: "vertical" }}
                             rows={3}
                         />
+                    </div>
+
+                    {/* Supplier — searchable dropdown */}
+                    <div ref={supplierDropdownRef} style={{ position: "relative" }}>
+                        <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>
+                            Поставщик (из справочника поставщиков услуг)
+                        </label>
+                        <div
+                            className="admin-form-input"
+                            onClick={() => setSupplierDropdownOpen((p) => !p)}
+                            style={{
+                                width: "100%",
+                                padding: "0.5rem",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                cursor: "pointer",
+                                minHeight: 38,
+                            }}
+                        >
+                            <span style={{ fontSize: "0.85rem", color: selectedSupplierName ? "inherit" : "var(--color-text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                                {selectedSupplierName ? `${selectedSupplierName}${selectedSupplierInn ? ` (${selectedSupplierInn})` : ""}` : "Выберите поставщика"}
+                            </span>
+                            <Flex align="center" gap="0.35rem">
+                                {selectedSupplierName && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); setSelectedSupplierName(""); setSelectedSupplierInn(""); setSupplierSearch(""); }}
+                                        style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}
+                                        aria-label="Очистить поставщика"
+                                    >
+                                        <X className="w-3.5 h-3.5" style={{ color: "var(--color-text-secondary)" }} />
+                                    </button>
+                                )}
+                                <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--color-text-secondary)", transform: supplierDropdownOpen ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }} />
+                            </Flex>
+                        </div>
+                        {supplierDropdownOpen && (
+                            <div style={{
+                                position: "absolute",
+                                top: "100%",
+                                left: 0,
+                                right: 0,
+                                zIndex: 60,
+                                background: "var(--color-bg-card, #fff)",
+                                border: "1px solid var(--color-border)",
+                                borderRadius: 8,
+                                boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+                                maxHeight: 280,
+                                display: "flex",
+                                flexDirection: "column",
+                            }}>
+                                <div style={{ padding: "0.4rem 0.5rem", borderBottom: "1px solid var(--color-border)" }}>
+                                    <Flex align="center" gap="0.35rem">
+                                        <Search className="w-3.5 h-3.5" style={{ color: "var(--color-text-secondary)", flexShrink: 0 }} />
+                                        <input
+                                            type="text"
+                                            placeholder="Поиск: поставщик, ИНН, email…"
+                                            value={supplierSearch}
+                                            onChange={(e) => setSupplierSearch(e.target.value)}
+                                            autoFocus
+                                            style={{
+                                                border: "none",
+                                                outline: "none",
+                                                width: "100%",
+                                                fontSize: "0.82rem",
+                                                background: "transparent",
+                                                color: "inherit",
+                                            }}
+                                        />
+                                    </Flex>
+                                </div>
+                                <div style={{ overflowY: "auto", flex: 1 }}>
+                                    {suppliersLoading ? (
+                                        <div style={{ padding: "0.75rem", textAlign: "center" }}><Loader2 className="w-4 h-4 animate-spin" style={{ margin: "0 auto" }} /></div>
+                                    ) : filteredSuppliers.length === 0 ? (
+                                        <div style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                                            {suppliers.length === 0 ? "Справочник поставщиков пуст или не загружен" : "Не найдено"}
+                                        </div>
+                                    ) : (
+                                        filteredSuppliers.map((s) => {
+                                            const rowLabel = `${s.supplier_name}${s.inn ? ` (${s.inn})` : ""}`;
+                                            return (
+                                                <div
+                                                    key={`${s.inn}-${s.supplier_name}`}
+                                                    onClick={() => {
+                                                        setSelectedSupplierName(s.supplier_name);
+                                                        setSelectedSupplierInn(s.inn);
+                                                        setSupplierSearch("");
+                                                        setSupplierDropdownOpen(false);
+                                                    }}
+                                                    style={{
+                                                        padding: "0.45rem 0.65rem",
+                                                        cursor: "pointer",
+                                                        fontSize: "0.82rem",
+                                                        borderBottom: "1px solid var(--color-border)",
+                                                        background: selectedSupplierName === s.supplier_name && selectedSupplierInn === s.inn ? "var(--color-bg-hover)" : undefined,
+                                                    }}
+                                                >
+                                                    <div style={{ fontWeight: 500 }}>{rowLabel}</div>
+                                                    {s.email ? <div style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>{s.email}</div> : null}
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Vehicle — searchable dropdown */}
@@ -889,6 +1064,11 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                     {(r as any).employeeName && (
                                         <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>
                                             Сотрудник: {(r as any).employeeName}
+                                        </Typography.Body>
+                                    )}
+                                    {((r as any).supplierName || (r as any).supplierInn) && (
+                                        <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>
+                                            Поставщик: {String((r as any).supplierName || "—")}{(r as any).supplierInn ? ` (${(r as any).supplierInn})` : ""}
                                         </Typography.Body>
                                     )}
                                     {r.attachmentNames.length > 0 && (
