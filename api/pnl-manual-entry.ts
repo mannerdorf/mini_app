@@ -1,6 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
-import { computeTimesheetEntryAmount } from "./_timesheet-amount.js";
 
 function normalizeName(raw?: string | null): string {
   return String(raw ?? "").trim().toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ");
@@ -50,6 +49,28 @@ function normalizeAccrualType(value: unknown): "hour" | "shift" | "month" {
   if (raw === "hour" || raw === "часы" || raw === "час") return "hour";
   if (raw.includes("month") || raw.includes("месяц")) return "month";
   return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
+}
+
+function normalizeShiftMark(rawValue: string): "Я" | "ПР" | "Б" | "В" | "ОГ" | "ОТ" | "УВ" | "" {
+  const raw = String(rawValue || "").trim().toUpperCase();
+  if (!raw) return "";
+  if (raw === "Я" || raw === "ПР" || raw === "Б" || raw === "В" || raw === "ОГ" || raw === "ОТ" || raw === "УВ") return raw as any;
+  if (raw === "С" || raw === "C" || raw === "1" || raw === "TRUE" || raw === "ON" || raw === "YES") return "Я";
+  if (raw.includes("СМЕН") || raw.includes("SHIFT")) return "Я";
+  return "";
+}
+
+function parseHoursValue(rawValue: string): number {
+  const raw = String(rawValue || "").trim();
+  if (!raw) return 0;
+  const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (hhmm) {
+    const h = Number(hhmm[1]);
+    const m = Number(hhmm[2]);
+    if (Number.isFinite(h) && Number.isFinite(m) && m >= 0 && m < 60) return h + m / 60;
+  }
+  const parsed = Number(raw.replace(",", ".").replace(/[^\d.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -290,7 +311,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           `SELECT e.employee_id AS "employeeId",
                   e.work_date::text AS "workDate",
                   e.value_text AS "valueText",
-                  e.amount AS "storedAmount",
                   ru.department AS "employeeDepartment",
                   ru.accrual_type AS "accrualType",
                   ru.accrual_rate AS "accrualRate",
@@ -312,13 +332,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const grouped = new Map<string, { amount: number; count: number; department: string; logisticsStage: string | null }>();
       accrualRows.forEach((r: any) => {
-        let amountAbs = Number(r.storedAmount);
-        if (!Number.isFinite(amountAbs) || amountAbs <= 0) {
-          const accrualType = normalizeAccrualType(r.accrualType) as "hour" | "shift" | "month";
-          const rate = Number(r.accrualRate || 0);
-          const valueText = String(r.valueText || "");
-          const override = Number.isFinite(Number(r.shiftRateOverride)) ? Number(r.shiftRateOverride) : null;
-          amountAbs = computeTimesheetEntryAmount(accrualType, rate, valueText, override);
+        const accrualType = normalizeAccrualType(r.accrualType);
+        const rate = Number(r.accrualRate || 0);
+        const valueText = String(r.valueText || "");
+        const mark = normalizeShiftMark(valueText);
+        let amountAbs = 0;
+        if (accrualType === "shift") {
+          if (mark !== "Я") return;
+          const override = Number(r.shiftRateOverride);
+          const dayRate = Number.isFinite(override) ? override : rate;
+          amountAbs = Math.abs(dayRate || 0);
+        } else if (accrualType === "month") {
+          if (mark !== "Я") return;
+          amountAbs = Math.abs((rate || 0) / 21);
+        } else {
+          const hours = parseHoursValue(valueText);
+          amountAbs = Math.abs(hours * (rate || 0));
         }
         if (!(amountAbs > 0)) return;
         const primary = mapPrimaryDepartmentCandidate(r.employeeDepartment);
