@@ -78,6 +78,16 @@ function parseBody(req: VercelRequest): Body {
   return (body as Body) || {};
 }
 
+function normalizePrimaryDepartment(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const first = raw
+    .split(",")
+    .map((part) => part.trim())
+    .find(Boolean);
+  return first || "";
+}
+
 async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS employee_timesheet_entries (
@@ -158,9 +168,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(403).json({ error: "Доступ только для руководителей подразделений HAULZ" });
     }
 
-    const departmentRaw = String(me.department || "").trim();
-    const departmentList = departmentRaw ? departmentRaw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : [];
-    const department = departmentRaw;
+    const department = normalizePrimaryDepartment(me.department);
+    const departmentList = department ? [department.toLowerCase()] : [];
     const monthInfo = parseMonth(body.month || "");
     if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
     const isEditableMonth = isDepartmentTimesheetEditableMonth(monthInfo.month);

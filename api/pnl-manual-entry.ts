@@ -37,6 +37,38 @@ function mapDepartmentCandidates(raw?: string | null): Array<{ department: strin
   return Array.from(uniq.values());
 }
 
+function normalizeAccrualType(value: unknown): "hour" | "shift" | "month" {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "hour";
+  if (raw === "shift" || raw === "смена") return "shift";
+  if (raw === "month" || raw === "месяц" || raw === "monthly") return "month";
+  if (raw === "hour" || raw === "часы" || raw === "час") return "hour";
+  if (raw.includes("month") || raw.includes("месяц")) return "month";
+  return raw.includes("shift") || raw.includes("смен") ? "shift" : "hour";
+}
+
+function normalizeShiftMark(rawValue: string): "Я" | "ПР" | "Б" | "В" | "ОГ" | "ОТ" | "УВ" | "" {
+  const raw = String(rawValue || "").trim().toUpperCase();
+  if (!raw) return "";
+  if (raw === "Я" || raw === "ПР" || raw === "Б" || raw === "В" || raw === "ОГ" || raw === "ОТ" || raw === "УВ") return raw as any;
+  if (raw === "С" || raw === "C" || raw === "1" || raw === "TRUE" || raw === "ON" || raw === "YES") return "Я";
+  if (raw.includes("СМЕН") || raw.includes("SHIFT")) return "Я";
+  return "";
+}
+
+function parseHoursValue(rawValue: string): number {
+  const raw = String(rawValue || "").trim();
+  if (!raw) return 0;
+  const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (hhmm) {
+    const h = Number(hhmm[1]);
+    const m = Number(hhmm[2]);
+    if (Number.isFinite(h) && Number.isFinite(m) && m >= 0 && m < 60) return h + m / 60;
+  }
+  const parsed = Number(raw.replace(",", ".").replace(/[^\d.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pool = getPool();
 
@@ -49,6 +81,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!month || !year) return res.status(400).json({ error: "month, year required" });
     const period = `${year}-${String(Number(month)).padStart(2, "0")}-01`;
     const periodKey = `${year}-${String(Number(month)).padStart(2, "0")}`;
+    const nextPeriod = (() => {
+      const y = Number(year);
+      const m = Number(month);
+      const d = new Date(y, m, 1);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+    })();
 
     const { rows: revenues } = await pool.query(
       `SELECT category_id AS "categoryId", amount,
@@ -205,9 +243,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `SELECT department,
                 logistics_stage AS "logisticsStage",
                 type,
-                name
+                name,
+                expense_category_id AS "expenseCategoryId"
          FROM pnl_expense_categories
-         WHERE lower(trim(name)) LIKE 'зарплат%'`
+         WHERE expense_category_id = 'salary'
+            OR lower(trim(name)) LIKE 'зарплат%'
+            OR lower(trim(name)) LIKE '%фот%'
+            OR lower(trim(name)) LIKE '%заработн%'`
       );
       const salaryTypeMap = new Map<string, string>(
         salaryTypeRows.map((r: any) => [
@@ -216,53 +258,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ])
       );
       const resolveSalaryType = (dep: string, stage: string | null): string => {
+        // Priority:
+        // 1) exact row subdivision
+        // 2) row department without stage
+        // 3) currently selected subdivision from request (department/logisticsStage)
+        // 4) selected department without stage
+        // 5) any salary type from directory
         const exact = `${dep}::${String(stage ?? "")}`;
         const depOnly = `${dep}::`;
-        return salaryTypeMap.get(exact) || salaryTypeMap.get(depOnly) || "OPEX";
+        const selectedExact = `${String(department ?? "")}::${String(logisticsStage ?? "")}`;
+        const selectedDepOnly = `${String(department ?? "")}::`;
+        return (
+          salaryTypeMap.get(exact) ||
+          salaryTypeMap.get(depOnly) ||
+          salaryTypeMap.get(selectedExact) ||
+          salaryTypeMap.get(selectedDepOnly) ||
+          salaryTypeRows.map((r: any) => String(r.type ?? "").trim().toUpperCase()).find(Boolean) ||
+          "OPEX"
+        );
       };
 
-      let payoutRows: any[] = [];
+      let accrualRows: any[] = [];
       try {
         const result = await pool.query(
-          `SELECT p.id,
-                  p.amount,
-                  ru.department AS "employeeDepartment"
-           FROM employee_timesheet_payouts p
-           JOIN registered_users ru ON ru.id = p.employee_id
-           WHERE p.period_month = $1::date`,
-          [period]
+          `SELECT e.employee_id AS "employeeId",
+                  e.work_date::text AS "workDate",
+                  e.value_text AS "valueText",
+                  ru.department AS "employeeDepartment",
+                  ru.accrual_type AS "accrualType",
+                  ru.accrual_rate AS "accrualRate",
+                  sro.shift_rate AS "shiftRateOverride"
+           FROM employee_timesheet_entries e
+           JOIN registered_users ru ON ru.id = e.employee_id
+           LEFT JOIN employee_timesheet_shift_rate_overrides sro
+             ON sro.employee_id = e.employee_id
+            AND sro.work_date = e.work_date
+           WHERE e.work_date >= $1::date
+             AND e.work_date < $2::date`,
+          [period, nextPeriod]
         );
-        payoutRows = result.rows;
+        accrualRows = result.rows;
       } catch (e) {
-        console.error("pnl-manual-entry employee_timesheet_payouts read failed:", e);
-        payoutRows = [];
-      }
-
-      // Fallback: if payouts table is empty/unavailable, try timesheet payouts already synced to pnl_operations.
-      if (payoutRows.length === 0) {
-        try {
-          const result = await pool.query(
-            `SELECT id,
-                    abs(amount) AS amount,
-                    department AS "employeeDepartment"
-             FROM pnl_operations
-             WHERE date_trunc('month', date) = $1::date
-               AND (
-                 source_timesheet_payout_id IS NOT NULL
-                 OR purpose ILIKE 'ФОТ по табелю %'
-               )`,
-            [period]
-          );
-          payoutRows = result.rows;
-        } catch (e) {
-          console.error("pnl-manual-entry timesheet fallback from pnl_operations failed:", e);
-          payoutRows = [];
-        }
+        console.error("pnl-manual-entry employee_timesheet_entries read failed:", e);
+        accrualRows = [];
       }
 
       const grouped = new Map<string, { amount: number; count: number; department: string; logisticsStage: string | null }>();
-      payoutRows.forEach((r: any) => {
-        const amountAbs = Math.abs(Number(r.amount) || 0);
+      accrualRows.forEach((r: any) => {
+        const accrualType = normalizeAccrualType(r.accrualType);
+        const rate = Number(r.accrualRate || 0);
+        const valueText = String(r.valueText || "");
+        const mark = normalizeShiftMark(valueText);
+        let amountAbs = 0;
+        if (accrualType === "shift") {
+          if (mark !== "Я") return;
+          const override = Number(r.shiftRateOverride);
+          const dayRate = Number.isFinite(override) ? override : rate;
+          amountAbs = Math.abs(dayRate || 0);
+        } else if (accrualType === "month") {
+          if (mark !== "Я") return;
+          amountAbs = Math.abs((rate || 0) / 21);
+        } else {
+          const hours = parseHoursValue(valueText);
+          amountAbs = Math.abs(hours * (rate || 0));
+        }
         if (!(amountAbs > 0)) return;
         const candidates = mapDepartmentCandidates(r.employeeDepartment);
         let matched = candidates;
@@ -298,7 +357,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         categoryId: `timesheet-salary:${g.department}:${String(g.logisticsStage ?? "none")}`,
         categoryName: "Зарплата",
         amount: g.amount,
-        comment: `По табелю (${g.count} выплат)`,
+        comment: `По табелю (${g.count} начислений)`,
         direction: "",
         transportType: "",
         type: resolveSalaryType(g.department, g.logisticsStage),
