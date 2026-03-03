@@ -11,8 +11,7 @@
     "api/tg-webhook.ts": {"maxDuration": 60},
     "api/cron/refresh-cache.ts": {"maxDuration": 300},
     "api/cron/refresh-orders-cache.ts": {"maxDuration": 300},
-    "api/cron/refresh-suppliers-cache.ts": {"maxDuration": 300},
-    "api/cron/refresh-tariffs-cache.ts": {"maxDuration": 300}
+    "api/cron/refresh-suppliers-cache.ts": {"maxDuration": 300}
   },
   "rewrites": [
     {"source": "/admin", "destination": "/"},
