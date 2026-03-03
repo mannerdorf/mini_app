@@ -70,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const dateTo = String(req.query.dateTo || "").trim();
     const limit = Math.min(200, toPositiveInt(req.query.limit, 50));
 
-    const where: string[] = ["customer_login = $1"];
+    const where: string[] = ["(customer_login = $1 OR expert_login = $1)"];
     const params: unknown[] = [loginKey];
 
     if (status) {
@@ -107,6 +107,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          requested_amount AS "requestedAmount",
          approved_amount AS "approvedAmount",
          status,
+         CASE
+           WHEN customer_login = $1 THEN 'customer'
+           WHEN expert_login = $1 THEN 'expert'
+           ELSE 'other'
+         END AS "viewerRole",
          status_changed_at AS "statusChangedAt",
          sla_due_at AS "slaDueAt",
          customer_resolution AS "customerResolution",

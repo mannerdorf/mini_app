@@ -278,8 +278,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } else if (action === "withdraw") {
       const current = await client.query<{ status: string }>("SELECT status FROM claims WHERE id = $1 FOR UPDATE", [claimId]);
       const status = String(current.rows[0]?.status || "");
-      const allowed = new Set(["new", "under_review", "waiting_docs", "in_progress", "awaiting_leader", "sent_to_accounting"]);
-      if (!allowed.has(status)) throw new Error("Отозвать можно только отправленную претензию до финального решения");
+      const allowed = new Set(["new", "under_review", "waiting_docs", "in_progress", "awaiting_leader", "sent_to_accounting", "approved", "rejected"]);
+      if (!allowed.has(status)) throw new Error("Отозвать можно только отправленную претензию до закрытия");
 
       await client.query(
         `UPDATE claims

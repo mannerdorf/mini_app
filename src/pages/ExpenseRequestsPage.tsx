@@ -138,6 +138,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [vehicleDropdownOpen, setVehicleDropdownOpen] = useState(false);
     const [files, setFiles] = useState<{ name: string; dataUrl: string }[]>([]);
     const [sending, setSending] = useState(false);
+    const [syncError, setSyncError] = useState("");
     const [list, setList] = useState<ExpenseRequestItem[]>(() => loadStoredRequests(auth?.login ?? ""));
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -373,6 +374,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     }, []);
 
     const submit = useCallback(async () => {
+        setSyncError("");
         const cat = categories.find((c) => c.id === categoryId);
         if (!cat || !amount.trim() || !docNumber.trim()) return;
         const num = parseFloat(amount.replace(",", "."));
@@ -446,8 +448,13 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                         saveStoredRequests(auth?.login ?? "", next);
                         return next;
                     });
+                } else {
+                    const err = await res.json().catch(() => ({} as any));
+                    setSyncError(String(err?.error || `Не удалось синхронизировать заявку (${res.status})`));
                 }
-            } catch { /* leave as draft */ } finally {
+            } catch {
+                setSyncError("Не удалось синхронизировать заявку с сервером");
+            } finally {
                 setSending(false);
             }
         }
@@ -455,6 +462,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
 
     const sendForApproval = useCallback(async (itemId: string) => {
         setSending(true);
+        setSyncError("");
         try {
             const item = list.find((r) => r.id === itemId);
             if (!item) return;
@@ -481,6 +489,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                     });
                     return;
                 }
+                const err = await res.json().catch(() => ({} as any));
+                setSyncError(String(err?.error || `Заявка не отправлена в бухгалтерию (${res.status})`));
+                return;
             }
             setList((prev) => {
                 const next = prev.map((r) =>
@@ -489,7 +500,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 saveStoredRequests(auth?.login ?? "", next);
                 return next;
             });
-        } catch { /* ignore */ } finally {
+        } catch {
+            setSyncError("Ошибка отправки заявки. Проверьте соединение и попробуйте снова.");
+        } finally {
             setSending(false);
         }
     }, [list, auth?.login]);
@@ -600,6 +613,11 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 Подразделение: {departmentLoading ? "загрузка…" : department}.{" "}
                 Укажите статью расхода, сумму, комментарий и при необходимости приложите счёт или выберите транспорт.
             </Typography.Body>
+            {syncError && (
+                <Typography.Body style={{ fontSize: "0.78rem", color: "#ef4444", marginBottom: "0.75rem" }}>
+                    {syncError}
+                </Typography.Body>
+            )}
 
             <Panel ref={formPanelRef} className="cargo-card" style={{ marginBottom: "1rem", background: "var(--color-bg-card)", borderRadius: "12px", padding: "1rem 1.25rem" }}>
                 <Flex justify="space-between" align="center" style={{ marginBottom: "0.75rem" }}>

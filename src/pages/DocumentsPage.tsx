@@ -4267,7 +4267,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                 onClick={() => runClaimAction(row.id, 'withdraw')}
                                                                 disabled={
                                                                     claimsActionLoadingId === row.id
-                                                                    || ['approved', 'rejected', 'paid', 'offset', 'closed'].includes(status)
+                                                                    || ['paid', 'offset', 'closed'].includes(status)
                                                                 }
                                                             >
                                                                 {claimsActionLoadingId === row.id ? '...' : 'Отозвать'}

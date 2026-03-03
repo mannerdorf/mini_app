@@ -16,6 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
   const claimId = Number(body?.claimId);
   if (!Number.isFinite(claimId) || claimId <= 0) return res.status(400).json({ error: "Некорректный claimId" });
+  const action = String(body?.action || "").trim();
 
   const nextStatusRaw = String(body?.status || "").trim();
   const managerLogin = String(body?.managerLogin || "").trim().toLowerCase();
@@ -50,6 +51,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const current = currentRes.rows[0];
     if (!current) throw new Error("Претензия не найдена");
+
+    if (action === "delete") {
+      if ((payload as any)?.superAdmin !== true) {
+        throw new Error("Удаление доступно только суперадминистратору");
+      }
+      await client.query("DELETE FROM claims WHERE id = $1", [claimId]);
+      await client.query("COMMIT");
+      return res.json({ ok: true, deleted: true });
+    }
 
     const sets: string[] = [];
     const params: unknown[] = [claimId];
