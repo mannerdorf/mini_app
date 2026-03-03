@@ -760,11 +760,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
 
     const uniqueTariffsRoutes = useMemo(() => {
         const set = new Set<string>();
+        const allowedRoutes = new Set(["MSK – KGD", "KGD – MSK"]);
         tariffsList.forEach((t) => {
             const from = cityToCode(t.cityFrom || '') || (t.cityFrom || '');
             const to = cityToCode(t.cityTo || '') || (t.cityTo || '');
             const route = [from, to].filter(Boolean).join(' – ');
-            if (route) set.add(route);
+            if (route && allowedRoutes.has(route)) set.add(route);
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [tariffsList]);
@@ -907,6 +908,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
     const filteredTariffs = useMemo(() => {
         const placeCode = (value: string) => cityToCode(value || '') || (value || '');
+        const allowedRoutes = new Set(["MSK – KGD", "KGD – MSK"]);
         const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         const list = tariffsList.filter((t) => {
@@ -916,6 +918,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 placeCode(t.cityFrom || ''),
                 placeCode(t.cityTo || ''),
             ].filter(Boolean).join(' – ');
+            if (!allowedRoutes.has(route)) return false;
             if (tariffsRouteFilter !== 'all' && route !== tariffsRouteFilter) return false;
             if (tariffsTypeFilter !== 'all' && String(t.transportType || '').trim() !== tariffsTypeFilter) return false;
             if (!t.docDate) return true;
@@ -1866,7 +1869,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         </FilterDropdownPortal>
                         </>
                         )}
-                        {((effectiveServiceMode && docSection !== 'Заявки') || docSection === 'Отправки') && (
+                        {(((effectiveServiceMode && docSection !== 'Заявки') || docSection === 'Отправки') && docSection !== 'Тарифы') && (
                         <>
                         <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
@@ -3400,7 +3403,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontWeight: 600, cursor: 'pointer' }}
                                             onClick={() => { setTariffsSortColumn('dangerous'); setTariffsSortOrder((o) => tariffsSortColumn === 'dangerous' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
                                         >
-                                            ОГ {tariffsSortColumn === 'dangerous' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
+                                            Опасный груз {tariffsSortColumn === 'dangerous' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
                                         </th>
                                         <th
                                             style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer' }}
@@ -3416,8 +3419,46 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={t.docDate || undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{t.docNumber || '—'}</td>
                                             {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{t.customerName || '—'}</td> : null}
-                                            <td style={{ padding: '0.5rem 0.75rem' }}>{cityToCode(t.cityFrom || '') || t.cityFrom || '—'}</td>
-                                            <td style={{ padding: '0.5rem 0.75rem' }}>{cityToCode(t.cityTo || '') || t.cityTo || '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.75rem' }}>
+                                                {(() => {
+                                                    const fromCode = cityToCode(t.cityFrom || '') || t.cityFrom || '';
+                                                    return fromCode ? (
+                                                        <span style={{
+                                                            display: 'inline-block',
+                                                            padding: '0.2rem 0.45rem',
+                                                            borderRadius: 999,
+                                                            background: 'var(--color-bg-hover)',
+                                                            border: '1px solid var(--color-border)',
+                                                            fontWeight: 600,
+                                                            fontSize: '0.78rem',
+                                                            lineHeight: 1.2,
+                                                            letterSpacing: '0.02em',
+                                                        }}>
+                                                            {fromCode}
+                                                        </span>
+                                                    ) : '—';
+                                                })()}
+                                            </td>
+                                            <td style={{ padding: '0.5rem 0.75rem' }}>
+                                                {(() => {
+                                                    const toCode = cityToCode(t.cityTo || '') || t.cityTo || '';
+                                                    return toCode ? (
+                                                        <span style={{
+                                                            display: 'inline-block',
+                                                            padding: '0.2rem 0.45rem',
+                                                            borderRadius: 999,
+                                                            background: 'var(--color-bg-hover)',
+                                                            border: '1px solid var(--color-border)',
+                                                            fontWeight: 600,
+                                                            fontSize: '0.78rem',
+                                                            lineHeight: 1.2,
+                                                            letterSpacing: '0.02em',
+                                                        }}>
+                                                            {toCode}
+                                                        </span>
+                                                    ) : '—';
+                                                })()}
+                                            </td>
                                             <td style={{ padding: '0.5rem 0.75rem' }}>{t.transportType || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>{t.isDangerous ? 'Да' : 'Нет'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
