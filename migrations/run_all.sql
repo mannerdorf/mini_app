@@ -672,3 +672,18 @@ where e.id in ('ferry', 'auto') and not exists (select 1 from pnl_expense_catego
 -- ========== 040_expense_requests_supplier.sql ==========
 alter table expense_requests add column if not exists supplier_name text;
 alter table expense_requests add column if not exists supplier_inn text;
+
+-- ========== 042_cache_tariffs.sql ==========
+create table if not exists cache_tariffs (
+  id serial primary key,
+  code text,
+  name text not null default '',
+  value numeric(18, 4),
+  unit text,
+  data jsonb,
+  sort_order int not null default 0,
+  fetched_at timestamptz not null default now()
+);
+create index if not exists cache_tariffs_code_idx on cache_tariffs(code);
+create index if not exists cache_tariffs_name_idx on cache_tariffs(name);
+create index if not exists cache_tariffs_fetched_at_idx on cache_tariffs(fetched_at desc);

@@ -3,6 +3,7 @@
     {"path": "/api/cron/refresh-cache", "schedule": "*/5 * * * *"},
     {"path": "/api/cron/refresh-orders-cache", "schedule": "*/15 * * * *"},
     {"path": "/api/cron/refresh-suppliers-cache", "schedule": "*/15 * * * *"},
+    {"path": "/api/cron/refresh-tariffs-cache", "schedule": "0 */6 * * *"},
     {"path": "/api/notification-daily-summary", "schedule": "0 10 * * *"}
   ],
   "functions": {
@@ -10,7 +11,8 @@
     "api/tg-webhook.ts": {"maxDuration": 60},
     "api/cron/refresh-cache.ts": {"maxDuration": 300},
     "api/cron/refresh-orders-cache.ts": {"maxDuration": 300},
-    "api/cron/refresh-suppliers-cache.ts": {"maxDuration": 300}
+    "api/cron/refresh-suppliers-cache.ts": {"maxDuration": 300},
+    "api/cron/refresh-tariffs-cache.ts": {"maxDuration": 300}
   },
   "rewrites": [
     {"source": "/admin", "destination": "/"},

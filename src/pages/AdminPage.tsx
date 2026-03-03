@@ -293,7 +293,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "audit" | "logs" | "integrations" | "employee_directory" | "subdivisions" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "pnl">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "tariffs" | "audit" | "logs" | "integrations" | "employee_directory" | "subdivisions" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "pnl">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -371,6 +371,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [suppliersSyncMessage, setSuppliersSyncMessage] = useState<string | null>(null);
   const [suppliersSyncDebugRequest, setSuppliersSyncDebugRequest] = useState<string>("");
   const [suppliersSyncDebugResponse, setSuppliersSyncDebugResponse] = useState<string>("");
+  const [tariffsList, setTariffsList] = useState<{ id: number; code: string | null; name: string; value: number | null; unit: string | null; fetchedAt: string }[]>([]);
+  const [tariffsLoading, setTariffsLoading] = useState(false);
+  const [tariffsFetchTrigger, setTariffsFetchTrigger] = useState(0);
+  const [tariffsSyncLoading, setTariffsSyncLoading] = useState(false);
+  const [tariffsSyncMessage, setTariffsSyncMessage] = useState<string | null>(null);
   const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
   const [autoRegisterCandidates, setAutoRegisterCandidates] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [autoRegisterStats, setAutoRegisterStats] = useState<{ total: number; withEmail: number; validEmail: number; alreadyRegistered: number } | null>(null);
@@ -1409,6 +1414,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [tab, suppliersSearch, adminToken, suppliersFetchTrigger]);
 
   useEffect(() => {
+    if (tab !== "tariffs") return;
+    setTariffsLoading(true);
+    fetch("/api/tariffs")
+      .then((res) => res.json())
+      .then((data: { tariffs?: { id: number; code: string | null; name: string; value: number | null; unit: string | null; fetchedAt: string }[] }) => {
+        setTariffsList(data.tariffs || []);
+      })
+      .catch(() => setTariffsList([]))
+      .finally(() => setTariffsLoading(false));
+  }, [tab, tariffsFetchTrigger]);
+
+  useEffect(() => {
     if (tab !== "customers") return;
     setAutoRegisterLoading(true);
     const params = new URLSearchParams();
@@ -1580,7 +1597,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "pnl")) setTab("users");
+    if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "tariffs" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "pnl")) setTab("users");
   }, [isSuperAdmin, tab]);
 
   const reloadAllExpenseRequests = useCallback(async () => {
@@ -2423,7 +2440,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     return items;
   }, [selectedUser, editorPermissions, editorFinancial, editorAccessAllInns, editorCustomers]);
-  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
+  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "tariffs" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
 
   return (
     <div className={theme === "light" ? "light-mode w-full" : "w-full"}>
@@ -2577,6 +2594,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             >
               <Building2 className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
               Справочник подразделений
+            </Button>
+          )}
+          {isSuperAdmin && (
+            <Button
+              className="filter-button"
+              style={{ background: tab === "tariffs" ? "var(--color-primary-blue)" : undefined, color: tab === "tariffs" ? "white" : undefined }}
+              onClick={() => setTab("tariffs")}
+            >
+              <Receipt className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+              Справочник Тарифы
             </Button>
           )}
           {isSuperAdmin && (
@@ -4422,6 +4449,93 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </>
             );
           })()}
+        </Panel>
+      )}
+
+      {tab === "tariffs" && isSuperAdmin && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник Тарифы</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            Данные загружаются из GETAPI?metod=GETTarifs и обновляются кроном каждые 6 часов.
+          </Typography.Body>
+          <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "var(--space-3, 0.75rem)" }}>
+            <Button
+              type="button"
+              className="filter-button"
+              disabled={tariffsLoading}
+              onClick={() => setTariffsFetchTrigger((n) => n + 1)}
+            >
+              {tariffsLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+              Обновить
+            </Button>
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={tariffsSyncLoading}
+              onClick={async () => {
+                setTariffsSyncLoading(true);
+                setTariffsSyncMessage(null);
+                try {
+                  const res = await fetch("/api/admin-refresh-tariffs-cache", {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${adminToken}` },
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(data?.error || "Не удалось обновить справочник тарифов");
+                  setTariffsSyncMessage(`Обновлено: ${Number(data?.tariffs_count ?? 0)} записей`);
+                  setTariffsFetchTrigger((n) => n + 1);
+                } catch (e: unknown) {
+                  setTariffsSyncMessage((e as Error)?.message || "Не удалось обновить справочник тарифов");
+                } finally {
+                  setTariffsSyncLoading(false);
+                }
+              }}
+            >
+              {tariffsSyncLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+              Обновить из 1С
+            </Button>
+          </Flex>
+          {tariffsSyncMessage && (
+            <Typography.Body style={{ marginBottom: "0.65rem", fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+              {tariffsSyncMessage}
+            </Typography.Body>
+          )}
+          {tariffsLoading ? (
+            <Flex align="center" gap="0.5rem">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка...</Typography.Body>
+            </Flex>
+          ) : tariffsList.length === 0 ? (
+            <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Справочник пуст</Typography.Body>
+          ) : (
+            <div style={{ overflowX: "auto", maxHeight: "60vh", overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                <thead>
+                  <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Код</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}>Значение</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Ед.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tariffsList.map((t) => (
+                    <tr key={t.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{t.code ?? "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{t.name || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>{t.value != null ? Number(t.value) : "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{t.unit ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!tariffsLoading && tariffsList.length > 0 && (
+            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
+              Записей: {tariffsList.length}
+            </Typography.Body>
+          )}
         </Panel>
       )}
 

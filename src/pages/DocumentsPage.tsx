@@ -154,6 +154,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [byCustomerActionLoading, setByCustomerActionLoading] = useState(false);
     const [byCustomerActionError, setByCustomerActionError] = useState<string | null>(null);
     const [byCustomerActionInfo, setByCustomerActionInfo] = useState<string | null>(null);
+    const [tariffsList, setTariffsList] = useState<{ id: number; code: string | null; name: string; value: number | null; unit: string | null }[]>([]);
+    const [tariffsLoading, setTariffsLoading] = useState(false);
     const allowedDocSections = useMemo(() => {
         if (!permissions) return DOC_SECTIONS;
         return DOC_SECTIONS.filter(({ key }) => permissions[DOC_SECTION_TO_PERMISSION[key]] !== false);
@@ -180,6 +182,17 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         setExpandedOrderRow(null);
         setExpandedSendingRow(null);
     }, [docSection, dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
+    useEffect(() => {
+        if (docSection !== 'Тарифы') return;
+        setTariffsLoading(true);
+        fetch('/api/tariffs')
+            .then((res) => res.json())
+            .then((data: { tariffs?: { id: number; code: string | null; name: string; value: number | null; unit: string | null }[] }) => {
+                setTariffsList(data.tariffs || []);
+            })
+            .catch(() => setTariffsList([]))
+            .finally(() => setTariffsLoading(false));
+    }, [docSection]);
     useEffect(() => {
         if (!showEorColumn || !auth?.login || !auth?.password) {
             setEorStatusMap({});
@@ -3124,7 +3137,42 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             )}
             </>
             )}
-            {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && (
+            {docSection === 'Тарифы' && (
+                <>
+                    {tariffsLoading ? (
+                        <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Typography.Body>Загрузка тарифов...</Typography.Body>
+                        </Flex>
+                    ) : tariffsList.length === 0 ? (
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по тарифам</Typography.Body>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                <thead>
+                                    <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Код</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Наименование</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}>Значение</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Ед.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {tariffsList.map((t) => (
+                                        <tr key={t.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                            <td style={{ padding: '0.5rem 0.75rem' }}>{t.code ?? '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.75rem' }}>{t.name || '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>{t.value != null ? Number(t.value) : '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.75rem', color: 'var(--color-text-secondary)' }}>{t.unit ?? '—'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </>
+            )}
+            {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && docSection !== 'Тарифы' && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>
