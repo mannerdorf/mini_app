@@ -66,43 +66,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
+    const columnsRes = await pool.query<{ column_name: string }>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'expense_requests'`
+    );
+    const cols = new Set(columnsRes.rows.map((r) => String(r.column_name || "").trim()));
+    const has = (name: string) => cols.has(name);
+
+    if (!has("uid")) {
+      return res.status(500).json({ error: "В таблице expense_requests отсутствует колонка uid. Выполните миграции." });
+    }
+
+    const valuesByColumn: Record<string, unknown> = {
+      uid,
+      login,
+      department,
+      doc_number: docNumber,
+      doc_date: docDate,
+      period,
+      category_id: categoryId,
+      amount,
+      vat_rate: vatRate,
+      employee_name: employeeName,
+      comment,
+      vehicle_text: vehicleText,
+      supplier_name: supplierName,
+      supplier_inn: supplierInn,
+      status,
+      created_at: b?.createdAt ?? new Date().toISOString(),
+    };
+
+    const insertColumns = Object.keys(valuesByColumn).filter((c) => has(c));
+    const insertValues = insertColumns.map((c) => valuesByColumn[c]);
+    const placeholders = insertColumns.map((_, i) => `$${i + 1}`);
+    const updateColumns = insertColumns.filter((c) => c !== "uid" && c !== "created_at");
+    const updateSet = [
+      ...updateColumns.map((c) => `${c} = EXCLUDED.${c}`),
+      ...(has("updated_at") ? ["updated_at = now()"] : []),
+    ];
+
+    const createdAtIdx = insertColumns.indexOf("created_at");
+    if (createdAtIdx >= 0) {
+      placeholders[createdAtIdx] = `$${createdAtIdx + 1}::timestamptz`;
+    }
+
+    const upsertSql = updateSet.length > 0
+      ? `ON CONFLICT (uid) DO UPDATE SET ${updateSet.join(", ")}`
+      : `ON CONFLICT (uid) DO NOTHING`;
+
     await pool.query(
-      `INSERT INTO expense_requests (uid, login, department, doc_number, doc_date, period, category_id, amount, vat_rate, employee_name, comment, vehicle_text, supplier_name, supplier_inn, status, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::timestamptz, now())
-       ON CONFLICT (uid) DO UPDATE SET
-         login = EXCLUDED.login,
-         department = EXCLUDED.department,
-         doc_number = EXCLUDED.doc_number,
-         doc_date = EXCLUDED.doc_date,
-         period = EXCLUDED.period,
-         category_id = EXCLUDED.category_id,
-         amount = EXCLUDED.amount,
-         vat_rate = EXCLUDED.vat_rate,
-         employee_name = EXCLUDED.employee_name,
-         comment = EXCLUDED.comment,
-         vehicle_text = EXCLUDED.vehicle_text,
-         supplier_name = EXCLUDED.supplier_name,
-         supplier_inn = EXCLUDED.supplier_inn,
-         status = EXCLUDED.status,
-         updated_at = now()`,
-      [
-        uid,
-        login,
-        department,
-        docNumber,
-        docDate,
-        period,
-        categoryId,
-        amount,
-        vatRate,
-        employeeName,
-        comment,
-        vehicleText,
-        supplierName,
-        supplierInn,
-        status,
-        b?.createdAt ?? new Date().toISOString(),
-      ]
+      `INSERT INTO expense_requests (${insertColumns.join(", ")})
+       VALUES (${placeholders.join(", ")})
+       ${upsertSql}`,
+      insertValues
     );
     return res.json({ ok: true });
   } catch (e) {
