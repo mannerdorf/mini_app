@@ -87,6 +87,19 @@ const CLAIM_STATUS_BADGE: Record<ClaimStatusKey, { bg: string; color: string }> 
     closed: { bg: 'rgba(107,114,128,0.15)', color: '#6b7280' },
 };
 
+const MAX_CLAIM_FILE_BYTES = 5 * 1024 * 1024;
+
+async function fileToBase64(file: File): Promise<string> {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error(`Не удалось прочитать файл: ${file.name}`));
+        reader.readAsDataURL(file);
+    });
+    const commaIdx = dataUrl.indexOf(',');
+    return commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+}
+
 type DocSectionKey = 'Счета' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
 const DOC_SECTIONS: { key: DocSectionKey; label: string }[] = [
     { key: 'Счета', label: 'Счета' },
@@ -257,6 +270,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [claimsCreatePhone, setClaimsCreatePhone] = useState('');
     const [claimsCreateEmail, setClaimsCreateEmail] = useState('');
     const [claimsCreateVideoLink, setClaimsCreateVideoLink] = useState('');
+    const [claimsCreatePhotoFiles, setClaimsCreatePhotoFiles] = useState<File[]>([]);
+    const [claimsCreateDocumentFiles, setClaimsCreateDocumentFiles] = useState<File[]>([]);
     const [sverkiRequests, setSverkiRequests] = useState<{
         id: number;
         customerInn: string;
@@ -3921,6 +3936,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 setClaimsCreatePhone('');
                                 setClaimsCreateEmail(auth?.login || '');
                                 setClaimsCreateVideoLink('');
+                                setClaimsCreatePhotoFiles([]);
+                                setClaimsCreateDocumentFiles([]);
                                 setClaimsCreateOpen(true);
                             }}
                             disabled={!auth?.login || !auth?.password}
@@ -4016,6 +4033,17 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 <datalist id="claims-cargo-options">
                                     {claimCargoOptions.map((opt) => <option key={opt} value={opt} />)}
                                 </datalist>
+                                <select
+                                    className="admin-form-input"
+                                    value={claimsCreateCargoNumber}
+                                    onChange={(e) => setClaimsCreateCargoNumber(e.target.value)}
+                                    style={{ width: '100%', padding: '0.45rem', marginTop: '0.35rem' }}
+                                >
+                                    <option value="">Выберите перевозку из списка</option>
+                                    {claimCargoOptions.map((opt) => (
+                                        <option key={`claim-cargo-${opt}`} value={opt}>{opt}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div>
                                 <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Тип претензии</Typography.Body>
@@ -4052,27 +4080,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         style={{ width: '100%', padding: '0.45rem' }}
                                     />
                                 </div>
-                                <div style={{ flex: '1 1 180px' }}>
-                                    <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Телефон</Typography.Body>
-                                    <input
-                                        type="text"
-                                        className="admin-form-input"
-                                        value={claimsCreatePhone}
-                                        onChange={(e) => setClaimsCreatePhone(e.target.value)}
-                                        style={{ width: '100%', padding: '0.45rem' }}
-                                    />
-                                </div>
                             </Flex>
-                            <div>
-                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Email</Typography.Body>
-                                <input
-                                    type="email"
-                                    className="admin-form-input"
-                                    value={claimsCreateEmail}
-                                    onChange={(e) => setClaimsCreateEmail(e.target.value)}
-                                    style={{ width: '100%', padding: '0.45rem' }}
-                                />
-                            </div>
                             <div>
                                 <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Ссылка на видео (опционально)</Typography.Body>
                                 <input
@@ -4083,6 +4091,83 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     onChange={(e) => setClaimsCreateVideoLink(e.target.value)}
                                     style={{ width: '100%', padding: '0.45rem' }}
                                 />
+                            </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
+                                    Фото (до 10 файлов, до 5MB каждый)
+                                </Typography.Body>
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(e) => {
+                                        const files = Array.from(e.target.files || []);
+                                        setClaimsCreatePhotoFiles(files);
+                                        if (files.length > 10) {
+                                            setClaimsCreateError('Можно прикрепить не более 10 фото');
+                                        } else if (files.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
+                                            setClaimsCreateError('Размер одного фото не должен превышать 5MB');
+                                        } else {
+                                            setClaimsCreateError(null);
+                                        }
+                                    }}
+                                    style={{ width: '100%' }}
+                                />
+                                {claimsCreatePhotoFiles.length > 0 ? (
+                                    <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
+                                        Выбрано фото: {claimsCreatePhotoFiles.map((f) => f.name).join(', ')}
+                                    </Typography.Body>
+                                ) : null}
+                            </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
+                                    PDF документы (до 5MB каждый)
+                                </Typography.Body>
+                                <input
+                                    type="file"
+                                    accept="application/pdf"
+                                    multiple
+                                    onChange={(e) => {
+                                        const files = Array.from(e.target.files || []);
+                                        setClaimsCreateDocumentFiles(files);
+                                        if (files.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
+                                            setClaimsCreateError('Размер одного PDF не должен превышать 5MB');
+                                        } else {
+                                            setClaimsCreateError(null);
+                                        }
+                                    }}
+                                    style={{ width: '100%' }}
+                                />
+                                {claimsCreateDocumentFiles.length > 0 ? (
+                                    <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
+                                        Выбрано PDF: {claimsCreateDocumentFiles.map((f) => f.name).join(', ')}
+                                    </Typography.Body>
+                                ) : null}
+                            </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Контакты</Typography.Body>
+                                <Flex gap="0.5rem" wrap="wrap">
+                                    <div style={{ flex: '1 1 180px' }}>
+                                        <input
+                                            type="text"
+                                            className="admin-form-input"
+                                            placeholder="Телефон"
+                                            value={claimsCreatePhone}
+                                            onChange={(e) => setClaimsCreatePhone(e.target.value)}
+                                            style={{ width: '100%', padding: '0.45rem' }}
+                                        />
+                                    </div>
+                                    <div style={{ flex: '1 1 220px' }}>
+                                        <input
+                                            type="email"
+                                            className="admin-form-input"
+                                            placeholder="Email"
+                                            value={claimsCreateEmail}
+                                            onChange={(e) => setClaimsCreateEmail(e.target.value)}
+                                            style={{ width: '100%', padding: '0.45rem' }}
+                                        />
+                                    </div>
+                                </Flex>
                             </div>
                         </div>
                         {claimsCreateError ? (
@@ -4115,9 +4200,36 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         setClaimsCreateError('Некорректная сумма требования');
                                         return;
                                     }
+                                    if (claimsCreatePhotoFiles.length > 10) {
+                                        setClaimsCreateError('Можно прикрепить не более 10 фото');
+                                        return;
+                                    }
+                                    if (claimsCreatePhotoFiles.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
+                                        setClaimsCreateError('Размер одного фото не должен превышать 5MB');
+                                        return;
+                                    }
+                                    if (claimsCreateDocumentFiles.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
+                                        setClaimsCreateError('Размер одного PDF не должен превышать 5MB');
+                                        return;
+                                    }
                                     setClaimsCreateSubmitting(true);
                                     setClaimsCreateError(null);
                                     try {
+                                        const photosPayload = await Promise.all(
+                                            claimsCreatePhotoFiles.map(async (file) => ({
+                                                fileName: file.name,
+                                                mimeType: file.type || 'image/jpeg',
+                                                base64: await fileToBase64(file),
+                                            }))
+                                        );
+                                        const documentsPayload = await Promise.all(
+                                            claimsCreateDocumentFiles.map(async (file) => ({
+                                                fileName: file.name,
+                                                mimeType: file.type || 'application/pdf',
+                                                docType: 'other' as const,
+                                                base64: await fileToBase64(file),
+                                            }))
+                                        );
                                         const resp = await fetch('/api/claims', {
                                             method: 'POST',
                                             headers: {
@@ -4133,6 +4245,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                 customerPhone: claimsCreatePhone.trim(),
                                                 customerEmail: claimsCreateEmail.trim(),
                                                 customerInn: effectiveActiveInn || undefined,
+                                                photos: photosPayload,
+                                                documents: documentsPayload,
                                                 videoLinks: claimsCreateVideoLink.trim() ? [{ url: claimsCreateVideoLink.trim(), title: 'Видео от клиента' }] : [],
                                             }),
                                         });
