@@ -178,6 +178,22 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         customerInn: string;
     }[]>([]);
     const [sverkiLoading, setSverkiLoading] = useState(false);
+    const [sverkiRequests, setSverkiRequests] = useState<{
+        id: number;
+        customerInn: string;
+        contract: string;
+        periodFrom: string;
+        periodTo: string;
+        status: 'pending' | 'edo_sent';
+        createdAt: string;
+    }[]>([]);
+    const [sverkiRequestsLoading, setSverkiRequestsLoading] = useState(false);
+    const [sverkiOrderModalOpen, setSverkiOrderModalOpen] = useState(false);
+    const [sverkiOrderContract, setSverkiOrderContract] = useState('');
+    const [sverkiOrderPeriodFrom, setSverkiOrderPeriodFrom] = useState('');
+    const [sverkiOrderPeriodTo, setSverkiOrderPeriodTo] = useState('');
+    const [sverkiOrderSubmitting, setSverkiOrderSubmitting] = useState(false);
+    const [sverkiOrderError, setSverkiOrderError] = useState<string | null>(null);
     const [tariffsCustomerFilter, setTariffsCustomerFilter] = useState<string>("");
     const [tariffsCustomerSearchQuery, setTariffsCustomerSearchQuery] = useState<string>("");
     const [tariffsRouteFilter, setTariffsRouteFilter] = useState<string>("all");
@@ -256,6 +272,34 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             .catch(() => setSverkiList([]))
             .finally(() => setSverkiLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
+    useEffect(() => {
+        if (docSection !== 'Акты сверок' || !effectiveActiveInn || !auth?.login || !auth?.password) {
+            setSverkiRequests([]);
+            return;
+        }
+        setSverkiRequestsLoading(true);
+        fetch(`/api/sverki-requests?inn=${encodeURIComponent(effectiveActiveInn)}`, {
+            method: 'GET',
+            headers: {
+                'x-login': auth.login,
+                'x-password': auth.password,
+            },
+        })
+            .then((res) => res.json().catch(() => ({})))
+            .then((data: { requests?: {
+                id: number;
+                customerInn: string;
+                contract: string;
+                periodFrom: string;
+                periodTo: string;
+                status: 'pending' | 'edo_sent';
+                createdAt: string;
+            }[] }) => {
+                setSverkiRequests(Array.isArray(data?.requests) ? data.requests : []);
+            })
+            .catch(() => setSverkiRequests([]))
+            .finally(() => setSverkiRequestsLoading(false));
+    }, [docSection, effectiveActiveInn, auth?.login, auth?.password]);
     useEffect(() => {
         if (effectiveServiceMode) return;
         setTariffsCustomerFilter('');
@@ -1006,6 +1050,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return d >= fromDate && d <= toDate;
         });
     }, [sverkiList, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    const latestSverkiRequest = useMemo(() => sverkiRequests[0] || null, [sverkiRequests]);
+    const sverkiStatusBadge = useMemo(() => {
+        if (!latestSverkiRequest) return null;
+        if (latestSverkiRequest.status === 'edo_sent') {
+            return { label: 'Отправлена в ЭДО', bg: 'rgba(16,185,129,0.15)', color: '#10b981' };
+        }
+        return { label: 'Ожидает формирования', bg: 'rgba(59,130,246,0.15)', color: '#3b82f6' };
+    }, [latestSverkiRequest]);
     const getSendingStatusKey = useCallback((row: any): StatusFilter => {
         const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
         const firstParcel = Array.isArray(rawParcels)
@@ -3514,6 +3566,28 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             )}
             {docSection === 'Акты сверок' && (
                 <>
+                    <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
+                        <Button
+                            className="button-primary"
+                            disabled={!effectiveActiveInn || !auth?.login || !auth?.password}
+                            onClick={() => {
+                                setSverkiOrderError(null);
+                                setSverkiOrderContract('');
+                                setSverkiOrderPeriodFrom(apiDateRange.dateFrom);
+                                setSverkiOrderPeriodTo(apiDateRange.dateTo);
+                                setSverkiOrderModalOpen(true);
+                            }}
+                        >
+                            Заказать Акт сверки
+                        </Button>
+                        {sverkiRequestsLoading ? (
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Проверяем статус...</Typography.Body>
+                        ) : sverkiStatusBadge ? (
+                            <span style={{ fontSize: '0.78rem', padding: '0.2rem 0.5rem', borderRadius: 999, fontWeight: 600, background: sverkiStatusBadge.bg, color: sverkiStatusBadge.color }}>
+                                {sverkiStatusBadge.label}
+                            </span>
+                        ) : null}
+                    </Flex>
                     {sverkiLoading ? (
                         <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -3553,6 +3627,112 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>
+            )}
+            {sverkiOrderModalOpen && (
+                <div
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={() => !sverkiOrderSubmitting && setSverkiOrderModalOpen(false)}
+                >
+                    <div
+                        style={{ width: '92%', maxWidth: 460, borderRadius: 12, background: 'var(--color-bg-card, #fff)', padding: '1rem' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Заказать Акт сверки</Typography.Body>
+                        <div style={{ display: 'grid', gap: '0.55rem', marginBottom: '0.75rem' }}>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Период с</Typography.Body>
+                                <input
+                                    type="date"
+                                    className="admin-form-input"
+                                    value={sverkiOrderPeriodFrom}
+                                    onChange={(e) => setSverkiOrderPeriodFrom(e.target.value)}
+                                    style={{ width: '100%', padding: '0.45rem' }}
+                                />
+                            </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Период по</Typography.Body>
+                                <input
+                                    type="date"
+                                    className="admin-form-input"
+                                    value={sverkiOrderPeriodTo}
+                                    onChange={(e) => setSverkiOrderPeriodTo(e.target.value)}
+                                    style={{ width: '100%', padding: '0.45rem' }}
+                                />
+                            </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Договор</Typography.Body>
+                                <input
+                                    type="text"
+                                    className="admin-form-input"
+                                    placeholder="Номер или название договора"
+                                    value={sverkiOrderContract}
+                                    onChange={(e) => setSverkiOrderContract(e.target.value)}
+                                    style={{ width: '100%', padding: '0.45rem' }}
+                                />
+                            </div>
+                        </div>
+                        {sverkiOrderError ? (
+                            <Typography.Body style={{ color: '#ef4444', fontSize: '0.78rem', marginBottom: '0.6rem' }}>
+                                {sverkiOrderError}
+                            </Typography.Body>
+                        ) : null}
+                        <Flex justify="flex-end" gap="0.45rem">
+                            <Button
+                                className="filter-button"
+                                disabled={sverkiOrderSubmitting}
+                                onClick={() => setSverkiOrderModalOpen(false)}
+                            >
+                                Отмена
+                            </Button>
+                            <Button
+                                className="button-primary"
+                                disabled={sverkiOrderSubmitting}
+                                onClick={async () => {
+                                    if (!effectiveActiveInn || !auth?.login || !auth?.password) {
+                                        setSverkiOrderError('Не удалось определить ИНН или авторизацию');
+                                        return;
+                                    }
+                                    if (!sverkiOrderPeriodFrom || !sverkiOrderPeriodTo || !sverkiOrderContract.trim()) {
+                                        setSverkiOrderError('Заполните период и договор');
+                                        return;
+                                    }
+                                    setSverkiOrderSubmitting(true);
+                                    setSverkiOrderError(null);
+                                    try {
+                                        const resp = await fetch('/api/sverki-requests', {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                                'x-login': auth.login,
+                                                'x-password': auth.password,
+                                            },
+                                            body: JSON.stringify({
+                                                customerInn: effectiveActiveInn,
+                                                periodFrom: sverkiOrderPeriodFrom,
+                                                periodTo: sverkiOrderPeriodTo,
+                                                contract: sverkiOrderContract.trim(),
+                                            }),
+                                        });
+                                        const data = await resp.json().catch(() => ({}));
+                                        if (!resp.ok) throw new Error(data?.error || 'Не удалось создать заявку');
+                                        setSverkiOrderModalOpen(false);
+                                        setSverkiRequests((prev) => {
+                                            const row = data?.request;
+                                            if (!row) return prev;
+                                            return [row, ...prev];
+                                        });
+                                    } catch (e: any) {
+                                        setSverkiOrderError(e?.message || 'Не удалось создать заявку');
+                                    } finally {
+                                        setSverkiOrderSubmitting(false);
+                                    }
+                                }}
+                            >
+                                {sverkiOrderSubmitting ? 'Заказываем...' : 'Заказать'}
+                            </Button>
+                        </Flex>
+                    </div>
+                </div>
             )}
         </div>
     );

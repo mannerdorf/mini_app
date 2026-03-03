@@ -722,3 +722,23 @@ create index if not exists cache_sverki_customer_inn_idx on cache_sverki(custome
 create index if not exists cache_sverki_doc_date_idx on cache_sverki(doc_date desc);
 create index if not exists cache_sverki_doc_number_idx on cache_sverki(doc_number);
 create index if not exists cache_sverki_fetched_at_idx on cache_sverki(fetched_at desc);
+
+-- ========== 045_sverki_requests.sql ==========
+create table if not exists sverki_requests (
+  id serial primary key,
+  login text not null default '',
+  customer_inn text not null default '',
+  contract text not null default '',
+  period_from date not null,
+  period_to date not null,
+  status text not null default 'pending'
+    check (status in ('pending', 'edo_sent')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  processed_at timestamptz,
+  processed_by text
+);
+
+create index if not exists sverki_requests_customer_inn_idx on sverki_requests(customer_inn);
+create index if not exists sverki_requests_status_idx on sverki_requests(status);
+create index if not exists sverki_requests_created_at_idx on sverki_requests(created_at desc);

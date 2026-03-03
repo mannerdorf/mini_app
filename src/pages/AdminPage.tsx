@@ -407,6 +407,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [sverkiSyncMessage, setSverkiSyncMessage] = useState<string | null>(null);
   const [sverkiSyncDebugRequest, setSverkiSyncDebugRequest] = useState<string>("");
   const [sverkiSyncDebugResponse, setSverkiSyncDebugResponse] = useState<string>("");
+  const [sverkiRequests, setSverkiRequests] = useState<{
+    id: number;
+    login: string;
+    customerInn: string;
+    contract: string;
+    periodFrom: string;
+    periodTo: string;
+    status: "pending" | "edo_sent";
+    createdAt: string;
+    updatedAt: string;
+  }[]>([]);
+  const [sverkiRequestsLoading, setSverkiRequestsLoading] = useState(false);
+  const [sverkiRequestsUpdatingId, setSverkiRequestsUpdatingId] = useState<number | null>(null);
   const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
   const [autoRegisterCandidates, setAutoRegisterCandidates] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [autoRegisterStats, setAutoRegisterStats] = useState<{ total: number; withEmail: number; validEmail: number; alreadyRegistered: number } | null>(null);
@@ -1698,6 +1711,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if ((tab === "expense_requests" || tab === "accounting") && isSuperAdmin) reloadAllExpenseRequests();
   }, [tab, isSuperAdmin, reloadAllExpenseRequests]);
 
+  const reloadSverkiRequests = useCallback(async () => {
+    if (!adminToken || !isSuperAdmin) {
+      setSverkiRequests([]);
+      return;
+    }
+    setSverkiRequestsLoading(true);
+    try {
+      const res = await fetch("/api/admin-sverki-requests", { headers: { Authorization: `Bearer ${adminToken}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Ошибка загрузки заявок актов сверки");
+      setSverkiRequests(Array.isArray(data?.requests) ? data.requests : []);
+    } catch {
+      setSverkiRequests([]);
+    } finally {
+      setSverkiRequestsLoading(false);
+    }
+  }, [adminToken, isSuperAdmin]);
+
+  useEffect(() => {
+    if (tab === "accounting" && isSuperAdmin) reloadSverkiRequests();
+  }, [tab, isSuperAdmin, reloadSverkiRequests]);
+
   const loadPnlExpenseCategoryLinks = useCallback(async () => {
     try {
       const res = await fetch("/api/pnl-expense-categories");
@@ -1719,6 +1754,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if ((tab === "expense_requests" || tab === "accounting") && isSuperAdmin) loadPnlExpenseCategoryLinks();
   }, [tab, isSuperAdmin, loadPnlExpenseCategoryLinks]);
+
+  const markSverkiRequestAsSent = useCallback(async (id: number) => {
+    if (!adminToken) return;
+    setSverkiRequestsUpdatingId(id);
+    try {
+      const res = await fetch("/api/admin-sverki-requests-update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ id, status: "edo_sent" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Ошибка обновления статуса заявки");
+      setSverkiRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: "edo_sent", updatedAt: new Date().toISOString() } : r)));
+    } catch (e: any) {
+      setError(e?.message || "Ошибка обновления статуса заявки");
+    } finally {
+      setSverkiRequestsUpdatingId(null);
+    }
+  }, [adminToken]);
 
   const updateExpenseStatus = useCallback(async (itemId: string, itemLogin: string, newStatus: string, rejectReason?: string, fullItem?: ExpenseRequestItem & { login: string }) => {
     const storageKey = `haulz.expense_requests.${itemLogin}`;
@@ -7664,6 +7721,76 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         return (
           <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
             <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>{title}</Typography.Body>
+            {isAccounting && (
+              <div style={{ marginBottom: "1rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.75rem" }}>
+                <Typography.Body style={{ fontWeight: 600, marginBottom: "0.55rem" }}>Акты сверок — заявки на формирование</Typography.Body>
+                {sverkiRequestsLoading ? (
+                  <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Typography.Body style={{ fontSize: "0.82rem" }}>Загрузка заявок...</Typography.Body>
+                  </Flex>
+                ) : sverkiRequests.length === 0 ? (
+                  <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Заявок пока нет</Typography.Body>
+                ) : (
+                  <div style={{ maxHeight: 260, overflowY: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                      <thead>
+                        <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                          <th style={{ textAlign: "left", padding: "6px 8px" }}>Создано</th>
+                          <th style={{ textAlign: "left", padding: "6px 8px" }}>Логин</th>
+                          <th style={{ textAlign: "left", padding: "6px 8px" }}>ИНН</th>
+                          <th style={{ textAlign: "left", padding: "6px 8px" }}>Договор</th>
+                          <th style={{ textAlign: "left", padding: "6px 8px" }}>Период</th>
+                          <th style={{ textAlign: "left", padding: "6px 8px" }}>Статус</th>
+                          <th style={{ textAlign: "left", padding: "6px 8px" }}>Действие</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sverkiRequests.map((r) => {
+                          const isPending = r.status === "pending";
+                          return (
+                            <tr key={r.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                              <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU")}</td>
+                              <td style={{ padding: "6px 8px" }}>{r.login || "—"}</td>
+                              <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{r.customerInn || "—"}</td>
+                              <td style={{ padding: "6px 8px" }}>{r.contract || "—"}</td>
+                              <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
+                                {new Date(r.periodFrom).toLocaleDateString("ru-RU")} - {new Date(r.periodTo).toLocaleDateString("ru-RU")}
+                              </td>
+                              <td style={{ padding: "6px 8px" }}>
+                                <span style={{
+                                  fontSize: "0.7rem",
+                                  padding: "0.15rem 0.45rem",
+                                  borderRadius: 999,
+                                  fontWeight: 600,
+                                  background: isPending ? "rgba(59,130,246,0.15)" : "rgba(16,185,129,0.15)",
+                                  color: isPending ? "#3b82f6" : "#10b981",
+                                  whiteSpace: "nowrap",
+                                }}>
+                                  {isPending ? "Ожидает формирования" : "Отправлена в ЭДО"}
+                                </span>
+                              </td>
+                              <td style={{ padding: "6px 8px" }}>
+                                {isPending ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => markSverkiRequestAsSent(r.id)}
+                                    disabled={sverkiRequestsUpdatingId === r.id}
+                                    style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #2563eb", background: "transparent", color: "#2563eb", cursor: "pointer" }}
+                                  >
+                                    {sverkiRequestsUpdatingId === r.id ? "..." : "Сформировано"}
+                                  </button>
+                                ) : "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
 
             <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "0.75rem" }}>
               <div>
