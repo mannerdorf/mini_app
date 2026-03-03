@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
+const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 function getStr(el: any, ...keys: string[]): string {
   if (!el || typeof el !== "object") return "";
@@ -75,21 +76,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Нет доступа" });
   }
 
-  const login = process.env.SUPPLIERS_1C_LOGIN || process.env.PEREVOZKI_SERVICE_LOGIN;
-  const password = process.env.SUPPLIERS_1C_PASSWORD || process.env.PEREVOZKI_SERVICE_PASSWORD;
+  const login = process.env.SUPPLIERS_1C_LOGIN || process.env.PEREVOZKI_SERVICE_LOGIN || "Info@haulz.pro";
+  const password = process.env.SUPPLIERS_1C_PASSWORD || process.env.PEREVOZKI_SERVICE_PASSWORD || "Y2ME42XyI_";
   if (!login || !password) {
     return res.status(503).json({ error: "Не заданы SUPPLIERS_1C_LOGIN/PASSWORD или PEREVOZKI_SERVICE_LOGIN/PASSWORD" });
   }
 
-  const auth = Buffer.from(`${login}:${password}`).toString("base64");
-
   try {
     const upstreamUrl = `${GETAPI_URL}?metod=GETTarifs`;
-    const upstreamCurl = `curl --location '${upstreamUrl}' --header 'Authorization: Basic ${auth}'`;
+    const upstreamCurl = `curl --location '${upstreamUrl}' --header 'Auth: Basic ${login}:${password}' --header 'Authorization: ${SERVICE_AUTH}'`;
     const upstream = await fetch(upstreamUrl, {
       method: "GET",
       headers: {
-        Authorization: `Basic ${auth}`,
+        Auth: `Basic ${login}:${password}`,
+        Authorization: SERVICE_AUTH,
       },
     });
     const text = await upstream.text();
