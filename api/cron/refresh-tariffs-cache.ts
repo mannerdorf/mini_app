@@ -85,6 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const upstreamUrl = `${GETAPI_URL}?metod=GETTarifs`;
+    const upstreamCurl = `curl --location '${upstreamUrl}' --header 'Authorization: Basic ${auth}'`;
     const upstream = await fetch(upstreamUrl, {
       method: "GET",
       headers: {
@@ -93,18 +94,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
     const text = await upstream.text();
     if (!upstream.ok) {
-      return res.status(upstream.status).json({ error: `HTTP ${upstream.status}`, details: text.slice(0, 200) });
+      return res.status(upstream.status).json({
+        error: `HTTP ${upstream.status}`,
+        details: text.slice(0, 200),
+        upstream_url: upstreamUrl,
+        upstream_curl: upstreamCurl,
+      });
     }
 
     let json: any;
     try {
       json = text ? JSON.parse(text) : {};
     } catch {
-      return res.status(502).json({ error: "Ответ не JSON", details: text.slice(0, 200) });
+      return res.status(502).json({
+        error: "Ответ не JSON",
+        details: text.slice(0, 200),
+        upstream_url: upstreamUrl,
+        upstream_curl: upstreamCurl,
+      });
     }
     if (json && typeof json === "object" && json.Success === false) {
       const err = String(json.Error ?? json.error ?? json.message ?? "Success=false");
-      return res.status(502).json({ error: err });
+      return res.status(502).json({ error: err, upstream_url: upstreamUrl, upstream_curl: upstreamCurl });
     }
 
     const rows = normalizeTariffs(json);
@@ -121,7 +132,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    return res.status(200).json({ ok: true, tariffs_count: rows.length, refreshed_at: new Date().toISOString() });
+    return res.status(200).json({
+      ok: true,
+      tariffs_count: rows.length,
+      refreshed_at: new Date().toISOString(),
+      upstream_url: upstreamUrl,
+      upstream_curl: upstreamCurl,
+    });
   } catch (e: any) {
     const message = e?.message || String(e);
     console.error("refresh-tariffs-cache error:", message);

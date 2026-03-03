@@ -376,6 +376,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [tariffsFetchTrigger, setTariffsFetchTrigger] = useState(0);
   const [tariffsSyncLoading, setTariffsSyncLoading] = useState(false);
   const [tariffsSyncMessage, setTariffsSyncMessage] = useState<string | null>(null);
+  const [tariffsSyncDebugRequest, setTariffsSyncDebugRequest] = useState<string>("");
+  const [tariffsSyncDebugResponse, setTariffsSyncDebugResponse] = useState<string>("");
   const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
   const [autoRegisterCandidates, setAutoRegisterCandidates] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [autoRegisterStats, setAutoRegisterStats] = useState<{ total: number; withEmail: number; validEmail: number; alreadyRegistered: number } | null>(null);
@@ -4475,17 +4477,35 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               onClick={async () => {
                 setTariffsSyncLoading(true);
                 setTariffsSyncMessage(null);
+                setTariffsSyncDebugResponse("");
+                setTariffsSyncDebugRequest("");
+                const endpoint = "/api/admin-refresh-tariffs-cache";
+                const base = typeof window !== "undefined" ? window.location.origin : "";
+                const internalCurl = `curl -X POST "${base}${endpoint}" -H "Authorization: Bearer <adminToken>"`;
                 try {
-                  const res = await fetch("/api/admin-refresh-tariffs-cache", {
+                  const res = await fetch(endpoint, {
                     method: "POST",
                     headers: { Authorization: `Bearer ${adminToken}` },
                   });
-                  const data = await res.json().catch(() => ({}));
+                  const text = await res.text().catch(() => "");
+                  const data = (() => {
+                    try { return text ? JSON.parse(text) : {}; } catch { return {}; }
+                  })();
+                  const upstreamCurl = typeof data?.upstream_curl === "string" ? data.upstream_curl : "";
+                  const upstreamUrl = typeof data?.upstream_url === "string" ? data.upstream_url : "";
+                  setTariffsSyncDebugRequest(
+                    upstreamCurl
+                      ? upstreamCurl
+                      : (upstreamUrl ? `curl --location '${upstreamUrl}'` : internalCurl)
+                  );
+                  setTariffsSyncDebugResponse(`HTTP ${res.status}\n${text ? (typeof data === "object" && Object.keys(data).length > 0 ? JSON.stringify(data, null, 2) : text) : "{}"}`);
                   if (!res.ok) throw new Error(data?.error || "Не удалось обновить справочник тарифов");
                   setTariffsSyncMessage(`Обновлено: ${Number(data?.tariffs_count ?? 0)} записей`);
                   setTariffsFetchTrigger((n) => n + 1);
                 } catch (e: unknown) {
                   setTariffsSyncMessage((e as Error)?.message || "Не удалось обновить справочник тарифов");
+                  setTariffsSyncDebugRequest(internalCurl);
+                  setTariffsSyncDebugResponse(`Ошибка: ${(e as Error)?.message || "Неизвестная ошибка"}`);
                 } finally {
                   setTariffsSyncLoading(false);
                 }
@@ -4499,6 +4519,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Typography.Body style={{ marginBottom: "0.65rem", fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
               {tariffsSyncMessage}
             </Typography.Body>
+          )}
+          {(tariffsSyncDebugRequest || tariffsSyncDebugResponse) && (
+            <div style={{ marginBottom: "0.75rem", padding: "0.55rem 0.65rem", borderRadius: 8, border: "1px dashed var(--color-border)", background: "var(--color-bg-hover)" }}>
+              {tariffsSyncDebugRequest ? (
+                <Typography.Body style={{ fontSize: "0.78rem", marginBottom: "0.35rem" }}>
+                  <strong>Запрос:</strong>
+                  <pre style={{ margin: "0.25rem 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.75rem" }}>{tariffsSyncDebugRequest}</pre>
+                </Typography.Body>
+              ) : null}
+              {tariffsSyncDebugResponse ? (
+                <Typography.Body style={{ fontSize: "0.78rem" }}>
+                  <strong>Ответ:</strong>
+                  <pre style={{ margin: "0.25rem 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.75rem" }}>{tariffsSyncDebugResponse}</pre>
+                </Typography.Body>
+              ) : null}
+            </div>
           )}
           {tariffsLoading ? (
             <Flex align="center" gap="0.5rem">
