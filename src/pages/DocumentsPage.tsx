@@ -906,14 +906,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     }, [sendingsItems, effectiveActiveInn, customerFilter, typeFilter, routeFilter, routeFilterCargo, transportFilter, effectiveSearchText, sortBy, sortOrder]);
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
     const filteredTariffs = useMemo(() => {
+        const placeCode = (value: string) => cityToCode(value || '') || (value || '');
         const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         const list = tariffsList.filter((t) => {
             if (t.isVet) return false;
             if (effectiveServiceMode && tariffsCustomerFilter && String(t.customerName || '').trim() !== tariffsCustomerFilter) return false;
             const route = [
-                cityToCode(t.cityFrom || '') || (t.cityFrom || ''),
-                cityToCode(t.cityTo || '') || (t.cityTo || ''),
+                placeCode(t.cityFrom || ''),
+                placeCode(t.cityTo || ''),
             ].filter(Boolean).join(' – ');
             if (tariffsRouteFilter !== 'all' && route !== tariffsRouteFilter) return false;
             if (tariffsTypeFilter !== 'all' && String(t.transportType || '').trim() !== tariffsTypeFilter) return false;
@@ -927,8 +928,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 case "docDate": return t.docDate ? new Date(t.docDate).getTime() : 0;
                 case "docNumber": return t.docNumber || "";
                 case "customerName": return t.customerName || "";
-                case "cityFrom": return t.cityFrom || "";
-                case "cityTo": return t.cityTo || "";
+                case "cityFrom": return placeCode(t.cityFrom || "");
+                case "cityTo": return placeCode(t.cityTo || "");
                 case "transportType": return t.transportType || "";
                 case "dangerous": return t.isDangerous ? 1 : 0;
                 case "tariff": return Number(t.tariff ?? 0);
@@ -936,7 +937,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             }
         };
 
-        return [...list].sort((a, b) => {
+        const sorted = [...list].sort((a, b) => {
             const va = getVal(a);
             const vb = getVal(b);
             const cmp = typeof va === "number" && typeof vb === "number"
@@ -944,6 +945,23 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 : String(va).localeCompare(String(vb), 'ru', { numeric: true });
             return tariffsSortOrder === "asc" ? cmp : -cmp;
         });
+
+        // Collapse duplicates with same tariff/type/OG/from/to.
+        const seen = new Set<string>();
+        const collapsed: typeof sorted = [];
+        for (const t of sorted) {
+            const key = [
+                placeCode(t.cityFrom || ""),
+                placeCode(t.cityTo || ""),
+                String(t.transportType || "").trim().toLowerCase(),
+                t.isDangerous ? "1" : "0",
+                Number(t.tariff ?? 0).toFixed(4),
+            ].join("|");
+            if (seen.has(key)) continue;
+            seen.add(key);
+            collapsed.push(t);
+        }
+        return collapsed;
     }, [tariffsList, effectiveServiceMode, tariffsCustomerFilter, tariffsRouteFilter, tariffsTypeFilter, tariffsSortColumn, tariffsSortOrder, apiDateRange.dateFrom, apiDateRange.dateTo]);
     const getSendingStatusKey = useCallback((row: any): StatusFilter => {
         const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
@@ -3398,8 +3416,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={t.docDate || undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{t.docNumber || '—'}</td>
                                             {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{t.customerName || '—'}</td> : null}
-                                            <td style={{ padding: '0.5rem 0.75rem' }}>{t.cityFrom || '—'}</td>
-                                            <td style={{ padding: '0.5rem 0.75rem' }}>{t.cityTo || '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.75rem' }}>{cityToCode(t.cityFrom || '') || t.cityFrom || '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.75rem' }}>{cityToCode(t.cityTo || '') || t.cityTo || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem' }}>{t.transportType || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>{t.isDangerous ? 'Да' : 'Нет'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
