@@ -293,7 +293,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "tariffs" | "sverki" | "audit" | "logs" | "integrations" | "employee_directory" | "subdivisions" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "pnl">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "tariffs" | "sverki" | "dogovors" | "audit" | "logs" | "integrations" | "employee_directory" | "subdivisions" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "pnl">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -407,6 +407,21 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [sverkiSyncMessage, setSverkiSyncMessage] = useState<string | null>(null);
   const [sverkiSyncDebugRequest, setSverkiSyncDebugRequest] = useState<string>("");
   const [sverkiSyncDebugResponse, setSverkiSyncDebugResponse] = useState<string>("");
+  const [dogovorsList, setDogovorsList] = useState<{
+    id: number;
+    docNumber: string;
+    docDate: string | null;
+    customerName: string;
+    customerInn: string;
+    title: string;
+    fetchedAt: string;
+  }[]>([]);
+  const [dogovorsLoading, setDogovorsLoading] = useState(false);
+  const [dogovorsFetchTrigger, setDogovorsFetchTrigger] = useState(0);
+  const [dogovorsSyncLoading, setDogovorsSyncLoading] = useState(false);
+  const [dogovorsSyncMessage, setDogovorsSyncMessage] = useState<string | null>(null);
+  const [dogovorsSyncDebugRequest, setDogovorsSyncDebugRequest] = useState<string>("");
+  const [dogovorsSyncDebugResponse, setDogovorsSyncDebugResponse] = useState<string>("");
   const [sverkiRequests, setSverkiRequests] = useState<{
     id: number;
     login: string;
@@ -1504,6 +1519,26 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [tab, sverkiFetchTrigger]);
 
   useEffect(() => {
+    if (tab !== "dogovors") return;
+    setDogovorsLoading(true);
+    fetch("/api/dogovors")
+      .then((res) => res.json())
+      .then((data: { dogovors?: {
+        id: number;
+        docNumber: string;
+        docDate: string | null;
+        customerName: string;
+        customerInn: string;
+        title: string;
+        fetchedAt: string;
+      }[] }) => {
+        setDogovorsList(data.dogovors || []);
+      })
+      .catch(() => setDogovorsList([]))
+      .finally(() => setDogovorsLoading(false));
+  }, [tab, dogovorsFetchTrigger]);
+
+  useEffect(() => {
     if (tab !== "customers") return;
     setAutoRegisterLoading(true);
     const params = new URLSearchParams();
@@ -2562,7 +2597,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     return items;
   }, [selectedUser, editorPermissions, editorFinancial, editorAccessAllInns, editorCustomers]);
-  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "tariffs" || tab === "sverki" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
+  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "tariffs" || tab === "sverki" || tab === "dogovors" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
 
   return (
     <div className={theme === "light" ? "light-mode w-full" : "w-full"}>
@@ -2733,6 +2768,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <ClipboardList className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Справочник Акты сверок
+          </Button>
+          <Button
+            className="filter-button"
+            style={{ background: tab === "dogovors" ? "var(--color-primary-blue)" : undefined, color: tab === "dogovors" ? "white" : undefined }}
+            onClick={() => setTab("dogovors")}
+          >
+            <ClipboardList className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Справочник Договоры
           </Button>
           {isSuperAdmin && (
             <Button
@@ -4833,6 +4876,128 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           {!sverkiLoading && sverkiList.length > 0 && (
             <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
               Записей: {sverkiList.length}
+            </Typography.Body>
+          )}
+        </Panel>
+      )}
+
+      {tab === "dogovors" && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник Договоры</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            Данные загружаются из GETAPI?metod=GETdogovors и обновляются кроном раз в 24 часа.
+          </Typography.Body>
+          <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "var(--space-3, 0.75rem)" }}>
+            <Button
+              type="button"
+              className="filter-button"
+              disabled={dogovorsLoading}
+              onClick={() => setDogovorsFetchTrigger((n) => n + 1)}
+            >
+              {dogovorsLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+              Обновить
+            </Button>
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={dogovorsSyncLoading}
+              onClick={async () => {
+                setDogovorsSyncLoading(true);
+                setDogovorsSyncMessage(null);
+                setDogovorsSyncDebugResponse("");
+                setDogovorsSyncDebugRequest("");
+                const endpoint = "/api/admin-refresh-dogovors-cache";
+                const upstreamCurlFallback = `curl --location 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI?metod=GETdogovors' --header 'Auth: Basic Info@haulz.pro:Y2ME42XyI_' --header 'Authorization: Basic YWRtaW46anVlYmZueWU='`;
+                try {
+                  const res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${adminToken}` },
+                  });
+                  const text = await res.text().catch(() => "");
+                  const data = (() => {
+                    try { return text ? JSON.parse(text) : {}; } catch { return {}; }
+                  })();
+                  const upstreamCurl = typeof data?.upstream_curl === "string" ? data.upstream_curl : "";
+                  const upstreamUrl = typeof data?.upstream_url === "string" ? data.upstream_url : "";
+                  setDogovorsSyncDebugRequest(
+                    upstreamCurl
+                      ? upstreamCurl
+                      : (upstreamUrl ? `curl --location '${upstreamUrl}'` : upstreamCurlFallback)
+                  );
+                  setDogovorsSyncDebugResponse(`HTTP ${res.status}\n${text ? (typeof data === "object" && Object.keys(data).length > 0 ? JSON.stringify(data, null, 2) : text) : "{}"}`);
+                  if (!res.ok) throw new Error(data?.error || "Не удалось обновить справочник договоров");
+                  setDogovorsSyncMessage(`Обновлено: ${Number(data?.dogovors_count ?? 0)} записей`);
+                  setDogovorsFetchTrigger((n) => n + 1);
+                } catch (e: unknown) {
+                  setDogovorsSyncMessage((e as Error)?.message || "Не удалось обновить справочник договоров");
+                  setDogovorsSyncDebugRequest(upstreamCurlFallback);
+                  setDogovorsSyncDebugResponse(`Ошибка: ${(e as Error)?.message || "Неизвестная ошибка"}`);
+                } finally {
+                  setDogovorsSyncLoading(false);
+                }
+              }}
+            >
+              {dogovorsSyncLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+              Обновить из 1С
+            </Button>
+          </Flex>
+          {dogovorsSyncMessage && (
+            <Typography.Body style={{ marginBottom: "0.65rem", fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+              {dogovorsSyncMessage}
+            </Typography.Body>
+          )}
+          {(dogovorsSyncDebugRequest || dogovorsSyncDebugResponse) && (
+            <div style={{ marginBottom: "0.75rem", padding: "0.55rem 0.65rem", borderRadius: 8, border: "1px dashed var(--color-border)", background: "var(--color-bg-hover)" }}>
+              {dogovorsSyncDebugRequest ? (
+                <Typography.Body style={{ fontSize: "0.78rem", marginBottom: "0.35rem" }}>
+                  <strong>Запрос:</strong>
+                  <pre style={{ margin: "0.25rem 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.75rem" }}>{dogovorsSyncDebugRequest}</pre>
+                </Typography.Body>
+              ) : null}
+              {dogovorsSyncDebugResponse ? (
+                <Typography.Body style={{ fontSize: "0.78rem" }}>
+                  <strong>Ответ:</strong>
+                  <pre style={{ margin: "0.25rem 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.75rem" }}>{dogovorsSyncDebugResponse}</pre>
+                </Typography.Body>
+              ) : null}
+            </div>
+          )}
+          {dogovorsLoading ? (
+            <Flex align="center" gap="0.5rem">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка...</Typography.Body>
+            </Flex>
+          ) : dogovorsList.length === 0 ? (
+            <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Справочник пуст</Typography.Body>
+          ) : (
+            <div style={{ overflowX: "auto", maxHeight: "60vh", overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                <thead>
+                  <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Номер</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Дата</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Контрагент</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dogovorsList.map((row) => (
+                    <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? new Date(row.docDate).toLocaleDateString("ru-RU") : "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{row.customerName || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{row.title || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!dogovorsLoading && dogovorsList.length > 0 && (
+            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
+              Записей: {dogovorsList.length}
             </Typography.Body>
           )}
         </Panel>

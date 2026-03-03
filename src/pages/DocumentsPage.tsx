@@ -178,6 +178,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         customerInn: string;
     }[]>([]);
     const [sverkiLoading, setSverkiLoading] = useState(false);
+    const [dogovorsList, setDogovorsList] = useState<{
+        id: number;
+        docNumber: string;
+        docDate: string | null;
+        customerName: string;
+        customerInn: string;
+        title: string;
+    }[]>([]);
+    const [dogovorsLoading, setDogovorsLoading] = useState(false);
     const [sverkiRequests, setSverkiRequests] = useState<{
         id: number;
         customerInn: string;
@@ -271,6 +280,26 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             })
             .catch(() => setSverkiList([]))
             .finally(() => setSverkiLoading(false));
+    }, [docSection, effectiveActiveInn, effectiveServiceMode]);
+    useEffect(() => {
+        if (docSection !== 'Договоры') return;
+        setDogovorsLoading(true);
+        const params = new URLSearchParams();
+        if (!effectiveServiceMode && effectiveActiveInn) params.set('inn', effectiveActiveInn);
+        fetch(`/api/dogovors${params.toString() ? `?${params.toString()}` : ''}`)
+            .then((res) => res.json())
+            .then((data: { dogovors?: {
+                id: number;
+                docNumber: string;
+                docDate: string | null;
+                customerName: string;
+                customerInn: string;
+                title: string;
+            }[] }) => {
+                setDogovorsList(data.dogovors || []);
+            })
+            .catch(() => setDogovorsList([]))
+            .finally(() => setDogovorsLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
     useEffect(() => {
         if (docSection !== 'Акты сверок' || !effectiveActiveInn || !auth?.login || !auth?.password) {
@@ -1050,6 +1079,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return d >= fromDate && d <= toDate;
         });
     }, [sverkiList, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    const filteredDogovors = useMemo(() => {
+        const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
+        const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
+        return dogovorsList.filter((row) => {
+            if (!row.docDate) return true;
+            const d = new Date(row.docDate);
+            return d >= fromDate && d <= toDate;
+        });
+    }, [dogovorsList, apiDateRange.dateFrom, apiDateRange.dateTo]);
     const latestSverkiRequest = useMemo(() => sverkiRequests[0] || null, [sverkiRequests]);
     const sverkiStatusBadge = useMemo(() => {
         if (!latestSverkiRequest) return null;
@@ -1680,7 +1718,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         })}
                     </Flex>
                 </div>
-                {(docSection === 'Счета' || docSection === 'УПД' || docSection === 'Заявки' || docSection === 'Отправки' || docSection === 'Тарифы' || docSection === 'Акты сверок') && (
+                {(docSection === 'Счета' || docSection === 'УПД' || docSection === 'Заявки' || docSection === 'Отправки' || docSection === 'Тарифы' || docSection === 'Акты сверок' || docSection === 'Договоры') && (
                 <div className="filters-container filters-row-scroll">
                     <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
                         {docSection !== 'Тарифы' ? (
@@ -3677,7 +3715,42 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     )}
                 </>
             )}
-            {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && docSection !== 'Тарифы' && docSection !== 'Акты сверок' && (
+            {docSection === 'Договоры' && (
+                <>
+                    {dogovorsLoading ? (
+                        <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Typography.Body>Загрузка договоров...</Typography.Body>
+                        </Flex>
+                    ) : filteredDogovors.length === 0 ? (
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по договорам</Typography.Body>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                <thead>
+                                    <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                        {effectiveServiceMode ? <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Контрагент</th> : null}
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Наименование</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredDogovors.map((row) => (
+                                        <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                            <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.docDate || undefined} /></td>
+                                            {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{row.customerName || '—'}</td> : null}
+                                            <td style={{ padding: '0.5rem 0.75rem' }}>{row.title || '—'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </>
+            )}
+            {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && docSection !== 'Тарифы' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>

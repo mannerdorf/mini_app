@@ -5,6 +5,7 @@
     {"path": "/api/cron/refresh-suppliers-cache", "schedule": "*/15 * * * *"},
     {"path": "/api/cron/refresh-tariffs-cache", "schedule": "0 0 * * *"},
     {"path": "/api/cron/refresh-sverki-cache", "schedule": "0 0 * * *"},
+    {"path": "/api/cron/refresh-dogovors-cache", "schedule": "0 0 * * *"},
     {"path": "/api/notification-daily-summary", "schedule": "0 10 * * *"}
   ],
   "functions": {
@@ -13,7 +14,8 @@
     "api/cron/refresh-cache.ts": {"maxDuration": 300},
     "api/cron/refresh-orders-cache.ts": {"maxDuration": 300},
     "api/cron/refresh-suppliers-cache.ts": {"maxDuration": 300},
-    "api/cron/refresh-sverki-cache.ts": {"maxDuration": 300}
+    "api/cron/refresh-sverki-cache.ts": {"maxDuration": 300},
+    "api/cron/refresh-dogovors-cache.ts": {"maxDuration": 300}
   },
   "rewrites": [
     {"source": "/admin", "destination": "/"},
