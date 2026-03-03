@@ -92,6 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(upstream.status).json({
         error: `HTTP ${upstream.status}`,
         details: text.slice(0, 200),
+        upstream_response: text.slice(0, 4000),
         upstream_url: upstreamUrl,
         upstream_curl: upstreamCurl,
       });
@@ -104,13 +105,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({
         error: "Ответ не JSON",
         details: text.slice(0, 200),
+        upstream_response: text.slice(0, 4000),
         upstream_url: upstreamUrl,
         upstream_curl: upstreamCurl,
       });
     }
     if (json && typeof json === "object" && json.Success === false) {
       const err = String(json.Error ?? json.error ?? json.message ?? "Success=false");
-      return res.status(502).json({ error: err, upstream_url: upstreamUrl, upstream_curl: upstreamCurl });
+      return res.status(502).json({ error: err, upstream_response: json, upstream_url: upstreamUrl, upstream_curl: upstreamCurl });
     }
 
     const rows = normalizeTariffs(json);
@@ -131,6 +133,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ok: true,
       tariffs_count: rows.length,
       refreshed_at: new Date().toISOString(),
+      upstream_response: json,
       upstream_url: upstreamUrl,
       upstream_curl: upstreamCurl,
     });

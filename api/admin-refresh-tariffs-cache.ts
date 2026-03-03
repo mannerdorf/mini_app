@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getAdminTokenFromRequest, verifyAdminToken } from "../lib/adminAuth.js";
+import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 
 /**
  * POST /api/admin-refresh-tariffs-cache
  * Принудительно запускает обновление cache_tariffs из 1С (GETTarifs).
- * Доступно только суперадмину.
+ * Доступно администратору CMS.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -13,9 +13,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const token = getAdminTokenFromRequest(req);
-  const payload = verifyAdminToken(token);
-  if (!payload?.superAdmin) {
-    return res.status(403).json({ error: "Только для суперадмина" });
+  const payload = getAdminTokenPayload(token);
+  if (!(payload as any)?.admin) {
+    return res.status(401).json({ error: "Требуется авторизация админа" });
   }
 
   const base = process.env.VERCEL_URL

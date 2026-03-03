@@ -1599,7 +1599,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "tariffs" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "pnl")) setTab("users");
+    if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "pnl")) setTab("users");
   }, [isSuperAdmin, tab]);
 
   const reloadAllExpenseRequests = useCallback(async () => {
@@ -2598,16 +2598,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               Справочник подразделений
             </Button>
           )}
-          {isSuperAdmin && (
-            <Button
-              className="filter-button"
-              style={{ background: tab === "tariffs" ? "var(--color-primary-blue)" : undefined, color: tab === "tariffs" ? "white" : undefined }}
-              onClick={() => setTab("tariffs")}
-            >
-              <Receipt className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-              Справочник Тарифы
-            </Button>
-          )}
+          <Button
+            className="filter-button"
+            style={{ background: tab === "tariffs" ? "var(--color-primary-blue)" : undefined, color: tab === "tariffs" ? "white" : undefined }}
+            onClick={() => setTab("tariffs")}
+          >
+            <Receipt className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Справочник Тарифы
+          </Button>
           {isSuperAdmin && (
             <Button
               className="filter-button"
@@ -4454,7 +4452,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         </Panel>
       )}
 
-      {tab === "tariffs" && isSuperAdmin && (
+      {tab === "tariffs" && (
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник Тарифы</Typography.Body>
           <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
@@ -4480,8 +4478,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 setTariffsSyncDebugResponse("");
                 setTariffsSyncDebugRequest("");
                 const endpoint = "/api/admin-refresh-tariffs-cache";
-                const base = typeof window !== "undefined" ? window.location.origin : "";
-                const internalCurl = `curl -X POST "${base}${endpoint}" -H "Authorization: Bearer <adminToken>"`;
+                const upstreamCurlFallback = `curl --location 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI?metod=GETTarifs' --header 'Auth: Basic Info@haulz.pro:Y2ME42XyI_' --header 'Authorization: Basic YWRtaW46anVlYmZueWU='`;
                 try {
                   const res = await fetch(endpoint, {
                     method: "POST",
@@ -4496,7 +4493,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   setTariffsSyncDebugRequest(
                     upstreamCurl
                       ? upstreamCurl
-                      : (upstreamUrl ? `curl --location '${upstreamUrl}'` : internalCurl)
+                      : (upstreamUrl ? `curl --location '${upstreamUrl}'` : upstreamCurlFallback)
                   );
                   setTariffsSyncDebugResponse(`HTTP ${res.status}\n${text ? (typeof data === "object" && Object.keys(data).length > 0 ? JSON.stringify(data, null, 2) : text) : "{}"}`);
                   if (!res.ok) throw new Error(data?.error || "Не удалось обновить справочник тарифов");
@@ -4504,7 +4501,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   setTariffsFetchTrigger((n) => n + 1);
                 } catch (e: unknown) {
                   setTariffsSyncMessage((e as Error)?.message || "Не удалось обновить справочник тарифов");
-                  setTariffsSyncDebugRequest(internalCurl);
+                  setTariffsSyncDebugRequest(upstreamCurlFallback);
                   setTariffsSyncDebugResponse(`Ошибка: ${(e as Error)?.message || "Неизвестная ошибка"}`);
                 } finally {
                   setTariffsSyncLoading(false);
