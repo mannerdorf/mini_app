@@ -168,6 +168,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         tariff: number | null;
     }[]>([]);
     const [tariffsLoading, setTariffsLoading] = useState(false);
+    const [tariffsCustomerFilter, setTariffsCustomerFilter] = useState<string>("");
+    const [tariffsCustomerSearchQuery, setTariffsCustomerSearchQuery] = useState<string>("");
+    const [tariffsRouteFilter, setTariffsRouteFilter] = useState<string>("all");
+    const [tariffsTypeFilter, setTariffsTypeFilter] = useState<string>("all");
+    const [tariffsSortColumn, setTariffsSortColumn] = useState<"docDate" | "docNumber" | "customerName" | "cityFrom" | "cityTo" | "transportType" | "dangerous" | "tariff">("docDate");
+    const [tariffsSortOrder, setTariffsSortOrder] = useState<"asc" | "desc">("desc");
     const allowedDocSections = useMemo(() => {
         if (!permissions) return DOC_SECTIONS;
         return DOC_SECTIONS.filter(({ key }) => permissions[DOC_SECTION_TO_PERMISSION[key]] !== false);
@@ -198,7 +204,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         if (docSection !== 'Тарифы') return;
         setTariffsLoading(true);
         const params = new URLSearchParams();
-        if (effectiveActiveInn) params.set('inn', effectiveActiveInn);
+        if (!effectiveServiceMode && effectiveActiveInn) params.set('inn', effectiveActiveInn);
         fetch(`/api/tariffs${params.toString() ? `?${params.toString()}` : ''}`)
             .then((res) => res.json())
             .then((data: { tariffs?: {
@@ -218,7 +224,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             })
             .catch(() => setTariffsList([]))
             .finally(() => setTariffsLoading(false));
-    }, [docSection, effectiveActiveInn]);
+    }, [docSection, effectiveActiveInn, effectiveServiceMode]);
+    useEffect(() => {
+        if (effectiveServiceMode) return;
+        setTariffsCustomerFilter('');
+        setTariffsCustomerSearchQuery('');
+        setIsTariffsCustomerDropdownOpen(false);
+    }, [effectiveServiceMode]);
     useEffect(() => {
         if (!showEorColumn || !auth?.login || !auth?.password) {
             setEorStatusMap({});
@@ -282,6 +294,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [isTransportDropdownOpen, setIsTransportDropdownOpen] = useState(false);
     const [isEdoStatusDropdownOpen, setIsEdoStatusDropdownOpen] = useState(false);
     const [isActCustomerDropdownOpen, setIsActCustomerDropdownOpen] = useState(false);
+    const [isTariffsCustomerDropdownOpen, setIsTariffsCustomerDropdownOpen] = useState(false);
+    const [isTariffsRouteDropdownOpen, setIsTariffsRouteDropdownOpen] = useState(false);
+    const [isTariffsTypeDropdownOpen, setIsTariffsTypeDropdownOpen] = useState(false);
     const [favVersion, setFavVersion] = useState(0);
     useEffect(() => {
         setSelectedByCustomerSummaryKeys(new Set());
@@ -305,6 +320,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const statusButtonRef = useRef<HTMLDivElement | null>(null);
     const typeButtonRef = useRef<HTMLDivElement | null>(null);
     const routeButtonRef = useRef<HTMLDivElement | null>(null);
+    const tariffsCustomerButtonRef = useRef<HTMLDivElement | null>(null);
+    const tariffsRouteButtonRef = useRef<HTMLDivElement | null>(null);
+    const tariffsTypeButtonRef = useRef<HTMLDivElement | null>(null);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
     const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -740,6 +758,35 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [sendingsItems]);
 
+    const uniqueTariffsRoutes = useMemo(() => {
+        const set = new Set<string>();
+        tariffsList.forEach((t) => {
+            const from = cityToCode(t.cityFrom || '') || (t.cityFrom || '');
+            const to = cityToCode(t.cityTo || '') || (t.cityTo || '');
+            const route = [from, to].filter(Boolean).join(' – ');
+            if (route) set.add(route);
+        });
+        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+    }, [tariffsList]);
+
+    const uniqueTariffsCustomers = useMemo(() => {
+        const set = new Set<string>();
+        tariffsList.forEach((t) => {
+            const customer = String(t.customerName || '').trim();
+            if (customer) set.add(customer);
+        });
+        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+    }, [tariffsList]);
+
+    const uniqueTariffsTypes = useMemo(() => {
+        const set = new Set<string>();
+        tariffsList.forEach((t) => {
+            const type = String(t.transportType || '').trim();
+            if (type) set.add(type);
+        });
+        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+    }, [tariffsList]);
+
     const toggleInvoiceFavorite = useCallback((invNum: string | undefined) => {
         if (!invNum) return;
         try {
@@ -858,6 +905,46 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         });
     }, [sendingsItems, effectiveActiveInn, customerFilter, typeFilter, routeFilter, routeFilterCargo, transportFilter, effectiveSearchText, sortBy, sortOrder]);
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
+    const filteredTariffs = useMemo(() => {
+        const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
+        const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
+        const list = tariffsList.filter((t) => {
+            if (t.isVet) return false;
+            if (effectiveServiceMode && tariffsCustomerFilter && String(t.customerName || '').trim() !== tariffsCustomerFilter) return false;
+            const route = [
+                cityToCode(t.cityFrom || '') || (t.cityFrom || ''),
+                cityToCode(t.cityTo || '') || (t.cityTo || ''),
+            ].filter(Boolean).join(' – ');
+            if (tariffsRouteFilter !== 'all' && route !== tariffsRouteFilter) return false;
+            if (tariffsTypeFilter !== 'all' && String(t.transportType || '').trim() !== tariffsTypeFilter) return false;
+            if (!t.docDate) return true;
+            const d = new Date(t.docDate);
+            return d >= fromDate && d <= toDate;
+        });
+
+        const getVal = (t: typeof tariffsList[number]) => {
+            switch (tariffsSortColumn) {
+                case "docDate": return t.docDate ? new Date(t.docDate).getTime() : 0;
+                case "docNumber": return t.docNumber || "";
+                case "customerName": return t.customerName || "";
+                case "cityFrom": return t.cityFrom || "";
+                case "cityTo": return t.cityTo || "";
+                case "transportType": return t.transportType || "";
+                case "dangerous": return t.isDangerous ? 1 : 0;
+                case "tariff": return Number(t.tariff ?? 0);
+                default: return "";
+            }
+        };
+
+        return [...list].sort((a, b) => {
+            const va = getVal(a);
+            const vb = getVal(b);
+            const cmp = typeof va === "number" && typeof vb === "number"
+                ? va - vb
+                : String(va).localeCompare(String(vb), 'ru', { numeric: true });
+            return tariffsSortOrder === "asc" ? cmp : -cmp;
+        });
+    }, [tariffsList, effectiveServiceMode, tariffsCustomerFilter, tariffsRouteFilter, tariffsTypeFilter, tariffsSortColumn, tariffsSortOrder, apiDateRange.dateFrom, apiDateRange.dateTo]);
     const getSendingStatusKey = useCallback((row: any): StatusFilter => {
         const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
         const firstParcel = Array.isArray(rawParcels)
@@ -1480,14 +1567,16 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         })}
                     </Flex>
                 </div>
-                {(docSection === 'Счета' || docSection === 'УПД' || docSection === 'Заявки' || docSection === 'Отправки') && (
+                {(docSection === 'Счета' || docSection === 'УПД' || docSection === 'Заявки' || docSection === 'Отправки' || docSection === 'Тарифы') && (
                 <div className="filters-container filters-row-scroll">
                     <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
-                        <Button className="filter-button" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={() => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); }} title={sortOrder === 'desc' ? 'Дата по убыванию' : 'Дата по возрастанию'}>
-                            {sortOrder === 'desc' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
-                        </Button>
+                        {docSection !== 'Тарифы' ? (
+                            <Button className="filter-button" style={{ padding: '0.5rem', minWidth: 'auto' }} onClick={() => { setSortBy('date'); setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); }} title={sortOrder === 'desc' ? 'Дата по убыванию' : 'Дата по возрастанию'}>
+                                {sortOrder === 'desc' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
+                            </Button>
+                        ) : null}
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
                                 Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8, 10)}.${r.dateFrom.slice(5, 7)} – ${r.dateTo.slice(8, 10)}.${r.dateTo.slice(5, 7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -1565,6 +1654,80 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 })
                             )}
                         </FilterDropdownPortal>
+                        {docSection === 'Тарифы' && (
+                            <>
+                                {effectiveServiceMode ? (
+                                    <>
+                                        <div ref={tariffsCustomerButtonRef} style={{ display: 'inline-flex' }}>
+                                            <Button className="filter-button" onClick={() => {
+                                                setIsTariffsCustomerDropdownOpen(!isTariffsCustomerDropdownOpen);
+                                                setIsTariffsRouteDropdownOpen(false);
+                                                setIsTariffsTypeDropdownOpen(false);
+                                                setIsDateDropdownOpen(false);
+                                            }}>
+                                                Заказчик: {tariffsCustomerFilter ? stripOoo(tariffsCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                                            </Button>
+                                        </div>
+                                        <FilterDropdownPortal triggerRef={tariffsCustomerButtonRef} isOpen={isTariffsCustomerDropdownOpen} onClose={() => { setIsTariffsCustomerDropdownOpen(false); setTariffsCustomerSearchQuery(''); }}>
+                                            <div className="dropdown-item" style={{ padding: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Поиск заказчика..."
+                                                    value={tariffsCustomerSearchQuery}
+                                                    onChange={(e) => setTariffsCustomerSearchQuery(e.target.value)}
+                                                    className="filter-search-input"
+                                                    style={{ width: '100%', padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid var(--color-border)', fontSize: '0.875rem', outline: 'none' }}
+                                                />
+                                            </div>
+                                            <div className="dropdown-item" onClick={() => { setTariffsCustomerFilter(''); setIsTariffsCustomerDropdownOpen(false); setTariffsCustomerSearchQuery(''); }}><Typography.Body>Все</Typography.Body></div>
+                                            {uniqueTariffsCustomers
+                                                .filter((c) => !tariffsCustomerSearchQuery.trim() || c.toLowerCase().includes(tariffsCustomerSearchQuery.trim().toLowerCase()))
+                                                .map((customer) => (
+                                                    <div key={customer} className="dropdown-item" onClick={() => { setTariffsCustomerFilter(customer); setIsTariffsCustomerDropdownOpen(false); setTariffsCustomerSearchQuery(''); }}>
+                                                        <Typography.Body>{stripOoo(customer)}</Typography.Body>
+                                                    </div>
+                                                ))}
+                                        </FilterDropdownPortal>
+                                    </>
+                                ) : null}
+                                <div ref={tariffsRouteButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => {
+                                        setIsTariffsRouteDropdownOpen(!isTariffsRouteDropdownOpen);
+                                        setIsTariffsCustomerDropdownOpen(false);
+                                        setIsTariffsTypeDropdownOpen(false);
+                                        setIsDateDropdownOpen(false);
+                                    }}>
+                                        Маршрут: {tariffsRouteFilter === 'all' ? 'Все' : tariffsRouteFilter} <ChevronDown className="w-4 h-4"/>
+                                    </Button>
+                                </div>
+                                <FilterDropdownPortal triggerRef={tariffsRouteButtonRef} isOpen={isTariffsRouteDropdownOpen} onClose={() => setIsTariffsRouteDropdownOpen(false)}>
+                                    <div className="dropdown-item" onClick={() => { setTariffsRouteFilter('all'); setIsTariffsRouteDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                                    {uniqueTariffsRoutes.map((route) => (
+                                        <div key={route} className="dropdown-item" onClick={() => { setTariffsRouteFilter(route); setIsTariffsRouteDropdownOpen(false); }}>
+                                            <Typography.Body>{route}</Typography.Body>
+                                        </div>
+                                    ))}
+                                </FilterDropdownPortal>
+                                <div ref={tariffsTypeButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => {
+                                        setIsTariffsTypeDropdownOpen(!isTariffsTypeDropdownOpen);
+                                        setIsTariffsCustomerDropdownOpen(false);
+                                        setIsTariffsRouteDropdownOpen(false);
+                                        setIsDateDropdownOpen(false);
+                                    }}>
+                                        Тип: {tariffsTypeFilter === 'all' ? 'Все' : tariffsTypeFilter} <ChevronDown className="w-4 h-4"/>
+                                    </Button>
+                                </div>
+                                <FilterDropdownPortal triggerRef={tariffsTypeButtonRef} isOpen={isTariffsTypeDropdownOpen} onClose={() => setIsTariffsTypeDropdownOpen(false)}>
+                                    <div className="dropdown-item" onClick={() => { setTariffsTypeFilter('all'); setIsTariffsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                                    {uniqueTariffsTypes.map((type) => (
+                                        <div key={type} className="dropdown-item" onClick={() => { setTariffsTypeFilter(type); setIsTariffsTypeDropdownOpen(false); }}>
+                                            <Typography.Body>{type}</Typography.Body>
+                                        </div>
+                                    ))}
+                                </FilterDropdownPortal>
+                            </>
+                        )}
                         {(docSection === 'Счета' || docSection === 'Заявки') && effectiveServiceMode && (
                             <>
                                 <div ref={customerButtonRef} style={{ display: 'inline-flex' }}>
@@ -3170,35 +3333,75 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <Typography.Body>Загрузка тарифов...</Typography.Body>
                         </Flex>
-                    ) : tariffsList.length === 0 ? (
+                    ) : filteredTariffs.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по тарифам</Typography.Body>
                     ) : (
                         <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Город отправления</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Город назначения</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Вид перевозки</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontWeight: 600 }}>ОГ</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontWeight: 600 }}>ВС</th>
-                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}>Тариф</th>
+                                        <th
+                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
+                                            onClick={() => { setTariffsSortColumn('docDate'); setTariffsSortOrder((o) => tariffsSortColumn === 'docDate' ? (o === 'asc' ? 'desc' : 'asc') : 'desc'); }}
+                                        >
+                                            Дата {tariffsSortColumn === 'docDate' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
+                                        </th>
+                                        <th
+                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
+                                            onClick={() => { setTariffsSortColumn('docNumber'); setTariffsSortOrder((o) => tariffsSortColumn === 'docNumber' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
+                                        >
+                                            Номер {tariffsSortColumn === 'docNumber' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
+                                        </th>
+                                        {effectiveServiceMode ? (
+                                            <th
+                                                style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
+                                                onClick={() => { setTariffsSortColumn('customerName'); setTariffsSortOrder((o) => tariffsSortColumn === 'customerName' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
+                                            >
+                                                Заказчик {tariffsSortColumn === 'customerName' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
+                                            </th>
+                                        ) : null}
+                                        <th
+                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
+                                            onClick={() => { setTariffsSortColumn('cityFrom'); setTariffsSortOrder((o) => tariffsSortColumn === 'cityFrom' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
+                                        >
+                                            Место отправления {tariffsSortColumn === 'cityFrom' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
+                                        </th>
+                                        <th
+                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
+                                            onClick={() => { setTariffsSortColumn('cityTo'); setTariffsSortOrder((o) => tariffsSortColumn === 'cityTo' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
+                                        >
+                                            Место назначения {tariffsSortColumn === 'cityTo' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
+                                        </th>
+                                        <th
+                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer' }}
+                                            onClick={() => { setTariffsSortColumn('transportType'); setTariffsSortOrder((o) => tariffsSortColumn === 'transportType' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
+                                        >
+                                            Тип {tariffsSortColumn === 'transportType' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
+                                        </th>
+                                        <th
+                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'center', fontWeight: 600, cursor: 'pointer' }}
+                                            onClick={() => { setTariffsSortColumn('dangerous'); setTariffsSortOrder((o) => tariffsSortColumn === 'dangerous' ? (o === 'asc' ? 'desc' : 'asc') : 'asc'); }}
+                                        >
+                                            ОГ {tariffsSortColumn === 'dangerous' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
+                                        </th>
+                                        <th
+                                            style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer' }}
+                                            onClick={() => { setTariffsSortColumn('tariff'); setTariffsSortOrder((o) => tariffsSortColumn === 'tariff' ? (o === 'asc' ? 'desc' : 'asc') : 'desc'); }}
+                                        >
+                                            Тариф {tariffsSortColumn === 'tariff' ? (tariffsSortOrder === 'asc' ? '↑' : '↓') : ''}
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {tariffsList.map((t) => (
+                                    {filteredTariffs.map((t) => (
                                         <tr key={t.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                             <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={t.docDate || undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{t.docNumber || '—'}</td>
-                                            <td style={{ padding: '0.5rem 0.75rem' }}>{t.customerName || '—'}</td>
+                                            {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{t.customerName || '—'}</td> : null}
                                             <td style={{ padding: '0.5rem 0.75rem' }}>{t.cityFrom || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem' }}>{t.cityTo || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem' }}>{t.transportType || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>{t.isDangerous ? 'Да' : 'Нет'}</td>
-                                            <td style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>{t.isVet ? 'Да' : 'Нет'}</td>
                                             <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                 {t.tariff != null ? formatCurrency(Number(t.tariff)) : '—'}
                                             </td>

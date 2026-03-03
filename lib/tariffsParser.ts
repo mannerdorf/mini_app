@@ -180,6 +180,8 @@ export function normalizeTariffs(raw: unknown): NormalizedTariff[] {
     const docDateRaw = getStr(el, DOC_DATE_KEYS);
     const transportTypeRaw = getStr(el, TRANSPORT_TYPE_KEYS);
     const isExcise = getBool(el, EXCISE_KEYS);
+    const vet = getBool(el, VET_KEYS);
+    if (vet) continue;
 
     out.push({
       docDate: docDateRaw || null,
@@ -190,7 +192,7 @@ export function normalizeTariffs(raw: unknown): NormalizedTariff[] {
       cityTo: getStr(el, CITY_TO_KEYS),
       transportType: isExcise ? "Паром" : transportTypeRaw,
       dangerous: getBool(el, DANGEROUS_KEYS),
-      vet: getBool(el, VET_KEYS),
+      vet,
       tariff,
       data: el,
     });
