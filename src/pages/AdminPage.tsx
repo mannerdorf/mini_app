@@ -293,7 +293,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "tariffs" | "sverki" | "dogovors" | "audit" | "logs" | "integrations" | "employee_directory" | "subdivisions" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "pnl">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "tariffs" | "sverki" | "dogovors" | "audit" | "logs" | "integrations" | "employee_directory" | "subdivisions" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "claims" | "pnl">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -435,6 +435,31 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }[]>([]);
   const [sverkiRequestsLoading, setSverkiRequestsLoading] = useState(false);
   const [sverkiRequestsUpdatingId, setSverkiRequestsUpdatingId] = useState<number | null>(null);
+  const [adminClaims, setAdminClaims] = useState<{
+    id: number;
+    claimNumber: string;
+    customerCompanyName: string;
+    customerInn: string;
+    cargoNumber: string;
+    description: string;
+    requestedAmount: number | null;
+    approvedAmount: number | null;
+    status: string;
+    daysInWork: number;
+    createdAt: string;
+  }[]>([]);
+  const [adminClaimsLoading, setAdminClaimsLoading] = useState(false);
+  const [adminClaimsStatusFilter, setAdminClaimsStatusFilter] = useState<string>("");
+  const [adminClaimsSearch, setAdminClaimsSearch] = useState<string>("");
+  const [adminClaimsUpdatingId, setAdminClaimsUpdatingId] = useState<number | null>(null);
+  const [adminClaimsView, setAdminClaimsView] = useState<"new" | "in_progress" | "all">("new");
+  const [adminClaimsKpi, setAdminClaimsKpi] = useState<{ activeCount: number; overdueCount: number; requestedSum: number; approvedSum: number } | null>(null);
+  const [adminClaimsChart, setAdminClaimsChart] = useState<{ day: string; count: number }[]>([]);
+  const [adminClaimDetailId, setAdminClaimDetailId] = useState<number | null>(null);
+  const [adminClaimDetailLoading, setAdminClaimDetailLoading] = useState(false);
+  const [adminClaimDetail, setAdminClaimDetail] = useState<any | null>(null);
+  const [adminClaimNoteDraft, setAdminClaimNoteDraft] = useState("");
+  const [adminClaimApprovedAmountDraft, setAdminClaimApprovedAmountDraft] = useState("");
   const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
   const [autoRegisterCandidates, setAutoRegisterCandidates] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [autoRegisterStats, setAutoRegisterStats] = useState<{ total: number; withEmail: number; validEmail: number; alreadyRegistered: number } | null>(null);
@@ -1710,7 +1735,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken]);
 
   useEffect(() => {
-    if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "pnl")) setTab("users");
+    if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "claims" || tab === "pnl")) setTab("users");
   }, [isSuperAdmin, tab]);
 
   const reloadAllExpenseRequests = useCallback(async () => {
@@ -1768,6 +1793,43 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if (tab === "accounting" && isSuperAdmin) reloadSverkiRequests();
   }, [tab, isSuperAdmin, reloadSverkiRequests]);
 
+  const reloadAdminClaims = useCallback(async () => {
+    if (!adminToken || !isSuperAdmin) {
+      setAdminClaims([]);
+      return;
+    }
+    setAdminClaimsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      const viewStatus = adminClaimsView === "new"
+        ? "new"
+        : adminClaimsView === "in_progress"
+          ? "in_progress"
+          : "";
+      const effectiveStatus = adminClaimsStatusFilter || viewStatus;
+      if (effectiveStatus) params.set("status", effectiveStatus);
+      if (adminClaimsSearch.trim()) params.set("q", adminClaimsSearch.trim());
+      const res = await fetch(`/api/admin-claims${params.toString() ? `?${params.toString()}` : ""}`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Ошибка загрузки претензий");
+      setAdminClaims(Array.isArray(data?.claims) ? data.claims : []);
+      setAdminClaimsKpi(data?.kpi || null);
+      setAdminClaimsChart(Array.isArray(data?.chart) ? data.chart : []);
+    } catch {
+      setAdminClaims([]);
+      setAdminClaimsKpi(null);
+      setAdminClaimsChart([]);
+    } finally {
+      setAdminClaimsLoading(false);
+    }
+  }, [adminToken, isSuperAdmin, adminClaimsStatusFilter, adminClaimsSearch, adminClaimsView]);
+
+  useEffect(() => {
+    if ((tab === "accounting" || tab === "claims") && isSuperAdmin) reloadAdminClaims();
+  }, [tab, isSuperAdmin, reloadAdminClaims]);
+
   const loadPnlExpenseCategoryLinks = useCallback(async () => {
     try {
       const res = await fetch("/api/pnl-expense-categories");
@@ -1787,7 +1849,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, []);
 
   useEffect(() => {
-    if ((tab === "expense_requests" || tab === "accounting") && isSuperAdmin) loadPnlExpenseCategoryLinks();
+    if ((tab === "expense_requests" || tab === "accounting" || tab === "claims") && isSuperAdmin) loadPnlExpenseCategoryLinks();
   }, [tab, isSuperAdmin, loadPnlExpenseCategoryLinks]);
 
   const markSverkiRequestAsSent = useCallback(async (id: number) => {
@@ -1811,6 +1873,73 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setSverkiRequestsUpdatingId(null);
     }
   }, [adminToken]);
+
+  const updateAdminClaimStatus = useCallback(async (
+    id: number,
+    status: string,
+    approvedAmount?: number | null,
+    extras?: { expertLogin?: string; managerNote?: string; leaderComment?: string; accountantLogin?: string }
+  ) => {
+    if (!adminToken) return;
+    setAdminClaimsUpdatingId(id);
+    try {
+      const res = await fetch("/api/admin-claim-update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          claimId: id,
+          status,
+          approvedAmount: approvedAmount != null ? approvedAmount : undefined,
+          expertLogin: extras?.expertLogin || undefined,
+          managerNote: extras?.managerNote || undefined,
+          leaderComment: extras?.leaderComment || undefined,
+          accountantLogin: extras?.accountantLogin || undefined,
+          enqueuePush: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Ошибка обновления претензии");
+      reloadAdminClaims();
+    } catch (e: unknown) {
+      setError((e as Error)?.message || "Ошибка обновления претензии");
+    } finally {
+      setAdminClaimsUpdatingId(null);
+    }
+  }, [adminToken, reloadAdminClaims]);
+
+  useEffect(() => {
+    if (!adminClaimDetailId || !adminToken) {
+      setAdminClaimDetail(null);
+      return;
+    }
+    let cancelled = false;
+    setAdminClaimDetailLoading(true);
+    fetch(`/api/admin-claim-detail?id=${adminClaimDetailId}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => {
+        if (cancelled) return;
+        setAdminClaimDetail(data || null);
+        const claim = data?.claim || {};
+        setAdminClaimNoteDraft(String(claim?.managerNote || ""));
+        setAdminClaimApprovedAmountDraft(claim?.approvedAmount != null ? String(claim.approvedAmount) : "");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAdminClaimDetail(null);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setAdminClaimDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [adminClaimDetailId, adminToken]);
 
   const updateExpenseStatus = useCallback(async (itemId: string, itemLogin: string, newStatus: string, rejectReason?: string, fullItem?: ExpenseRequestItem & { login: string }) => {
     const storageKey = `haulz.expense_requests.${itemLogin}`;
@@ -2193,7 +2322,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       fetchEmployeeDirectory();
       fetchEmployeeDepartments();
     }
-    if ((tab === "expense_requests" || tab === "accounting") && isSuperAdmin) {
+    if ((tab === "expense_requests" || tab === "accounting" || tab === "claims") && isSuperAdmin) {
       fetchEmployeeDirectory();
     }
   }, [tab, isSuperAdmin, fetchEmployeeDirectory, fetchEmployeeDepartments]);
@@ -2683,6 +2812,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <ClipboardList className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Заявки на расходы
+          </Button>
+        )}
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={{ background: tab === "claims" ? "#f97316" : undefined, color: tab === "claims" ? "white" : undefined }}
+            onClick={() => setTab("claims")}
+          >
+            <ClipboardList className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Претензии
           </Button>
         )}
         {isSuperAdmin && (
@@ -8237,6 +8376,503 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           </Panel>
         );
       })()}
+
+      {(tab === "accounting" || tab === "claims") && isSuperAdmin && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginTop: "1rem" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
+            {tab === "accounting" ? "Претензии (финансовый контур)" : "Претензии (менеджер / руководитель)"}
+          </Typography.Body>
+          <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+            <Button
+              type="button"
+              className="filter-button"
+              style={{ background: adminClaimsView === "new" ? "var(--color-primary-blue)" : undefined, color: adminClaimsView === "new" ? "white" : undefined }}
+              onClick={() => { setAdminClaimsView("new"); setAdminClaimsStatusFilter(""); }}
+            >
+              Новые
+            </Button>
+            <Button
+              type="button"
+              className="filter-button"
+              style={{ background: adminClaimsView === "in_progress" ? "var(--color-primary-blue)" : undefined, color: adminClaimsView === "in_progress" ? "white" : undefined }}
+              onClick={() => { setAdminClaimsView("in_progress"); setAdminClaimsStatusFilter(""); }}
+            >
+              В работе
+            </Button>
+            <Button
+              type="button"
+              className="filter-button"
+              style={{ background: adminClaimsView === "all" ? "var(--color-primary-blue)" : undefined, color: adminClaimsView === "all" ? "white" : undefined }}
+              onClick={() => setAdminClaimsView("all")}
+            >
+              Все
+            </Button>
+          </Flex>
+          {adminClaimsKpi && (
+            <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+              <div className="cargo-card" style={{ padding: "0.45rem 0.65rem", minWidth: 130 }}>
+                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Активные</Typography.Body>
+                <Typography.Body style={{ fontWeight: 700 }}>{Number(adminClaimsKpi.activeCount || 0)}</Typography.Body>
+              </div>
+              <div className="cargo-card" style={{ padding: "0.45rem 0.65rem", minWidth: 130 }}>
+                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Просроченные</Typography.Body>
+                <Typography.Body style={{ fontWeight: 700, color: Number(adminClaimsKpi.overdueCount || 0) > 0 ? "#ef4444" : undefined }}>{Number(adminClaimsKpi.overdueCount || 0)}</Typography.Body>
+              </div>
+              <div className="cargo-card" style={{ padding: "0.45rem 0.65rem", minWidth: 170 }}>
+                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Сумма требований</Typography.Body>
+                <Typography.Body style={{ fontWeight: 700 }}>{Number(adminClaimsKpi.requestedSum || 0).toLocaleString("ru-RU")} ₽</Typography.Body>
+              </div>
+              <div className="cargo-card" style={{ padding: "0.45rem 0.65rem", minWidth: 190 }}>
+                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Сумма одобренных</Typography.Body>
+                <Typography.Body style={{ fontWeight: 700 }}>{Number(adminClaimsKpi.approvedSum || 0).toLocaleString("ru-RU")} ₽</Typography.Body>
+              </div>
+            </Flex>
+          )}
+          {adminClaimsChart.length > 0 && (
+            <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.6rem 0.7rem" }}>
+              <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.3rem" }}>
+                Динамика за 30 дней
+              </Typography.Body>
+              <Flex gap="0.4rem" wrap="wrap">
+                {adminClaimsChart.slice(-14).map((p) => (
+                  <span key={p.day} style={{ fontSize: "0.72rem", padding: "0.12rem 0.42rem", borderRadius: 999, background: "var(--color-bg-hover)", border: "1px solid var(--color-border)" }}>
+                    {String(p.day).slice(5)}: {Number(p.count || 0)}
+                  </span>
+                ))}
+              </Flex>
+            </div>
+          )}
+          <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "0.75rem" }}>
+            <Input
+              type="text"
+              className="admin-form-input"
+              placeholder="Поиск: номер претензии / перевозка / заказчик"
+              value={adminClaimsSearch}
+              onChange={(e) => setAdminClaimsSearch(e.target.value)}
+              style={{ minWidth: 280, maxWidth: 420 }}
+            />
+            <select
+              className="admin-form-input"
+              value={adminClaimsStatusFilter}
+              onChange={(e) => { setAdminClaimsView("all"); setAdminClaimsStatusFilter(e.target.value); }}
+              style={{ padding: "0.35rem 0.5rem", height: 36, minWidth: 210 }}
+            >
+              <option value="">Все статусы</option>
+              <option value="new">Новая</option>
+              <option value="under_review">На рассмотрении</option>
+              <option value="waiting_docs">Ожидает документы</option>
+              <option value="in_progress">В работе</option>
+              <option value="awaiting_leader">Ожидает решения руководителя</option>
+              <option value="sent_to_accounting">Передана в бухгалтерию</option>
+              <option value="approved">Удовлетворена</option>
+              <option value="paid">Выплачено</option>
+              <option value="offset">Зачтено</option>
+              <option value="rejected">Отказ</option>
+            </select>
+            <Button type="button" className="filter-button" onClick={() => reloadAdminClaims()} disabled={adminClaimsLoading}>
+              {adminClaimsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Обновить"}
+            </Button>
+          </Flex>
+          {adminClaimsLoading ? (
+            <Flex align="center" gap="0.5rem">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка претензий...</Typography.Body>
+            </Flex>
+          ) : adminClaims.length === 0 ? (
+            <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+              Претензий не найдено
+            </Typography.Body>
+          ) : (
+            <div style={{ maxHeight: 360, overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                <thead>
+                  <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Претензия</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Заказчик</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Перевозка</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Сумма</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Статус</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Дней</th>
+                    <th style={{ textAlign: "left", padding: "6px 8px" }}>Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminClaims.map((c) => (
+                    <tr key={c.id} style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }} onClick={() => setAdminClaimDetailId(c.id)}>
+                      <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c.claimNumber || `#${c.id}`}</td>
+                      <td style={{ padding: "6px 8px" }}>{c.customerCompanyName || c.customerInn || "—"}</td>
+                      <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c.cargoNumber || "—"}</td>
+                      <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
+                        {c.approvedAmount != null ? `${Number(c.approvedAmount).toLocaleString("ru-RU")} ₽` : c.requestedAmount != null ? `${Number(c.requestedAmount).toLocaleString("ru-RU")} ₽` : "—"}
+                      </td>
+                      <td style={{ padding: "6px 8px" }}>
+                        <span style={{ fontSize: "0.72rem", padding: "0.12rem 0.45rem", borderRadius: 999, background: c.status === "rejected" ? "rgba(239,68,68,0.15)" : c.status === "approved" || c.status === "paid" || c.status === "offset" ? "rgba(16,185,129,0.15)" : "rgba(59,130,246,0.15)", color: c.status === "rejected" ? "#ef4444" : c.status === "approved" || c.status === "paid" || c.status === "offset" ? "#10b981" : "#3b82f6", whiteSpace: "nowrap" }}>
+                          {c.status || "—"}
+                        </span>
+                      </td>
+                      <td style={{ padding: "6px 8px", whiteSpace: "nowrap", color: c.daysInWork > 10 ? "#ef4444" : undefined }}>{c.daysInWork}</td>
+                      <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
+                        <Flex gap="0.25rem" wrap="wrap">
+                          {(c.status === "approved" || c.status === "sent_to_accounting") && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); updateAdminClaimStatus(c.id, "paid", c.approvedAmount); }}
+                              disabled={adminClaimsUpdatingId === c.id}
+                              style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}
+                            >
+                              Оплачено
+                            </button>
+                          )}
+                          {(c.status === "approved" || c.status === "sent_to_accounting") && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); updateAdminClaimStatus(c.id, "offset", c.approvedAmount); }}
+                              disabled={adminClaimsUpdatingId === c.id}
+                              style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #10b981", background: "transparent", color: "#10b981", cursor: "pointer" }}
+                            >
+                              Зачтено
+                            </button>
+                          )}
+                          {c.status !== "rejected" && c.status !== "paid" && c.status !== "offset" && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); updateAdminClaimStatus(c.id, "rejected"); }}
+                              disabled={adminClaimsUpdatingId === c.id}
+                              style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}
+                            >
+                              Отказ
+                            </button>
+                          )}
+                        </Flex>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      )}
+
+      {adminClaimDetailId && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setAdminClaimDetailId(null)}
+        >
+          <div
+            style={{ width: "94%", maxWidth: 820, maxHeight: "90vh", overflowY: "auto", borderRadius: 12, background: "var(--color-bg-card, #fff)", padding: "1rem" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Flex align="center" justify="space-between" style={{ marginBottom: "0.65rem" }}>
+              <Typography.Body style={{ fontWeight: 700 }}>
+                Претензия {adminClaimDetail?.claim?.claimNumber || `#${adminClaimDetailId}`}
+              </Typography.Body>
+              <Button type="button" className="filter-button" onClick={() => setAdminClaimDetailId(null)}>Закрыть</Button>
+            </Flex>
+            {adminClaimDetailLoading ? (
+              <Flex align="center" gap="0.5rem">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <Typography.Body>Загрузка карточки...</Typography.Body>
+              </Flex>
+            ) : !adminClaimDetail?.claim ? (
+              <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Данные не загружены</Typography.Body>
+            ) : (
+              <>
+                <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
+                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Данные клиента и претензии</Typography.Body>
+                  <Typography.Body style={{ fontSize: "0.85rem" }}>Заказчик: {adminClaimDetail.claim.customerCompanyName || "—"} ({adminClaimDetail.claim.customerInn || "—"})</Typography.Body>
+                  <Typography.Body style={{ fontSize: "0.85rem" }}>Телефон: {adminClaimDetail.claim.customerPhone || "—"} | Email: {adminClaimDetail.claim.customerEmail || "—"}</Typography.Body>
+                  <Typography.Body style={{ fontSize: "0.85rem" }}>Перевозка: {adminClaimDetail.claim.cargoNumber || "—"} | Статус: {adminClaimDetail.claim.status || "—"}</Typography.Body>
+                  <Typography.Body style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>{adminClaimDetail.claim.description || "—"}</Typography.Body>
+                </div>
+
+                <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
+                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Вложения</Typography.Body>
+                  <Typography.Body style={{ fontSize: "0.82rem" }}>
+                    Фото: {Array.isArray(adminClaimDetail.photos) ? adminClaimDetail.photos.length : 0} |
+                    PDF: {Array.isArray(adminClaimDetail.documents) ? adminClaimDetail.documents.length : 0} |
+                    Видео-ссылки: {Array.isArray(adminClaimDetail.videoLinks) ? adminClaimDetail.videoLinks.length : 0}
+                  </Typography.Body>
+                  {Array.isArray(adminClaimDetail.photos) && adminClaimDetail.photos.length > 0 && (
+                    <div style={{ marginTop: "0.45rem" }}>
+                      <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>Фото</Typography.Body>
+                      <Flex gap="0.45rem" wrap="wrap">
+                        {adminClaimDetail.photos.slice(0, 12).map((p: any) => {
+                          const mime = String(p?.mimeType || "image/jpeg");
+                          const src = p?.base64 ? `data:${mime};base64,${p.base64}` : "";
+                          return (
+                            <a key={p.id} href={src || "#"} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+                              <img
+                                src={src}
+                                alt={String(p?.caption || p?.fileName || "Фото")}
+                                style={{ width: 88, height: 88, objectFit: "cover", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-bg-hover)" }}
+                              />
+                            </a>
+                          );
+                        })}
+                      </Flex>
+                    </div>
+                  )}
+                  {Array.isArray(adminClaimDetail.documents) && adminClaimDetail.documents.length > 0 && (
+                    <div style={{ marginTop: "0.55rem" }}>
+                      <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>PDF</Typography.Body>
+                      <Flex gap="0.35rem" wrap="wrap">
+                        {adminClaimDetail.documents.map((d: any) => {
+                          const mime = String(d?.mimeType || "application/pdf");
+                          const href = d?.base64 ? `data:${mime};base64,${d.base64}` : "#";
+                          return (
+                            <a
+                              key={d.id}
+                              href={href}
+                              download={String(d?.fileName || "document.pdf")}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ fontSize: "0.74rem", padding: "0.14rem 0.45rem", borderRadius: 999, border: "1px solid var(--color-border)", background: "var(--color-bg-hover)", color: "inherit", textDecoration: "none" }}
+                            >
+                              {String(d?.fileName || "Документ")}
+                            </a>
+                          );
+                        })}
+                      </Flex>
+                    </div>
+                  )}
+                  {Array.isArray(adminClaimDetail.videoLinks) && adminClaimDetail.videoLinks.length > 0 && (
+                    <div style={{ marginTop: "0.55rem" }}>
+                      <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>Видео-ссылки</Typography.Body>
+                      <div style={{ display: "grid", gap: "0.2rem" }}>
+                        {adminClaimDetail.videoLinks.map((v: any) => (
+                          <a key={v.id} href={String(v?.url || "#")} target="_blank" rel="noreferrer" style={{ fontSize: "0.78rem", color: "var(--color-primary-blue)" }}>
+                            {String(v?.title || v?.url || "Ссылка на видео")}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
+                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Сверка с ТТН в заявках</Typography.Body>
+                  {(() => {
+                    const check = adminClaimDetail?.ttnCheck || {};
+                    const badge = (ok: boolean, yes: string, no: string) => (
+                      <span style={{
+                        fontSize: "0.72rem",
+                        padding: "0.12rem 0.45rem",
+                        borderRadius: 999,
+                        fontWeight: 600,
+                        background: ok ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)",
+                        color: ok ? "#10b981" : "#ef4444",
+                        whiteSpace: "nowrap",
+                      }}>
+                        {ok ? yes : no}
+                      </span>
+                    );
+                    return (
+                      <Flex gap="0.45rem" wrap="wrap" align="center">
+                        {badge(Boolean(check.orderFound), "Заявка найдена", "Заявка не найдена")}
+                        {badge(Boolean(check.sendingFound), "Отправка найдена", "Отправка не найдена")}
+                        {badge(Boolean(check.ttnFound), "ТТН/CMR указаны", "ТТН/CMR не найдены")}
+                        {badge(Boolean(check.damageMarksFound), "Есть отметки о повреждении", "Отметок о повреждении нет")}
+                      </Flex>
+                    );
+                  })()}
+                </div>
+
+                <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
+                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Обработка</Typography.Body>
+                  <Flex gap="0.45rem" wrap="wrap" style={{ marginBottom: "0.45rem" }}>
+                    <Input
+                      type="text"
+                      className="admin-form-input"
+                      placeholder="Логин эксперта"
+                      value={String(adminClaimDetail?.claim?.expertLogin || "")}
+                      onChange={(e) => setAdminClaimDetail((prev: any) => ({ ...prev, claim: { ...prev.claim, expertLogin: e.target.value } }))}
+                      style={{ maxWidth: 220 }}
+                    />
+                    <Button
+                      type="button"
+                      className="filter-button"
+                      onClick={() => updateAdminClaimStatus(
+                        adminClaimDetail.claim.id,
+                        "in_progress",
+                        Number(adminClaimApprovedAmountDraft || 0),
+                        { expertLogin: String(adminClaimDetail?.claim?.expertLogin || "").trim(), managerNote: adminClaimNoteDraft.trim() }
+                      )}
+                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                    >
+                      В работу
+                    </Button>
+                    <Button
+                      type="button"
+                      className="filter-button"
+                      onClick={() => updateAdminClaimStatus(
+                        adminClaimDetail.claim.id,
+                        "waiting_docs",
+                        Number(adminClaimApprovedAmountDraft || 0),
+                        { managerNote: adminClaimNoteDraft.trim() }
+                      )}
+                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                    >
+                      Запросить документы
+                    </Button>
+                    <Button
+                      type="button"
+                      className="filter-button"
+                      onClick={() => updateAdminClaimStatus(
+                        adminClaimDetail.claim.id,
+                        "awaiting_leader",
+                        Number(adminClaimApprovedAmountDraft || 0),
+                        { leaderComment: adminClaimNoteDraft.trim(), expertLogin: String(adminClaimDetail?.claim?.expertLogin || "").trim() }
+                      )}
+                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                    >
+                      Передать руководителю
+                    </Button>
+                    <Button
+                      type="button"
+                      className="filter-button"
+                      onClick={() => updateAdminClaimStatus(
+                        adminClaimDetail.claim.id,
+                        "sent_to_accounting",
+                        Number(adminClaimApprovedAmountDraft || 0),
+                        { accountantLogin: "accounting", managerNote: adminClaimNoteDraft.trim() }
+                      )}
+                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                    >
+                      Передать бухгалтеру
+                    </Button>
+                  </Flex>
+                  <Flex gap="0.45rem" wrap="wrap" align="center">
+                    <Input
+                      type="number"
+                      className="admin-form-input"
+                      placeholder="Одобренная сумма"
+                      value={adminClaimApprovedAmountDraft}
+                      onChange={(e) => setAdminClaimApprovedAmountDraft(e.target.value)}
+                      style={{ maxWidth: 200 }}
+                    />
+                    <Button
+                      type="button"
+                      className="filter-button"
+                      style={{ background: "#10b981", color: "white" }}
+                      onClick={() => updateAdminClaimStatus(
+                        adminClaimDetail.claim.id,
+                        "approved",
+                        Number(adminClaimApprovedAmountDraft || 0),
+                        { managerNote: adminClaimNoteDraft.trim(), leaderComment: adminClaimNoteDraft.trim() }
+                      )}
+                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                    >
+                      Утвердить решение
+                    </Button>
+                    <Button
+                      type="button"
+                      className="filter-button"
+                      style={{ background: "#ef4444", color: "white" }}
+                      onClick={() => updateAdminClaimStatus(
+                        adminClaimDetail.claim.id,
+                        "rejected",
+                        Number(adminClaimApprovedAmountDraft || 0),
+                        { managerNote: adminClaimNoteDraft.trim(), leaderComment: adminClaimNoteDraft.trim() }
+                      )}
+                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                    >
+                      Отказать
+                    </Button>
+                  </Flex>
+                  <div style={{ marginTop: "0.55rem" }}>
+                    <textarea
+                      className="admin-form-input"
+                      rows={3}
+                      placeholder="Служебная заметка менеджера/руководителя"
+                      value={adminClaimNoteDraft}
+                      onChange={(e) => setAdminClaimNoteDraft(e.target.value)}
+                      style={{ width: "100%" }}
+                    />
+                    <Flex justify="flex-end" style={{ marginTop: "0.35rem" }}>
+                      <Button
+                        type="button"
+                        className="filter-button"
+                        onClick={() => updateAdminClaimStatus(
+                          adminClaimDetail.claim.id,
+                          String(adminClaimDetail.claim.status || "in_progress"),
+                          Number(adminClaimApprovedAmountDraft || 0),
+                          { managerNote: adminClaimNoteDraft.trim(), expertLogin: String(adminClaimDetail?.claim?.expertLogin || "").trim() }
+                        )}
+                        disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                      >
+                        Сохранить заметки
+                      </Button>
+                    </Flex>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
+                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Резолюция руководителя</Typography.Body>
+                  <Flex gap="0.45rem" wrap="wrap" align="center">
+                    <Button
+                      type="button"
+                      className="filter-button"
+                      style={{ background: "#10b981", color: "white" }}
+                      onClick={() => updateAdminClaimStatus(
+                        adminClaimDetail.claim.id,
+                        "approved",
+                        Number(adminClaimApprovedAmountDraft || 0),
+                        { leaderComment: adminClaimNoteDraft.trim() }
+                      )}
+                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                    >
+                      Утвердить решение менеджера
+                    </Button>
+                    <Button
+                      type="button"
+                      className="filter-button"
+                      style={{ background: "#f59e0b", color: "white" }}
+                      onClick={() => updateAdminClaimStatus(
+                        adminClaimDetail.claim.id,
+                        "in_progress",
+                        Number(adminClaimApprovedAmountDraft || 0),
+                        { leaderComment: `Отменено руководителем: ${adminClaimNoteDraft.trim()}`.trim() }
+                      )}
+                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                    >
+                      Отменить решение менеджера
+                    </Button>
+                    <Button
+                      type="button"
+                      className="filter-button"
+                      onClick={() => updateAdminClaimStatus(
+                        adminClaimDetail.claim.id,
+                        "waiting_docs",
+                        Number(adminClaimApprovedAmountDraft || 0),
+                        { leaderComment: `На доработку: ${adminClaimNoteDraft.trim()}`.trim() }
+                      )}
+                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                    >
+                      Отправить на доработку
+                    </Button>
+                  </Flex>
+                </div>
+
+                <div style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
+                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Хронология</Typography.Body>
+                  {Array.isArray(adminClaimDetail.events) && adminClaimDetail.events.length > 0 ? (
+                    <div style={{ display: "grid", gap: "0.3rem" }}>
+                      {adminClaimDetail.events.slice(-20).reverse().map((ev: any) => (
+                        <Typography.Body key={ev.id} style={{ fontSize: "0.8rem" }}>
+                          {new Date(ev.createdAt).toLocaleString("ru-RU")} — {ev.eventType} {ev.toStatus ? `→ ${ev.toStatus}` : ""}
+                        </Typography.Body>
+                      ))}
+                    </div>
+                  ) : (
+                    <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Событий пока нет</Typography.Body>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <CustomerPickModal
         isOpen={customerPickModalOpen}

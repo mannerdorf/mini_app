@@ -43,6 +43,50 @@ import { DocumentsSummaryCard, DocumentsStateBlocks } from "./documentsViewBlock
 
 const INVOICE_STATUS_OPTIONS = ['Оплачен', 'Не оплачен', 'Оплачен частично'] as const;
 
+type ClaimStatusKey =
+    | 'draft'
+    | 'new'
+    | 'under_review'
+    | 'waiting_docs'
+    | 'in_progress'
+    | 'awaiting_leader'
+    | 'sent_to_accounting'
+    | 'approved'
+    | 'rejected'
+    | 'paid'
+    | 'offset'
+    | 'closed';
+
+const CLAIM_STATUS_LABELS: Record<ClaimStatusKey, string> = {
+    draft: 'Черновик',
+    new: 'Новая',
+    under_review: 'На рассмотрении',
+    waiting_docs: 'Ожидает документы',
+    in_progress: 'В работе',
+    awaiting_leader: 'Ожидает решения руководителя',
+    sent_to_accounting: 'Передана в бухгалтерию',
+    approved: 'Удовлетворена',
+    rejected: 'Отказ',
+    paid: 'Выплачено',
+    offset: 'Зачтено',
+    closed: 'Закрыта',
+};
+
+const CLAIM_STATUS_BADGE: Record<ClaimStatusKey, { bg: string; color: string }> = {
+    draft: { bg: 'rgba(107,114,128,0.15)', color: '#6b7280' },
+    new: { bg: 'rgba(107,114,128,0.15)', color: '#6b7280' },
+    under_review: { bg: 'rgba(245,158,11,0.18)', color: '#b45309' },
+    waiting_docs: { bg: 'rgba(245,158,11,0.18)', color: '#b45309' },
+    in_progress: { bg: 'rgba(59,130,246,0.15)', color: '#2563eb' },
+    awaiting_leader: { bg: 'rgba(59,130,246,0.15)', color: '#2563eb' },
+    sent_to_accounting: { bg: 'rgba(59,130,246,0.15)', color: '#2563eb' },
+    approved: { bg: 'rgba(16,185,129,0.15)', color: '#059669' },
+    paid: { bg: 'rgba(16,185,129,0.15)', color: '#059669' },
+    offset: { bg: 'rgba(16,185,129,0.15)', color: '#059669' },
+    rejected: { bg: 'rgba(239,68,68,0.15)', color: '#dc2626' },
+    closed: { bg: 'rgba(107,114,128,0.15)', color: '#6b7280' },
+};
+
 type DocSectionKey = 'Счета' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
 const DOC_SECTIONS: { key: DocSectionKey; label: string }[] = [
     { key: 'Счета', label: 'Счета' },
@@ -189,6 +233,30 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         title: string;
     }[]>([]);
     const [dogovorsLoading, setDogovorsLoading] = useState(false);
+    const [claimsList, setClaimsList] = useState<{
+        id: number;
+        claimNumber: string;
+        cargoNumber: string;
+        claimType: string;
+        description: string;
+        requestedAmount: number | null;
+        approvedAmount: number | null;
+        status: ClaimStatusKey;
+        createdAt: string;
+        updatedAt: string;
+    }[]>([]);
+    const [claimsLoading, setClaimsLoading] = useState(false);
+    const [claimsStatusFilter, setClaimsStatusFilter] = useState<string>('all');
+    const [claimsCreateOpen, setClaimsCreateOpen] = useState(false);
+    const [claimsCreateSubmitting, setClaimsCreateSubmitting] = useState(false);
+    const [claimsCreateError, setClaimsCreateError] = useState<string | null>(null);
+    const [claimsCreateCargoNumber, setClaimsCreateCargoNumber] = useState('');
+    const [claimsCreateType, setClaimsCreateType] = useState<'cargo_damage' | 'quantity_mismatch' | 'cargo_loss' | 'other'>('cargo_damage');
+    const [claimsCreateDescription, setClaimsCreateDescription] = useState('');
+    const [claimsCreateAmount, setClaimsCreateAmount] = useState('');
+    const [claimsCreatePhone, setClaimsCreatePhone] = useState('');
+    const [claimsCreateEmail, setClaimsCreateEmail] = useState('');
+    const [claimsCreateVideoLink, setClaimsCreateVideoLink] = useState('');
     const [sverkiRequests, setSverkiRequests] = useState<{
         id: number;
         customerInn: string;
@@ -303,6 +371,28 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             .catch(() => setDogovorsList([]))
             .finally(() => setDogovorsLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
+    useEffect(() => {
+        if (docSection !== 'Претензии' || !auth?.login || !auth?.password) {
+            setClaimsList([]);
+            return;
+        }
+        setClaimsLoading(true);
+        const params = new URLSearchParams();
+        if (claimsStatusFilter !== 'all') params.set('status', claimsStatusFilter);
+        fetch(`/api/claims${params.toString() ? `?${params.toString()}` : ''}`, {
+            method: 'GET',
+            headers: {
+                'x-login': auth.login,
+                'x-password': auth.password,
+            },
+        })
+            .then((res) => res.json().catch(() => ({})))
+            .then((data: { claims?: any[] }) => {
+                setClaimsList(Array.isArray(data?.claims) ? (data.claims as any[]) : []);
+            })
+            .catch(() => setClaimsList([]))
+            .finally(() => setClaimsLoading(false));
+    }, [docSection, auth?.login, auth?.password, claimsStatusFilter]);
     useEffect(() => {
         if (docSection !== 'Акты сверок' || !effectiveActiveInn || !auth?.login || !auth?.password) {
             setSverkiRequests([]);
@@ -835,6 +925,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         () => [...new Set(dogovorsList.map((row) => String(row.customerName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
         [dogovorsList]
     );
+    const claimCargoOptions = useMemo(() => {
+        const set = new Set<string>();
+        (sendingsItems || []).forEach((item: any) => {
+            const number = String(item?.Number ?? item?.number ?? item?.Номер ?? item?.CargoNumber ?? '').trim();
+            if (number) set.add(number);
+        });
+        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+    }, [sendingsItems]);
 
     const uniqueEdoStatuses = useMemo(() => {
         const set = new Set<string>();
@@ -1108,6 +1206,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return d >= fromDate && d <= toDate;
         });
     }, [dogovorsList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, dogovorsCustomerFilter]);
+    const filteredClaims = useMemo(() => {
+        const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
+        const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
+        return claimsList.filter((row) => {
+            if (!row.createdAt) return true;
+            const d = new Date(row.createdAt);
+            return d >= fromDate && d <= toDate;
+        });
+    }, [claimsList, apiDateRange.dateFrom, apiDateRange.dateTo]);
     const latestSverkiRequest = useMemo(() => sverkiRequests[0] || null, [sverkiRequests]);
     const sverkiStatusBadge = useMemo(() => {
         if (!latestSverkiRequest) return null;
@@ -2049,7 +2156,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         </FilterDropdownPortal>
                         </>
                         )}
-                        {(((effectiveServiceMode && docSection !== 'Заявки' && docSection !== 'Акты сверок' && docSection !== 'Договоры') || docSection === 'Отправки') && docSection !== 'Тарифы') && (
+                        {(((effectiveServiceMode && docSection !== 'Заявки' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && docSection !== 'Претензии') || docSection === 'Отправки') && docSection !== 'Тарифы') && (
                         <>
                         <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
@@ -3800,10 +3907,262 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     )}
                 </>
             )}
-            {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && docSection !== 'Тарифы' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && (
+            {docSection === 'Претензии' && (
+                <>
+                    <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
+                        <Button
+                            className="button-primary"
+                            onClick={() => {
+                                setClaimsCreateError(null);
+                                setClaimsCreateCargoNumber('');
+                                setClaimsCreateType('cargo_damage');
+                                setClaimsCreateDescription('');
+                                setClaimsCreateAmount('');
+                                setClaimsCreatePhone('');
+                                setClaimsCreateEmail(auth?.login || '');
+                                setClaimsCreateVideoLink('');
+                                setClaimsCreateOpen(true);
+                            }}
+                            disabled={!auth?.login || !auth?.password}
+                        >
+                            + Создать претензию
+                        </Button>
+                        <select
+                            className="admin-form-input"
+                            value={claimsStatusFilter}
+                            onChange={(e) => setClaimsStatusFilter(e.target.value)}
+                            style={{ maxWidth: 260, padding: '0.45rem 0.55rem' }}
+                        >
+                            <option value="all">Все статусы</option>
+                            {Object.entries(CLAIM_STATUS_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
+                            ))}
+                        </select>
+                    </Flex>
+                    {claimsLoading ? (
+                        <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Typography.Body>Загрузка претензий...</Typography.Body>
+                        </Flex>
+                    ) : filteredClaims.length === 0 ? (
+                        <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Претензий пока нет</Typography.Body>
+                    ) : (
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                                <thead>
+                                    <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Суть</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredClaims.map((row) => {
+                                        const status = (row.status || 'new') as ClaimStatusKey;
+                                        const statusStyle = CLAIM_STATUS_BADGE[status] || CLAIM_STATUS_BADGE.new;
+                                        return (
+                                            <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.claimNumber || `#${row.id}`}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.createdAt || undefined} /></td>
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.cargoNumber || '—'}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem' }}>
+                                                    <span style={{ fontSize: '0.75rem', padding: '0.18rem 0.45rem', borderRadius: 999, fontWeight: 600, background: statusStyle.bg, color: statusStyle.color, whiteSpace: 'nowrap' }}>
+                                                        {CLAIM_STATUS_LABELS[status] || status}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '0.5rem 0.75rem' }}>{row.description || '—'}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                    {row.requestedAmount != null ? formatCurrency(Number(row.requestedAmount)) : '—'}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </>
+            )}
+            {docSection !== 'Счета' && docSection !== 'УПД' && docSection !== 'Заявки' && docSection !== 'Отправки' && docSection !== 'Тарифы' && docSection !== 'Акты сверок' && docSection !== 'Договоры' && docSection !== 'Претензии' && (
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>
+            )}
+            {claimsCreateOpen && (
+                <div
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={() => !claimsCreateSubmitting && setClaimsCreateOpen(false)}
+                >
+                    <div
+                        style={{ width: '92%', maxWidth: 560, borderRadius: 12, background: 'var(--color-bg-card, #fff)', padding: '1rem' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Новая претензия</Typography.Body>
+                        <div style={{ display: 'grid', gap: '0.55rem', marginBottom: '0.75rem' }}>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Номер перевозки</Typography.Body>
+                                <input
+                                    type="text"
+                                    list="claims-cargo-options"
+                                    className="admin-form-input"
+                                    placeholder="Например: 0000-12345"
+                                    value={claimsCreateCargoNumber}
+                                    onChange={(e) => setClaimsCreateCargoNumber(e.target.value)}
+                                    style={{ width: '100%', padding: '0.45rem' }}
+                                />
+                                <datalist id="claims-cargo-options">
+                                    {claimCargoOptions.map((opt) => <option key={opt} value={opt} />)}
+                                </datalist>
+                            </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Тип претензии</Typography.Body>
+                                <select
+                                    className="admin-form-input"
+                                    value={claimsCreateType}
+                                    onChange={(e) => setClaimsCreateType(e.target.value as any)}
+                                    style={{ width: '100%', padding: '0.45rem' }}
+                                >
+                                    <option value="cargo_damage">Порча груза</option>
+                                    <option value="quantity_mismatch">Несоответствие по количеству</option>
+                                    <option value="cargo_loss">Утрата</option>
+                                    <option value="other">Другое</option>
+                                </select>
+                            </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Описание</Typography.Body>
+                                <textarea
+                                    className="admin-form-input"
+                                    placeholder="Опишите суть претензии, расчет суммы и обстоятельства"
+                                    value={claimsCreateDescription}
+                                    onChange={(e) => setClaimsCreateDescription(e.target.value)}
+                                    style={{ width: '100%', minHeight: 90, padding: '0.45rem' }}
+                                />
+                            </div>
+                            <Flex gap="0.5rem" wrap="wrap">
+                                <div style={{ flex: '1 1 180px' }}>
+                                    <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Сумма требования, ₽</Typography.Body>
+                                    <input
+                                        type="number"
+                                        className="admin-form-input"
+                                        value={claimsCreateAmount}
+                                        onChange={(e) => setClaimsCreateAmount(e.target.value)}
+                                        style={{ width: '100%', padding: '0.45rem' }}
+                                    />
+                                </div>
+                                <div style={{ flex: '1 1 180px' }}>
+                                    <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Телефон</Typography.Body>
+                                    <input
+                                        type="text"
+                                        className="admin-form-input"
+                                        value={claimsCreatePhone}
+                                        onChange={(e) => setClaimsCreatePhone(e.target.value)}
+                                        style={{ width: '100%', padding: '0.45rem' }}
+                                    />
+                                </div>
+                            </Flex>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Email</Typography.Body>
+                                <input
+                                    type="email"
+                                    className="admin-form-input"
+                                    value={claimsCreateEmail}
+                                    onChange={(e) => setClaimsCreateEmail(e.target.value)}
+                                    style={{ width: '100%', padding: '0.45rem' }}
+                                />
+                            </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Ссылка на видео (опционально)</Typography.Body>
+                                <input
+                                    type="url"
+                                    className="admin-form-input"
+                                    placeholder="https://..."
+                                    value={claimsCreateVideoLink}
+                                    onChange={(e) => setClaimsCreateVideoLink(e.target.value)}
+                                    style={{ width: '100%', padding: '0.45rem' }}
+                                />
+                            </div>
+                        </div>
+                        {claimsCreateError ? (
+                            <Typography.Body style={{ color: '#ef4444', fontSize: '0.78rem', marginBottom: '0.6rem' }}>
+                                {claimsCreateError}
+                            </Typography.Body>
+                        ) : null}
+                        <Flex justify="flex-end" gap="0.45rem">
+                            <Button
+                                className="filter-button"
+                                disabled={claimsCreateSubmitting}
+                                onClick={() => setClaimsCreateOpen(false)}
+                            >
+                                Отмена
+                            </Button>
+                            <Button
+                                className="button-primary"
+                                disabled={claimsCreateSubmitting}
+                                onClick={async () => {
+                                    if (!auth?.login || !auth?.password) {
+                                        setClaimsCreateError('Не удалось определить авторизацию');
+                                        return;
+                                    }
+                                    if (!claimsCreateCargoNumber.trim() || !claimsCreateDescription.trim()) {
+                                        setClaimsCreateError('Заполните номер перевозки и описание');
+                                        return;
+                                    }
+                                    const amount = Number(claimsCreateAmount || 0);
+                                    if (!Number.isFinite(amount) || amount < 0) {
+                                        setClaimsCreateError('Некорректная сумма требования');
+                                        return;
+                                    }
+                                    setClaimsCreateSubmitting(true);
+                                    setClaimsCreateError(null);
+                                    try {
+                                        const resp = await fetch('/api/claims', {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                                'x-login': auth.login,
+                                                'x-password': auth.password,
+                                            },
+                                            body: JSON.stringify({
+                                                cargoNumber: claimsCreateCargoNumber.trim(),
+                                                claimType: claimsCreateType,
+                                                description: claimsCreateDescription.trim(),
+                                                requestedAmount: amount,
+                                                customerPhone: claimsCreatePhone.trim(),
+                                                customerEmail: claimsCreateEmail.trim(),
+                                                customerInn: effectiveActiveInn || undefined,
+                                                videoLinks: claimsCreateVideoLink.trim() ? [{ url: claimsCreateVideoLink.trim(), title: 'Видео от клиента' }] : [],
+                                            }),
+                                        });
+                                        const data = await resp.json().catch(() => ({}));
+                                        if (!resp.ok) throw new Error(data?.error || 'Не удалось создать претензию');
+                                        setClaimsCreateOpen(false);
+                                        setClaimsStatusFilter('all');
+                                        setClaimsLoading(true);
+                                        const reload = await fetch('/api/claims', {
+                                            method: 'GET',
+                                            headers: {
+                                                'x-login': auth.login,
+                                                'x-password': auth.password,
+                                            },
+                                        });
+                                        const reloadData = await reload.json().catch(() => ({}));
+                                        setClaimsList(Array.isArray(reloadData?.claims) ? reloadData.claims : []);
+                                    } catch (e: any) {
+                                        setClaimsCreateError(e?.message || 'Ошибка создания претензии');
+                                    } finally {
+                                        setClaimsCreateSubmitting(false);
+                                        setClaimsLoading(false);
+                                    }
+                                }}
+                            >
+                                {claimsCreateSubmitting ? 'Отправка...' : 'Отправить претензию'}
+                            </Button>
+                        </Flex>
+                    </div>
+                </div>
             )}
             {sverkiOrderModalOpen && (
                 <div

@@ -3,6 +3,7 @@
     {"path": "/api/cron/refresh-cache", "schedule": "*/5 * * * *"},
     {"path": "/api/cron/refresh-orders-cache", "schedule": "*/15 * * * *"},
     {"path": "/api/cron/refresh-suppliers-cache", "schedule": "*/15 * * * *"},
+    {"path": "/api/cron/process-claim-push-queue", "schedule": "*/5 * * * *"},
     {"path": "/api/cron/refresh-tariffs-cache", "schedule": "0 0 * * *"},
     {"path": "/api/cron/refresh-sverki-cache", "schedule": "0 0 * * *"},
     {"path": "/api/cron/refresh-dogovors-cache", "schedule": "0 0 * * *"},
@@ -14,6 +15,7 @@
     "api/cron/refresh-cache.ts": {"maxDuration": 300},
     "api/cron/refresh-orders-cache.ts": {"maxDuration": 300},
     "api/cron/refresh-suppliers-cache.ts": {"maxDuration": 300},
+    "api/cron/process-claim-push-queue.ts": {"maxDuration": 300},
     "api/cron/refresh-sverki-cache.ts": {"maxDuration": 300},
     "api/cron/refresh-dogovors-cache.ts": {"maxDuration": 300}
   },
