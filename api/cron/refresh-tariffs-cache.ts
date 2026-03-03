@@ -66,9 +66,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         await pool.query(
-          `INSERT INTO cache_tariffs (code, name, value, unit, data, sort_order, fetched_at)
-           VALUES ($1, $2, $3, $4, $5, $6, now())`,
-          [r.code || null, r.name || "", r.value, r.unit || null, JSON.stringify(r.data), i]
+          `INSERT INTO cache_tariffs (
+            doc_date, doc_number, customer_name, customer_inn, city_from, city_to,
+            transport_type, is_dangerous, is_vet, tariff, data, sort_order, fetched_at
+          )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())`,
+          [
+            r.docDate,
+            r.docNumber || "",
+            r.customerName || "",
+            r.customerInn || "",
+            r.cityFrom || "",
+            r.cityTo || "",
+            r.transportType || "",
+            r.dangerous,
+            r.vet,
+            r.tariff,
+            JSON.stringify(r.data),
+            i,
+          ]
         );
       }
     }

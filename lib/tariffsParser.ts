@@ -1,10 +1,16 @@
 type RawRow = Record<string, unknown>;
 
 export type NormalizedTariff = {
-  code: string;
-  name: string;
-  value: number | null;
-  unit: string;
+  docDate: string | null;
+  docNumber: string;
+  customerName: string;
+  customerInn: string;
+  cityFrom: string;
+  cityTo: string;
+  transportType: string;
+  dangerous: boolean;
+  vet: boolean;
+  tariff: number | null;
   data: RawRow;
 };
 
@@ -29,71 +35,17 @@ const ARRAY_KEYS = [
   "Тарифы",
 ];
 
-const CODE_KEYS = [
-  "Code",
-  "code",
-  "Id",
-  "id",
-  "ID",
-  "Ref_Key",
-  "ref_key",
-  "Код",
-  "КодТарифа",
-  "КодТарифа1С",
-  "TariffCode",
-  "TarifCode",
-];
-
-const NAME_KEYS = [
-  "Name",
-  "name",
-  "Title",
-  "title",
-  "Description",
-  "description",
-  "Наименование",
-  "НаименованиеТарифа",
-  "Тариф",
-  "Tariff",
-  "Tarif",
-  "ServiceName",
-  "Service",
-  "Услуга",
-  "ВидРабот",
-  "ВидРаботы",
-];
-
-const VALUE_KEYS = [
-  "Value",
-  "value",
-  "Price",
-  "price",
-  "Cost",
-  "cost",
-  "Rate",
-  "rate",
-  "Amount",
-  "amount",
-  "Sum",
-  "sum",
-  "Тариф",
-  "Сумма",
-  "Цена",
-  "Стоимость",
-  "Ставка",
-  "Значение",
-];
-
-const UNIT_KEYS = [
-  "Unit",
-  "unit",
-  "Measure",
-  "measure",
-  "Единица",
-  "Ед",
-  "ед",
-  "ЕдиницаИзмерения",
-];
+const DOC_DATE_KEYS = ["Дата", "Date", "DocDate", "date", "DocumentDate"];
+const DOC_NUMBER_KEYS = ["Номер", "Number", "DocNumber", "НомерДокумента", "number"];
+const CUSTOMER_NAME_KEYS = ["КлиентНаименование", "Клиент", "Customer", "CustomerName", "customer_name"];
+const CUSTOMER_INN_KEYS = ["КлиентИНН", "КлиентИнн", "ИНН", "INN", "Inn", "CustomerINN", "customer_inn"];
+const CITY_FROM_KEYS = ["ГородОтправления", "ГородОтпр", "CityFrom", "Откуда", "городОтправления"];
+const CITY_TO_KEYS = ["ГородНазначения", "ГородНазн", "CityTo", "Куда", "городНазначения"];
+const TRANSPORT_TYPE_KEYS = ["ВидПеревозки", "TransportType", "ТипПеревозки", "transport_type"];
+const DANGEROUS_KEYS = ["ОГ", "ОпасныеГрузы", "Dangerous", "dangerous"];
+const VET_KEYS = ["ВС", "ВетГрузы", "Vet", "vet"];
+const EXCISE_KEYS = ["Акциз", "Excise", "excise"];
+const TARIFF_KEYS = ["Тариф", "Tariff", "Rate", "rate", "Price", "price", "Стоимость", "Сумма"];
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[\s_\-]/g, "");
@@ -117,12 +69,26 @@ function parseNumberLike(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseBoolLike(value: unknown): boolean {
+  if (value === true) return true;
+  if (value === false || value == null || value === "") return false;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "да" || normalized === "yes";
+}
+
 function getNum(el: RawRow, keys: string[]): number | null {
   for (const key of keys) {
     const parsed = parseNumberLike(el[key]);
     if (parsed != null) return parsed;
   }
   return null;
+}
+
+function getBool(el: RawRow, keys: string[]): boolean {
+  for (const key of keys) {
+    if (key in el) return parseBoolLike(el[key]);
+  }
+  return false;
 }
 
 function isObject(value: unknown): value is RawRow {
@@ -132,10 +98,10 @@ function isObject(value: unknown): value is RawRow {
 function isTariffLikeObject(value: unknown): value is RawRow {
   if (!isObject(value)) return false;
   const keyset = new Set(Object.keys(value).map(normalizeKey));
-  const hasName = NAME_KEYS.some((k) => keyset.has(normalizeKey(k)));
-  const hasCode = CODE_KEYS.some((k) => keyset.has(normalizeKey(k)));
-  const hasValue = VALUE_KEYS.some((k) => keyset.has(normalizeKey(k)));
-  return hasName || (hasCode && hasValue);
+  const hasCustomerInn = CUSTOMER_INN_KEYS.some((k) => keyset.has(normalizeKey(k)));
+  const hasTariff = TARIFF_KEYS.some((k) => keyset.has(normalizeKey(k)));
+  const hasNumber = DOC_NUMBER_KEYS.some((k) => keyset.has(normalizeKey(k)));
+  return (hasCustomerInn && hasTariff) || hasNumber;
 }
 
 function scoreArray(arr: unknown[]): number {
@@ -206,13 +172,28 @@ export function normalizeTariffs(raw: unknown): NormalizedTariff[] {
 
   for (let i = 0; i < arr.length; i++) {
     const el = arr[i];
-    const code = getStr(el, CODE_KEYS) || String(i + 1);
-    const name = getStr(el, NAME_KEYS);
-    const value = getNum(el, VALUE_KEYS);
-    const unit = getStr(el, UNIT_KEYS);
+    const customerInn = getStr(el, CUSTOMER_INN_KEYS);
+    const tariff = getNum(el, TARIFF_KEYS);
+    const docNumber = getStr(el, DOC_NUMBER_KEYS);
+    if (!customerInn || tariff == null || !docNumber) continue;
 
-    if (!name && value == null && !getStr(el, CODE_KEYS)) continue;
-    out.push({ code, name, value, unit, data: el });
+    const docDateRaw = getStr(el, DOC_DATE_KEYS);
+    const transportTypeRaw = getStr(el, TRANSPORT_TYPE_KEYS);
+    const isExcise = getBool(el, EXCISE_KEYS);
+
+    out.push({
+      docDate: docDateRaw || null,
+      docNumber,
+      customerName: getStr(el, CUSTOMER_NAME_KEYS),
+      customerInn,
+      cityFrom: getStr(el, CITY_FROM_KEYS),
+      cityTo: getStr(el, CITY_TO_KEYS),
+      transportType: isExcise ? "Паром" : transportTypeRaw,
+      dangerous: getBool(el, DANGEROUS_KEYS),
+      vet: getBool(el, VET_KEYS),
+      tariff,
+      data: el,
+    });
   }
 
   return out;

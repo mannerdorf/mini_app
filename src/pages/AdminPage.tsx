@@ -371,7 +371,20 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [suppliersSyncMessage, setSuppliersSyncMessage] = useState<string | null>(null);
   const [suppliersSyncDebugRequest, setSuppliersSyncDebugRequest] = useState<string>("");
   const [suppliersSyncDebugResponse, setSuppliersSyncDebugResponse] = useState<string>("");
-  const [tariffsList, setTariffsList] = useState<{ id: number; code: string | null; name: string; value: number | null; unit: string | null; fetchedAt: string }[]>([]);
+  const [tariffsList, setTariffsList] = useState<{
+    id: number;
+    docDate: string | null;
+    docNumber: string;
+    customerName: string;
+    customerInn: string;
+    cityFrom: string;
+    cityTo: string;
+    transportType: string;
+    isDangerous: boolean;
+    isVet: boolean;
+    tariff: number | null;
+    fetchedAt: string;
+  }[]>([]);
   const [tariffsLoading, setTariffsLoading] = useState(false);
   const [tariffsFetchTrigger, setTariffsFetchTrigger] = useState(0);
   const [tariffsSyncLoading, setTariffsSyncLoading] = useState(false);
@@ -1420,7 +1433,20 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     setTariffsLoading(true);
     fetch("/api/tariffs")
       .then((res) => res.json())
-      .then((data: { tariffs?: { id: number; code: string | null; name: string; value: number | null; unit: string | null; fetchedAt: string }[] }) => {
+      .then((data: { tariffs?: {
+        id: number;
+        docDate: string | null;
+        docNumber: string;
+        customerName: string;
+        customerInn: string;
+        cityFrom: string;
+        cityTo: string;
+        transportType: string;
+        isDangerous: boolean;
+        isVet: boolean;
+        tariff: number | null;
+        fetchedAt: string;
+      }[] }) => {
         setTariffsList(data.tariffs || []);
       })
       .catch(() => setTariffsList([]))
@@ -4545,19 +4571,33 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
                 <thead>
                   <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
-                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Код</th>
-                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
-                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}>Значение</th>
-                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Ед.</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Дата</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Номер</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Заказчик</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Город отправления</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Город назначения</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Вид перевозки</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 600 }}>ОГ</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 600 }}>ВС</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}>Тариф</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tariffsList.map((t) => (
                     <tr key={t.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>{t.code ?? "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>{t.name || "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>{t.value != null ? Number(t.value) : "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{t.unit ?? "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{t.docDate ? new Date(t.docDate).toLocaleDateString("ru-RU") : "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{t.docNumber || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{t.customerName || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{t.customerInn || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{t.cityFrom || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{t.cityTo || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{t.transportType || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>{t.isDangerous ? "Да" : "Нет"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>{t.isVet ? "Да" : "Нет"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", textAlign: "right", whiteSpace: "nowrap" }}>
+                        {t.tariff != null ? Number(t.tariff).toLocaleString("ru-RU") : "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
