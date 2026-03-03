@@ -73,6 +73,17 @@ function highlightMatch(text: string, query: string, keyPrefix: string): React.R
   );
 }
 
+async function fileToBase64(file: File): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Не удалось прочитать файл"));
+    reader.readAsDataURL(file);
+  });
+  const commaIdx = dataUrl.indexOf(",");
+  return commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+}
+
 /** Варианты срока оплаты (календарных дней с момента выставления счёта) в платёжном календаре */
 const PAYMENT_DAYS_OPTIONS = [0, 3, 5, 7, 14, 21, 30, 45, 60, 90];
 /** Платежные дни недели — только рабочие (1=пн … 5=пт). Выходные не допускаются. */
@@ -165,6 +176,58 @@ const CLAIM_STATUS_LABELS_RU: Record<string, string> = {
   offset: "Зачтено",
   closed: "Закрыта",
 };
+const CLAIMS_FILTER_CONTROL_HEIGHT = 34;
+
+const PEREVOZKA_NOMENCLATURE_KEYS = ["Packages", "Nomenclature", "Goods", "CargoNomenclature", "ПринятыйГруз", "Номенклатура", "TablePart", "CargoItems", "Items", "GoodsList", "Nomenklatura"] as const;
+
+function parseLooseNumber(input: unknown): number {
+  if (typeof input === "number") return Number.isFinite(input) ? input : 0;
+  const raw = String(input ?? "").trim();
+  if (!raw) return 0;
+  const normalized = raw.replace(/\s/g, "").replace(",", ".").replace(/[^\d.-]/g, "");
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function normalizePlaceKey(value: unknown): string {
+  return String(value ?? "").trim().replace(/\s+/g, "").toLowerCase();
+}
+
+function extractPlaceNumberFromLabel(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  return raw.split("—")[0]?.trim() || raw;
+}
+
+function extractPerevozkaNomenclatureRows(payload: any): Record<string, unknown>[] {
+  const tryExtract = (obj: any): Record<string, unknown>[] => {
+    if (!obj || typeof obj !== "object") return [];
+    for (const key of PEREVOZKA_NOMENCLATURE_KEYS) {
+      const val = obj?.[key];
+      if (Array.isArray(val) && val.length > 0 && typeof val[0] === "object" && val[0] !== null) return val as Record<string, unknown>[];
+    }
+    for (const key of Object.keys(obj)) {
+      const val = obj?.[key];
+      if (Array.isArray(val) && val.length > 0 && typeof val[0] === "object" && val[0] !== null) return val as Record<string, unknown>[];
+    }
+    return [];
+  };
+  const fromRoot = tryExtract(payload);
+  if (fromRoot.length) return fromRoot;
+  for (const key of ["Response", "Data", "Result", "result", "data"]) {
+    const fromNested = tryExtract(payload?.[key]);
+    if (fromNested.length) return fromNested;
+  }
+  return [];
+}
+
+function pickFirstNumericField(source: any, fieldNames: string[]): number {
+  for (const field of fieldNames) {
+    const value = parseLooseNumber(source?.[field]);
+    if (value > 0) return value;
+  }
+  return 0;
+}
 type CooperationType = typeof COOPERATION_TYPE_OPTIONS[number]["value"];
 const normalizeCooperationType = (value: unknown): CooperationType => {
   const raw = String(value ?? "").trim().toLowerCase();
@@ -472,11 +535,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [adminClaimsKpi, setAdminClaimsKpi] = useState<{ activeCount: number; overdueCount: number; requestedSum: number; approvedSum: number } | null>(null);
   const [adminClaimsChart, setAdminClaimsChart] = useState<{ day: string; count: number }[]>([]);
   const [adminClaimDetailId, setAdminClaimDetailId] = useState<number | null>(null);
+  const [adminClaimDetailReloadTick, setAdminClaimDetailReloadTick] = useState(0);
   const [adminClaimDetailLoading, setAdminClaimDetailLoading] = useState(false);
   const [adminClaimDetail, setAdminClaimDetail] = useState<any | null>(null);
   const [adminClaimNoteDraft, setAdminClaimNoteDraft] = useState("");
   const [adminLeaderCommentDraft, setAdminLeaderCommentDraft] = useState("");
   const [adminClaimApprovedAmountDraft, setAdminClaimApprovedAmountDraft] = useState("");
+  const [adminClaimMaxDamageAmount, setAdminClaimMaxDamageAmount] = useState<number | null>(null);
+  const [adminClaimMaxDamageLoading, setAdminClaimMaxDamageLoading] = useState(false);
   const [adminClaimDocDownloading, setAdminClaimDocDownloading] = useState<"" | "ЭР" | "АПП">("");
   const [adminClaimDocError, setAdminClaimDocError] = useState<string>("");
   const [adminDelegateOpen, setAdminDelegateOpen] = useState(false);
@@ -486,6 +552,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [adminRequestDocUPD, setAdminRequestDocUPD] = useState(false);
   const [adminRequestDocTTN, setAdminRequestDocTTN] = useState(false);
   const [adminRequestDocsComment, setAdminRequestDocsComment] = useState("");
+  const [adminClaimAttachRole, setAdminClaimAttachRole] = useState<"manager" | "leader">("manager");
+  const [adminClaimAttachPhotoFiles, setAdminClaimAttachPhotoFiles] = useState<File[]>([]);
+  const [adminClaimAttachDocumentFiles, setAdminClaimAttachDocumentFiles] = useState<File[]>([]);
+  const [adminClaimAttachVideoLink, setAdminClaimAttachVideoLink] = useState("");
+  const [adminClaimAttachSubmitting, setAdminClaimAttachSubmitting] = useState(false);
+  const [adminClaimAttachError, setAdminClaimAttachError] = useState("");
   const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
   const [autoRegisterCandidates, setAutoRegisterCandidates] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [autoRegisterStats, setAutoRegisterStats] = useState<{ total: number; withEmail: number; validEmail: number; alreadyRegistered: number } | null>(null);
@@ -2028,10 +2100,74 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setAdminClaimDocDownloading("");
     }
   }, [adminClaimDetail?.claim?.cargoNumber]);
+  const uploadAdminClaimDocuments = useCallback(async () => {
+    if (!adminToken || !adminClaimDetail?.claim?.id) return;
+    const video = adminClaimAttachVideoLink.trim();
+    if (adminClaimAttachPhotoFiles.length === 0 && adminClaimAttachDocumentFiles.length === 0 && !video) {
+      setAdminClaimAttachError("Добавьте хотя бы один файл или видео-ссылку");
+      return;
+    }
+    setAdminClaimAttachSubmitting(true);
+    setAdminClaimAttachError("");
+    try {
+      const photosPayload = await Promise.all(
+        adminClaimAttachPhotoFiles.map(async (file) => ({
+          fileName: file.name,
+          mimeType: file.type || "image/jpeg",
+          caption: "",
+          base64: await fileToBase64(file),
+        }))
+      );
+      const documentsPayload = await Promise.all(
+        adminClaimAttachDocumentFiles.map(async (file) => ({
+          fileName: file.name,
+          mimeType: file.type || "application/pdf",
+          docType: "other" as const,
+          base64: await fileToBase64(file),
+        }))
+      );
+      const videoLinksPayload = video ? [{ url: video, title: adminClaimAttachRole === "leader" ? "Видео от руководителя" : "Видео от менеджера" }] : [];
+      const res = await fetch("/api/admin-claim-update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          action: "upload_documents",
+          claimId: Number(adminClaimDetail.claim.id),
+          actorRole: adminClaimAttachRole,
+          photos: photosPayload,
+          documents: documentsPayload,
+          videoLinks: videoLinksPayload,
+          enqueuePush: false,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Ошибка прикрепления файлов");
+      setAdminClaimAttachPhotoFiles([]);
+      setAdminClaimAttachDocumentFiles([]);
+      setAdminClaimAttachVideoLink("");
+      setAdminClaimDetailReloadTick((v) => v + 1);
+    } catch (e: unknown) {
+      setAdminClaimAttachError((e as Error)?.message || "Ошибка прикрепления файлов");
+    } finally {
+      setAdminClaimAttachSubmitting(false);
+    }
+  }, [
+    adminToken,
+    adminClaimDetail?.claim?.id,
+    adminClaimAttachRole,
+    adminClaimAttachPhotoFiles,
+    adminClaimAttachDocumentFiles,
+    adminClaimAttachVideoLink,
+  ]);
 
   useEffect(() => {
     if (!adminClaimDetailId || !adminToken) {
       setAdminClaimDetail(null);
+      setAdminClaimMaxDamageAmount(null);
+      setAdminClaimMaxDamageLoading(false);
       return;
     }
     let cancelled = false;
@@ -2054,6 +2190,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         setAdminRequestDocUPD(false);
         setAdminRequestDocTTN(false);
         setAdminRequestDocsComment("");
+        setAdminClaimAttachRole("manager");
+        setAdminClaimAttachPhotoFiles([]);
+        setAdminClaimAttachDocumentFiles([]);
+        setAdminClaimAttachVideoLink("");
+        setAdminClaimAttachError("");
         setAdminClaimDocError("");
         setAdminClaimDocDownloading("");
         if (claim?.id && String(claim?.status || "") === "new") {
@@ -2077,7 +2218,92 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [adminClaimDetailId, adminToken, updateAdminClaimStatus]);
+  }, [adminClaimDetailId, adminToken, updateAdminClaimStatus, adminClaimDetailReloadTick]);
+
+  useEffect(() => {
+    const cargoNumber = String(adminClaimDetail?.claim?.cargoNumber || "").trim();
+    const selectedPlacesRaw = Array.isArray(adminClaimDetail?.customerPayload?.selectedPlaces)
+      ? adminClaimDetail.customerPayload.selectedPlaces
+      : [];
+    const selectedPlaceKeys = selectedPlacesRaw
+      .map((value: unknown) => normalizePlaceKey(extractPlaceNumberFromLabel(value)))
+      .filter(Boolean);
+    if (!cargoNumber || selectedPlaceKeys.length === 0) {
+      setAdminClaimMaxDamageAmount(0);
+      setAdminClaimMaxDamageLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setAdminClaimMaxDamageLoading(true);
+    fetch("/api/getperevozka", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ number: cargoNumber }),
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error((data as any)?.error || `Ошибка ${res.status}`);
+        return data;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const rows = extractPerevozkaNomenclatureRows(data);
+        const selectedSet = new Set(selectedPlaceKeys);
+        const rootTariff = pickFirstNumericField(data, ["Tariff", "tariff", "Rate", "rate", "Тариф", "Ставка"]);
+        let selectedCostSum = 0;
+        let selectedPaidWeightSum = 0;
+        let matchedTariff = rootTariff;
+        rows.forEach((row: any) => {
+          const placeRaw = row?.Package
+            ?? row?.package
+            ?? row?.Barcode
+            ?? row?.barcode
+            ?? row?.Штрихкод
+            ?? row?.НомерМеста
+            ?? row?.PlaceNumber;
+          const placeKey = normalizePlaceKey(placeRaw);
+          if (!placeKey || !selectedSet.has(placeKey)) return;
+          const placeCost = pickFirstNumericField(row, [
+            "DeclaredCost",
+            "declaredCost",
+            "DeclaredValue",
+            "declaredValue",
+            "ОбъявленнаяСтоимость",
+            "ОбъявлСтоимость",
+            "Стоимость",
+            "Cost",
+            "Price",
+          ]);
+          const paidWeight = pickFirstNumericField(row, [
+            "PaidWeight",
+            "paidWeight",
+            "ChargeableWeight",
+            "chargeableWeight",
+            "ПлатныйВес",
+            "ВесПлатный",
+            "WeightPaid",
+            "weightPaid",
+          ]);
+          const rowTariff = pickFirstNumericField(row, ["Tariff", "tariff", "Rate", "rate", "Тариф", "Ставка"]);
+          if (rowTariff > 0) matchedTariff = rowTariff;
+          selectedCostSum += placeCost;
+          selectedPaidWeightSum += paidWeight;
+        });
+        const total = selectedCostSum + selectedPaidWeightSum * matchedTariff;
+        setAdminClaimMaxDamageAmount(Number.isFinite(total) ? Math.max(0, total) : 0);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAdminClaimMaxDamageAmount(null);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setAdminClaimMaxDamageLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [adminClaimDetail?.claim?.cargoNumber, adminClaimDetail?.customerPayload?.selectedPlaces]);
 
   const updateExpenseStatus = useCallback(async (itemId: string, itemLogin: string, newStatus: string, rejectReason?: string, fullItem?: ExpenseRequestItem & { login: string }) => {
     const storageKey = `haulz.expense_requests.${itemLogin}`;
@@ -8592,7 +8818,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               style={{
                 background: adminClaimsView === "new" ? "var(--color-primary-blue)" : undefined,
                 color: adminClaimsView === "new" ? "white" : undefined,
-                height: 32,
+                height: CLAIMS_FILTER_CONTROL_HEIGHT,
                 minWidth: 68,
                 padding: "0 0.7rem",
               }}
@@ -8606,7 +8832,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               style={{
                 background: adminClaimsView === "in_progress" ? "var(--color-primary-blue)" : undefined,
                 color: adminClaimsView === "in_progress" ? "white" : undefined,
-                height: 32,
+                height: CLAIMS_FILTER_CONTROL_HEIGHT,
                 minWidth: 82,
                 padding: "0 0.7rem",
               }}
@@ -8620,7 +8846,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               style={{
                 background: adminClaimsView === "all" ? "var(--color-primary-blue)" : undefined,
                 color: adminClaimsView === "all" ? "white" : undefined,
-                height: 32,
+                height: CLAIMS_FILTER_CONTROL_HEIGHT,
                 minWidth: 56,
                 padding: "0 0.7rem",
               }}
@@ -8631,21 +8857,25 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           </Flex>
           {adminClaimsKpi && (
             <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
-              <div className="cargo-card" style={{ padding: "0.45rem 0.65rem", minWidth: 130 }}>
-                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Активные</Typography.Body>
-                <Typography.Body style={{ fontWeight: 700 }}>{Number(adminClaimsKpi.activeCount || 0)}</Typography.Body>
+              <div className="cargo-card" style={{ padding: "0 0.65rem", minWidth: 130, minHeight: CLAIMS_FILTER_CONTROL_HEIGHT, display: "flex", alignItems: "center" }}>
+                <Typography.Body style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>
+                  Активные: <strong style={{ color: "var(--color-text-primary)" }}>{Number(adminClaimsKpi.activeCount || 0)}</strong>
+                </Typography.Body>
               </div>
-              <div className="cargo-card" style={{ padding: "0.45rem 0.65rem", minWidth: 130 }}>
-                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Просроченные</Typography.Body>
-                <Typography.Body style={{ fontWeight: 700, color: Number(adminClaimsKpi.overdueCount || 0) > 0 ? "#ef4444" : undefined }}>{Number(adminClaimsKpi.overdueCount || 0)}</Typography.Body>
+              <div className="cargo-card" style={{ padding: "0 0.65rem", minWidth: 130, minHeight: CLAIMS_FILTER_CONTROL_HEIGHT, display: "flex", alignItems: "center" }}>
+                <Typography.Body style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>
+                  Просроченные: <strong style={{ color: Number(adminClaimsKpi.overdueCount || 0) > 0 ? "#ef4444" : "var(--color-text-primary)" }}>{Number(adminClaimsKpi.overdueCount || 0)}</strong>
+                </Typography.Body>
               </div>
-              <div className="cargo-card" style={{ padding: "0.45rem 0.65rem", minWidth: 170 }}>
-                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Сумма требований</Typography.Body>
-                <Typography.Body style={{ fontWeight: 700 }}>{Number(adminClaimsKpi.requestedSum || 0).toLocaleString("ru-RU")} ₽</Typography.Body>
+              <div className="cargo-card" style={{ padding: "0 0.65rem", minWidth: 170, minHeight: CLAIMS_FILTER_CONTROL_HEIGHT, display: "flex", alignItems: "center" }}>
+                <Typography.Body style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>
+                  Сумма требований: <strong style={{ color: "var(--color-text-primary)" }}>{Number(adminClaimsKpi.requestedSum || 0).toLocaleString("ru-RU")} ₽</strong>
+                </Typography.Body>
               </div>
-              <div className="cargo-card" style={{ padding: "0.45rem 0.65rem", minWidth: 190 }}>
-                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Сумма одобренных</Typography.Body>
-                <Typography.Body style={{ fontWeight: 700 }}>{Number(adminClaimsKpi.approvedSum || 0).toLocaleString("ru-RU")} ₽</Typography.Body>
+              <div className="cargo-card" style={{ padding: "0 0.65rem", minWidth: 190, minHeight: CLAIMS_FILTER_CONTROL_HEIGHT, display: "flex", alignItems: "center" }}>
+                <Typography.Body style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>
+                  Сумма одобренных: <strong style={{ color: "var(--color-text-primary)" }}>{Number(adminClaimsKpi.approvedSum || 0).toLocaleString("ru-RU")} ₽</strong>
+                </Typography.Body>
               </div>
             </Flex>
           )}
@@ -8670,13 +8900,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               placeholder="Поиск: номер претензии / перевозка / заказчик"
               value={adminClaimsSearch}
               onChange={(e) => setAdminClaimsSearch(e.target.value)}
-              style={{ minWidth: 280, maxWidth: 420, height: 32, padding: "0 0.55rem" }}
+              style={{ minWidth: 280, maxWidth: 420, height: CLAIMS_FILTER_CONTROL_HEIGHT, padding: "0 0.55rem", boxSizing: "border-box" }}
             />
             <select
               className="admin-form-input"
               value={adminClaimsStatusFilter}
               onChange={(e) => { setAdminClaimsView("all"); setAdminClaimsStatusFilter(e.target.value); }}
-              style={{ padding: "0 0.5rem", height: 32, minWidth: 210 }}
+              style={{ padding: "0 0.5rem", height: CLAIMS_FILTER_CONTROL_HEIGHT, minWidth: 210, boxSizing: "border-box" }}
             >
               <option value="">Все статусы</option>
               <option value="new">Новая</option>
@@ -8693,7 +8923,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Button
               type="button"
               className="filter-button"
-              style={{ height: 32, minWidth: 92, padding: "0 0.65rem" }}
+              style={{ height: CLAIMS_FILTER_CONTROL_HEIGHT, minWidth: 92, padding: "0 0.65rem" }}
               onClick={() => reloadAdminClaims()}
               disabled={adminClaimsLoading}
             >
@@ -8849,45 +9079,61 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <>
                 <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
                   <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Данные клиента и претензии</Typography.Body>
-                  <Typography.Body style={{ fontSize: "0.85rem" }}>Заказчик: {adminClaimDetail.claim.customerCompanyName || "—"} ({adminClaimDetail.claim.customerInn || "—"})</Typography.Body>
-                  <Typography.Body style={{ fontSize: "0.85rem" }}>Телефон: {adminClaimDetail.claim.customerPhone || "—"} | Email: {adminClaimDetail.claim.customerEmail || "—"}</Typography.Body>
-                  <Typography.Body style={{ fontSize: "0.85rem" }}>
-                    Перевозка: {adminClaimDetail.claim.cargoNumber ? (
-                      <a
-                        href={`/documents?section=%D0%97%D0%B0%D1%8F%D0%B2%D0%BA%D0%B8&search=${encodeURIComponent(String(adminClaimDetail.claim.cargoNumber || ""))}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ color: "var(--color-primary-blue)", textDecoration: "underline", fontWeight: 600 }}
-                      >
-                        {adminClaimDetail.claim.cargoNumber}
-                      </a>
-                    ) : "—"}{" "}
-                    | Статус: {CLAIM_STATUS_LABELS_RU[String(adminClaimDetail.claim.status || "")] || adminClaimDetail.claim.status || "—"}
-                  </Typography.Body>
-                  <Typography.Body style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>{adminClaimDetail.claim.description || "—"}</Typography.Body>
+                  <div style={{ display: "grid", gap: "0.28rem" }}>
+                    <Typography.Body style={{ fontSize: "0.85rem", display: "block" }}>
+                      <strong>Заказчик:</strong> {adminClaimDetail.claim.customerCompanyName || "—"} ({adminClaimDetail.claim.customerInn || "—"})
+                    </Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.85rem", display: "block" }}>
+                      <strong>Контакты:</strong> {adminClaimDetail.claim.customerPhone || "—"} | {adminClaimDetail.claim.customerEmail || "—"}
+                    </Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.85rem", display: "block" }}>
+                      <strong>Перевозка:</strong>{" "}
+                      {adminClaimDetail.claim.cargoNumber ? (
+                        <a
+                          href={`/documents?section=%D0%97%D0%B0%D1%8F%D0%B2%D0%BA%D0%B8&search=${encodeURIComponent(String(adminClaimDetail.claim.cargoNumber || ""))}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ color: "var(--color-primary-blue)", textDecoration: "underline", fontWeight: 600 }}
+                        >
+                          {adminClaimDetail.claim.cargoNumber}
+                        </a>
+                      ) : "—"}
+                    </Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.85rem", display: "block" }}>
+                      <strong>Тип претензии:</strong> {String(adminClaimDetail?.claimTypeLabel || "—")}
+                    </Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.85rem", display: "block" }}>
+                      <strong>Статус:</strong> {CLAIM_STATUS_LABELS_RU[String(adminClaimDetail.claim.status || "")] || adminClaimDetail.claim.status || "—"}
+                    </Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.85rem", display: "block" }}>
+                      <strong>Описание:</strong> {adminClaimDetail.claim.description || "—"}
+                    </Typography.Body>
+                  </div>
                   {!!adminClaimDetail?.customerPayload && (
                     <div style={{ marginTop: "0.45rem", borderTop: "1px dashed var(--color-border)", paddingTop: "0.45rem" }}>
                       <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.2rem" }}>
                         Данные от заказчика
                       </Typography.Body>
-                      <Typography.Body style={{ fontSize: "0.82rem" }}>
-                        Контактное лицо: {String(adminClaimDetail.customerPayload?.contactName || "—")}
-                      </Typography.Body>
-                      <Typography.Body style={{ fontSize: "0.82rem" }}>
-                        Номера мест: {Array.isArray(adminClaimDetail.customerPayload?.selectedPlaces) && adminClaimDetail.customerPayload.selectedPlaces.length > 0
-                          ? adminClaimDetail.customerPayload.selectedPlaces.join(", ")
-                          : "—"}
-                      </Typography.Body>
-                      <Typography.Body style={{ fontSize: "0.82rem" }}>
-                        Манипуляционные знаки: {Array.isArray(adminClaimDetail.customerPayload?.manipulationSigns) && adminClaimDetail.customerPayload.manipulationSigns.length > 0
-                          ? adminClaimDetail.customerPayload.manipulationSigns.join(", ")
-                          : "—"}
-                      </Typography.Body>
-                      <Typography.Body style={{ fontSize: "0.82rem" }}>
-                        Упаковка: {Array.isArray(adminClaimDetail.customerPayload?.packagingTypes) && adminClaimDetail.customerPayload.packagingTypes.length > 0
-                          ? adminClaimDetail.customerPayload.packagingTypes.join(", ")
-                          : "—"}
-                      </Typography.Body>
+                      <div style={{ display: "grid", gap: "0.2rem" }}>
+                        <Typography.Body style={{ fontSize: "0.82rem", display: "block" }}>
+                          <strong>Контактное лицо:</strong> {String(adminClaimDetail.customerPayload?.contactName || "—")}
+                        </Typography.Body>
+                        <Typography.Body style={{ fontSize: "0.82rem", display: "block" }}>
+                          <strong>Номера мест:</strong> {Array.isArray(adminClaimDetail.customerPayload?.selectedPlaces) && adminClaimDetail.customerPayload.selectedPlaces.length > 0
+                            ? adminClaimDetail.customerPayload.selectedPlaces.join(", ")
+                            : "—"}
+                        </Typography.Body>
+                        <Typography.Body style={{ fontSize: "0.82rem", display: "block" }}>
+                          <strong>Манипуляционные знаки:</strong> {Array.isArray(adminClaimDetail.customerPayload?.manipulationSigns) && adminClaimDetail.customerPayload.manipulationSigns.length > 0
+                            ? adminClaimDetail.customerPayload.manipulationSigns.join(", ")
+                            : "—"}
+                        </Typography.Body>
+                        <Typography.Body style={{ fontSize: "0.82rem", display: "block" }}>
+                          <strong>Упаковка:</strong> {Array.isArray(adminClaimDetail.customerPayload?.packagingTypes) && adminClaimDetail.customerPayload.packagingTypes.length > 0
+                            ? adminClaimDetail.customerPayload.packagingTypes.join(", ")
+                            : "—"}
+                        </Typography.Body>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -8899,6 +9145,63 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     PDF: {Array.isArray(adminClaimDetail.documents) ? adminClaimDetail.documents.length : 0} |
                     Видео-ссылки: {Array.isArray(adminClaimDetail.videoLinks) ? adminClaimDetail.videoLinks.length : 0}
                   </Typography.Body>
+                  <div style={{ marginTop: "0.55rem", border: "1px dashed var(--color-border)", borderRadius: 8, padding: "0.55rem" }}>
+                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.35rem" }}>
+                      Прикрепить файлы (менеджер/руководитель)
+                    </Typography.Body>
+                    <Flex gap="0.45rem" wrap="wrap" align="center" style={{ marginBottom: "0.4rem" }}>
+                      <select
+                        className="admin-form-input"
+                        value={adminClaimAttachRole}
+                        onChange={(e) => setAdminClaimAttachRole(e.target.value === "leader" ? "leader" : "manager")}
+                        style={{ minWidth: 190, padding: "0.35rem 0.45rem" }}
+                      >
+                        <option value="manager">От имени менеджера</option>
+                        <option value="leader">От имени руководителя</option>
+                      </select>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.78rem" }}>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => setAdminClaimAttachPhotoFiles(Array.from(e.target.files || []))}
+                        />
+                        Фото ({adminClaimAttachPhotoFiles.length})
+                      </label>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.78rem" }}>
+                        <input
+                          type="file"
+                          accept=".pdf,application/pdf"
+                          multiple
+                          onChange={(e) => setAdminClaimAttachDocumentFiles(Array.from(e.target.files || []))}
+                        />
+                        PDF ({adminClaimAttachDocumentFiles.length})
+                      </label>
+                    </Flex>
+                    <input
+                      className="admin-form-input"
+                      type="url"
+                      placeholder="Ссылка на видео (опционально)"
+                      value={adminClaimAttachVideoLink}
+                      onChange={(e) => setAdminClaimAttachVideoLink(e.target.value)}
+                      style={{ width: "100%", marginBottom: "0.4rem" }}
+                    />
+                    {adminClaimAttachError && (
+                      <Typography.Body style={{ fontSize: "0.76rem", color: "#b91c1c", marginBottom: "0.35rem" }}>
+                        {adminClaimAttachError}
+                      </Typography.Body>
+                    )}
+                    <Flex justify="flex-end">
+                      <Button
+                        type="button"
+                        className="filter-button"
+                        onClick={uploadAdminClaimDocuments}
+                        disabled={adminClaimAttachSubmitting}
+                      >
+                        {adminClaimAttachSubmitting ? "Загрузка..." : "Прикрепить"}
+                      </Button>
+                    </Flex>
+                  </div>
                   {Array.isArray(adminClaimDetail.photos) && adminClaimDetail.photos.length > 0 && (
                     <div style={{ marginTop: "0.45rem" }}>
                       <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.25rem" }}>Фото</Typography.Body>
@@ -8991,31 +9294,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </Typography.Body>
                     ) : null}
                   </div>
-                </div>
-
-                <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
-                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Сверка с ТТН в заявках</Typography.Body>
-                  {(() => {
-                    const check = adminClaimDetail?.ttnCheck || {};
-                    const badge = (ok: boolean, yes: string, no: string) => (
-                      <span style={{
-                        fontSize: "0.72rem",
-                        padding: "0.12rem 0.45rem",
-                        borderRadius: 999,
-                        fontWeight: 600,
-                        background: ok ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)",
-                        color: ok ? "#10b981" : "#ef4444",
-                        whiteSpace: "nowrap",
-                      }}>
-                        {ok ? yes : no}
-                      </span>
-                    );
-                    return (
-                      <Flex gap="0.45rem" wrap="wrap" align="center">
-                        {badge(Boolean(check.ttnFound), "ТТН/CMR указаны", "ТТН/CMR не найдены")}
-                      </Flex>
-                    );
-                  })()}
                 </div>
 
                 <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
@@ -9179,6 +9457,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
                 <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
                   <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Решение</Typography.Body>
+                  <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}>
+                    Максимальная сумма ущерба: {adminClaimMaxDamageLoading
+                      ? "расчет..."
+                      : adminClaimMaxDamageAmount == null
+                        ? "— рублей"
+                        : `${Number(adminClaimMaxDamageAmount).toLocaleString("ru-RU")} рублей`}
+                  </Typography.Body>
                   <Flex gap="0.45rem" wrap="wrap" align="center">
                     <Input
                       type="number"

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
-import { isClaimStatus, parseMoney } from "../lib/claims.js";
+import { decodeBase64File, isClaimStatus, parseMoney } from "../lib/claims.js";
 import { getPool } from "./_db.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -59,6 +59,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await client.query("DELETE FROM claims WHERE id = $1", [claimId]);
       await client.query("COMMIT");
       return res.json({ ok: true, deleted: true });
+    }
+
+    if (action === "upload_documents") {
+      const photos = Array.isArray(body?.photos) ? body.photos : [];
+      const documents = Array.isArray(body?.documents) ? body.documents : [];
+      const videoLinks = Array.isArray(body?.videoLinks) ? body.videoLinks : [];
+      const actorRole = String(body?.actorRole || "").trim().toLowerCase() === "leader" ? "leader" : "manager";
+      const actorLogin = String(body?.actorLogin || "admin").trim() || "admin";
+      if (photos.length > 10) throw new Error("Можно прикрепить не более 10 фото за один запрос");
+
+      for (const p of photos) {
+        const fileName = String(p?.fileName || "photo").trim();
+        const mimeType = String(p?.mimeType || "image/jpeg").trim();
+        const caption = String(p?.caption || "").trim();
+        const base64 = String(p?.base64 || "").trim();
+        if (!base64) continue;
+        const bytes = decodeBase64File(base64);
+        if (bytes.length > 5 * 1024 * 1024) throw new Error("Фото превышает лимит 5MB");
+        await client.query(
+          `INSERT INTO claim_photos (claim_id, file_name, mime_type, caption, file_bytes)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [claimId, fileName, mimeType, caption, bytes]
+        );
+      }
+      for (const d of documents) {
+        const fileName = String(d?.fileName || "document.pdf").trim();
+        const mimeType = String(d?.mimeType || "application/pdf").trim();
+        const docType = d?.docType === "ttn" || d?.docType === "act" ? d.docType : "other";
+        const base64 = String(d?.base64 || "").trim();
+        if (!base64) continue;
+        const bytes = decodeBase64File(base64);
+        if (bytes.length > 5 * 1024 * 1024) throw new Error("Документ превышает лимит 5MB");
+        await client.query(
+          `INSERT INTO claim_documents (claim_id, file_name, mime_type, doc_type, file_bytes)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [claimId, fileName, mimeType, docType, bytes]
+        );
+      }
+      for (const v of videoLinks) {
+        const url = String(v?.url || "").trim();
+        const title = String(v?.title || "").trim();
+        if (!url) continue;
+        await client.query(
+          `INSERT INTO claim_video_links (claim_id, url, title)
+           VALUES ($1,$2,$3)`,
+          [claimId, url, title || "Видео от сотрудника"]
+        );
+      }
+
+      await client.query(
+        `INSERT INTO claim_events (claim_id, actor_login, actor_role, event_type, payload)
+         VALUES ($1,$2,$3,'documents_uploaded',$4::jsonb)`,
+        [claimId, actorLogin, actorRole, JSON.stringify({ photos: photos.length, documents: documents.length, videoLinks: videoLinks.length })]
+      );
+
+      await client.query("COMMIT");
+      return res.json({ ok: true });
     }
 
     const sets: string[] = [];

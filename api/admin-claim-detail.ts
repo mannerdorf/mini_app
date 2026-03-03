@@ -43,6 +43,13 @@ function toArrayOfStrings(input: unknown): string[] {
   return input.map((v) => String(v ?? "").trim()).filter(Boolean);
 }
 
+const CLAIM_TYPE_LABELS_RU: Record<string, string> = {
+  cargo_damage: "Повреждение груза",
+  quantity_mismatch: "Недовоз",
+  cargo_loss: "Утрата груза",
+  other: "Прочее",
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -182,7 +189,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const latestClientPayload = [...events.rows]
     .reverse()
-    .find((e: any) => String(e?.actorRole || "") === "client" && e?.payload && typeof e.payload === "object")
+    .find((e: any) => {
+      const role = String(e?.actorRole || "");
+      const eventType = String(e?.eventType || "");
+      return role === "client"
+        && (eventType === "claim_draft_saved" || eventType === "claim_created")
+        && e?.payload
+        && typeof e.payload === "object";
+    })
     ?.payload as Record<string, unknown> | undefined;
   const selectedPlacesRaw = Array.isArray(latestClientPayload?.selectedPlaces) ? latestClientPayload?.selectedPlaces : [];
   const selectedPlaces = selectedPlacesRaw
@@ -198,6 +212,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     manipulationSigns: toArrayOfStrings(latestClientPayload?.manipulationSigns),
     packagingTypes: toArrayOfStrings(latestClientPayload?.packagingTypes),
   };
+  const claimType = String(claim?.claimType || "").trim();
 
   return res.json({
     claim,
@@ -207,6 +222,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     comments: comments.rows,
     events: events.rows,
     customerPayload,
+    claimTypeLabel: CLAIM_TYPE_LABELS_RU[claimType] || claimType || "—",
     ttnCheck: {
       orderFound,
       sendingFound,

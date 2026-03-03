@@ -63,6 +63,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const loginKey = login.trim().toLowerCase();
 
   if (req.method === "GET") {
+    const claimsColsRes = await pool.query<{ column_name: string }>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'claims'`
+    );
+    const claimsCols = new Set(claimsColsRes.rows.map((r) => String(r.column_name || "").trim()));
+    const hasExpertLogin = claimsCols.has("expert_login");
+
     const status = String(req.query.status || "").trim();
     const cargoNumber = String(req.query.cargoNumber || "").trim();
     const q = String(req.query.q || "").trim();
@@ -70,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const dateTo = String(req.query.dateTo || "").trim();
     const limit = Math.min(200, toPositiveInt(req.query.limit, 50));
 
-    const where: string[] = ["(customer_login = $1 OR expert_login = $1)"];
+    const where: string[] = [hasExpertLogin ? "(customer_login = $1 OR expert_login = $1)" : "customer_login = $1"];
     const params: unknown[] = [loginKey];
 
     if (status) {
@@ -107,11 +115,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          requested_amount AS "requestedAmount",
          approved_amount AS "approvedAmount",
          status,
-         CASE
-           WHEN customer_login = $1 THEN 'customer'
-           WHEN expert_login = $1 THEN 'expert'
-           ELSE 'other'
-         END AS "viewerRole",
+         ${hasExpertLogin
+           ? `CASE
+                WHEN customer_login = $1 THEN 'customer'
+                WHEN expert_login = $1 THEN 'expert'
+                ELSE 'other'
+              END`
+           : `'customer'`
+         } AS "viewerRole",
          status_changed_at AS "statusChangedAt",
          sla_due_at AS "slaDueAt",
          customer_resolution AS "customerResolution",

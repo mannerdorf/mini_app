@@ -99,7 +99,22 @@ function loadStoredRequests(login: string): ExpenseRequestItem[] {
         const raw = localStorage.getItem(storageKey(login));
         if (!raw) return [];
         const all = JSON.parse(raw) as ExpenseRequestItem[];
-        return Array.isArray(all) ? all.filter((r) => r && r.createdAt) : [];
+        if (!Array.isArray(all)) return [];
+        return all
+            .filter((r) => r && r.createdAt)
+            .map((r) => {
+                const safeAttachments = Array.isArray((r as any)?.attachments)
+                    ? (r as any).attachments.filter((a: any) => a && typeof a.name === "string" && typeof a.dataUrl === "string")
+                    : [];
+                const safeAttachmentNames = Array.isArray((r as any)?.attachmentNames)
+                    ? (r as any).attachmentNames.map((n: any) => String(n)).filter(Boolean)
+                    : safeAttachments.map((a: any) => String(a.name || "")).filter(Boolean);
+                return {
+                    ...r,
+                    attachmentNames: safeAttachmentNames,
+                    attachments: safeAttachments,
+                } as ExpenseRequestItem;
+            });
     } catch {
         return [];
     }
@@ -466,13 +481,18 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         try {
             const item = list.find((r) => r.id === itemId);
             if (!item) return;
+            const attachmentNames = Array.isArray(item.attachmentNames)
+                ? item.attachmentNames
+                : (Array.isArray(item.attachments) ? item.attachments.map((a) => String(a?.name || "")).filter(Boolean) : []);
+            const attachments = Array.isArray(item.attachments) ? item.attachments : [];
             if (EXPENSE_REQUESTS_WEBHOOK_URL) {
                 const payload = {
                     ...item,
                     status: "pending_approval",
                     login: auth?.login ?? undefined,
-                    attachmentCount: item.attachmentNames.length,
-                    attachments: item.attachments ?? [],
+                    attachmentCount: attachmentNames.length,
+                    attachmentNames,
+                    attachments,
                 };
                 const res = await fetch(EXPENSE_REQUESTS_WEBHOOK_URL, {
                     method: "POST",
@@ -500,8 +520,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 saveStoredRequests(auth?.login ?? "", next);
                 return next;
             });
-        } catch {
-            setSyncError("Ошибка отправки заявки. Проверьте соединение и попробуйте снова.");
+        } catch (e: unknown) {
+            const message = (e as Error)?.message ? String((e as Error).message) : "";
+            setSyncError(message || "Ошибка отправки заявки. Проверьте соединение и попробуйте снова.");
         } finally {
             setSending(false);
         }
