@@ -1,66 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
+import { normalizeTariffs } from "../../lib/tariffsParser.js";
 
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const TARIFS_AUTH_HEADER = "Basic Info@haulz.pro:Y2ME42XyI_";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
-
-function getStr(el: any, ...keys: string[]): string {
-  if (!el || typeof el !== "object") return "";
-  for (const key of keys) {
-    const value = el[key];
-    if (value != null && value !== "") return String(value).trim();
-  }
-  return "";
-}
-
-function getNum(el: any, ...keys: string[]): number | null {
-  if (!el || typeof el !== "object") return null;
-  for (const key of keys) {
-    const v = el[key];
-    if (v != null && v !== "") {
-      const n = Number(v);
-      if (Number.isFinite(n)) return n;
-    }
-  }
-  return null;
-}
-
-function extractTarifsArray(raw: unknown): any[] {
-  if (!raw || typeof raw !== "object") return [];
-  if (Array.isArray(raw)) return raw;
-  const obj = raw as Record<string, unknown>;
-  const from =
-    obj.Items ??
-    obj.items ??
-    obj.Tarifs ??
-    obj.tarifs ??
-    obj.Tariffs ??
-    obj.tariffs ??
-    obj.Data ??
-    obj.data ??
-    obj.Result ??
-    obj.result ??
-    obj.Rows ??
-    obj.rows;
-  if (Array.isArray(from)) return from;
-  return [];
-}
-
-function normalizeTariffs(raw: unknown): { code: string; name: string; value: number | null; unit: string; data: any }[] {
-  const arr = extractTarifsArray(raw);
-  const out: { code: string; name: string; value: number | null; unit: string; data: any }[] = [];
-  for (let i = 0; i < arr.length; i++) {
-    const el = arr[i];
-    if (!el || typeof el !== "object") continue;
-    const code = getStr(el, "Code", "code", "Код", "Id", "id") || String(i + 1);
-    const name = getStr(el, "Name", "name", "Наименование", "Title", "title") || "";
-    const value = getNum(el, "Value", "value", "Price", "price", "Сумма", "Цена", "Cost", "cost");
-    const unit = getStr(el, "Unit", "unit", "Единица", "Ед", "ед");
-    out.push({ code, name, value, unit, data: el });
-  }
-  return out;
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET" && req.method !== "POST") {
