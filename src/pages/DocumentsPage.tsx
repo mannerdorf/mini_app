@@ -103,6 +103,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [orderSenderFilter, setOrderSenderFilter] = useState<string>('');
     const [orderRouteFilter, setOrderRouteFilter] = useState<string>('all');
     const [actCustomerFilter, setActCustomerFilter] = useState<string>('');
+    const [sverkiCustomerFilter, setSverkiCustomerFilter] = useState<string>('');
+    const [dogovorsCustomerFilter, setDogovorsCustomerFilter] = useState<string>('');
     const [edoStatusFilterSet, setEdoStatusFilterSet] = useState<Set<string>>(() => new Set());
     const [statusFilterSet, setStatusFilterSet] = useState<Set<string>>(() => new Set());
     const [typeFilter, setTypeFilter] = useState<'all' | 'ferry' | 'auto'>('all');
@@ -398,6 +400,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [isTransportDropdownOpen, setIsTransportDropdownOpen] = useState(false);
     const [isEdoStatusDropdownOpen, setIsEdoStatusDropdownOpen] = useState(false);
     const [isActCustomerDropdownOpen, setIsActCustomerDropdownOpen] = useState(false);
+    const [isSverkiCustomerDropdownOpen, setIsSverkiCustomerDropdownOpen] = useState(false);
+    const [isDogovorsCustomerDropdownOpen, setIsDogovorsCustomerDropdownOpen] = useState(false);
     const [isTariffsCustomerDropdownOpen, setIsTariffsCustomerDropdownOpen] = useState(false);
     const [isTariffsRouteDropdownOpen, setIsTariffsRouteDropdownOpen] = useState(false);
     const [isTariffsTypeDropdownOpen, setIsTariffsTypeDropdownOpen] = useState(false);
@@ -416,6 +420,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const transportButtonRef = useRef<HTMLDivElement | null>(null);
     const edoStatusButtonRef = useRef<HTMLDivElement | null>(null);
     const actCustomerButtonRef = useRef<HTMLDivElement | null>(null);
+    const sverkiCustomerButtonRef = useRef<HTMLDivElement | null>(null);
+    const dogovorsCustomerButtonRef = useRef<HTMLDivElement | null>(null);
     const dateButtonRef = useRef<HTMLDivElement | null>(null);
     const customerButtonRef = useRef<HTMLDivElement | null>(null);
     const receiverButtonRef = useRef<HTMLDivElement | null>(null);
@@ -475,10 +481,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         if (effectiveServiceMode) return;
         setCustomerFilter('');
         setActCustomerFilter('');
+        setSverkiCustomerFilter('');
+        setDogovorsCustomerFilter('');
         setTransportFilter('');
         setOrderRouteFilter('all');
         setIsCustomerDropdownOpen(false);
         setIsActCustomerDropdownOpen(false);
+        setIsSverkiCustomerDropdownOpen(false);
+        setIsDogovorsCustomerDropdownOpen(false);
         setIsTransportDropdownOpen(false);
     }, [effectiveServiceMode]);
 
@@ -817,6 +827,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const uniqueSendingCustomers = useMemo(() => [...new Set((sendingsItems || []).map((i: any) => ((i.Customer ?? i.customer ?? i.Контрагент ?? i.Contractor ?? i.Organization ?? '').trim())).filter(Boolean))].sort(), [sendingsItems]);
 
     const uniqueActCustomers = useMemo(() => [...new Set((actsItems || []).map((a: any) => ((a.Customer ?? a.customer ?? a.Контрагент ?? a.Contractor ?? a.Organization ?? '').trim())).filter(Boolean))].sort(), [actsItems]);
+    const uniqueSverkiCustomers = useMemo(
+        () => [...new Set(sverkiList.map((row) => String(row.customerName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
+        [sverkiList]
+    );
+    const uniqueDogovorsCustomers = useMemo(
+        () => [...new Set(dogovorsList.map((row) => String(row.customerName || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')),
+        [dogovorsList]
+    );
 
     const uniqueEdoStatuses = useMemo(() => {
         const set = new Set<string>();
@@ -1074,20 +1092,22 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         return sverkiList.filter((row) => {
+            if (effectiveServiceMode && sverkiCustomerFilter && String(row.customerName || '').trim() !== sverkiCustomerFilter) return false;
             if (!row.docDate) return true;
             const d = new Date(row.docDate);
             return d >= fromDate && d <= toDate;
         });
-    }, [sverkiList, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    }, [sverkiList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, sverkiCustomerFilter]);
     const filteredDogovors = useMemo(() => {
         const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
         return dogovorsList.filter((row) => {
+            if (effectiveServiceMode && dogovorsCustomerFilter && String(row.customerName || '').trim() !== dogovorsCustomerFilter) return false;
             if (!row.docDate) return true;
             const d = new Date(row.docDate);
             return d >= fromDate && d <= toDate;
         });
-    }, [dogovorsList, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    }, [dogovorsList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, dogovorsCustomerFilter]);
     const latestSverkiRequest = useMemo(() => sverkiRequests[0] || null, [sverkiRequests]);
     const sverkiStatusBadge = useMemo(() => {
         if (!latestSverkiRequest) return null;
@@ -1727,7 +1747,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             </Button>
                         ) : null}
                         <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
-                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
+                            <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsDogovorsCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); setIsTariffsCustomerDropdownOpen(false); setIsTariffsRouteDropdownOpen(false); setIsTariffsTypeDropdownOpen(false); }}>
                                 Дата: {dateFilter === 'период' ? 'Период' : dateFilter === 'месяц' && selectedMonthForFilter ? `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}` : dateFilter === 'год' && selectedYearForFilter ? `${selectedYearForFilter}` : dateFilter === 'неделя' && selectedWeekForFilter ? (() => { const r = getWeekRange(selectedWeekForFilter); return `${r.dateFrom.slice(8, 10)}.${r.dateFrom.slice(5, 7)} – ${r.dateTo.slice(8, 10)}.${r.dateTo.slice(5, 7)}`; })() : dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1)} <ChevronDown className="w-4 h-4"/>
                             </Button>
                         </div>
@@ -1982,6 +2002,36 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 </FilterDropdownPortal>
                             </>
                         )}
+                        {docSection === 'Акты сверок' && effectiveServiceMode && (
+                            <>
+                                <div ref={sverkiCustomerButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => { setIsSverkiCustomerDropdownOpen(!isSverkiCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                        Заказчик: {sverkiCustomerFilter ? stripOoo(sverkiCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                                    </Button>
+                                </div>
+                                <FilterDropdownPortal triggerRef={sverkiCustomerButtonRef} isOpen={isSverkiCustomerDropdownOpen} onClose={() => setIsSverkiCustomerDropdownOpen(false)}>
+                                    <div className="dropdown-item" onClick={() => { setSverkiCustomerFilter(''); setIsSverkiCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                                    {uniqueSverkiCustomers.map(c => (
+                                        <div key={c} className="dropdown-item" onClick={() => { setSverkiCustomerFilter(c); setIsSverkiCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
+                                    ))}
+                                </FilterDropdownPortal>
+                            </>
+                        )}
+                        {docSection === 'Договоры' && effectiveServiceMode && (
+                            <>
+                                <div ref={dogovorsCustomerButtonRef} style={{ display: 'inline-flex' }}>
+                                    <Button className="filter-button" onClick={() => { setIsDogovorsCustomerDropdownOpen(!isDogovorsCustomerDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsSverkiCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                        Заказчик: {dogovorsCustomerFilter ? stripOoo(dogovorsCustomerFilter) : 'Все'} <ChevronDown className="w-4 h-4"/>
+                                    </Button>
+                                </div>
+                                <FilterDropdownPortal triggerRef={dogovorsCustomerButtonRef} isOpen={isDogovorsCustomerDropdownOpen} onClose={() => setIsDogovorsCustomerDropdownOpen(false)}>
+                                    <div className="dropdown-item" onClick={() => { setDogovorsCustomerFilter(''); setIsDogovorsCustomerDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                                    {uniqueDogovorsCustomers.map(c => (
+                                        <div key={c} className="dropdown-item" onClick={() => { setDogovorsCustomerFilter(c); setIsDogovorsCustomerDropdownOpen(false); }}><Typography.Body>{stripOoo(c)}</Typography.Body></div>
+                                    ))}
+                                </FilterDropdownPortal>
+                            </>
+                        )}
                         {(docSection === 'Счета' || docSection === 'УПД') && (
                         <>
                         <div ref={edoStatusButtonRef} style={{ display: 'inline-flex' }}>
@@ -1999,7 +2049,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         </FilterDropdownPortal>
                         </>
                         )}
-                        {(((effectiveServiceMode && docSection !== 'Заявки') || docSection === 'Отправки') && docSection !== 'Тарифы') && (
+                        {(((effectiveServiceMode && docSection !== 'Заявки' && docSection !== 'Акты сверок' && docSection !== 'Договоры') || docSection === 'Отправки') && docSection !== 'Тарифы') && (
                         <>
                         <div ref={transportButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsTransportDropdownOpen(!isTransportDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsEdoStatusDropdownOpen(false); }}>
