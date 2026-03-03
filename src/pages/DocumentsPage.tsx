@@ -3588,6 +3588,60 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             </span>
                         ) : null}
                     </Flex>
+                    <div style={{ marginBottom: '0.9rem' }}>
+                        <Typography.Body style={{ fontWeight: 600, marginBottom: '0.45rem' }}>
+                            Заказанные акты сверки
+                        </Typography.Body>
+                        {sverkiRequestsLoading ? (
+                            <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                                Загрузка заявок...
+                            </Typography.Body>
+                        ) : sverkiRequests.length === 0 ? (
+                            <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                                Заявок пока нет
+                            </Typography.Body>
+                        ) : (
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                    <thead>
+                                        <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
+                                            <th style={{ padding: '0.45rem 0.65rem', textAlign: 'left', fontWeight: 600 }}>Договор</th>
+                                            <th style={{ padding: '0.45rem 0.65rem', textAlign: 'left', fontWeight: 600 }}>Период с</th>
+                                            <th style={{ padding: '0.45rem 0.65rem', textAlign: 'left', fontWeight: 600 }}>Период по</th>
+                                            <th style={{ padding: '0.45rem 0.65rem', textAlign: 'left', fontWeight: 600 }}>Создана</th>
+                                            <th style={{ padding: '0.45rem 0.65rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {sverkiRequests.map((req) => {
+                                            const sent = req.status === 'edo_sent';
+                                            return (
+                                                <tr key={req.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                    <td style={{ padding: '0.45rem 0.65rem' }}>{req.contract || '—'}</td>
+                                                    <td style={{ padding: '0.45rem 0.65rem', whiteSpace: 'nowrap' }}><DateText value={req.periodFrom || undefined} /></td>
+                                                    <td style={{ padding: '0.45rem 0.65rem', whiteSpace: 'nowrap' }}><DateText value={req.periodTo || undefined} /></td>
+                                                    <td style={{ padding: '0.45rem 0.65rem', whiteSpace: 'nowrap' }}><DateText value={req.createdAt || undefined} /></td>
+                                                    <td style={{ padding: '0.45rem 0.65rem' }}>
+                                                        <span style={{
+                                                            fontSize: '0.74rem',
+                                                            padding: '0.14rem 0.45rem',
+                                                            borderRadius: 999,
+                                                            fontWeight: 600,
+                                                            background: sent ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)',
+                                                            color: sent ? '#10b981' : '#3b82f6',
+                                                            whiteSpace: 'nowrap',
+                                                        }}>
+                                                            {sent ? 'Отправлена в ЭДО' : 'Ожидает формирования'}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
                     {sverkiLoading ? (
                         <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
                             <Loader2 className="w-4 h-4 animate-spin" />
