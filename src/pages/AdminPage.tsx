@@ -293,7 +293,7 @@ const ADMIN_THEME_KEY = "admin-theme";
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "tariffs" | "audit" | "logs" | "integrations" | "employee_directory" | "subdivisions" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "pnl">("users");
+  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "tariffs" | "sverki" | "audit" | "logs" | "integrations" | "employee_directory" | "subdivisions" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "pnl">("users");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -391,6 +391,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [tariffsSyncMessage, setTariffsSyncMessage] = useState<string | null>(null);
   const [tariffsSyncDebugRequest, setTariffsSyncDebugRequest] = useState<string>("");
   const [tariffsSyncDebugResponse, setTariffsSyncDebugResponse] = useState<string>("");
+  const [sverkiList, setSverkiList] = useState<{
+    id: number;
+    docNumber: string;
+    docDate: string | null;
+    periodFrom: string | null;
+    periodTo: string | null;
+    customerName: string;
+    customerInn: string;
+    fetchedAt: string;
+  }[]>([]);
+  const [sverkiLoading, setSverkiLoading] = useState(false);
+  const [sverkiFetchTrigger, setSverkiFetchTrigger] = useState(0);
+  const [sverkiSyncLoading, setSverkiSyncLoading] = useState(false);
+  const [sverkiSyncMessage, setSverkiSyncMessage] = useState<string | null>(null);
+  const [sverkiSyncDebugRequest, setSverkiSyncDebugRequest] = useState<string>("");
+  const [sverkiSyncDebugResponse, setSverkiSyncDebugResponse] = useState<string>("");
   const [registeringCustomerInn, setRegisteringCustomerInn] = useState<string | null>(null);
   const [autoRegisterCandidates, setAutoRegisterCandidates] = useState<{ inn: string; customer_name: string; email: string }[]>([]);
   const [autoRegisterStats, setAutoRegisterStats] = useState<{ total: number; withEmail: number; validEmail: number; alreadyRegistered: number } | null>(null);
@@ -1454,6 +1470,27 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [tab, tariffsFetchTrigger]);
 
   useEffect(() => {
+    if (tab !== "sverki") return;
+    setSverkiLoading(true);
+    fetch("/api/sverki")
+      .then((res) => res.json())
+      .then((data: { sverki?: {
+        id: number;
+        docNumber: string;
+        docDate: string | null;
+        periodFrom: string | null;
+        periodTo: string | null;
+        customerName: string;
+        customerInn: string;
+        fetchedAt: string;
+      }[] }) => {
+        setSverkiList(data.sverki || []);
+      })
+      .catch(() => setSverkiList([]))
+      .finally(() => setSverkiLoading(false));
+  }, [tab, sverkiFetchTrigger]);
+
+  useEffect(() => {
     if (tab !== "customers") return;
     setAutoRegisterLoading(true);
     const params = new URLSearchParams();
@@ -2468,7 +2505,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     return items;
   }, [selectedUser, editorPermissions, editorFinancial, editorAccessAllInns, editorCustomers]);
-  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "tariffs" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
+  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "tariffs" || tab === "sverki" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
 
   return (
     <div className={theme === "light" ? "light-mode w-full" : "w-full"}>
@@ -2631,6 +2668,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <Receipt className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Справочник Тарифы
+          </Button>
+          <Button
+            className="filter-button"
+            style={{ background: tab === "sverki" ? "var(--color-primary-blue)" : undefined, color: tab === "sverki" ? "white" : undefined }}
+            onClick={() => setTab("sverki")}
+          >
+            <ClipboardList className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Справочник Акты сверок
           </Button>
           {isSuperAdmin && (
             <Button
@@ -4607,6 +4652,130 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           {!tariffsLoading && tariffsList.length > 0 && (
             <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
               Записей: {tariffsList.length}
+            </Typography.Body>
+          )}
+        </Panel>
+      )}
+
+      {tab === "sverki" && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник Акты сверок</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            Данные загружаются из GETAPI?metod=GETsverki и обновляются кроном раз в 24 часа.
+          </Typography.Body>
+          <Flex gap="var(--element-gap, 0.75rem)" align="center" wrap="wrap" style={{ marginBottom: "var(--space-3, 0.75rem)" }}>
+            <Button
+              type="button"
+              className="filter-button"
+              disabled={sverkiLoading}
+              onClick={() => setSverkiFetchTrigger((n) => n + 1)}
+            >
+              {sverkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+              Обновить
+            </Button>
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={sverkiSyncLoading}
+              onClick={async () => {
+                setSverkiSyncLoading(true);
+                setSverkiSyncMessage(null);
+                setSverkiSyncDebugResponse("");
+                setSverkiSyncDebugRequest("");
+                const endpoint = "/api/admin-refresh-sverki-cache";
+                const upstreamCurlFallback = `curl --location 'https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI?metod=GETsverki' --header 'Auth: Basic Info@haulz.pro:Y2ME42XyI_' --header 'Authorization: Basic YWRtaW46anVlYmZueWU='`;
+                try {
+                  const res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${adminToken}` },
+                  });
+                  const text = await res.text().catch(() => "");
+                  const data = (() => {
+                    try { return text ? JSON.parse(text) : {}; } catch { return {}; }
+                  })();
+                  const upstreamCurl = typeof data?.upstream_curl === "string" ? data.upstream_curl : "";
+                  const upstreamUrl = typeof data?.upstream_url === "string" ? data.upstream_url : "";
+                  setSverkiSyncDebugRequest(
+                    upstreamCurl
+                      ? upstreamCurl
+                      : (upstreamUrl ? `curl --location '${upstreamUrl}'` : upstreamCurlFallback)
+                  );
+                  setSverkiSyncDebugResponse(`HTTP ${res.status}\n${text ? (typeof data === "object" && Object.keys(data).length > 0 ? JSON.stringify(data, null, 2) : text) : "{}"}`);
+                  if (!res.ok) throw new Error(data?.error || "Не удалось обновить справочник актов сверок");
+                  setSverkiSyncMessage(`Обновлено: ${Number(data?.sverki_count ?? 0)} записей`);
+                  setSverkiFetchTrigger((n) => n + 1);
+                } catch (e: unknown) {
+                  setSverkiSyncMessage((e as Error)?.message || "Не удалось обновить справочник актов сверок");
+                  setSverkiSyncDebugRequest(upstreamCurlFallback);
+                  setSverkiSyncDebugResponse(`Ошибка: ${(e as Error)?.message || "Неизвестная ошибка"}`);
+                } finally {
+                  setSverkiSyncLoading(false);
+                }
+              }}
+            >
+              {sverkiSyncLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.35rem" }} /> : null}
+              Обновить из 1С
+            </Button>
+          </Flex>
+          {sverkiSyncMessage && (
+            <Typography.Body style={{ marginBottom: "0.65rem", fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+              {sverkiSyncMessage}
+            </Typography.Body>
+          )}
+          {(sverkiSyncDebugRequest || sverkiSyncDebugResponse) && (
+            <div style={{ marginBottom: "0.75rem", padding: "0.55rem 0.65rem", borderRadius: 8, border: "1px dashed var(--color-border)", background: "var(--color-bg-hover)" }}>
+              {sverkiSyncDebugRequest ? (
+                <Typography.Body style={{ fontSize: "0.78rem", marginBottom: "0.35rem" }}>
+                  <strong>Запрос:</strong>
+                  <pre style={{ margin: "0.25rem 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.75rem" }}>{sverkiSyncDebugRequest}</pre>
+                </Typography.Body>
+              ) : null}
+              {sverkiSyncDebugResponse ? (
+                <Typography.Body style={{ fontSize: "0.78rem" }}>
+                  <strong>Ответ:</strong>
+                  <pre style={{ margin: "0.25rem 0 0", whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: "0.75rem" }}>{sverkiSyncDebugResponse}</pre>
+                </Typography.Body>
+              ) : null}
+            </div>
+          )}
+          {sverkiLoading ? (
+            <Flex align="center" gap="0.5rem">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка...</Typography.Body>
+            </Flex>
+          ) : sverkiList.length === 0 ? (
+            <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Справочник пуст</Typography.Body>
+          ) : (
+            <div style={{ overflowX: "auto", maxHeight: "60vh", overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                <thead>
+                  <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Номер</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Дата</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Период с</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Период по</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Контрагент</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sverkiList.map((row) => (
+                    <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? new Date(row.docDate).toLocaleDateString("ru-RU") : "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodFrom ? new Date(row.periodFrom).toLocaleDateString("ru-RU") : "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodTo ? new Date(row.periodTo).toLocaleDateString("ru-RU") : "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{row.customerName || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!sverkiLoading && sverkiList.length > 0 && (
+            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
+              Записей: {sverkiList.length}
             </Typography.Body>
           )}
         </Panel>
