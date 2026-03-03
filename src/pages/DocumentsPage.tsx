@@ -4093,11 +4093,30 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             )}
             {claimsCreateOpen && (
                 <div
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.45)',
+                        zIndex: 1000,
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'center',
+                        overflowY: 'auto',
+                        WebkitOverflowScrolling: 'touch',
+                        padding: '1rem 0.5rem',
+                    }}
                     onClick={() => !claimsCreateSubmitting && setClaimsCreateOpen(false)}
                 >
                     <div
-                        style={{ width: '92%', maxWidth: 560, borderRadius: 12, background: 'var(--color-bg-card, #fff)', padding: '1rem' }}
+                        style={{
+                            width: '100%',
+                            maxWidth: 560,
+                            borderRadius: 12,
+                            background: 'var(--color-bg-card, #fff)',
+                            padding: '1rem',
+                            maxHeight: 'calc(100vh - 2rem)',
+                            overflowY: 'auto',
+                        }}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <Typography.Body style={{ fontWeight: 600, marginBottom: '0.75rem' }}>Новая претензия</Typography.Body>
