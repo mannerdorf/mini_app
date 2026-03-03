@@ -176,7 +176,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         customer_login, customer_company_name, customer_inn, customer_phone, customer_email,
         cargo_number, claim_type, description, requested_amount, status, status_changed_at
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',now())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'draft',now())
       RETURNING id, claim_number as "claimNumber"`,
       [
         loginKey,
@@ -235,7 +235,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await client.query(
       `INSERT INTO claim_events (claim_id, actor_login, actor_role, event_type, to_status, payload)
-       VALUES ($1,$2,'client','claim_created','new',$3::jsonb)`,
+       VALUES ($1,$2,'client','claim_draft_saved','draft',$3::jsonb)`,
       [claim.id, loginKey, JSON.stringify({ cargoNumber, claimType: claimTypeRaw, requestedAmount, customerContactName, selectedPlaces, manipulationSigns, packagingTypes })]
     );
 

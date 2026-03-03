@@ -1,7 +1,26 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { verifyRegisteredUser } from "../../lib/verifyRegisteredUser.js";
-import { decodeBase64File } from "../../lib/claims.js";
+import { decodeBase64File, isClaimType, parseMoney } from "../../lib/claims.js";
+
+type ClaimCreatePhoto = {
+  fileName?: string;
+  mimeType?: string;
+  caption?: string;
+  base64?: string;
+};
+
+type ClaimCreateDocument = {
+  fileName?: string;
+  mimeType?: string;
+  docType?: "ttn" | "act" | "other";
+  base64?: string;
+};
+
+type ClaimCreateVideoLink = {
+  url?: string;
+  title?: string;
+};
 
 function pickCredentials(req: VercelRequest, body: any): { login: string; password: string } {
   const loginFromHeader = typeof req.headers["x-login"] === "string" ? req.headers["x-login"] : "";
@@ -238,6 +257,122 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         `INSERT INTO claim_events (claim_id, actor_login, actor_role, event_type, payload)
          VALUES ($1,$2,'client','documents_uploaded',$3::jsonb)`,
         [claimId, loginKey, JSON.stringify({ photos: photos.length, documents: documents.length, videoLinks: videoLinks.length })]
+      );
+    } else if (action === "submit") {
+      const current = await client.query<{ status: string }>("SELECT status FROM claims WHERE id = $1 FOR UPDATE", [claimId]);
+      const status = String(current.rows[0]?.status || "");
+      if (status !== "draft") throw new Error("Отправить можно только претензию в статусе Черновик");
+
+      await client.query(
+        `UPDATE claims
+         SET status = 'new',
+             status_changed_at = now()
+         WHERE id = $1`,
+        [claimId]
+      );
+      await client.query(
+        `INSERT INTO claim_events (claim_id, actor_login, actor_role, event_type, from_status, to_status)
+         VALUES ($1,$2,'client','claim_submitted','draft','new')`,
+        [claimId, loginKey]
+      );
+    } else if (action === "withdraw") {
+      const current = await client.query<{ status: string }>("SELECT status FROM claims WHERE id = $1 FOR UPDATE", [claimId]);
+      const status = String(current.rows[0]?.status || "");
+      const allowed = new Set(["new", "under_review", "waiting_docs", "in_progress", "awaiting_leader", "sent_to_accounting"]);
+      if (!allowed.has(status)) throw new Error("Отозвать можно только отправленную претензию до финального решения");
+
+      await client.query(
+        `UPDATE claims
+         SET status = 'draft',
+             status_changed_at = now()
+         WHERE id = $1`,
+        [claimId]
+      );
+      await client.query(
+        `INSERT INTO claim_events (claim_id, actor_login, actor_role, event_type, from_status, to_status)
+         VALUES ($1,$2,'client','claim_withdrawn',$3,'draft')`,
+        [claimId, loginKey, status]
+      );
+    } else if (action === "update_draft") {
+      const current = await client.query<{ status: string }>("SELECT status FROM claims WHERE id = $1 FOR UPDATE", [claimId]);
+      const status = String(current.rows[0]?.status || "");
+      if (status !== "draft") throw new Error("Редактирование доступно только для черновика");
+
+      const cargoNumber = String(payload?.cargoNumber || "").trim();
+      const claimTypeRaw = String(payload?.claimType || "").trim();
+      const description = String(payload?.description || "").trim();
+      const requestedAmount = parseMoney(payload?.requestedAmount);
+      const customerPhone = String(payload?.customerPhone || "").trim();
+      const customerEmail = String(payload?.customerEmail || "").trim();
+      const customerContactName = String(payload?.customerContactName || "").trim();
+      const photos = (Array.isArray(payload?.photos) ? payload.photos : []) as ClaimCreatePhoto[];
+      const documents = (Array.isArray(payload?.documents) ? payload.documents : []) as ClaimCreateDocument[];
+      const videoLinks = (Array.isArray(payload?.videoLinks) ? payload.videoLinks : []) as ClaimCreateVideoLink[];
+      const selectedPlaces = Array.isArray(payload?.selectedPlaces) ? payload.selectedPlaces : [];
+      const manipulationSigns = Array.isArray(payload?.manipulationSigns) ? payload.manipulationSigns : [];
+      const packagingTypes = Array.isArray(payload?.packagingTypes) ? payload.packagingTypes : [];
+
+      if (!cargoNumber) throw new Error("Укажите номер перевозки");
+      if (!isClaimType(claimTypeRaw)) throw new Error("Неверный тип претензии");
+      if (!description) throw new Error("Укажите описание претензии");
+      if (requestedAmount == null || requestedAmount < 0) throw new Error("Некорректная сумма требования");
+      if (photos.length > 10) throw new Error("Можно прикрепить не более 10 фото");
+
+      await client.query(
+        `UPDATE claims
+         SET cargo_number = $2,
+             claim_type = $3,
+             description = $4,
+             requested_amount = $5,
+             customer_phone = $6,
+             customer_email = $7
+         WHERE id = $1`,
+        [claimId, cargoNumber, claimTypeRaw, description, requestedAmount, customerPhone, customerEmail]
+      );
+
+      for (const p of photos) {
+        const fileName = String(p?.fileName || "photo").trim();
+        const mimeType = String(p?.mimeType || "image/jpeg").trim();
+        const caption = String(p?.caption || "").trim();
+        const base64 = String(p?.base64 || "").trim();
+        if (!base64) continue;
+        const bytes = decodeBase64File(base64);
+        if (bytes.length > 5 * 1024 * 1024) throw new Error("Фото превышает лимит 5MB");
+        await client.query(
+          `INSERT INTO claim_photos (claim_id, file_name, mime_type, caption, file_bytes)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [claimId, fileName, mimeType, caption, bytes]
+        );
+      }
+      for (const d of documents) {
+        const fileName = String(d?.fileName || "document.pdf").trim();
+        const mimeType = String(d?.mimeType || "application/pdf").trim();
+        const docType = d?.docType === "ttn" || d?.docType === "act" ? d.docType : "other";
+        const base64 = String(d?.base64 || "").trim();
+        if (!base64) continue;
+        const bytes = decodeBase64File(base64);
+        if (bytes.length > 5 * 1024 * 1024) throw new Error("Документ превышает лимит 5MB");
+        await client.query(
+          `INSERT INTO claim_documents (claim_id, file_name, mime_type, doc_type, file_bytes)
+           VALUES ($1,$2,$3,$4,$5)`,
+          [claimId, fileName, mimeType, docType, bytes]
+        );
+      }
+      for (const v of videoLinks) {
+        const url = String(v?.url || "").trim();
+        const title = String(v?.title || "").trim();
+        if (!url) continue;
+        await client.query(
+          `INSERT INTO claim_video_links (claim_id, url, title)
+           VALUES ($1,$2,$3)`,
+          [claimId, url, title]
+        );
+      }
+
+      await client.query(
+        `INSERT INTO claim_events (claim_id, actor_login, actor_role, event_type, from_status, to_status, payload)
+         VALUES ($1,$2,'client','claim_draft_saved','draft','draft',$3::jsonb)`,
+        [claimId, loginKey, JSON.stringify({ cargoNumber, claimType: claimTypeRaw, requestedAmount, customerContactName, selectedPlaces, manipulationSigns, packagingTypes })]
       );
     } else {
       throw new Error("Неподдерживаемое действие");
