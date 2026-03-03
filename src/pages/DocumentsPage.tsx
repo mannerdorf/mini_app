@@ -88,6 +88,35 @@ const CLAIM_STATUS_BADGE: Record<ClaimStatusKey, { bg: string; color: string }> 
 };
 
 const MAX_CLAIM_FILE_BYTES = 5 * 1024 * 1024;
+const MANIPULATION_SIGN_OPTIONS = [
+    { id: 'fragile', label: 'Хрупкое' },
+    { id: 'keep_dry', label: 'Беречь от влаги' },
+    { id: 'this_side_up', label: 'Верх / Не кантовать' },
+    { id: 'do_not_stack', label: 'Не штабелировать' },
+    { id: 'temperature_control', label: 'Температурный режим' },
+    { id: 'handle_with_care', label: 'Осторожно, обращаться бережно' },
+] as const;
+const PACKAGING_TYPE_OPTIONS = [
+    { id: 'box', label: 'Коробка' },
+    { id: 'pallet', label: 'Паллет' },
+    { id: 'crate', label: 'Ящик' },
+    { id: 'bag', label: 'Мешок' },
+    { id: 'film', label: 'Стретч-пленка' },
+    { id: 'wooden_frame', label: 'Обрешетка' },
+    { id: 'without_packaging', label: 'Без упаковки' },
+] as const;
+const FILE_PICKER_BUTTON_STYLE: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0.42rem 0.8rem',
+    borderRadius: 8,
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-bg-card, #fff)',
+    cursor: 'pointer',
+    fontSize: '0.82rem',
+    fontWeight: 500,
+};
 
 async function fileToBase64(file: File): Promise<string> {
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -267,9 +296,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [claimsCreateType, setClaimsCreateType] = useState<'cargo_damage' | 'quantity_mismatch' | 'cargo_loss' | 'other'>('cargo_damage');
     const [claimsCreateDescription, setClaimsCreateDescription] = useState('');
     const [claimsCreateAmount, setClaimsCreateAmount] = useState('');
+    const [claimsCreateContactName, setClaimsCreateContactName] = useState('');
     const [claimsCreatePhone, setClaimsCreatePhone] = useState('');
     const [claimsCreateEmail, setClaimsCreateEmail] = useState('');
     const [claimsCreateVideoLink, setClaimsCreateVideoLink] = useState('');
+    const [claimsCreateManipulationSignIds, setClaimsCreateManipulationSignIds] = useState<string[]>([]);
+    const [claimsCreateManipulationPhotoFiles, setClaimsCreateManipulationPhotoFiles] = useState<File[]>([]);
+    const [claimsCreatePackagingTypeIds, setClaimsCreatePackagingTypeIds] = useState<string[]>([]);
+    const [claimsCreateSelectedPlaceKeys, setClaimsCreateSelectedPlaceKeys] = useState<string[]>([]);
     const [claimsCreatePhotoFiles, setClaimsCreatePhotoFiles] = useState<File[]>([]);
     const [claimsCreateDocumentFiles, setClaimsCreateDocumentFiles] = useState<File[]>([]);
     const [sverkiRequests, setSverkiRequests] = useState<{
@@ -942,12 +976,56 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     );
     const claimCargoOptions = useMemo(() => {
         const set = new Set<string>();
-        (sendingsItems || []).forEach((item: any) => {
-            const number = String(item?.Number ?? item?.number ?? item?.Номер ?? item?.CargoNumber ?? '').trim();
+        (items || []).forEach((item: any) => {
+            const number = String(getFirstCargoNumberFromInvoice(item) || '').trim();
             if (number) set.add(number);
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [sendingsItems]);
+    }, [items, getFirstCargoNumberFromInvoice]);
+    const claimNomenclatureOptions = useMemo(() => {
+        const selectedCargoKey = normCargoKey(claimsCreateCargoNumber);
+        if (!selectedCargoKey) return [] as Array<{ key: string; placeNumber: string; name: string; sourceDoc: string }>;
+        const rows: Array<{ key: string; placeNumber: string; name: string; sourceDoc: string }> = [];
+        const seen = new Set<string>();
+        (items || []).forEach((inv: any) => {
+            const cargoNumber = String(getFirstCargoNumberFromInvoice(inv) || '').trim();
+            if (!cargoNumber || normCargoKey(cargoNumber) !== selectedCargoKey) return;
+            const sourceDoc = String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? '').trim();
+            const list = Array.isArray(inv?.List) ? inv.List : [];
+            list.forEach((row: any, idx: number) => {
+                const name = String(row?.Operation ?? row?.Name ?? '').trim();
+                if (!name) return;
+                const placeMatch = name.match(/(?:мест[ао]?|место)\s*№?\s*([A-Za-zА-Яа-я0-9\-\/]+)/iu);
+                const placeNumber = String(placeMatch?.[1] || '').trim();
+                const key = `${sourceDoc || 'doc'}:${idx}:${placeNumber || name}`;
+                if (seen.has(key)) return;
+                seen.add(key);
+                rows.push({ key, placeNumber, name, sourceDoc });
+            });
+        });
+        return rows;
+    }, [claimsCreateCargoNumber, items, getFirstCargoNumberFromInvoice, normCargoKey]);
+    useEffect(() => {
+        const allowed = new Set(claimNomenclatureOptions.map((row) => row.key));
+        setClaimsCreateSelectedPlaceKeys((prev) => prev.filter((k) => allowed.has(k)));
+    }, [claimNomenclatureOptions]);
+    useEffect(() => {
+        if (claimsCreateManipulationSignIds.length === 0 && claimsCreateManipulationPhotoFiles.length > 0) {
+            setClaimsCreateManipulationPhotoFiles([]);
+        }
+    }, [claimsCreateManipulationSignIds, claimsCreateManipulationPhotoFiles.length]);
+    useEffect(() => {
+        if (claimsCreateType !== 'cargo_damage') {
+            if (claimsCreateManipulationSignIds.length > 0) setClaimsCreateManipulationSignIds([]);
+            if (claimsCreateManipulationPhotoFiles.length > 0) setClaimsCreateManipulationPhotoFiles([]);
+            if (claimsCreatePackagingTypeIds.length > 0) setClaimsCreatePackagingTypeIds([]);
+        }
+    }, [
+        claimsCreateType,
+        claimsCreateManipulationSignIds.length,
+        claimsCreateManipulationPhotoFiles.length,
+        claimsCreatePackagingTypeIds.length,
+    ]);
 
     const uniqueEdoStatuses = useMemo(() => {
         const set = new Set<string>();
@@ -3933,9 +4011,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 setClaimsCreateType('cargo_damage');
                                 setClaimsCreateDescription('');
                                 setClaimsCreateAmount('');
+                                setClaimsCreateContactName('');
                                 setClaimsCreatePhone('');
                                 setClaimsCreateEmail(auth?.login || '');
                                 setClaimsCreateVideoLink('');
+                                setClaimsCreateManipulationSignIds([]);
+                                setClaimsCreateManipulationPhotoFiles([]);
+                                setClaimsCreatePackagingTypeIds([]);
+                                setClaimsCreateSelectedPlaceKeys([]);
                                 setClaimsCreatePhotoFiles([]);
                                 setClaimsCreateDocumentFiles([]);
                                 setClaimsCreateOpen(true);
@@ -4022,10 +4105,10 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             <div>
                                 <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Номер перевозки</Typography.Body>
                                 <input
-                                    type="text"
+                                    type="search"
                                     list="claims-cargo-options"
                                     className="admin-form-input"
-                                    placeholder="Например: 0000-12345"
+                                    placeholder="Начните вводить номер перевозки"
                                     value={claimsCreateCargoNumber}
                                     onChange={(e) => setClaimsCreateCargoNumber(e.target.value)}
                                     style={{ width: '100%', padding: '0.45rem' }}
@@ -4033,18 +4116,149 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 <datalist id="claims-cargo-options">
                                     {claimCargoOptions.map((opt) => <option key={opt} value={opt} />)}
                                 </datalist>
-                                <select
-                                    className="admin-form-input"
-                                    value={claimsCreateCargoNumber}
-                                    onChange={(e) => setClaimsCreateCargoNumber(e.target.value)}
-                                    style={{ width: '100%', padding: '0.45rem', marginTop: '0.35rem' }}
-                                >
-                                    <option value="">Выберите перевозку из списка</option>
-                                    {claimCargoOptions.map((opt) => (
-                                        <option key={`claim-cargo-${opt}`} value={opt}>{opt}</option>
-                                    ))}
-                                </select>
                             </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
+                                    Укажите номера мест (опционально)
+                                </Typography.Body>
+                                <details style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.45rem 0.55rem' }}>
+                                    <summary style={{ cursor: 'pointer', fontSize: '0.84rem', fontWeight: 500 }}>
+                                        Номенклатура перевозки
+                                    </summary>
+                                    {claimNomenclatureOptions.length === 0 ? (
+                                        <Typography.Body style={{ marginTop: '0.45rem', fontSize: '0.76rem', color: 'var(--color-text-secondary)' }}>
+                                            Для выбранной перевозки номенклатура не найдена.
+                                        </Typography.Body>
+                                    ) : (
+                                        <div style={{ marginTop: '0.45rem', maxHeight: 220, overflowY: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                                                <thead>
+                                                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                        <th style={{ textAlign: 'left', padding: '0.25rem', width: 34 }}>#</th>
+                                                        <th style={{ textAlign: 'left', padding: '0.25rem', whiteSpace: 'nowrap' }}>№ места</th>
+                                                        <th style={{ textAlign: 'left', padding: '0.25rem' }}>Номенклатура</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {claimNomenclatureOptions.map((row) => {
+                                                        const checked = claimsCreateSelectedPlaceKeys.includes(row.key);
+                                                        return (
+                                                            <tr key={row.key} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                <td style={{ padding: '0.25rem' }}>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={checked}
+                                                                        onChange={(e) => {
+                                                                            setClaimsCreateSelectedPlaceKeys((prev) => {
+                                                                                if (e.target.checked) return prev.includes(row.key) ? prev : [...prev, row.key];
+                                                                                return prev.filter((k) => k !== row.key);
+                                                                            });
+                                                                        }}
+                                                                    />
+                                                                </td>
+                                                                <td style={{ padding: '0.25rem', whiteSpace: 'nowrap' }}>{row.placeNumber || '—'}</td>
+                                                                <td style={{ padding: '0.25rem' }}>{row.name}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </details>
+                            </div>
+                            {claimsCreateType === 'cargo_damage' ? (
+                                <>
+                                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.55rem' }}>
+                                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
+                                            Наличие манипуляционных знаков
+                                        </Typography.Body>
+                                        <div style={{ display: 'grid', gap: '0.35rem' }}>
+                                            {MANIPULATION_SIGN_OPTIONS.map((sign) => {
+                                                const checked = claimsCreateManipulationSignIds.includes(sign.id);
+                                                return (
+                                                    <Flex key={sign.id} align="center" justify="space-between" style={{ gap: '0.5rem' }}>
+                                                        <Typography.Body style={{ fontSize: '0.82rem' }}>{sign.label}</Typography.Body>
+                                                        <TapSwitch
+                                                            checked={checked}
+                                                            onToggle={() => {
+                                                                setClaimsCreateManipulationSignIds((prev) => (
+                                                                    prev.includes(sign.id)
+                                                                        ? prev.filter((id) => id !== sign.id)
+                                                                        : [...prev, sign.id]
+                                                                ));
+                                                            }}
+                                                        />
+                                                    </Flex>
+                                                );
+                                            })}
+                                        </div>
+                                        {claimsCreateManipulationSignIds.length > 0 ? (
+                                            <div style={{ marginTop: '0.5rem' }}>
+                                                <Typography.Body style={{ fontSize: '0.76rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
+                                                    Фото манипуляционных знаков (до 5MB каждый)
+                                                </Typography.Body>
+                                                <input
+                                                    id="claims-manipulation-photos"
+                                                    type="file"
+                                                    accept="image/*"
+                                                    multiple
+                                                    onChange={(e) => {
+                                                        const files = Array.from(e.target.files || []);
+                                                        setClaimsCreateManipulationPhotoFiles(files);
+                                                        if (files.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
+                                                            setClaimsCreateError('Размер одного фото не должен превышать 5MB');
+                                                        } else {
+                                                            setClaimsCreateError(null);
+                                                        }
+                                                    }}
+                                                    style={{ display: 'none' }}
+                                                />
+                                                <Flex align="center" gap="0.45rem" wrap="wrap">
+                                                    <label htmlFor="claims-manipulation-photos" style={FILE_PICKER_BUTTON_STYLE}>
+                                                        Выбрать фото
+                                                    </label>
+                                                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                                        {claimsCreateManipulationPhotoFiles.length > 0
+                                                            ? `Выбрано: ${claimsCreateManipulationPhotoFiles.length}`
+                                                            : 'Файлы не выбраны'}
+                                                    </Typography.Body>
+                                                </Flex>
+                                                {claimsCreateManipulationPhotoFiles.length > 0 ? (
+                                                    <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
+                                                        Выбрано фото: {claimsCreateManipulationPhotoFiles.map((f) => f.name).join(', ')}
+                                                    </Typography.Body>
+                                                ) : null}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                    <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.55rem' }}>
+                                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
+                                            Упаковка
+                                        </Typography.Body>
+                                        <div style={{ display: 'grid', gap: '0.35rem' }}>
+                                            {PACKAGING_TYPE_OPTIONS.map((pack) => {
+                                                const checked = claimsCreatePackagingTypeIds.includes(pack.id);
+                                                return (
+                                                    <Flex key={pack.id} align="center" justify="space-between" style={{ gap: '0.5rem' }}>
+                                                        <Typography.Body style={{ fontSize: '0.82rem' }}>{pack.label}</Typography.Body>
+                                                        <TapSwitch
+                                                            checked={checked}
+                                                            onToggle={() => {
+                                                                setClaimsCreatePackagingTypeIds((prev) => (
+                                                                    prev.includes(pack.id)
+                                                                        ? prev.filter((id) => id !== pack.id)
+                                                                        : [...prev, pack.id]
+                                                                ));
+                                                            }}
+                                                        />
+                                                    </Flex>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                </>
+                            ) : null}
                             <div>
                                 <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Тип претензии</Typography.Body>
                                 <select
@@ -4053,10 +4267,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     onChange={(e) => setClaimsCreateType(e.target.value as any)}
                                     style={{ width: '100%', padding: '0.45rem' }}
                                 >
-                                    <option value="cargo_damage">Порча груза</option>
-                                    <option value="quantity_mismatch">Несоответствие по количеству</option>
-                                    <option value="cargo_loss">Утрата</option>
-                                    <option value="other">Другое</option>
+                                    <option value="cargo_damage">Повреждение груза</option>
+                                    <option value="quantity_mismatch">Недовоз</option>
+                                    <option value="other">Прочее</option>
                                 </select>
                             </div>
                             <div>
@@ -4097,6 +4310,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     Фото (до 10 файлов, до 5MB каждый)
                                 </Typography.Body>
                                 <input
+                                    id="claims-photos"
                                     type="file"
                                     accept="image/*"
                                     multiple
@@ -4111,8 +4325,18 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             setClaimsCreateError(null);
                                         }
                                     }}
-                                    style={{ width: '100%' }}
+                                    style={{ display: 'none' }}
                                 />
+                                <Flex align="center" gap="0.45rem" wrap="wrap">
+                                    <label htmlFor="claims-photos" style={FILE_PICKER_BUTTON_STYLE}>
+                                        Выбрать фото
+                                    </label>
+                                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                        {claimsCreatePhotoFiles.length > 0
+                                            ? `Выбрано: ${claimsCreatePhotoFiles.length}`
+                                            : 'Файлы не выбраны'}
+                                    </Typography.Body>
+                                </Flex>
                                 {claimsCreatePhotoFiles.length > 0 ? (
                                     <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
                                         Выбрано фото: {claimsCreatePhotoFiles.map((f) => f.name).join(', ')}
@@ -4124,6 +4348,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     PDF документы (до 5MB каждый)
                                 </Typography.Body>
                                 <input
+                                    id="claims-documents"
                                     type="file"
                                     accept="application/pdf"
                                     multiple
@@ -4136,8 +4361,18 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             setClaimsCreateError(null);
                                         }
                                     }}
-                                    style={{ width: '100%' }}
+                                    style={{ display: 'none' }}
                                 />
+                                <Flex align="center" gap="0.45rem" wrap="wrap">
+                                    <label htmlFor="claims-documents" style={FILE_PICKER_BUTTON_STYLE}>
+                                        Выбрать PDF
+                                    </label>
+                                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                        {claimsCreateDocumentFiles.length > 0
+                                            ? `Выбрано: ${claimsCreateDocumentFiles.length}`
+                                            : 'Файлы не выбраны'}
+                                    </Typography.Body>
+                                </Flex>
                                 {claimsCreateDocumentFiles.length > 0 ? (
                                     <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
                                         Выбрано PDF: {claimsCreateDocumentFiles.map((f) => f.name).join(', ')}
@@ -4146,6 +4381,18 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             </div>
                             <div>
                                 <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Контакты</Typography.Body>
+                                <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: '0.5rem' }}>
+                                    <div style={{ flex: '1 1 260px' }}>
+                                        <input
+                                            type="text"
+                                            className="admin-form-input"
+                                            placeholder="ФИО контактного лица"
+                                            value={claimsCreateContactName}
+                                            onChange={(e) => setClaimsCreateContactName(e.target.value)}
+                                            style={{ width: '100%', padding: '0.45rem' }}
+                                        />
+                                    </div>
+                                </Flex>
                                 <Flex gap="0.5rem" wrap="wrap">
                                     <div style={{ flex: '1 1 180px' }}>
                                         <input
@@ -4200,11 +4447,16 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         setClaimsCreateError('Некорректная сумма требования');
                                         return;
                                     }
-                                    if (claimsCreatePhotoFiles.length > 10) {
+                                    const totalPhotoFiles = claimsCreatePhotoFiles.length + claimsCreateManipulationPhotoFiles.length;
+                                    if (totalPhotoFiles > 10) {
                                         setClaimsCreateError('Можно прикрепить не более 10 фото');
                                         return;
                                     }
                                     if (claimsCreatePhotoFiles.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
+                                        setClaimsCreateError('Размер одного фото не должен превышать 5MB');
+                                        return;
+                                    }
+                                    if (claimsCreateManipulationPhotoFiles.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
                                         setClaimsCreateError('Размер одного фото не должен превышать 5MB');
                                         return;
                                     }
@@ -4222,6 +4474,16 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                 base64: await fileToBase64(file),
                                             }))
                                         );
+                                        const manipulationPhotosPayload = await Promise.all(
+                                            claimsCreateManipulationPhotoFiles.map(async (file) => ({
+                                                fileName: file.name,
+                                                mimeType: file.type || 'image/jpeg',
+                                                caption: `Манипуляционные знаки: ${claimsCreateManipulationSignIds
+                                                    .map((id) => MANIPULATION_SIGN_OPTIONS.find((s) => s.id === id)?.label || id)
+                                                    .join(', ')}`,
+                                                base64: await fileToBase64(file),
+                                            }))
+                                        );
                                         const documentsPayload = await Promise.all(
                                             claimsCreateDocumentFiles.map(async (file) => ({
                                                 fileName: file.name,
@@ -4230,6 +4492,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                 base64: await fileToBase64(file),
                                             }))
                                         );
+                                        const selectedPlacesPayload = claimNomenclatureOptions
+                                            .filter((row) => claimsCreateSelectedPlaceKeys.includes(row.key))
+                                            .map((row) => ({
+                                                placeNumber: row.placeNumber || null,
+                                                name: row.name,
+                                                sourceDoc: row.sourceDoc || null,
+                                            }));
                                         const resp = await fetch('/api/claims', {
                                             method: 'POST',
                                             headers: {
@@ -4242,11 +4511,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                 claimType: claimsCreateType,
                                                 description: claimsCreateDescription.trim(),
                                                 requestedAmount: amount,
+                                                customerContactName: claimsCreateContactName.trim(),
                                                 customerPhone: claimsCreatePhone.trim(),
                                                 customerEmail: claimsCreateEmail.trim(),
                                                 customerInn: effectiveActiveInn || undefined,
-                                                photos: photosPayload,
+                                                photos: [...photosPayload, ...manipulationPhotosPayload],
                                                 documents: documentsPayload,
+                                                selectedPlaces: selectedPlacesPayload,
+                                                manipulationSigns: claimsCreateManipulationSignIds,
+                                                packagingTypes: claimsCreatePackagingTypeIds,
                                                 videoLinks: claimsCreateVideoLink.trim() ? [{ url: claimsCreateVideoLink.trim(), title: 'Видео от клиента' }] : [],
                                             }),
                                         });

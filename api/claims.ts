@@ -22,6 +22,12 @@ type ClaimCreateVideoLink = {
   title?: string;
 };
 
+type ClaimSelectedPlace = {
+  placeNumber?: string | null;
+  name?: string | null;
+  sourceDoc?: string | null;
+};
+
 function pickCredentials(req: VercelRequest, body: any): { login: string; password: string } {
   const loginFromHeader = typeof req.headers["x-login"] === "string" ? req.headers["x-login"] : "";
   const passwordFromHeader = typeof req.headers["x-password"] === "string" ? req.headers["x-password"] : "";
@@ -120,12 +126,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const claimTypeRaw = String(payload?.claimType || "").trim();
   const description = String(payload?.description || "").trim();
   const requestedAmount = parseMoney(payload?.requestedAmount);
+  const customerContactName = String(payload?.customerContactName || "").trim();
   const customerPhone = String(payload?.customerPhone || "").trim();
   const customerEmail = String(payload?.customerEmail || "").trim();
 
   const photos = (Array.isArray(payload?.photos) ? payload.photos : []) as ClaimCreatePhoto[];
   const documents = (Array.isArray(payload?.documents) ? payload.documents : []) as ClaimCreateDocument[];
   const videoLinks = (Array.isArray(payload?.videoLinks) ? payload.videoLinks : []) as ClaimCreateVideoLink[];
+  const selectedPlaces = (Array.isArray(payload?.selectedPlaces) ? payload.selectedPlaces : []) as ClaimSelectedPlace[];
+  const manipulationSigns = (Array.isArray(payload?.manipulationSigns) ? payload.manipulationSigns : [])
+    .map((v: unknown) => String(v || "").trim())
+    .filter(Boolean);
+  const packagingTypes = (Array.isArray(payload?.packagingTypes) ? payload.packagingTypes : [])
+    .map((v: unknown) => String(v || "").trim())
+    .filter(Boolean);
 
   if (!cargoNumber) return res.status(400).json({ error: "Укажите номер перевозки" });
   if (!isClaimType(claimTypeRaw)) return res.status(400).json({ error: "Неверный тип претензии" });
@@ -222,7 +236,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await client.query(
       `INSERT INTO claim_events (claim_id, actor_login, actor_role, event_type, to_status, payload)
        VALUES ($1,$2,'client','claim_created','new',$3::jsonb)`,
-      [claim.id, loginKey, JSON.stringify({ cargoNumber, claimType: claimTypeRaw, requestedAmount })]
+      [claim.id, loginKey, JSON.stringify({ cargoNumber, claimType: claimTypeRaw, requestedAmount, customerContactName, selectedPlaces, manipulationSigns, packagingTypes })]
     );
 
     await client.query("COMMIT");
