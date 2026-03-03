@@ -111,8 +111,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "GET") {
     try {
+      const columnsRes = await pool.query<{ column_name: string }>(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'expense_requests'`
+      );
+      const cols = new Set(columnsRes.rows.map((r) => String(r.column_name || "").trim()));
+      const has = (name: string) => cols.has(name);
+      const selectExpr = (name: string, fallbackExpr: string) => (has(name) ? name : `${fallbackExpr} AS ${name}`);
+
       const { rows } = await pool.query<DbRow>(
-        `SELECT id, uid, login, department, doc_number, doc_date, period, category_id, amount, vat_rate, employee_name, comment, vehicle_text, status, rejection_reason, created_at
+        `SELECT
+           ${selectExpr("id", "0::bigint")},
+           ${selectExpr("uid", "('legacy-' || id::text)")},
+           ${selectExpr("login", "''::text")},
+           ${selectExpr("department", "''::text")},
+           ${selectExpr("doc_number", "''::text")},
+           ${selectExpr("doc_date", "NULL::date")},
+           ${selectExpr("period", "''::text")},
+           ${selectExpr("category_id", "'other'::text")},
+           ${selectExpr("amount", "0::numeric")},
+           ${selectExpr("vat_rate", "''::text")},
+           ${selectExpr("employee_name", "''::text")},
+           ${selectExpr("comment", "''::text")},
+           ${selectExpr("vehicle_text", "NULL::text")},
+           ${selectExpr("status", "'draft'::text")},
+           ${selectExpr("rejection_reason", "NULL::text")},
+           ${selectExpr("created_at", "now()")}
          FROM expense_requests
          ORDER BY created_at DESC`
       );

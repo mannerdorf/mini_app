@@ -38,6 +38,11 @@ function hasDamageMark(pairs: Array<{ key: string; value: unknown }>): boolean {
   });
 }
 
+function toArrayOfStrings(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return input.map((v) => String(v ?? "").trim()).filter(Boolean);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -175,6 +180,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // no-op: keep unknown flags as false
   }
 
+  const latestClientPayload = [...events.rows]
+    .reverse()
+    .find((e: any) => String(e?.actorRole || "") === "client" && e?.payload && typeof e.payload === "object")
+    ?.payload as Record<string, unknown> | undefined;
+  const selectedPlacesRaw = Array.isArray(latestClientPayload?.selectedPlaces) ? latestClientPayload?.selectedPlaces : [];
+  const selectedPlaces = selectedPlacesRaw
+    .map((row: any) => {
+      const placeNumber = String(row?.placeNumber || "").trim();
+      const name = String(row?.name || "").trim();
+      return placeNumber || name ? (placeNumber && name ? `${placeNumber} — ${name}` : placeNumber || name) : "";
+    })
+    .filter(Boolean);
+  const customerPayload = {
+    contactName: String(latestClientPayload?.customerContactName || "").trim(),
+    selectedPlaces,
+    manipulationSigns: toArrayOfStrings(latestClientPayload?.manipulationSigns),
+    packagingTypes: toArrayOfStrings(latestClientPayload?.packagingTypes),
+  };
+
   return res.json({
     claim,
     photos: photos.rows,
@@ -182,6 +206,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     videoLinks: videoLinks.rows,
     comments: comments.rows,
     events: events.rows,
+    customerPayload,
     ttnCheck: {
       orderFound,
       sendingFound,

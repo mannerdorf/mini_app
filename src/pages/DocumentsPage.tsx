@@ -110,6 +110,9 @@ const FILE_PICKER_BUTTON_STYLE: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
+    width: '10rem',
+    height: 44,
+    boxSizing: 'border-box',
     padding: '0.42rem 0.8rem',
     borderRadius: 8,
     border: '1px solid var(--color-border)',
@@ -380,6 +383,13 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [claimsCreateDocumentFiles, setClaimsCreateDocumentFiles] = useState<File[]>([]);
     const [claimsEditingId, setClaimsEditingId] = useState<number | null>(null);
     const [claimsActionLoadingId, setClaimsActionLoadingId] = useState<number | null>(null);
+    const [claimsReplyOpen, setClaimsReplyOpen] = useState(false);
+    const [claimsReplyClaimId, setClaimsReplyClaimId] = useState<number | null>(null);
+    const [claimsReplyPhotoFiles, setClaimsReplyPhotoFiles] = useState<File[]>([]);
+    const [claimsReplyDocumentFiles, setClaimsReplyDocumentFiles] = useState<File[]>([]);
+    const [claimsReplyVideoLink, setClaimsReplyVideoLink] = useState('');
+    const [claimsReplySubmitting, setClaimsReplySubmitting] = useState(false);
+    const [claimsReplyError, setClaimsReplyError] = useState<string | null>(null);
     const [sverkiRequests, setSverkiRequests] = useState<{
         id: number;
         customerInn: string;
@@ -584,6 +594,63 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             setClaimsActionLoadingId(null);
         }
     }, [auth?.login, auth?.password, reloadClaims]);
+    const openClaimReplyModal = useCallback((claimId: number) => {
+        setClaimsReplyClaimId(claimId);
+        setClaimsReplyPhotoFiles([]);
+        setClaimsReplyDocumentFiles([]);
+        setClaimsReplyVideoLink('');
+        setClaimsReplyError(null);
+        setClaimsReplyOpen(true);
+    }, []);
+    const submitClaimReplyDocuments = useCallback(async () => {
+        if (!claimsReplyClaimId || !auth?.login || !auth?.password) return;
+        setClaimsReplySubmitting(true);
+        setClaimsReplyError(null);
+        try {
+            const photosPayload = await Promise.all(
+                claimsReplyPhotoFiles.map(async (file) => ({
+                    fileName: file.name,
+                    mimeType: file.type || 'image/jpeg',
+                    caption: 'Ответ на запрос документов',
+                    base64: await fileToBase64(file),
+                }))
+            );
+            const documentsPayload = await Promise.all(
+                claimsReplyDocumentFiles.map(async (file) => ({
+                    fileName: file.name,
+                    mimeType: file.type || 'application/pdf',
+                    docType: 'other' as const,
+                    base64: await fileToBase64(file),
+                }))
+            );
+            const res = await fetch(`/api/claims/${claimsReplyClaimId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-login': auth.login,
+                    'x-password': auth.password,
+                },
+                body: JSON.stringify({
+                    action: 'upload_documents',
+                    photos: photosPayload,
+                    documents: documentsPayload,
+                    videoLinks: claimsReplyVideoLink.trim() ? [{ url: claimsReplyVideoLink.trim(), title: 'Видео по запросу документов' }] : [],
+                }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.error || 'Не удалось отправить документы');
+            setClaimsReplyOpen(false);
+            setClaimsReplyClaimId(null);
+            setClaimsReplyPhotoFiles([]);
+            setClaimsReplyDocumentFiles([]);
+            setClaimsReplyVideoLink('');
+            await reloadClaims();
+        } catch (e: any) {
+            setClaimsReplyError(e?.message || 'Ошибка отправки документов');
+        } finally {
+            setClaimsReplySubmitting(false);
+        }
+    }, [claimsReplyClaimId, auth?.login, auth?.password, claimsReplyPhotoFiles, claimsReplyDocumentFiles, claimsReplyVideoLink, reloadClaims]);
     useEffect(() => {
         if (docSection !== 'Акты сверок' || !effectiveActiveInn || !auth?.login || !auth?.password) {
             setSverkiRequests([]);
@@ -4248,6 +4315,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                     className="filter-button"
                                                                     onClick={() => openDraftEditor(row.id)}
                                                                     disabled={claimsActionLoadingId === row.id || claimsCreateSubmitting}
+                                                                    style={{ minWidth: 110, height: 36 }}
                                                                 >
                                                                     Изменить
                                                                 </Button>
@@ -4256,22 +4324,37 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                     className="button-primary"
                                                                     onClick={() => runClaimAction(row.id, 'submit')}
                                                                     disabled={claimsActionLoadingId === row.id}
+                                                                    style={{ minWidth: 110, height: 36 }}
                                                                 >
                                                                     {claimsActionLoadingId === row.id ? '...' : 'Отправить'}
                                                                 </Button>
                                                             </>
                                                         ) : (
-                                                            <Button
-                                                                type="button"
-                                                                className="filter-button"
-                                                                onClick={() => runClaimAction(row.id, 'withdraw')}
-                                                                disabled={
-                                                                    claimsActionLoadingId === row.id
-                                                                    || ['paid', 'offset', 'closed'].includes(status)
-                                                                }
-                                                            >
-                                                                {claimsActionLoadingId === row.id ? '...' : 'Отозвать'}
-                                                            </Button>
+                                                            <>
+                                                                {status === 'waiting_docs' && (
+                                                                    <Button
+                                                                        type="button"
+                                                                        className="button-primary"
+                                                                        onClick={() => openClaimReplyModal(row.id)}
+                                                                        disabled={claimsActionLoadingId === row.id || claimsReplySubmitting}
+                                                                        style={{ minWidth: 170, height: 36 }}
+                                                                    >
+                                                                        Ответить документами
+                                                                    </Button>
+                                                                )}
+                                                                <Button
+                                                                    type="button"
+                                                                    className="filter-button"
+                                                                    onClick={() => runClaimAction(row.id, 'withdraw')}
+                                                                    disabled={
+                                                                        claimsActionLoadingId === row.id
+                                                                        || ['paid', 'offset', 'closed'].includes(status)
+                                                                    }
+                                                                    style={{ minWidth: 110, height: 36 }}
+                                                                >
+                                                                    {claimsActionLoadingId === row.id ? '...' : 'Отозвать'}
+                                                                </Button>
+                                                            </>
                                                         )}
                                                     </Flex>
                                                 </td>
@@ -4288,6 +4371,90 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0', fontSize: '0.9rem' }}>
                     Раздел «{docSection}» в разработке.
                 </Typography.Body>
+            )}
+            {claimsReplyOpen && (
+                <div
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={() => !claimsReplySubmitting && setClaimsReplyOpen(false)}
+                >
+                    <div
+                        style={{ width: 'min(92vw, 640px)', maxHeight: '90vh', overflowY: 'auto', borderRadius: 12, background: 'var(--color-bg-card, #fff)', padding: '1rem' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <Typography.Body style={{ fontWeight: 700, marginBottom: '0.55rem' }}>
+                            Ответ на запрос документов
+                        </Typography.Body>
+                        <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
+                            Приложите документы и/или фото по запросу менеджера.
+                        </Typography.Body>
+                        <div style={{ display: 'grid', gap: '0.55rem' }}>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
+                                    Фото (до 10 файлов, до 5MB каждый)
+                                </Typography.Body>
+                                <input
+                                    id="claims-reply-photos"
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(e) => setClaimsReplyPhotoFiles(Array.from(e.target.files || []))}
+                                    style={{ display: 'none' }}
+                                />
+                                <Flex align="center" gap="0.45rem" wrap="wrap">
+                                    <label htmlFor="claims-reply-photos" style={FILE_PICKER_BUTTON_STYLE}>Выбрать фото</label>
+                                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                        {claimsReplyPhotoFiles.length > 0 ? `Выбрано: ${claimsReplyPhotoFiles.length}` : 'Файлы не выбраны'}
+                                    </Typography.Body>
+                                </Flex>
+                            </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
+                                    PDF документы (до 5MB каждый)
+                                </Typography.Body>
+                                <input
+                                    id="claims-reply-documents"
+                                    type="file"
+                                    accept="application/pdf"
+                                    multiple
+                                    onChange={(e) => setClaimsReplyDocumentFiles(Array.from(e.target.files || []))}
+                                    style={{ display: 'none' }}
+                                />
+                                <Flex align="center" gap="0.45rem" wrap="wrap">
+                                    <label htmlFor="claims-reply-documents" style={FILE_PICKER_BUTTON_STYLE}>Выбрать PDF</label>
+                                    <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                                        {claimsReplyDocumentFiles.length > 0 ? `Выбрано: ${claimsReplyDocumentFiles.length}` : 'Файлы не выбраны'}
+                                    </Typography.Body>
+                                </Flex>
+                            </div>
+                            <div>
+                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
+                                    Видео-ссылка (опционально)
+                                </Typography.Body>
+                                <input
+                                    type="url"
+                                    className="admin-form-input"
+                                    placeholder="https://..."
+                                    value={claimsReplyVideoLink}
+                                    onChange={(e) => setClaimsReplyVideoLink(e.target.value)}
+                                    style={{ width: '100%', padding: '0.45rem' }}
+                                />
+                            </div>
+                        </div>
+                        {claimsReplyError ? (
+                            <Typography.Body style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: '0.6rem' }}>
+                                {claimsReplyError}
+                            </Typography.Body>
+                        ) : null}
+                        <Flex justify="flex-end" gap="0.45rem" style={{ marginTop: '0.7rem' }}>
+                            <Button className="filter-button" disabled={claimsReplySubmitting} onClick={() => setClaimsReplyOpen(false)}>
+                                Отмена
+                            </Button>
+                            <Button className="button-primary" disabled={claimsReplySubmitting} onClick={submitClaimReplyDocuments}>
+                                {claimsReplySubmitting ? 'Отправка...' : 'Отправить документы'}
+                            </Button>
+                        </Flex>
+                    </div>
+                </div>
             )}
             {claimsCreateOpen && (
                 <div
@@ -4355,7 +4522,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             </div>
                             <div>
                                 <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
-                                    Укажите номера мест (опционально)
+                                    Укажите номера мест
                                 </Typography.Body>
                                 <details style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.45rem 0.55rem' }}>
                                     <summary style={{ cursor: 'pointer', fontSize: '0.84rem', fontWeight: 500 }}>
@@ -4654,10 +4821,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 {claimsCreateError}
                             </Typography.Body>
                         ) : null}
-                        <Flex justify="flex-end" gap="0.45rem">
+                        <Flex justify="flex-end" gap="0.45rem" align="center">
                             <Button
                                 className="filter-button"
                                 disabled={claimsCreateSubmitting}
+                                style={{ height: 56, minWidth: 170 }}
                                 onClick={() => {
                                     setClaimsCreateOpen(false);
                                     setClaimsEditingId(null);
@@ -4668,6 +4836,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             <Button
                                 className="button-primary"
                                 disabled={claimsCreateSubmitting}
+                                style={{ height: 56, minWidth: 320 }}
                                 onClick={async () => {
                                     if (!auth?.login || !auth?.password) {
                                         setClaimsCreateError('Не удалось определить авторизацию');

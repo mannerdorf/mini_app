@@ -477,6 +477,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [adminClaimNoteDraft, setAdminClaimNoteDraft] = useState("");
   const [adminLeaderCommentDraft, setAdminLeaderCommentDraft] = useState("");
   const [adminClaimApprovedAmountDraft, setAdminClaimApprovedAmountDraft] = useState("");
+  const [adminClaimDocDownloading, setAdminClaimDocDownloading] = useState<"" | "ЭР" | "АПП">("");
+  const [adminClaimDocError, setAdminClaimDocError] = useState<string>("");
   const [adminDelegateOpen, setAdminDelegateOpen] = useState(false);
   const [adminDelegateLogin, setAdminDelegateLogin] = useState("");
   const [adminDelegateComment, setAdminDelegateComment] = useState("");
@@ -1989,6 +1991,43 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setAdminClaimsUpdatingId(null);
     }
   }, [adminToken, reloadAdminClaims, adminClaimDetailId]);
+  const downloadClaimCargoDoc = useCallback(async (method: "ЭР" | "АПП") => {
+    const cargoNumber = String(adminClaimDetail?.claim?.cargoNumber || "").trim();
+    if (!cargoNumber) {
+      setAdminClaimDocError("Не указан номер перевозки");
+      return;
+    }
+    setAdminClaimDocError("");
+    setAdminClaimDocDownloading(method);
+    try {
+      const res = await fetch("/api/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          metod: method,
+          number: cargoNumber,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || data?.error || `Не удалось получить ${method}`);
+      if (!data?.data) throw new Error(`Документ ${method} не найден`);
+
+      const binary = atob(String(data.data));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = String(data?.name || `${method}_${cargoNumber}.pdf`);
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch (e: unknown) {
+      setAdminClaimDocError((e as Error)?.message || `Ошибка скачивания ${method}`);
+    } finally {
+      setAdminClaimDocDownloading("");
+    }
+  }, [adminClaimDetail?.claim?.cargoNumber]);
 
   useEffect(() => {
     if (!adminClaimDetailId || !adminToken) {
@@ -2015,6 +2054,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         setAdminRequestDocUPD(false);
         setAdminRequestDocTTN(false);
         setAdminRequestDocsComment("");
+        setAdminClaimDocError("");
+        setAdminClaimDocDownloading("");
         if (claim?.id && String(claim?.status || "") === "new") {
           setAdminClaimDetail((prev: any) => ({ ...prev, claim: { ...prev?.claim, status: "in_progress" } }));
           updateAdminClaimStatus(
@@ -8049,26 +8090,44 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Button
               type="button"
               className="filter-button"
-              style={{ background: accountingSubsection === "expense_requests" ? "var(--color-primary-blue)" : undefined, color: accountingSubsection === "expense_requests" ? "white" : undefined }}
+              style={{
+                background: accountingSubsection === "expense_requests" ? "var(--color-primary-blue)" : undefined,
+                color: accountingSubsection === "expense_requests" ? "white" : undefined,
+                height: 36,
+                padding: "0 0.85rem",
+                minWidth: 170,
+              }}
               onClick={() => setAccountingSubsection("expense_requests")}
             >
-              1 Заявки на расходы
+              Заявки на расходы
             </Button>
             <Button
               type="button"
               className="filter-button"
-              style={{ background: accountingSubsection === "sverki" ? "var(--color-primary-blue)" : undefined, color: accountingSubsection === "sverki" ? "white" : undefined }}
+              style={{
+                background: accountingSubsection === "sverki" ? "var(--color-primary-blue)" : undefined,
+                color: accountingSubsection === "sverki" ? "white" : undefined,
+                height: 36,
+                padding: "0 0.85rem",
+                minWidth: 130,
+              }}
               onClick={() => setAccountingSubsection("sverki")}
             >
-              2 Акты сверок
+              Акты сверок
             </Button>
             <Button
               type="button"
               className="filter-button"
-              style={{ background: accountingSubsection === "claims" ? "var(--color-primary-blue)" : undefined, color: accountingSubsection === "claims" ? "white" : undefined }}
+              style={{
+                background: accountingSubsection === "claims" ? "var(--color-primary-blue)" : undefined,
+                color: accountingSubsection === "claims" ? "white" : undefined,
+                height: 36,
+                padding: "0 0.85rem",
+                minWidth: 120,
+              }}
               onClick={() => setAccountingSubsection("claims")}
             >
-              3 Претензии
+              Претензии
             </Button>
           </Flex>
         </Panel>
@@ -8530,7 +8589,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Button
               type="button"
               className="filter-button"
-              style={{ background: adminClaimsView === "new" ? "var(--color-primary-blue)" : undefined, color: adminClaimsView === "new" ? "white" : undefined }}
+              style={{
+                background: adminClaimsView === "new" ? "var(--color-primary-blue)" : undefined,
+                color: adminClaimsView === "new" ? "white" : undefined,
+                height: 32,
+                minWidth: 68,
+                padding: "0 0.7rem",
+              }}
               onClick={() => { setAdminClaimsView("new"); setAdminClaimsStatusFilter(""); }}
             >
               Новые
@@ -8538,7 +8603,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Button
               type="button"
               className="filter-button"
-              style={{ background: adminClaimsView === "in_progress" ? "var(--color-primary-blue)" : undefined, color: adminClaimsView === "in_progress" ? "white" : undefined }}
+              style={{
+                background: adminClaimsView === "in_progress" ? "var(--color-primary-blue)" : undefined,
+                color: adminClaimsView === "in_progress" ? "white" : undefined,
+                height: 32,
+                minWidth: 82,
+                padding: "0 0.7rem",
+              }}
               onClick={() => { setAdminClaimsView("in_progress"); setAdminClaimsStatusFilter(""); }}
             >
               В работе
@@ -8546,7 +8617,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             <Button
               type="button"
               className="filter-button"
-              style={{ background: adminClaimsView === "all" ? "var(--color-primary-blue)" : undefined, color: adminClaimsView === "all" ? "white" : undefined }}
+              style={{
+                background: adminClaimsView === "all" ? "var(--color-primary-blue)" : undefined,
+                color: adminClaimsView === "all" ? "white" : undefined,
+                height: 32,
+                minWidth: 56,
+                padding: "0 0.7rem",
+              }}
               onClick={() => setAdminClaimsView("all")}
             >
               Все
@@ -8593,13 +8670,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               placeholder="Поиск: номер претензии / перевозка / заказчик"
               value={adminClaimsSearch}
               onChange={(e) => setAdminClaimsSearch(e.target.value)}
-              style={{ minWidth: 280, maxWidth: 420 }}
+              style={{ minWidth: 280, maxWidth: 420, height: 32, padding: "0 0.55rem" }}
             />
             <select
               className="admin-form-input"
               value={adminClaimsStatusFilter}
               onChange={(e) => { setAdminClaimsView("all"); setAdminClaimsStatusFilter(e.target.value); }}
-              style={{ padding: "0.35rem 0.5rem", height: 36, minWidth: 210 }}
+              style={{ padding: "0 0.5rem", height: 32, minWidth: 210 }}
             >
               <option value="">Все статусы</option>
               <option value="new">Новая</option>
@@ -8613,7 +8690,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               <option value="offset">Зачтено</option>
               <option value="rejected">Отказ</option>
             </select>
-            <Button type="button" className="filter-button" onClick={() => reloadAdminClaims()} disabled={adminClaimsLoading}>
+            <Button
+              type="button"
+              className="filter-button"
+              style={{ height: 32, minWidth: 92, padding: "0 0.65rem" }}
+              onClick={() => reloadAdminClaims()}
+              disabled={adminClaimsLoading}
+            >
               {adminClaimsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Обновить"}
             </Button>
           </Flex>
@@ -8650,7 +8733,28 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         {c.approvedAmount != null ? `${Number(c.approvedAmount).toLocaleString("ru-RU")} ₽` : c.requestedAmount != null ? `${Number(c.requestedAmount).toLocaleString("ru-RU")} ₽` : "—"}
                       </td>
                       <td style={{ padding: "6px 8px" }}>
-                        <span style={{ fontSize: "0.72rem", padding: "0.12rem 0.45rem", borderRadius: 999, background: c.status === "rejected" ? "rgba(239,68,68,0.15)" : c.status === "approved" || c.status === "paid" || c.status === "offset" ? "rgba(16,185,129,0.15)" : "rgba(59,130,246,0.15)", color: c.status === "rejected" ? "#ef4444" : c.status === "approved" || c.status === "paid" || c.status === "offset" ? "#10b981" : "#3b82f6", whiteSpace: "nowrap" }}>
+                        <span
+                          className="role-badge"
+                          style={{
+                            fontSize: "0.7rem",
+                            fontWeight: 600,
+                            padding: "0.15rem 0.35rem",
+                            borderRadius: "999px",
+                            background: c.status === "rejected"
+                              ? "rgba(239, 68, 68, 0.2)"
+                              : c.status === "approved" || c.status === "paid" || c.status === "offset"
+                                ? "rgba(34, 197, 94, 0.2)"
+                                : "rgba(59, 130, 246, 0.15)",
+                            color: c.status === "rejected"
+                              ? "#ef4444"
+                              : c.status === "approved" || c.status === "paid" || c.status === "offset"
+                                ? "#22c55e"
+                                : "var(--color-primary-blue)",
+                            border: "1px solid var(--color-border)",
+                            whiteSpace: "nowrap",
+                            display: "inline-block",
+                          }}
+                        >
                           {CLAIM_STATUS_LABELS_RU[String(c.status || "")] || c.status || "—"}
                         </span>
                       </td>
@@ -8747,8 +8851,45 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   <Typography.Body style={{ fontWeight: 600, marginBottom: "0.35rem" }}>Данные клиента и претензии</Typography.Body>
                   <Typography.Body style={{ fontSize: "0.85rem" }}>Заказчик: {adminClaimDetail.claim.customerCompanyName || "—"} ({adminClaimDetail.claim.customerInn || "—"})</Typography.Body>
                   <Typography.Body style={{ fontSize: "0.85rem" }}>Телефон: {adminClaimDetail.claim.customerPhone || "—"} | Email: {adminClaimDetail.claim.customerEmail || "—"}</Typography.Body>
-                  <Typography.Body style={{ fontSize: "0.85rem" }}>Перевозка: {adminClaimDetail.claim.cargoNumber || "—"} | Статус: {adminClaimDetail.claim.status || "—"}</Typography.Body>
+                  <Typography.Body style={{ fontSize: "0.85rem" }}>
+                    Перевозка: {adminClaimDetail.claim.cargoNumber ? (
+                      <a
+                        href={`/documents?section=%D0%97%D0%B0%D1%8F%D0%B2%D0%BA%D0%B8&search=${encodeURIComponent(String(adminClaimDetail.claim.cargoNumber || ""))}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ color: "var(--color-primary-blue)", textDecoration: "underline", fontWeight: 600 }}
+                      >
+                        {adminClaimDetail.claim.cargoNumber}
+                      </a>
+                    ) : "—"}{" "}
+                    | Статус: {CLAIM_STATUS_LABELS_RU[String(adminClaimDetail.claim.status || "")] || adminClaimDetail.claim.status || "—"}
+                  </Typography.Body>
                   <Typography.Body style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>{adminClaimDetail.claim.description || "—"}</Typography.Body>
+                  {!!adminClaimDetail?.customerPayload && (
+                    <div style={{ marginTop: "0.45rem", borderTop: "1px dashed var(--color-border)", paddingTop: "0.45rem" }}>
+                      <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.2rem" }}>
+                        Данные от заказчика
+                      </Typography.Body>
+                      <Typography.Body style={{ fontSize: "0.82rem" }}>
+                        Контактное лицо: {String(adminClaimDetail.customerPayload?.contactName || "—")}
+                      </Typography.Body>
+                      <Typography.Body style={{ fontSize: "0.82rem" }}>
+                        Номера мест: {Array.isArray(adminClaimDetail.customerPayload?.selectedPlaces) && adminClaimDetail.customerPayload.selectedPlaces.length > 0
+                          ? adminClaimDetail.customerPayload.selectedPlaces.join(", ")
+                          : "—"}
+                      </Typography.Body>
+                      <Typography.Body style={{ fontSize: "0.82rem" }}>
+                        Манипуляционные знаки: {Array.isArray(adminClaimDetail.customerPayload?.manipulationSigns) && adminClaimDetail.customerPayload.manipulationSigns.length > 0
+                          ? adminClaimDetail.customerPayload.manipulationSigns.join(", ")
+                          : "—"}
+                      </Typography.Body>
+                      <Typography.Body style={{ fontSize: "0.82rem" }}>
+                        Упаковка: {Array.isArray(adminClaimDetail.customerPayload?.packagingTypes) && adminClaimDetail.customerPayload.packagingTypes.length > 0
+                          ? adminClaimDetail.customerPayload.packagingTypes.join(", ")
+                          : "—"}
+                      </Typography.Body>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
@@ -8818,6 +8959,38 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </div>
                     </div>
                   )}
+                  <div style={{ marginTop: "0.6rem", borderTop: "1px dashed var(--color-border)", paddingTop: "0.5rem" }}>
+                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.3rem" }}>
+                      Документы по перевозке
+                    </Typography.Body>
+                    <Flex gap="0.4rem" wrap="wrap">
+                      <Button
+                        type="button"
+                        className="filter-button"
+                        disabled={adminClaimDocDownloading !== ""}
+                        onClick={() => downloadClaimCargoDoc("АПП")}
+                        style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                      >
+                        {adminClaimDocDownloading === "АПП" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                        Скачать АПП
+                      </Button>
+                      <Button
+                        type="button"
+                        className="filter-button"
+                        disabled={adminClaimDocDownloading !== ""}
+                        onClick={() => downloadClaimCargoDoc("ЭР")}
+                        style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
+                      >
+                        {adminClaimDocDownloading === "ЭР" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                        Скачать ЭР
+                      </Button>
+                    </Flex>
+                    {adminClaimDocError ? (
+                      <Typography.Body style={{ fontSize: "0.74rem", color: "#ef4444", marginTop: "0.3rem" }}>
+                        {adminClaimDocError}
+                      </Typography.Body>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
@@ -8839,10 +9012,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     );
                     return (
                       <Flex gap="0.45rem" wrap="wrap" align="center">
-                        {badge(Boolean(check.orderFound), "Заявка найдена", "Заявка не найдена")}
-                        {badge(Boolean(check.sendingFound), "Отправка найдена", "Отправка не найдена")}
                         {badge(Boolean(check.ttnFound), "ТТН/CMR указаны", "ТТН/CMR не найдены")}
-                        {badge(Boolean(check.damageMarksFound), "Есть отметки о повреждении", "Отметок о повреждении нет")}
                       </Flex>
                     );
                   })()}
@@ -8894,11 +9064,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           style={{ minWidth: 240, padding: "0.4rem 0.5rem" }}
                         >
                           <option value="">Выберите сотрудника</option>
-                          {users
-                            .filter((u) => u.active && !!String(u.login || "").trim())
-                            .map((u) => (
-                              <option key={`delegate-user-${u.id}`} value={String(u.login || "").trim().toLowerCase()}>
-                                {String(u.login || "")}{u.company_name ? ` — ${u.company_name}` : ""}
+                          {employeeDirectoryItems
+                            .filter((emp) => !!String(emp?.login || "").trim())
+                            .map((emp) => (
+                              <option key={`delegate-employee-${emp.id}`} value={String(emp.login || "").trim().toLowerCase()}>
+                                {String(emp.full_name || emp.login || "").trim()}{emp.position ? ` — ${emp.position}` : ""}{emp.login ? ` (${emp.login})` : ""}
                               </option>
                             ))}
                         </select>
