@@ -89,7 +89,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       method: "GET",
       headers: {
         Authorization: `Basic ${auth}`,
-        "Content-Type": "application/json",
       },
     });
     const text = await upstream.text();
