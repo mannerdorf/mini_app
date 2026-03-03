@@ -304,6 +304,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [ordersParcelsSortOrder, setOrdersParcelsSortOrder] = useState<'asc' | 'desc'>('asc');
     const DOCS_TABLE_MODE_KEY = 'haulz.docs.tableMode';
     const DOCS_SECTION_KEY = 'haulz.docs.section';
+    const CLAIMS_PREFILL_CARGO_KEY = 'haulz.docs.claims.prefillCargoNumber';
     const [tableModeByCustomer, setTableModeByCustomer] = useState<boolean>(() => {
         try {
             const v = localStorage.getItem(DOCS_TABLE_MODE_KEY);
@@ -555,6 +556,52 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     useEffect(() => {
         reloadClaims();
     }, [reloadClaims]);
+    const openClaimsCreateModal = useCallback((prefillCargoNumber?: string) => {
+        setClaimsCreateError(null);
+        setClaimsEditingId(null);
+        setClaimsCreateCargoNumber(String(prefillCargoNumber || '').trim());
+        setClaimsCreateType('cargo_damage');
+        setClaimsCreateDescription('');
+        setClaimsCreateAmount('');
+        setClaimsCreateContactName('');
+        setClaimsCreatePhone('');
+        setClaimsCreateEmail(auth?.login || '');
+        setClaimsCreateVideoLink('');
+        setClaimsCreateManipulationSignIds([]);
+        setClaimsCreateManipulationPhotoFiles([]);
+        setClaimsCreatePackagingTypeIds([]);
+        setClaimsCreateSelectedPlaceKeys([]);
+        setClaimsCreatePhotoFiles([]);
+        setClaimsCreateDocumentFiles([]);
+        setClaimsCreateOpen(true);
+    }, [auth?.login]);
+
+    useEffect(() => {
+        if (docSection !== 'Претензии') return;
+        if (!allowedDocSections.some(({ key }) => key === 'Претензии')) return;
+        let prefillCargo = '';
+        try {
+            prefillCargo = String(localStorage.getItem(CLAIMS_PREFILL_CARGO_KEY) || '').trim();
+            if (prefillCargo) localStorage.removeItem(CLAIMS_PREFILL_CARGO_KEY);
+        } catch {
+            prefillCargo = '';
+        }
+        if (!prefillCargo) return;
+        openClaimsCreateModal(prefillCargo);
+    }, [docSection, allowedDocSections, openClaimsCreateModal]);
+
+    useEffect(() => {
+        if (docSection === 'Претензии') return;
+        if (!allowedDocSections.some(({ key }) => key === 'Претензии')) return;
+        let hasPrefill = false;
+        try {
+            hasPrefill = Boolean(String(localStorage.getItem(CLAIMS_PREFILL_CARGO_KEY) || '').trim());
+        } catch {
+            hasPrefill = false;
+        }
+        if (hasPrefill) setDocSection('Претензии');
+    }, [docSection, allowedDocSections]);
+
     const openDraftEditor = useCallback(async (claimId: number) => {
         if (!auth?.login || !auth?.password) return;
         setClaimsCreateError(null);
@@ -4280,23 +4327,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         <Button
                             className="button-primary"
                             onClick={() => {
-                                setClaimsCreateError(null);
-                                setClaimsEditingId(null);
-                                setClaimsCreateCargoNumber('');
-                                setClaimsCreateType('cargo_damage');
-                                setClaimsCreateDescription('');
-                                setClaimsCreateAmount('');
-                                setClaimsCreateContactName('');
-                                setClaimsCreatePhone('');
-                                setClaimsCreateEmail(auth?.login || '');
-                                setClaimsCreateVideoLink('');
-                                setClaimsCreateManipulationSignIds([]);
-                                setClaimsCreateManipulationPhotoFiles([]);
-                                setClaimsCreatePackagingTypeIds([]);
-                                setClaimsCreateSelectedPlaceKeys([]);
-                                setClaimsCreatePhotoFiles([]);
-                                setClaimsCreateDocumentFiles([]);
-                                setClaimsCreateOpen(true);
+                                openClaimsCreateModal();
                             }}
                             disabled={!auth?.login || !auth?.password}
                         >
@@ -4921,9 +4952,34 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     </Typography.Body>
                                 </Flex>
                                 {claimsCreatePhotoFiles.length > 0 ? (
-                                    <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
-                                        Выбрано фото: {claimsCreatePhotoFiles.map((f) => f.name).join(', ')}
-                                    </Typography.Body>
+                                    <div style={{ marginTop: '0.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                                        {claimsCreatePhotoFiles.map((file, idx) => (
+                                            <span
+                                                key={`${file.name}-${idx}`}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.3rem',
+                                                    padding: '0.15rem 0.4rem',
+                                                    borderRadius: 8,
+                                                    border: '1px solid var(--color-border)',
+                                                    background: 'var(--color-bg-hover)',
+                                                    fontSize: '0.72rem',
+                                                    color: 'var(--color-text-secondary)',
+                                                }}
+                                            >
+                                                {file.name}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setClaimsCreatePhotoFiles((prev) => prev.filter((_, i) => i !== idx))}
+                                                    style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0, lineHeight: 1 }}
+                                                    aria-label={`Удалить ${file.name}`}
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
                                 ) : null}
                             </div>
                             <div>
@@ -4957,9 +5013,34 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     </Typography.Body>
                                 </Flex>
                                 {claimsCreateDocumentFiles.length > 0 ? (
-                                    <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)', marginTop: '0.2rem' }}>
-                                        Выбрано PDF: {claimsCreateDocumentFiles.map((f) => f.name).join(', ')}
-                                    </Typography.Body>
+                                    <div style={{ marginTop: '0.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                                        {claimsCreateDocumentFiles.map((file, idx) => (
+                                            <span
+                                                key={`${file.name}-${idx}`}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.3rem',
+                                                    padding: '0.15rem 0.4rem',
+                                                    borderRadius: 8,
+                                                    border: '1px solid var(--color-border)',
+                                                    background: 'var(--color-bg-hover)',
+                                                    fontSize: '0.72rem',
+                                                    color: 'var(--color-text-secondary)',
+                                                }}
+                                            >
+                                                {file.name}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setClaimsCreateDocumentFiles((prev) => prev.filter((_, i) => i !== idx))}
+                                                    style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0, lineHeight: 1 }}
+                                                    aria-label={`Удалить ${file.name}`}
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
                                 ) : null}
                             </div>
                             <div>

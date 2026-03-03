@@ -343,6 +343,7 @@ export default function App() {
             if (t === "cargo") return "cargo";
             if (t === "home" || t === "dashboard") return "dashboard";
             if (t === "docs") return "docs";
+            if (t === "expense_requests") return "expense_requests";
         } catch {
             // ignore
         }
@@ -585,7 +586,7 @@ export default function App() {
                         }
                         // Восстанавливаем последнюю вкладку (без сохранения секретного режима)
                         if (savedTab && !hasUrlTabOverrideRef.current) {
-                            const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs"];
+                            const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs", "expense_requests"];
                             const t = savedTab as Tab;
                             if (allowed.includes(t)) {
                                 if (t === "docs") {
@@ -643,7 +644,8 @@ export default function App() {
             const url = new URL(window.location.href);
             const tabInUrl = url.searchParams.get("tab");
             if (tabInUrl === "cms") return; // админка — URL не меняем
-            url.searchParams.delete("tab");
+            const tabForUrl = activeTab === "dashboard" ? "home" : activeTab;
+            url.searchParams.set("tab", tabForUrl);
             window.history.replaceState(null, "", url.toString());
         } catch {
             // ignore
@@ -884,6 +886,16 @@ export default function App() {
         handleSearch(num);
         setContextCargoNumber(num);
         setActiveTab("cargo");
+    };
+    const openClaimFromCargo = (cargoNumber: string) => {
+        const number = String(cargoNumber || "").trim();
+        if (!number) return;
+        try {
+            window.localStorage.setItem("haulz.docs.claims.prefillCargoNumber", number);
+        } catch {
+            // ignore storage errors
+        }
+        setActiveTab("docs");
     };
 
     const [overlayCargoInn, setOverlayCargoInn] = useState<string | null>(null);
@@ -1916,6 +1928,7 @@ export default function App() {
                             updateActiveAccountCustomer={updateActiveAccountCustomer}
                             openCargoWithFilters={openCargoWithFilters}
                             openCargoFromChat={openCargoFromChat}
+                            openClaimFromCargo={openClaimFromCargo}
                             openTelegramBotWithAccount={openTelegramBotWithAccount}
                             handleSwitchAccount={handleSwitchAccount}
                             handleAddAccount={handleAddAccount}

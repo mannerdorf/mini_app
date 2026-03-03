@@ -737,12 +737,6 @@ export function ProfilePage({
             icon: <LayoutGrid className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('haulz')
         }] : []),
-        ...(activeAccount?.permissions?.accounting === true ? [{
-            id: 'accounting',
-            label: 'Бухгалтерия',
-            icon: <Receipt className="w-5 h-5" style={{ color: '#dc2626' }} />,
-            onClick: () => setCurrentView('accounting')
-        }] : []),
         ...(activeAccount?.isRegisteredUser && activeAccount?.inCustomerDirectory === true ? [
         ...(activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true ? [{
             id: 'employees',
@@ -1075,11 +1069,23 @@ export function ProfilePage({
                             <Button type="button" className="button-primary" onClick={() => setCurrentView('expenseRequests')}>
                                 Заявки на расходы
                             </Button>
+                            {activeAccount?.permissions?.accounting === true && (
+                                <Button type="button" className="button-primary" onClick={() => setCurrentView('accounting')}>
+                                    Бухгалтерия
+                                </Button>
+                            )}
                         </>
                     ) : (
-                        <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>
-                            Раздел доступен только руководителю подразделения HAULZ.
-                        </Typography.Body>
+                        <Flex align="center" gap="0.6rem" wrap="wrap">
+                            <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>
+                                Раздел доступен только руководителю подразделения HAULZ.
+                            </Typography.Body>
+                            {activeAccount?.permissions?.accounting === true && (
+                                <Button type="button" className="button-primary" onClick={() => setCurrentView('accounting')}>
+                                    Бухгалтерия
+                                </Button>
+                            )}
+                        </Flex>
                     )}
                 </Flex>
             </div>
@@ -1145,7 +1151,7 @@ export function ProfilePage({
         return (
             <div className="w-full">
                 <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
-                    <Button className="filter-button" onClick={() => setCurrentView('main')} style={{ padding: '0.5rem' }}>
+                    <Button className="filter-button" onClick={() => setCurrentView('haulz')} style={{ padding: '0.5rem' }}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Бухгалтерия</Typography.Headline>

@@ -828,7 +828,7 @@ body {
     color: inherit;
 }
 .modal-header { display: flex; justify-content: space-between; margin-bottom: var(--space-5, 20px); align-items: center; min-width: 0; }
-.modal-header-icon-btn { padding: 0.25rem; min-width: auto; background: transparent; border: none; box-shadow: none; outline: none; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm, 8px); }
+.modal-header-icon-btn { width: 34px; height: 34px; padding: 0; min-width: 34px; background: transparent; border: none; box-shadow: none; outline: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-sm, 8px); flex-shrink: 0; }
 .modal-header-icon-btn:focus { outline: none; box-shadow: none; }
 .modal-header-icon-btn:hover { background-color: var(--color-bg-hover); }
 .modal-close-button { background: none; border: none; box-shadow: none; outline: none; color: var(--color-text-secondary); cursor: pointer; border-radius: var(--radius-sm, 8px); padding: 0.25rem; }

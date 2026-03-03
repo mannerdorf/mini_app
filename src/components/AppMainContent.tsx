@@ -23,6 +23,7 @@ type Props = {
   updateActiveAccountCustomer: (customer: string) => void;
   openCargoWithFilters: (filters: { statuses?: string[]; customer?: string }) => void;
   openCargoFromChat: (cargoNumber: string) => void;
+  openClaimFromCargo: (cargoNumber: string) => void;
   openTelegramBotWithAccount: () => Promise<void>;
   handleSwitchAccount: (accountId: string) => void;
   handleAddAccount: (account: Account) => Promise<void>;
@@ -121,6 +122,7 @@ export function AppMainContent({
   updateActiveAccountCustomer,
   openCargoWithFilters,
   openCargoFromChat,
+  openClaimFromCargo,
   openTelegramBotWithAccount,
   handleSwitchAccount,
   handleAddAccount,
@@ -185,6 +187,7 @@ export function AppMainContent({
         <CargoPage
           auths={selectedAuths.length > 0 ? selectedAuths : (auth ? [auth] : [])}
           onOpenChat={undefined}
+          onOpenClaim={openClaimFromCargo}
           onCustomerDetected={updateActiveAccountCustomer}
           contextCargoNumber={contextCargoNumber}
           onClearContextCargo={() => setContextCargoNumber(null)}

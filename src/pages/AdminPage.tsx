@@ -9471,12 +9471,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       placeholder="Одобренная сумма"
                       value={adminClaimApprovedAmountDraft}
                       onChange={(e) => setAdminClaimApprovedAmountDraft(e.target.value)}
-                      style={{ maxWidth: 220 }}
+                      style={{ maxWidth: 220, height: 44, boxSizing: "border-box" }}
                     />
                     <Button
                       type="button"
                       className="filter-button"
-                      style={{ background: "#10b981", color: "white" }}
+                      style={{ background: "#10b981", color: "white", height: 44, minWidth: 220 }}
                       onClick={() => updateAdminClaimStatus(
                         adminClaimDetail.claim.id,
                         "approved",
@@ -9490,7 +9490,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <Button
                       type="button"
                       className="filter-button"
-                      style={{ background: "#ef4444", color: "white" }}
+                      style={{ background: "#ef4444", color: "white", height: 44, minWidth: 160 }}
                       onClick={() => updateAdminClaimStatus(
                         adminClaimDetail.claim.id,
                         "rejected",

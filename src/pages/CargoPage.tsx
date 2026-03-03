@@ -32,6 +32,7 @@ export type CargoDetailsModalProps = {
     onClose: () => void;
     auth: AuthData;
     onOpenChat: (cargoNumber?: string) => void | Promise<void>;
+    onCreateClaim?: (cargoNumber: string) => void;
     isFavorite: (cargoNumber: string | undefined) => boolean;
     onToggleFavorite: (cargoNumber: string | undefined) => void;
     showSums?: boolean;
@@ -43,6 +44,7 @@ export type CargoPageProps = {
     auths: AuthData[];
     searchText?: string;
     onOpenChat: (cargoNumber?: string) => void | Promise<void>;
+    onOpenClaim?: (cargoNumber: string) => void;
     onCustomerDetected?: (customer: string) => void;
     contextCargoNumber?: string | null;
     onClearContextCargo?: () => void;
@@ -60,6 +62,7 @@ export function CargoPage({
     auths,
     searchText,
     onOpenChat,
+    onOpenClaim,
     onCustomerDetected,
     contextCargoNumber,
     onClearContextCargo,
@@ -698,6 +701,7 @@ export function CargoPage({
                     onClose={() => setSelectedCargo(null)}
                     auth={primaryAuth}
                     onOpenChat={onOpenChat}
+                    onCreateClaim={onOpenClaim}
                     isFavorite={isFavorite}
                     onToggleFavorite={toggleFavorite}
                     showSums={showSums}

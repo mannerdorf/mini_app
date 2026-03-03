@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
-import { Loader2, X, Truck, Ship, Heart, Share2, Layers, Scale, Weight, List, Download, Info } from "lucide-react";
+import { Loader2, X, Truck, Ship, Heart, Share2, Layers, Scale, Weight, List, Download, Info, ClipboardList } from "lucide-react";
 import { fetchPerevozkaDetails, getTimelineStepColor } from "../../lib/perevozkaDetails";
 import { getWebApp, isMaxWebApp } from "../../webApp";
 import { DOCUMENT_METHODS } from "../../documentMethods";
@@ -20,6 +20,7 @@ export type CargoDetailsModalProps = {
     onClose: () => void;
     auth: AuthData;
     onOpenChat: (cargoNumber?: string) => void | Promise<void>;
+    onCreateClaim?: (cargoNumber: string) => void;
     isFavorite: (cargoNumber: string | undefined) => boolean;
     onToggleFavorite: (cargoNumber: string | undefined) => void;
     showSums?: boolean;
@@ -32,6 +33,7 @@ export function CargoDetailsModal({
     onClose,
     auth,
     onOpenChat,
+    onCreateClaim,
     isFavorite,
     onToggleFavorite,
     showSums = true,
@@ -296,14 +298,29 @@ export function CargoDetailsModal({
                             >
                                 {downloading === "share" ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />}
                             </button>
-                            <Button
-                                style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', boxShadow: 'none', outline: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            <button
+                                type="button"
+                                className="modal-header-icon-btn"
+                                onClick={() => {
+                                    const cargoNumber = String(item?.Number || '').trim();
+                                    if (!cargoNumber) return;
+                                    onCreateClaim?.(cargoNumber);
+                                }}
+                                title="Создать претензию"
+                            >
+                                <ClipboardList className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                            </button>
+                            <button
+                                type="button"
+                                className="modal-header-icon-btn"
                                 onClick={() => onToggleFavorite(item.Number)}
                                 title={isFavorite(item.Number) ? "Удалить из избранного" : "Добавить в избранное"}
                             >
                                 <Heart className="w-4 h-4" style={{ fill: isFavorite(item.Number) ? '#ef4444' : 'transparent', color: isFavorite(item.Number) ? '#ef4444' : 'var(--color-text-secondary)', transition: 'all 0.2s' }} />
-                            </Button>
-                            <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть" style={{ background: 'transparent', border: 'none', boxShadow: 'none', outline: 'none' }}><X size={20} style={{ color: 'var(--color-text-secondary)' }} /></Button>
+                            </button>
+                            <button type="button" className="modal-header-icon-btn" onClick={onClose} aria-label="Закрыть" title="Закрыть">
+                                <X size={20} style={{ color: 'var(--color-text-secondary)' }} />
+                            </button>
                         </Flex>
                     </Flex>
                 </div>
