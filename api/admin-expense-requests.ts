@@ -325,7 +325,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       add("vehicle_text", vText || null);
       add("employee_name", String(b?.employeeName ?? "").trim());
       if (has("updated_at")) {
-        i += 1;
         sets.push("updated_at = now()");
       }
       if (sets.length === 0) return res.status(400).json({ error: "Нет полей для обновления" });
@@ -337,8 +336,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (rowCount === 0) return res.status(404).json({ error: "Заявка не найдена" });
       return res.json({ ok: true });
     } catch (e) {
-      console.error("admin-expense-requests PUT:", e);
-      return res.status(500).json({ error: "Ошибка обновления заявки" });
+      const err = e as Error & { code?: string };
+      console.error("admin-expense-requests PUT:", err);
+      const msg = err?.message ?? String(e);
+      return res.status(500).json({
+        error: "Ошибка обновления заявки",
+        details: msg.length > 200 ? msg.slice(0, 200) + "..." : msg,
+      });
     }
   }
 

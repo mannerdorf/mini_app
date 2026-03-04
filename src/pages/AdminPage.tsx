@@ -2509,7 +2509,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           return;
         }
         const errData = await res.json().catch(() => ({}));
-        setError(String(errData?.error || "Ошибка сохранения заявки"));
+        const detail = errData?.details ? `: ${errData.details}` : "";
+        setError(String(errData?.error || "Ошибка сохранения заявки") + detail);
       } catch (e) {
         setError((e as Error)?.message || "Ошибка сохранения заявки");
       }
