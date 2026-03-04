@@ -168,6 +168,9 @@ export function ProfilePage({
     const [accountingRequestsLoading, setAccountingRequestsLoading] = useState(false);
     const [accountingRequestsError, setAccountingRequestsError] = useState<string | null>(null);
     const [accountingSubsection, setAccountingSubsection] = useState<"expense_requests" | "sverki" | "claims">("expense_requests");
+    const [sverkiRequests, setSverkiRequests] = useState<Array<{ id: number; login: string; customerInn: string; contract: string; periodFrom: string; periodTo: string; status: string; createdAt: string }>>([]);
+    const [sverkiRequestsLoading, setSverkiRequestsLoading] = useState(false);
+    const [sverkiRequestsUpdatingId, setSverkiRequestsUpdatingId] = useState<number | null>(null);
     const departmentShiftHoldTriggeredRef = useRef(false);
     const normalizeShiftMark = (rawValue: string): ShiftMarkCode | "" => {
         const raw = String(rawValue || "").trim().toUpperCase();
@@ -529,11 +532,69 @@ export function ProfilePage({
         }
     }, [activeAccount?.login, activeAccount?.password, activeAccount?.permissions?.accounting]);
 
+    const fetchSverkiRequests = useCallback(async () => {
+        if (!activeAccount?.login || !activeAccount?.password || activeAccount?.permissions?.accounting !== true) return;
+        setSverkiRequestsLoading(true);
+        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        try {
+            const res = await fetch(`${origin}/api/accounting-sverki-requests`, {
+                method: "GET",
+                headers: { "x-login": activeAccount.login, "x-password": activeAccount.password },
+            });
+            const data = await res.json().catch(() => ({}));
+            setSverkiRequests(Array.isArray(data?.requests) ? data.requests : []);
+        } catch {
+            setSverkiRequests([]);
+        } finally {
+            setSverkiRequestsLoading(false);
+        }
+    }, [activeAccount?.login, activeAccount?.password, activeAccount?.permissions?.accounting]);
+
+    const markSverkiRequestAsSent = useCallback(async (id: number) => {
+        if (!activeAccount?.login || !activeAccount?.password) return;
+        setSverkiRequestsUpdatingId(id);
+        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        try {
+            const res = await fetch(`${origin}/api/accounting-sverki-requests`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-login": activeAccount.login, "x-password": activeAccount.password },
+                body: JSON.stringify({ id, status: "edo_sent" }),
+            });
+            if (res.ok) {
+                setSverkiRequests((prev) => prev.map((r) => r.id === id ? { ...r, status: "edo_sent", updatedAt: new Date().toISOString() } as any : r));
+            }
+        } finally {
+            setSverkiRequestsUpdatingId(null);
+        }
+    }, [activeAccount?.login, activeAccount?.password]);
+
+    const deleteSverkiRequest = useCallback(async (id: number) => {
+        if (!window.confirm("Удалить заявку акта сверки? Действие нельзя отменить.")) return;
+        if (!activeAccount?.login || !activeAccount?.password) return;
+        setSverkiRequestsUpdatingId(id);
+        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        try {
+            const res = await fetch(`${origin}/api/accounting-sverki-requests?id=${id}`, {
+                method: "DELETE",
+                headers: { "x-login": activeAccount.login, "x-password": activeAccount.password },
+            });
+            if (res.ok) setSverkiRequests((prev) => prev.filter((r) => r.id !== id));
+        } finally {
+            setSverkiRequestsUpdatingId(null);
+        }
+    }, [activeAccount?.login, activeAccount?.password]);
+
     useEffect(() => {
         if (currentView === "accounting" && activeAccount?.permissions?.accounting === true) {
             void fetchAccountingRequests();
         }
     }, [currentView, activeAccount?.permissions?.accounting, fetchAccountingRequests]);
+
+    useEffect(() => {
+        if (currentView === "accounting" && accountingSubsection === "sverki" && activeAccount?.permissions?.accounting === true) {
+            void fetchSverkiRequests();
+        }
+    }, [currentView, accountingSubsection, activeAccount?.permissions?.accounting, fetchSverkiRequests]);
 
     const saveDepartmentTimesheetCell = useCallback(async (employeeId: number, day: number, value: string) => {
         if (!activeAccount?.login || !activeAccount?.password) return;
@@ -1126,6 +1187,11 @@ export function ProfilePage({
                             <Button type="button" className="button-primary" onClick={() => setCurrentView('expenseRequests')}>
                                 Заявки на расходы
                             </Button>
+                            {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.doc_claims === true && (
+                                <Button type="button" className="button-primary" onClick={() => { setCurrentView('accounting'); setAccountingSubsection('claims'); setSelectedAccountingRequest(null); }}>
+                                    Претензии
+                                </Button>
+                            )}
                             {activeAccount?.permissions?.accounting === true && (
                                 <Button type="button" className="button-primary" onClick={() => setCurrentView('accounting')}>
                                     Бухгалтерия
@@ -1137,6 +1203,11 @@ export function ProfilePage({
                             <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>
                                 Раздел доступен только руководителю подразделения HAULZ.
                             </Typography.Body>
+                            {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.doc_claims === true && (
+                                <Button type="button" className="button-primary" onClick={() => { setCurrentView('accounting'); setAccountingSubsection('claims'); setSelectedAccountingRequest(null); }}>
+                                    Претензии
+                                </Button>
+                            )}
                             {activeAccount?.permissions?.accounting === true && (
                                 <Button type="button" className="button-primary" onClick={() => setCurrentView('accounting')}>
                                     Бухгалтерия
@@ -1323,11 +1394,87 @@ export function ProfilePage({
                 </Panel>
                 )}
                 {accountingSubsection === "sverki" && (
-                <Panel className="cargo-card" style={{ padding: "1rem" }}>
-                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Акты сверок</Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-                        Заявки на формирование актов сверок доступны в веб-версии (CMS) в разделе Бухгалтерия.
-                    </Typography.Body>
+                <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.55rem" }}>Бухгалтерия — акты сверок</Typography.Body>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.55rem", fontSize: "0.9rem" }}>Акты сверок — заявки на формирование</Typography.Body>
+                    {sverkiRequestsLoading ? (
+                        <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Typography.Body style={{ fontSize: "0.82rem" }}>Загрузка заявок...</Typography.Body>
+                        </Flex>
+                    ) : sverkiRequests.length === 0 ? (
+                        <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Заявок пока нет</Typography.Body>
+                    ) : (
+                        <div style={{ maxHeight: 260, overflowY: "auto" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                                <thead>
+                                    <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>Создано</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>Логин</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>ИНН</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>Договор</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>Период</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>Статус</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>Действие</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sverkiRequests.map((r) => {
+                                        const isPending = r.status === "pending";
+                                        return (
+                                            <tr key={r.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}</td>
+                                                <td style={{ padding: "6px 8px" }}>{r.login || "—"}</td>
+                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{r.customerInn || "—"}</td>
+                                                <td style={{ padding: "6px 8px" }}>{r.contract || "—"}</td>
+                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
+                                                    {new Date(r.periodFrom).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })} - {new Date(r.periodTo).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                                                </td>
+                                                <td style={{ padding: "6px 8px" }}>
+                                                    <span style={{
+                                                        fontSize: "0.7rem",
+                                                        padding: "0.15rem 0.45rem",
+                                                        borderRadius: 999,
+                                                        fontWeight: 600,
+                                                        background: isPending ? "rgba(59,130,246,0.15)" : "rgba(16,185,129,0.15)",
+                                                        color: isPending ? "#3b82f6" : "#10b981",
+                                                        whiteSpace: "nowrap",
+                                                    }}>
+                                                        {isPending ? "Ожидает формирования" : "Отправлена в ЭДО"}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: "6px 8px" }}>
+                                                    <Flex gap="0.35rem" wrap="wrap">
+                                                        {isPending && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => markSverkiRequestAsSent(r.id)}
+                                                                disabled={sverkiRequestsUpdatingId === r.id}
+                                                                style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #2563eb", background: "transparent", color: "#2563eb", cursor: "pointer" }}
+                                                            >
+                                                                {sverkiRequestsUpdatingId === r.id ? "..." : "Сформировано"}
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => deleteSverkiRequest(r.id)}
+                                                            disabled={sverkiRequestsUpdatingId === r.id}
+                                                            style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #b91c1c", background: "transparent", color: "#b91c1c", cursor: "pointer" }}
+                                                        >
+                                                            Удалить
+                                                        </button>
+                                                    </Flex>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                    <Button type="button" className="filter-button" onClick={() => void fetchSverkiRequests()} style={{ marginTop: "0.75rem", padding: "0.25rem 0.5rem", fontSize: "0.8rem" }}>
+                        Обновить
+                    </Button>
                 </Panel>
                 )}
                 {accountingSubsection === "claims" && (

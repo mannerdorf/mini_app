@@ -1929,6 +1929,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   useEffect(() => {
     if (!adminMeLoaded) return;
     if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "claims" || tab === "pnl")) setTab("users");
+    if (isSuperAdmin && tab === "claims") {
+      setTab("accounting");
+      setAccountingSubsection("claims");
+    }
   }, [adminMeLoaded, isSuperAdmin, tab]);
 
   const reloadAllExpenseRequests = useCallback(async () => {
@@ -3309,16 +3313,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <ClipboardList className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Заявки на расходы
-          </Button>
-        )}
-        {isSuperAdmin && (
-          <Button
-            className="filter-button"
-            style={{ background: tab === "claims" ? "#f97316" : undefined, color: tab === "claims" ? "white" : undefined }}
-            onClick={() => setTab("claims")}
-          >
-            <ClipboardList className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-            Претензии
           </Button>
         )}
         {isSuperAdmin && (
@@ -9069,7 +9063,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         );
       })()}
 
-      {((tab === "accounting" && accountingSubsection === "claims") || tab === "claims") && isSuperAdmin && (
+      {tab === "accounting" && accountingSubsection === "claims" && isSuperAdmin && (
         <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)", marginTop: "1rem" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
             {tab === "accounting" ? "Претензии (финансовый контур)" : "Претензии (менеджер / руководитель)"}
