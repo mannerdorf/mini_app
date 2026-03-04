@@ -9255,6 +9255,123 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         {adminClaimAttachSubmitting ? "Загрузка..." : "Отправить файлы заказчику"}
                       </Button>
                     </Flex>
+                    <Flex gap="0.45rem" wrap="wrap" style={{ marginTop: "0.55rem", paddingTop: "0.55rem", borderTop: "1px dashed var(--color-border)" }}>
+                      <Button
+                        type="button"
+                        className="filter-button"
+                        onClick={() => setAdminRequestDocsOpen((prev) => !prev)}
+                        disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                      >
+                        Запросить документы
+                      </Button>
+                      <Button
+                        type="button"
+                        className="filter-button"
+                        onClick={() => setAdminDelegateOpen((prev) => !prev)}
+                        disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                      >
+                        Подключить сотрудника
+                      </Button>
+                    </Flex>
+                    {adminDelegateOpen && (
+                      <div style={{ marginTop: "0.55rem", border: "1px dashed var(--color-border)", borderRadius: 8, padding: "0.55rem" }}>
+                        <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.35rem" }}>
+                          Делегирование претензии сотруднику
+                        </Typography.Body>
+                        <Flex gap="0.45rem" wrap="wrap" style={{ marginBottom: "0.45rem" }}>
+                          <select
+                            className="admin-form-input"
+                            value={adminDelegateLogin}
+                            onChange={(e) => setAdminDelegateLogin(e.target.value)}
+                            style={{ minWidth: 240, padding: "0.4rem 0.5rem" }}
+                          >
+                            <option value="">Выберите сотрудника</option>
+                            {employeeDirectoryItems
+                              .filter((emp) => !!String(emp?.login || "").trim())
+                              .map((emp) => (
+                                <option key={`delegate-employee-${emp.id}`} value={String(emp.login || "").trim().toLowerCase()}>
+                                  {String(emp.full_name || emp.login || "").trim()}{emp.position ? ` — ${emp.position}` : ""}{emp.login ? ` (${emp.login})` : ""}
+                                </option>
+                              ))}
+                          </select>
+                        </Flex>
+                        <textarea
+                          className="admin-form-input"
+                          rows={2}
+                          placeholder="Комментарий к делегированию"
+                          value={adminDelegateComment}
+                          onChange={(e) => setAdminDelegateComment(e.target.value)}
+                          style={{ width: "100%" }}
+                        />
+                        <Flex justify="flex-end" style={{ marginTop: "0.35rem" }}>
+                          <Button
+                            type="button"
+                            className="filter-button"
+                            onClick={() => updateAdminClaimStatus(
+                              adminClaimDetail.claim.id,
+                              "in_progress",
+                              Number(adminClaimApprovedAmountDraft || 0),
+                              {
+                                expertLogin: adminDelegateLogin.trim(),
+                                managerNote: adminClaimNoteDraft.trim(),
+                                internalComment: `Делегировано сотруднику ${adminDelegateLogin.trim() || "—"}${adminDelegateComment.trim() ? `: ${adminDelegateComment.trim()}` : ""}`.trim(),
+                              }
+                            )}
+                            disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id || !adminDelegateLogin.trim()}
+                          >
+                            Подключить
+                          </Button>
+                        </Flex>
+                      </div>
+                    )}
+                    {adminRequestDocsOpen && (
+                      <div style={{ marginTop: "0.55rem", border: "1px dashed var(--color-border)", borderRadius: 8, padding: "0.55rem" }}>
+                        <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.35rem" }}>
+                          Какие документы запросить у клиента
+                        </Typography.Body>
+                        <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.45rem" }}>
+                          <label style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.82rem" }}>
+                            <input type="checkbox" checked={adminRequestDocUPD} onChange={(e) => setAdminRequestDocUPD(e.target.checked)} />
+                            УПД
+                          </label>
+                          <label style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.82rem" }}>
+                            <input type="checkbox" checked={adminRequestDocTTN} onChange={(e) => setAdminRequestDocTTN(e.target.checked)} />
+                            ТТН
+                          </label>
+                        </Flex>
+                        <textarea
+                          className="admin-form-input"
+                          rows={2}
+                          placeholder="Какие документы нужны дополнительно"
+                          value={adminRequestDocsComment}
+                          onChange={(e) => setAdminRequestDocsComment(e.target.value)}
+                          style={{ width: "100%" }}
+                        />
+                        <Flex justify="flex-end" style={{ marginTop: "0.35rem" }}>
+                          <Button
+                            type="button"
+                            className="filter-button"
+                            onClick={() => {
+                              const docs = [adminRequestDocUPD ? "УПД" : "", adminRequestDocTTN ? "ТТН" : ""].filter(Boolean);
+                              const text = docs.length > 0 ? `Запрошены документы: ${docs.join(", ")}` : "Запрошены дополнительные документы";
+                              const details = adminRequestDocsComment.trim() ? `${text}. ${adminRequestDocsComment.trim()}` : text;
+                              updateAdminClaimStatus(
+                                adminClaimDetail.claim.id,
+                                "waiting_docs",
+                                Number(adminClaimApprovedAmountDraft || 0),
+                                {
+                                  managerNote: [adminClaimNoteDraft.trim(), details].filter(Boolean).join("\n"),
+                                  internalComment: details,
+                                }
+                              );
+                            }}
+                            disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                          >
+                            Отправить запрос
+                          </Button>
+                        </Flex>
+                      </div>
+                    )}
                   </div>
                   {Array.isArray(adminClaimDetail.photos) && adminClaimDetail.photos.length > 0 && (
                     <div style={{ marginTop: "0.45rem" }}>
@@ -9348,130 +9465,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </Typography.Body>
                     ) : null}
                   </div>
-                </div>
-
-                <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
-                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Обработка</Typography.Body>
-                  <Flex gap="0.45rem" wrap="wrap" style={{ marginBottom: "0.45rem" }}>
-                    <Button
-                      type="button"
-                      className="filter-button"
-                      onClick={() => setAdminRequestDocsOpen((prev) => !prev)}
-                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
-                    >
-                      Запросить документы
-                    </Button>
-                    <Button
-                      type="button"
-                      className="filter-button"
-                      onClick={() => setAdminDelegateOpen((prev) => !prev)}
-                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
-                    >
-                      Подключить сотрудника
-                    </Button>
-                  </Flex>
-                  {adminDelegateOpen && (
-                    <div style={{ marginBottom: "0.55rem", border: "1px dashed var(--color-border)", borderRadius: 8, padding: "0.55rem" }}>
-                      <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.35rem" }}>
-                        Делегирование претензии сотруднику
-                      </Typography.Body>
-                      <Flex gap="0.45rem" wrap="wrap" style={{ marginBottom: "0.45rem" }}>
-                        <select
-                          className="admin-form-input"
-                          value={adminDelegateLogin}
-                          onChange={(e) => setAdminDelegateLogin(e.target.value)}
-                          style={{ minWidth: 240, padding: "0.4rem 0.5rem" }}
-                        >
-                          <option value="">Выберите сотрудника</option>
-                          {employeeDirectoryItems
-                            .filter((emp) => !!String(emp?.login || "").trim())
-                            .map((emp) => (
-                              <option key={`delegate-employee-${emp.id}`} value={String(emp.login || "").trim().toLowerCase()}>
-                                {String(emp.full_name || emp.login || "").trim()}{emp.position ? ` — ${emp.position}` : ""}{emp.login ? ` (${emp.login})` : ""}
-                              </option>
-                            ))}
-                        </select>
-                      </Flex>
-                      <textarea
-                        className="admin-form-input"
-                        rows={2}
-                        placeholder="Комментарий к делегированию"
-                        value={adminDelegateComment}
-                        onChange={(e) => setAdminDelegateComment(e.target.value)}
-                        style={{ width: "100%" }}
-                      />
-                      <Flex justify="flex-end" style={{ marginTop: "0.35rem" }}>
-                        <Button
-                          type="button"
-                          className="filter-button"
-                          onClick={() => updateAdminClaimStatus(
-                            adminClaimDetail.claim.id,
-                            "in_progress",
-                            Number(adminClaimApprovedAmountDraft || 0),
-                            {
-                              expertLogin: adminDelegateLogin.trim(),
-                              managerNote: adminClaimNoteDraft.trim(),
-                              internalComment: `Делегировано сотруднику ${adminDelegateLogin.trim() || "—"}${adminDelegateComment.trim() ? `: ${adminDelegateComment.trim()}` : ""}`.trim(),
-                            }
-                          )}
-                          disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id || !adminDelegateLogin.trim()}
-                        >
-                          Подключить
-                        </Button>
-                      </Flex>
-                    </div>
-                  )}
-                  {adminRequestDocsOpen && (
-                    <div style={{ marginBottom: "0.55rem", border: "1px dashed var(--color-border)", borderRadius: 8, padding: "0.55rem" }}>
-                      <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.35rem" }}>
-                        Какие документы запросить у клиента
-                      </Typography.Body>
-                      <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.45rem" }}>
-                        <label style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.82rem" }}>
-                          <input type="checkbox" checked={adminRequestDocUPD} onChange={(e) => setAdminRequestDocUPD(e.target.checked)} />
-                          УПД
-                        </label>
-                        <label style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.82rem" }}>
-                          <input type="checkbox" checked={adminRequestDocTTN} onChange={(e) => setAdminRequestDocTTN(e.target.checked)} />
-                          ТТН
-                        </label>
-                      </Flex>
-                      <textarea
-                        className="admin-form-input"
-                        rows={2}
-                        placeholder="Какие документы нужны дополнительно"
-                        value={adminRequestDocsComment}
-                        onChange={(e) => setAdminRequestDocsComment(e.target.value)}
-                        style={{ width: "100%" }}
-                      />
-                      <Flex justify="flex-end" style={{ marginTop: "0.35rem" }}>
-                        <Button
-                          type="button"
-                          className="filter-button"
-                          onClick={() => {
-                            const docs = [adminRequestDocUPD ? "УПД" : "", adminRequestDocTTN ? "ТТН" : ""].filter(Boolean);
-                            const text = docs.length > 0 ? `Запрошены документы: ${docs.join(", ")}` : "Запрошены дополнительные документы";
-                            const details = adminRequestDocsComment.trim() ? `${text}. ${adminRequestDocsComment.trim()}` : text;
-                            updateAdminClaimStatus(
-                              adminClaimDetail.claim.id,
-                              "waiting_docs",
-                              Number(adminClaimApprovedAmountDraft || 0),
-                              {
-                                managerNote: [adminClaimNoteDraft.trim(), details].filter(Boolean).join("\n"),
-                                internalComment: details,
-                              }
-                            );
-                          }}
-                          disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
-                        >
-                          Отправить запрос
-                        </Button>
-                      </Flex>
-                    </div>
-                  )}
-                  <Typography.Body style={{ marginTop: "0.55rem", fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
-                    Ответ заказчику (комментарий и файлы от менеджера/руководителя) заполняется в одноименном блоке выше.
-                  </Typography.Body>
                 </div>
 
                 <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>

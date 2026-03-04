@@ -106,6 +106,13 @@ const PACKAGING_TYPE_OPTIONS = [
     { id: 'wooden_frame', label: 'Обрешетка' },
     { id: 'without_packaging', label: 'Без упаковки' },
 ] as const;
+
+const MANIPULATION_SIGN_LABELS_RU: Record<string, string> = Object.fromEntries(MANIPULATION_SIGN_OPTIONS.map((o) => [o.id, o.label]));
+const PACKAGING_TYPE_LABELS_RU: Record<string, string> = Object.fromEntries(PACKAGING_TYPE_OPTIONS.map((o) => [o.id, o.label]));
+
+function mapClaimEnumToRu(values: string[], labels: Record<string, string>): string[] {
+    return values.map((v) => labels[String(v).trim()] || v);
+}
 const FILE_PICKER_BUTTON_STYLE: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -439,6 +446,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [claimsCreateSubmitting, setClaimsCreateSubmitting] = useState(false);
     const [claimsCreateError, setClaimsCreateError] = useState<string | null>(null);
     const [claimsCreateCargoNumber, setClaimsCreateCargoNumber] = useState('');
+    const [claimsCargoDropdownOpen, setClaimsCargoDropdownOpen] = useState(false);
+    const claimsCargoInputRef = useRef<HTMLDivElement>(null);
     const [claimsCreateType, setClaimsCreateType] = useState<'cargo_damage' | 'quantity_mismatch' | 'cargo_loss' | 'other'>('cargo_damage');
     const [claimsCreateDescription, setClaimsCreateDescription] = useState('');
     const [claimsCreateAmount, setClaimsCreateAmount] = useState('');
@@ -1336,8 +1345,30 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const number = String(getFirstCargoNumberFromInvoice(item) || '').trim();
             if (number) set.add(number);
         });
+        (perevozkiItems || []).forEach((c: any) => {
+            const raw = String(c?.Number ?? c?.number ?? '').trim();
+            if (raw) set.add(raw);
+        });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [items, getFirstCargoNumberFromInvoice]);
+    }, [items, perevozkiItems, getFirstCargoNumberFromInvoice]);
+    const claimCargoFilteredOptions = useMemo(() => {
+        const q = String(claimsCreateCargoNumber || '').trim().toLowerCase();
+        if (!q) return claimCargoOptions;
+        return claimCargoOptions.filter((opt) => String(opt).toLowerCase().includes(q));
+    }, [claimCargoOptions, claimsCreateCargoNumber]);
+    useEffect(() => {
+        if (!claimsCreateOpen) setClaimsCargoDropdownOpen(false);
+    }, [claimsCreateOpen]);
+    useEffect(() => {
+        if (!claimsCargoDropdownOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (claimsCargoInputRef.current && !claimsCargoInputRef.current.contains(e.target as Node)) {
+                setClaimsCargoDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [claimsCargoDropdownOpen]);
     useEffect(() => {
         const number = String(claimsCreateCargoNumber || '').trim();
         if (!number || !auth?.login || !auth?.password) {
@@ -4564,10 +4595,10 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             <strong>Номера мест:</strong> {claimCustomerPayload.selectedPlaces.length > 0 ? claimCustomerPayload.selectedPlaces.join(', ') : '—'}
                                         </Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.82rem' }}>
-                                            <strong>Манипуляционные знаки:</strong> {claimCustomerPayload.manipulationSigns.length > 0 ? claimCustomerPayload.manipulationSigns.join(', ') : '—'}
+                                            <strong>Манипуляционные знаки:</strong> {claimCustomerPayload.manipulationSigns.length > 0 ? mapClaimEnumToRu(claimCustomerPayload.manipulationSigns, MANIPULATION_SIGN_LABELS_RU).join(', ') : '—'}
                                         </Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.82rem' }}>
-                                            <strong>Упаковка:</strong> {claimCustomerPayload.packagingTypes.length > 0 ? claimCustomerPayload.packagingTypes.join(', ') : '—'}
+                                            <strong>Упаковка:</strong> {claimCustomerPayload.packagingTypes.length > 0 ? mapClaimEnumToRu(claimCustomerPayload.packagingTypes, PACKAGING_TYPE_LABELS_RU).join(', ') : '—'}
                                         </Typography.Body>
                                     </div>
                                 </div>
@@ -4839,20 +4870,91 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             {claimsEditingId ? `Черновик претензии #${claimsEditingId}` : 'Новая претензия'}
                         </Typography.Body>
                         <div style={{ display: 'grid', gap: '0.55rem', marginBottom: '0.75rem' }}>
-                            <div>
+                            <div ref={claimsCargoInputRef} style={{ position: 'relative' }}>
                                 <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Номер перевозки</Typography.Body>
-                                <input
-                                    type="search"
-                                    list="claims-cargo-options"
-                                    className="admin-form-input"
-                                    placeholder="Начните вводить номер перевозки"
-                                    value={claimsCreateCargoNumber}
-                                    onChange={(e) => setClaimsCreateCargoNumber(e.target.value)}
-                                    style={{ width: '100%', padding: '0.45rem' }}
-                                />
-                                <datalist id="claims-cargo-options">
-                                    {claimCargoOptions.map((opt) => <option key={opt} value={opt} />)}
-                                </datalist>
+                                <div
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: 8,
+                                        background: 'var(--color-bg-card, #fff)',
+                                    }}
+                                >
+                                    <input
+                                        type="text"
+                                        className="admin-form-input"
+                                        placeholder="Начните вводить или выберите номер перевозки"
+                                        value={claimsCreateCargoNumber}
+                                        onChange={(e) => setClaimsCreateCargoNumber(e.target.value)}
+                                        onFocus={() => setClaimsCargoDropdownOpen(true)}
+                                        onClick={() => setClaimsCargoDropdownOpen(true)}
+                                        style={{ flex: 1, padding: '0.45rem', border: 'none', background: 'transparent' }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setClaimsCargoDropdownOpen((v) => !v)}
+                                        style={{
+                                            padding: '0.35rem 0.5rem',
+                                            border: 'none',
+                                            background: 'none',
+                                            cursor: 'pointer',
+                                            color: 'var(--color-text-secondary)',
+                                        }}
+                                        title={claimsCargoDropdownOpen ? 'Свернуть список' : 'Показать список'}
+                                    >
+                                        <ChevronDown className="w-4 h-4" style={{ transform: claimsCargoDropdownOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }} />
+                                    </button>
+                                </div>
+                                {claimsCargoDropdownOpen && (
+                                    <div
+                                        style={{
+                                            position: 'absolute',
+                                            top: '100%',
+                                            left: 0,
+                                            right: 0,
+                                            marginTop: 2,
+                                            maxHeight: 220,
+                                            overflowY: 'auto',
+                                            background: 'var(--color-bg-card, #fff)',
+                                            border: '1px solid var(--color-border)',
+                                            borderRadius: 8,
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                            zIndex: 1100,
+                                        }}
+                                    >
+                                        {claimCargoFilteredOptions.length === 0 ? (
+                                            <div style={{ padding: '0.6rem 0.75rem', fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                                                Нет совпадений
+                                            </div>
+                                        ) : (
+                                            claimCargoFilteredOptions.map((opt) => (
+                                                <button
+                                                    key={opt}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setClaimsCreateCargoNumber(opt);
+                                                        setClaimsCargoDropdownOpen(false);
+                                                    }}
+                                                    style={{
+                                                        display: 'block',
+                                                        width: '100%',
+                                                        padding: '0.45rem 0.75rem',
+                                                        textAlign: 'left',
+                                                        border: 'none',
+                                                        background: 'none',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.9rem',
+                                                    }}
+                                                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-bg-hover, #f3f4f6)'; }}
+                                                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                                                >
+                                                    {opt}
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Тип претензии</Typography.Body>
