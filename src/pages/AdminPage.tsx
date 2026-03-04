@@ -9553,7 +9553,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <strong>Перевозка:</strong>{" "}
                       {adminClaimDetail.claim.cargoNumber ? (
                         <a
-                          href={`/documents?section=%D0%97%D0%B0%D1%8F%D0%B2%D0%BA%D0%B8&search=${encodeURIComponent(String(adminClaimDetail.claim.cargoNumber || ""))}`}
+                          href={`/?tab=docs&section=${encodeURIComponent("Заявки")}&search=${encodeURIComponent(String(adminClaimDetail.claim.cargoNumber || ""))}`}
                           target="_blank"
                           rel="noreferrer"
                           style={{ color: "var(--color-primary-blue)", textDecoration: "underline", fontWeight: 600 }}

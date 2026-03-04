@@ -851,7 +851,7 @@ export function ProfilePage({
             icon: <UserIcon className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('roles')
         },
-        ...((activeAccount?.isSuperAdmin || activeAccount?.permissions?.haulz === true || activeAccount?.permissions?.doc_claims === true) ? [{
+        ...((activeAccount?.isSuperAdmin || activeAccount?.permissions?.haulz === true || activeAccount?.permissions?.doc_claims !== false) ? [{
             id: 'haulz',
             label: 'HAULZ',
             icon: <LayoutGrid className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
@@ -1191,7 +1191,7 @@ export function ProfilePage({
                             Заявки на расходы
                         </Button>
                     )}
-                    {activeAccount?.permissions?.doc_claims === true && onOpenDocumentsWithSection && (
+                    {activeAccount?.permissions?.doc_claims !== false && onOpenDocumentsWithSection && (
                         <Button type="button" className="button-primary" onClick={() => onOpenDocumentsWithSection('Претензии')}>
                             Претензии
                         </Button>
@@ -1297,7 +1297,7 @@ export function ProfilePage({
                         >
                             Акты сверок
                         </Button>
-                        {activeAccount?.permissions?.doc_claims === true && onOpenDocumentsWithSection && (
+                        {activeAccount?.permissions?.doc_claims !== false && onOpenDocumentsWithSection && (
                             <Button
                                 type="button"
                                 className="filter-button"

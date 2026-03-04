@@ -433,7 +433,23 @@ export default function App() {
     const [isSearchExpanded, setIsSearchExpanded] = useState(false);
     const [debugMenuOpen, setDebugMenuOpen] = useState(false);
     const debugMenuRef = useRef<HTMLDivElement>(null);
-    const [searchText, setSearchText] = useState('');
+    const [searchText, setSearchText] = useState(() => {
+        if (typeof window === "undefined") return "";
+        try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get("tab") === "docs") {
+                const section = url.searchParams.get("section")?.trim();
+                if (section) {
+                    try {
+                        window.localStorage.setItem("haulz.docs.section", section);
+                    } catch { /* ignore */ }
+                }
+                const s = url.searchParams.get("search")?.trim();
+                if (s) return s;
+            }
+        } catch { /* ignore */ }
+        return "";
+    });
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
