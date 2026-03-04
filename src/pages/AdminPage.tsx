@@ -2290,8 +2290,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const uploadAdminClaimDocuments = useCallback(async () => {
     if (!adminToken || !adminClaimDetail?.claim?.id) return;
     const video = adminClaimAttachVideoLink.trim();
-    if (adminClaimAttachPhotoFiles.length === 0 && adminClaimAttachDocumentFiles.length === 0 && !video) {
-      setAdminClaimAttachError("Добавьте хотя бы один файл или видео-ссылку");
+    const comment = adminClaimAttachRole === "leader" ? adminLeaderCommentDraft.trim() : adminClaimNoteDraft.trim();
+    const hasAttach = adminClaimAttachPhotoFiles.length > 0 || adminClaimAttachDocumentFiles.length > 0 || !!video;
+    if (!hasAttach && !comment) {
+      setAdminClaimAttachError("Добавьте комментарий или хотя бы один файл/видео-ссылку");
       return;
     }
     setAdminClaimAttachSubmitting(true);
@@ -2327,6 +2329,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           photos: photosPayload,
           documents: documentsPayload,
           videoLinks: videoLinksPayload,
+          managerNote: adminClaimAttachRole === "manager" ? adminClaimNoteDraft.trim() : undefined,
+          leaderComment: adminClaimAttachRole === "leader" ? adminLeaderCommentDraft.trim() : undefined,
           enqueuePush: false,
         }),
       });
@@ -2335,6 +2339,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setAdminClaimAttachPhotoFiles([]);
       setAdminClaimAttachDocumentFiles([]);
       setAdminClaimAttachVideoLink("");
+      if (adminClaimAttachRole === "leader") setAdminLeaderCommentDraft("");
+      else setAdminClaimNoteDraft("");
       setAdminClaimDetailReloadTick((v) => v + 1);
     } catch (e: unknown) {
       setAdminClaimAttachError((e as Error)?.message || "Ошибка прикрепления файлов");
@@ -2345,6 +2351,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     adminToken,
     adminClaimDetail?.claim?.id,
     adminClaimAttachRole,
+    adminClaimNoteDraft,
+    adminLeaderCommentDraft,
     adminClaimAttachPhotoFiles,
     adminClaimAttachDocumentFiles,
     adminClaimAttachVideoLink,

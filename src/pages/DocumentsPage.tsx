@@ -4769,50 +4769,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     </div>
 
                                     <div style={{ marginTop: '0.55rem' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem', display: 'block' }}>Резолюции HAULZ</Typography.Body>
-                                        {Array.isArray(claimsDetailData.events) && claimsDetailData.events.filter((ev: any) => {
-                                            const role = String(ev?.actorRole || '').toLowerCase();
-                                            const eventType = String(ev?.eventType || '').toLowerCase();
-                                            if (!['manager', 'leader', 'accountant', 'admin'].includes(role)) return false;
-                                            return ['status_changed', 'claim_updated', 'documents_uploaded', 'manager_decision', 'leader_decision', 'accounting_decision'].includes(eventType);
-                                        }).length > 0 ? (
-                                            <div style={{ display: 'grid', gap: '0.3rem' }}>
-                                                {claimsDetailData.events
-                                                    .filter((ev: any) => {
-                                                        const role = String(ev?.actorRole || '').toLowerCase();
-                                                        const eventType = String(ev?.eventType || '').toLowerCase();
-                                                        if (!['manager', 'leader', 'accountant', 'admin'].includes(role)) return false;
-                                                        return ['status_changed', 'claim_updated', 'documents_uploaded', 'manager_decision', 'leader_decision', 'accounting_decision'].includes(eventType);
-                                                    })
-                                                    .map((ev: any) => {
-                                                        const role = String(ev?.actorRole || '').toLowerCase();
-                                                        const roleLabel = role === 'leader' ? 'Руководитель' : role === 'manager' ? 'Менеджер' : role === 'accountant' ? 'Бухгалтерия' : 'HAULZ';
-                                                        const eventType = String(ev?.eventType || '').toLowerCase();
-                                                        const eventLabel = eventType === 'status_changed'
-                                                            ? `Изменен статус${ev?.toStatus ? `: ${String(ev.toStatus)}` : ''}`
-                                                            : eventType === 'documents_uploaded'
-                                                                ? 'Добавлены вложения'
-                                                                : eventType === 'claim_updated'
-                                                                    ? 'Обновлена карточка'
-                                                                    : 'Резолюция';
-                                                        return (
-                                                            <div key={`resolution-${ev.id}`} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.35rem 0.45rem' }}>
-                                                                <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
-                                                                    {roleLabel} · <DateText value={ev?.createdAt || undefined} />
-                                                                </Typography.Body>
-                                                                <Typography.Body style={{ fontSize: '0.8rem' }}>{eventLabel}</Typography.Body>
-                                                            </div>
-                                                        );
-                                                    })}
-                                            </div>
-                                        ) : (
-                                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                Резолюций от HAULZ пока нет.
-                                            </Typography.Body>
-                                        )}
-                                    </div>
-
-                                    <div style={{ marginTop: '0.55rem' }}>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem', display: 'block' }}>Прикрепленные файлы</Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
                                             Фото: {Array.isArray(claimsDetailData.photos) ? claimsDetailData.photos.length : 0} | PDF: {Array.isArray(claimsDetailData.documents) ? claimsDetailData.documents.length : 0} | Видео: {Array.isArray(claimsDetailData.videoLinks) ? claimsDetailData.videoLinks.length : 0}

@@ -114,6 +114,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [claimId, actorLogin, actorRole, JSON.stringify({ photos: photos.length, documents: documents.length, videoLinks: videoLinks.length })]
       );
 
+      if (managerNote || leaderComment) {
+        const updateSets: string[] = [];
+        const updateParams: unknown[] = [claimId];
+        if (managerNote) {
+          updateParams.push(managerNote);
+          updateSets.push(`manager_note = $${updateParams.length}`);
+        }
+        if (leaderComment) {
+          updateParams.push(leaderComment);
+          updateSets.push(`leader_comment = $${updateParams.length}`);
+        }
+        if (updateSets.length > 0) {
+          await client.query(
+            `UPDATE claims SET ${updateSets.join(", ")} WHERE id = $1`,
+            updateParams
+          );
+        }
+      }
+
       await client.query("COMMIT");
       return res.json({ ok: true });
     }
