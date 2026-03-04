@@ -7,6 +7,18 @@ const GETAPI_BASE =
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const GET_PEREVOZKA_METHODS = ["Getperevozka", "GetPerevozka"] as const;
 
+/** Варианты номера для 1С: с ведущими нулями и без (как в sendings-plan-date) */
+function numberVariants(num: string): string[] {
+  const trimmed = String(num).trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return [trimmed];
+  const out = [trimmed];
+  const digitsNoLead = digits.replace(/^0+/, "") || digits;
+  if (digitsNoLead !== trimmed) out.push(digitsNoLead);
+  if (digits.length > 0 && digits.length < 9) out.push(digits.padStart(9, "0"));
+  return [...new Set(out)];
+}
+
 async function requestGetPerevozkaFrom1C(params: {
   number: string;
   inn?: string;
@@ -108,30 +120,38 @@ export default async function handler(
       const cacheRow = await pool.query<{ data: unknown[] }>(
         "SELECT data FROM cache_perevozki WHERE id = 1"
       );
-      if (cacheRow.rows.length === 0) {
-        return res.status(404).json({ error: "Перевозка не найдена" });
-      }
-      const data = cacheRow.rows[0].data as any[];
+      const data = cacheRow.rows.length > 0 ? (cacheRow.rows[0].data as any[]) : [];
       const list = Array.isArray(data) ? data : [];
       const norm = String(number).trim();
+      const normForCompare = norm.replace(/^0+/, "") || norm;
       const item = list.find((i: any) => {
         const n = String(i?.Number ?? i?.number ?? "").trim();
-        if (n !== norm) return false;
+        const nForCompare = n.replace(/^0+/, "") || n;
+        if (nForCompare !== normForCompare && n !== norm) return false;
         if (verified.accessAllInns) return true;
         const itemInn = String(i?.INN ?? i?.Inn ?? i?.inn ?? "").trim();
         return itemInn === (verified.inn ?? "");
       });
-      if (!item) {
-        return res.status(404).json({ error: "Перевозка не найдена" });
-      }
-      // Запрос деталей перевозки (статусы, номенклатура) в 1С сервисным аккаунтом
-      const itemInn = String(item?.INN ?? item?.Inn ?? item?.inn ?? "").trim();
-      const upstream = await requestGetPerevozkaFrom1C({
+      const itemInn = item ? String(item?.INN ?? item?.Inn ?? item?.inn ?? "").trim() : "";
+      const innFor1C = itemInn || (verified.inn ?? "").trim() || (inn && String(inn).trim()) || undefined;
+      let upstream = await requestGetPerevozkaFrom1C({
         number: norm,
-        inn: itemInn || undefined,
+        inn: innFor1C,
         serviceLogin,
         servicePassword,
       });
+      if (!upstream.ok && !item) {
+        const variants = numberVariants(norm).filter((v) => v !== norm);
+        for (const alt of variants) {
+          upstream = await requestGetPerevozkaFrom1C({
+            number: alt,
+            inn: innFor1C,
+            serviceLogin,
+            servicePassword,
+          });
+          if (upstream.ok) break;
+        }
+      }
       if (upstream.ok) {
         const text = upstream.text;
         try {
@@ -141,7 +161,9 @@ export default async function handler(
           return res.status(200).send(text);
         }
       }
-      // Нет сервисного аккаунта или 1С недоступен — отдаём только строку из кэша (без статусов/номенклатуры)
+      if (!item) {
+        return res.status(404).json({ error: "Перевозка не найдена" });
+      }
       return res.status(200).json(item);
     } catch (e) {
       console.error("getperevozka registered user error:", e);
@@ -150,12 +172,24 @@ export default async function handler(
   }
 
   try {
-    const upstream = await requestGetPerevozkaFrom1C({
+    let upstream = await requestGetPerevozkaFrom1C({
       number,
       inn,
       serviceLogin,
       servicePassword,
     });
+    if (!upstream.ok) {
+      const variants = numberVariants(number).filter((v) => v !== number);
+      for (const alt of variants) {
+        upstream = await requestGetPerevozkaFrom1C({
+          number: alt,
+          inn,
+          serviceLogin,
+          servicePassword,
+        });
+        if (upstream.ok) break;
+      }
+    }
     const text = upstream.text;
 
     if (!upstream.ok) {
