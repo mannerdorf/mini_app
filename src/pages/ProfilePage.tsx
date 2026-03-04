@@ -16,29 +16,31 @@ import { TinyUrlTestPage } from "./TinyUrlTestPage";
 import { ExpenseRequestsPage } from "./ExpenseRequestsPage";
 import { AboutCompanyPage } from "./AboutCompanyPage";
 import { NotificationsPage } from "./NotificationsPage";
-export function ProfilePage({ 
-    accounts, 
-    activeAccountId, 
-    onSwitchAccount, 
-    onAddAccount, 
+export function ProfilePage({
+    accounts,
+    activeAccountId,
+    onSwitchAccount,
+    onAddAccount,
     onRemoveAccount,
     onOpenOffer,
     onOpenPersonalConsent,
     onOpenNotifications,
     onOpenCargo,
+    onOpenDocumentsWithSection,
     onOpenTelegramBot,
     onOpenMaxBot,
     onUpdateAccount
-}: { 
-    accounts: Account[]; 
-    activeAccountId: string | null; 
-    onSwitchAccount: (accountId: string) => void; 
-    onAddAccount: (login: string, password: string) => Promise<void>; 
+}: {
+    accounts: Account[];
+    activeAccountId: string | null;
+    onSwitchAccount: (accountId: string) => void;
+    onAddAccount: (login: string, password: string) => Promise<void>;
     onRemoveAccount: (accountId: string) => void;
     onOpenOffer: () => void;
     onOpenPersonalConsent: () => void;
     onOpenNotifications: () => void;
     onOpenCargo: (cargoNumber: string) => void;
+    onOpenDocumentsWithSection?: (section: string) => void;
     onOpenTelegramBot?: () => Promise<void>;
     onOpenMaxBot?: () => Promise<void>;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
@@ -1189,8 +1191,8 @@ export function ProfilePage({
                             Заявки на расходы
                         </Button>
                     )}
-                    {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.doc_claims === true && (
-                        <Button type="button" className="button-primary" onClick={() => { setCurrentView('accounting'); setAccountingSubsection('claims'); setSelectedAccountingRequest(null); }}>
+                    {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.doc_claims === true && onOpenDocumentsWithSection && (
+                        <Button type="button" className="button-primary" onClick={() => onOpenDocumentsWithSection('Претензии')}>
                             Претензии
                         </Button>
                     )}
@@ -1294,20 +1296,6 @@ export function ProfilePage({
                             onClick={() => { setAccountingSubsection("sverki"); setSelectedAccountingRequest(null); }}
                         >
                             Акты сверок
-                        </Button>
-                        <Button
-                            type="button"
-                            className="filter-button"
-                            style={{
-                                background: accountingSubsection === "claims" ? "var(--color-primary-blue)" : undefined,
-                                color: accountingSubsection === "claims" ? "white" : undefined,
-                                height: 36,
-                                padding: "0 0.85rem",
-                                minWidth: 120,
-                            }}
-                            onClick={() => { setAccountingSubsection("claims"); setSelectedAccountingRequest(null); }}
-                        >
-                            Претензии
                         </Button>
                     </Flex>
                 </Panel>
@@ -1461,15 +1449,6 @@ export function ProfilePage({
                     </Button>
                 </Panel>
                 )}
-                {accountingSubsection === "claims" && (
-                <Panel className="cargo-card" style={{ padding: "1rem" }}>
-                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Претензии</Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-                        Работа с претензиями финансового контура доступна в веб-версии (CMS) в разделе Бухгалтерия.
-                    </Typography.Body>
-                </Panel>
-                )}
-
                 {selectedAccountingRequest && (
                     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setSelectedAccountingRequest(null)}>
                         <div style={{ background: "var(--color-bg-card, #fff)", borderRadius: 12, padding: "1.25rem", maxWidth: 480, width: "92%", maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
