@@ -438,41 +438,6 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setEmployeeSearch("");
         setDuplicateWarning("");
         setFiles([]);
-
-        if (EXPENSE_REQUESTS_WEBHOOK_URL) {
-            setSending(true);
-            try {
-                const payload = {
-                    ...item,
-                    status: "sent",
-                    login: auth?.login ?? undefined,
-                    attachmentCount: files.length,
-                    attachments: files.map((f) => ({ name: f.name, dataUrl: f.dataUrl })),
-                };
-                const res = await fetch(EXPENSE_REQUESTS_WEBHOOK_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                });
-                if (res.ok) {
-                    const sentAt = new Date().toISOString();
-                    setList((prev) => {
-                        const next = prev.map((r) =>
-                            r.id === item.id ? { ...r, status: "sent" as const, webhookSentAt: sentAt } : r
-                        );
-                        saveStoredRequests(auth?.login ?? "", next);
-                        return next;
-                    });
-                } else {
-                    const err = await res.json().catch(() => ({} as any));
-                    setSyncError(String(err?.error || `Не удалось синхронизировать заявку (${res.status})`));
-                }
-            } catch {
-                setSyncError("Не удалось синхронизировать заявку с сервером");
-            } finally {
-                setSending(false);
-            }
-        }
     }, [categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, selectedEmployee, files, auth?.login, department, docNumber, docDate, period, categories]);
 
     const sendForApproval = useCallback(async (itemId: string) => {
