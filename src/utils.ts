@@ -172,10 +172,16 @@ export function dedupeCustomersByInn(list: CustomerOption[]): CustomerOption[] {
 
 /**
  * Скачать файл из ответа API download (base64 data).
- * Поддерживает PDF и HTML (Договор возвращает HTML).
+ * PDF — скачивается как есть.
+ * HTML (Договор от 1С) — по умолчанию конвертируется в PDF через html2pdf.js.
  */
-export function downloadBase64File(payload: { data: string; name?: string; isHtml?: boolean }): void {
-    const { data, name = "document", isHtml } = payload;
+export async function downloadBase64File(payload: {
+    data: string;
+    name?: string;
+    isHtml?: boolean;
+    convertHtmlToPdf?: boolean;
+}): Promise<void> {
+    const { data, name = "document", isHtml, convertHtmlToPdf = true } = payload;
     const isHtmlFile = Boolean(isHtml) || /\.html?$/i.test(String(name));
     let binary: string;
     try {
@@ -185,6 +191,18 @@ export function downloadBase64File(payload: { data: string; name?: string; isHtm
     }
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+
+    if (isHtmlFile && convertHtmlToPdf) {
+        const htmlStr = new TextDecoder("utf-8").decode(bytes);
+        const pdfName = String(name).replace(/\.html?$/i, "") + ".pdf";
+        const html2pdf = (await import("html2pdf.js")).default;
+        await html2pdf()
+            .set({ filename: pdfName, margin: 8, image: { type: "jpeg", quality: 0.95 } })
+            .from(htmlStr, "string")
+            .save();
+        return;
+    }
+
     const mime = isHtmlFile ? "text/html;charset=utf-8" : "application/pdf";
     const blob = new Blob([bytes], { type: mime });
     const href = URL.createObjectURL(blob);

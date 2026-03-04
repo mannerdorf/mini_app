@@ -1736,7 +1736,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data?.message || data?.error || 'Не удалось получить документ');
             if (!data?.data) throw new Error('Документ не найден');
-            downloadBase64File({
+            await downloadBase64File({
                 data: String(data.data),
                 name: data?.name || `АктСверки_${number}.pdf`,
                 isHtml: Boolean(data?.isHtml),
@@ -1783,7 +1783,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data?.message || data?.error || 'Не удалось получить документ');
             if (!data?.data) throw new Error('Документ не найден');
-            downloadBase64File({
+            await downloadBase64File({
                 data: String(data.data),
                 name: data?.name || `Договор_${number}.pdf`,
                 isHtml: Boolean(data?.isHtml),
