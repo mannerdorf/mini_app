@@ -2298,6 +2298,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     setAdminClaimAttachSubmitting(true);
     setAdminClaimAttachError("");
+    const maxFileSize = 5 * 1024 * 1024;
+    const oversizedPhoto = adminClaimAttachPhotoFiles.find((f) => f.size > maxFileSize);
+    const oversizedDoc = adminClaimAttachDocumentFiles.find((f) => f.size > maxFileSize);
+    if (oversizedPhoto) {
+      setAdminClaimAttachError(`Файл «${oversizedPhoto.name}» превышает лимит 5 МБ`);
+      setAdminClaimAttachSubmitting(false);
+      return;
+    }
+    if (oversizedDoc) {
+      setAdminClaimAttachError(`Документ «${oversizedDoc.name}» превышает лимит 5 МБ`);
+      setAdminClaimAttachSubmitting(false);
+      return;
+    }
     try {
       const photosPayload = await Promise.all(
         adminClaimAttachPhotoFiles.map(async (file) => ({
@@ -2334,7 +2347,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           enqueuePush: false,
         }),
       });
-      const data = await res.json().catch(() => ({}));
+      let data: { error?: string } = {};
+      try {
+        const text = await res.text();
+        if (text) data = JSON.parse(text) as { error?: string };
+      } catch {
+        if (!res.ok) data = { error: res.status === 413 ? "Файл или запрос слишком большой (лимит размера)" : `Ошибка ${res.status}` };
+      }
       if (!res.ok) throw new Error(data?.error || "Ошибка прикрепления файлов");
       setAdminClaimAttachPhotoFiles([]);
       setAdminClaimAttachDocumentFiles([]);
@@ -9852,6 +9871,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     onChange={(e) => setAdminLeaderCommentDraft(e.target.value)}
                     style={{ width: "100%", marginBottom: "0.45rem" }}
                   />
+                  <div style={{ marginBottom: "0.45rem" }}>
+                    <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.2rem" }}>Удовлетворённая сумма</Typography.Body>
+                    <input
+                      type="number"
+                      className="admin-form-input"
+                      placeholder="0"
+                      min={0}
+                      step={0.01}
+                      value={adminClaimApprovedAmountDraft}
+                      onChange={(e) => setAdminClaimApprovedAmountDraft(e.target.value)}
+                      style={{ width: "100%", maxWidth: 200, padding: "0.35rem 0.45rem" }}
+                    />
+                  </div>
                   <Flex gap="0.45rem" wrap="wrap" align="center">
                     <Button
                       type="button"
@@ -9865,7 +9897,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       )}
                       disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
                     >
-                      Утвердить решение менеджера
+                      Удовлетворить
                     </Button>
                     <Button
                       type="button"
@@ -9873,26 +9905,27 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       style={{ background: "#f59e0b", color: "white" }}
                       onClick={() => updateAdminClaimStatus(
                         adminClaimDetail.claim.id,
-                        "in_progress",
+                        "approved",
                         Number(adminClaimApprovedAmountDraft || 0),
-                        { leaderComment: `Отменено руководителем: ${adminLeaderCommentDraft.trim()}`.trim() }
+                        { leaderComment: adminLeaderCommentDraft.trim() }
                       )}
                       disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
                     >
-                      Отменить решение менеджера
+                      Удовлетворить частично
                     </Button>
                     <Button
                       type="button"
                       className="filter-button"
+                      style={{ background: "#ef4444", color: "white" }}
                       onClick={() => updateAdminClaimStatus(
                         adminClaimDetail.claim.id,
-                        "waiting_docs",
-                        Number(adminClaimApprovedAmountDraft || 0),
-                        { leaderComment: `На доработку: ${adminLeaderCommentDraft.trim()}`.trim() }
+                        "rejected",
+                        0,
+                        { leaderComment: adminLeaderCommentDraft.trim() }
                       )}
                       disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
                     >
-                      Отправить на доработку
+                      Отказать
                     </Button>
                   </Flex>
                 </div>
