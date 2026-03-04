@@ -1297,6 +1297,16 @@ export function ProfilePage({
                         >
                             Акты сверок
                         </Button>
+                        {activeAccount?.permissions?.doc_claims === true && onOpenDocumentsWithSection && (
+                            <Button
+                                type="button"
+                                className="filter-button"
+                                style={{ height: 36, padding: "0 0.85rem", minWidth: 120 }}
+                                onClick={() => onOpenDocumentsWithSection('Претензии')}
+                            >
+                                Претензии
+                            </Button>
+                        )}
                     </Flex>
                 </Panel>
                 {accountingSubsection === "expense_requests" && (

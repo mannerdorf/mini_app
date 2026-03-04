@@ -1052,7 +1052,7 @@ export default function App() {
                     doc_acts: true,
                     doc_orders: false,
                     doc_sendings: false,
-                    doc_claims: false,
+                    doc_claims: true,
                     doc_contracts: false,
                     doc_acts_settlement: false,
                     doc_tariffs: false,
