@@ -506,10 +506,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [tariffsSortOrder, setTariffsSortOrder] = useState<"asc" | "desc">("desc");
     const allowedDocSections = useMemo(() => {
         if (!permissions) return DOC_SECTIONS;
-        return DOC_SECTIONS.filter(({ key }) => {
-            if (key === 'Претензии') return permissions.haulz === true || permissions[DOC_SECTION_TO_PERMISSION[key]] !== false;
-            return permissions[DOC_SECTION_TO_PERMISSION[key]] !== false;
-        });
+        return DOC_SECTIONS.filter(({ key }) => permissions[DOC_SECTION_TO_PERMISSION[key]] !== false);
     }, [permissions]);
     const defaultDocSection = allowedDocSections[0]?.key ?? 'Счета';
     const [docSection, setDocSection] = useState<DocSectionKey>(() => {

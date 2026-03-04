@@ -466,8 +466,7 @@ export default function App() {
             perms.doc_claims ||
             perms.doc_contracts ||
             perms.doc_acts_settlement ||
-            perms.doc_tariffs ||
-            perms.haulz
+            perms.doc_tariffs
         );
         const canExpenseRequests = !!(perms.supervisor && perms.haulz);
         const isAllowed =
