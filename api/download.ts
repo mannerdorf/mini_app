@@ -31,13 +31,33 @@ function transliterateFilename(s: string): string {
   return out;
 }
 
+/** Декодирует HTML-сущности для [ ] и пробелов, чтобы regex мог найти плейсхолдеры */
+function decodeHtmlForPlaceholders(s: string): string {
+  return s
+    .replace(/&#91;/g, "[")
+    .replace(/&#93;/g, "]")
+    .replace(/&lsqb;/g, "[")
+    .replace(/&rsqb;/g, "]")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#160;/g, " ");
+}
+
 /** Удаляет служебные символы 1С из HTML: [#Ключ значение#] → значение, [#Ключ#] → "" */
 function clean1cPlaceholders(html: string): string {
-  return html.replace(/\[#([^#]+)#\]/g, (_, inner) => {
-    const trimmed = String(inner).trim();
-    const spaceIdx = trimmed.indexOf(" ");
-    return spaceIdx >= 0 ? trimmed.slice(spaceIdx + 1).trim() : "";
-  });
+  const decoded = decodeHtmlForPlaceholders(html);
+  // Поддержка обычных [ ] и полной ширины ［ ］
+  const patterns = [/\[#([^#]*)#\]/g, /［#([^#]*)#］/g];
+  let result = decoded;
+  for (const re of patterns) {
+    result = result.replace(re, (_, inner) => {
+      const trimmed = String(inner).trim();
+      const m = trimmed.match(/^\S+\s+(.+)$/s);
+      let val = m ? m[1].trim() : "";
+      if (/^[\s_\-]+$/.test(val)) val = "";
+      return val;
+    });
+  }
+  return result;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
