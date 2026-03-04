@@ -773,6 +773,46 @@ export default function App() {
         })();
         return () => { cancelled = true; };
     }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.login, activeAccount?.password]);
+
+    // Обновить права при открытии вкладки «Профиль», чтобы подтянуть изменения из админки (в т.ч. раздел Претензии)
+    const profileRefreshInFlightRef = useRef(false);
+    useEffect(() => {
+        if (activeTab !== "profile") return;
+        if (!activeAccount?.id || !activeAccount?.isRegisteredUser || !activeAccount?.login || !activeAccount?.password) return;
+        if (profileRefreshInFlightRef.current) return;
+        profileRefreshInFlightRef.current = true;
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await fetch("/api/auth-registered-login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: activeAccount.login.trim().toLowerCase(), password: activeAccount.password }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (cancelled || !res.ok || !data?.ok || !data?.user) return;
+                const user = data.user;
+                setAccounts((prev) =>
+                    prev.map((acc) =>
+                        acc.id !== activeAccount.id
+                            ? acc
+                            : {
+                                ...acc,
+                                ...(user.permissions && typeof user.permissions === "object" ? { permissions: user.permissions } : {}),
+                                ...(user.financialAccess != null ? { financialAccess: user.financialAccess } : {}),
+                                inCustomerDirectory: user.inCustomerDirectory !== undefined ? !!user.inCustomerDirectory : acc.inCustomerDirectory,
+                            }
+                    )
+                );
+            } catch {
+                // ignore
+            } finally {
+                profileRefreshInFlightRef.current = false;
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [activeTab, activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.login, activeAccount?.password]);
+
     const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
 
@@ -907,6 +947,15 @@ export default function App() {
             window.localStorage.setItem("haulz.docs.claims.prefillCargoNumber", number);
         } catch {
             // ignore storage errors
+        }
+        setActiveTab("docs");
+    };
+
+    const openDocumentsWithSection = (section: string) => {
+        try {
+            window.localStorage.setItem("haulz.docs.section", section);
+        } catch {
+            // ignore
         }
         setActiveTab("docs");
     };
@@ -1943,6 +1992,7 @@ export default function App() {
                             openCargoFromChat={openCargoFromChat}
                             openCargoFromDocuments={openCargoFromDocuments}
                             openClaimFromCargo={openClaimFromCargo}
+                            openDocumentsWithSection={openDocumentsWithSection}
                             openTelegramBotWithAccount={openTelegramBotWithAccount}
                             handleSwitchAccount={handleSwitchAccount}
                             handleAddAccount={handleAddAccount}
