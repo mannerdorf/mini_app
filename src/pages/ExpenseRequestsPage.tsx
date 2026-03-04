@@ -393,6 +393,23 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setFiles((prev) => prev.filter((_, i) => i !== index));
     }, []);
 
+    const resetForm = useCallback(() => {
+        setDocNumber("");
+        setDocDate(new Date().toISOString().slice(0, 10));
+        setPeriod(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`);
+        setCategoryId("");
+        setAmount("");
+        setVatRate("");
+        setComment("");
+        setSelectedSupplierName("");
+        setSelectedSupplierInn("");
+        setSupplierSearch("");
+        setSelectedVehicle("");
+        setSelectedEmployee("");
+        setDuplicateWarning("");
+        setFiles([]);
+    }, []);
+
     const submit = useCallback(async () => {
         setSyncError("");
         const cat = categories.find((c) => c.id === categoryId);
@@ -602,24 +619,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         } finally {
             setSending(false);
         }
-    }, [editingId, department, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, selectedEmployee, auth?.login, categories, list, fetchExpenseRequests]);
-
-    const resetForm = useCallback(() => {
-        setDocNumber("");
-        setDocDate(new Date().toISOString().slice(0, 10));
-        setPeriod(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`);
-        setCategoryId("");
-        setAmount("");
-        setVatRate("");
-        setComment("");
-        setSelectedSupplierName("");
-        setSelectedSupplierInn("");
-        setSupplierSearch("");
-        setSelectedVehicle("");
-        setSelectedEmployee("");
-        setDuplicateWarning("");
-        setFiles([]);
-    }, []);
+    }, [editingId, department, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, selectedEmployee, auth?.login, categories, list, fetchExpenseRequests, resetForm]);
 
     const cancelEdit = useCallback(() => {
         setEditingId(null);
