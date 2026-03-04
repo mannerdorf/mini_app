@@ -42,12 +42,20 @@ function decodeHtmlForPlaceholders(s: string): string {
     .replace(/&#160;/g, " ");
 }
 
+/** Удаляет span'ы с цветом #c2c8d1 (служебный текст 1С в договорах) */
+function removeGrayPlaceholderSpans(html: string): string {
+  return html.replace(
+    /<span\s[^>]*style\s*=\s*["'][^"']*#c2c8d1[^"']*["'][^>]*>[^<]*<\/span>/gi,
+    ""
+  );
+}
+
 /** Удаляет служебные символы 1С из HTML: [#Ключ значение#] → значение, [#Ключ#] → "" */
 function clean1cPlaceholders(html: string): string {
   const decoded = decodeHtmlForPlaceholders(html);
+  let result = removeGrayPlaceholderSpans(decoded);
   // Поддержка обычных [ ] и полной ширины ［ ］
   const patterns = [/\[#([^#]*)#\]/g, /［#([^#]*)#］/g];
-  let result = decoded;
   for (const re of patterns) {
     result = result.replace(re, (_, inner) => {
       const trimmed = String(inner).trim();
