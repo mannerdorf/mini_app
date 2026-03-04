@@ -120,7 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const has = (name: string) => cols.has(name);
       const selectExpr = (name: string, fallbackExpr: string) => (has(name) ? name : `${fallbackExpr} AS ${name}`);
 
-      const { rows } = await pool.query<DbRow>(
+      const { rows } = await pool.query<DbRow & { id?: number }>(
         `SELECT
            ${selectExpr("id", "0::bigint")},
            ${selectExpr("uid", "('legacy-' || id::text)")},
@@ -141,12 +141,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          FROM expense_requests
          ORDER BY created_at DESC`
       );
-      const items = rows.map((r) => toFrontendFormat(r, r.login));
       const catRes = await pool.query<{ id: string; name: string }>("SELECT id, name FROM expense_categories");
       const catMap = Object.fromEntries(catRes.rows.map((c) => [c.id, c.name]));
-      for (const it of items) {
-        (it as any).categoryName = catMap[it.categoryId] || it.categoryId;
+
+      const requestIds = rows.map((r) => (r as DbRow & { id?: number }).id).filter((id): id is number => id != null && id > 0);
+      let attachmentsByRequest: Record<number, Array<{ id: number; fileName: string; mimeType: string | null }>> = {};
+      if (requestIds.length > 0) {
+        const attRes = await pool.query<{ request_id: number; id: number; file_name: string; mime_type: string | null }>(
+          `SELECT request_id, id, file_name, mime_type FROM expense_request_attachments WHERE request_id = ANY($1::int[])`,
+          [requestIds]
+        );
+        for (const a of attRes.rows) {
+          if (!attachmentsByRequest[a.request_id]) attachmentsByRequest[a.request_id] = [];
+          attachmentsByRequest[a.request_id].push({
+            id: a.id,
+            fileName: a.file_name,
+            mimeType: a.mime_type,
+          });
+        }
       }
+
+      const items = rows.map((r) => {
+        const row = r as DbRow & { id?: number };
+        const base = toFrontendFormat(r, r.login);
+        const attachments = row.id != null ? (attachmentsByRequest[row.id] || []) : [];
+        return { ...base, categoryName: catMap[base.categoryId] || base.categoryId, attachments };
+      });
       return res.json({ items });
     } catch (e) {
       console.error("admin-expense-requests GET:", e);

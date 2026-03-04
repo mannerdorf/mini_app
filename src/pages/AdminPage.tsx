@@ -830,6 +830,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [pnlExpensePrefill, setPnlExpensePrefill] = useState<PnlExpensePrefill | null>(null);
   const [expenseRejectId, setExpenseRejectId] = useState<string | null>(null);
   const [expenseRejectComment, setExpenseRejectComment] = useState("");
+  const [expenseViewId, setExpenseViewId] = useState<string | null>(null);
   const [expenseEditId, setExpenseEditId] = useState<string | null>(null);
   const [expenseEditDocNumber, setExpenseEditDocNumber] = useState("");
   const [expenseEditDocDate, setExpenseEditDocDate] = useState("");
@@ -8689,7 +8690,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   </thead>
                   <tbody>
                     {sorted.map((r) => (
-                      <tr key={r.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <tr
+                        key={r.id}
+                        style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
+                        onClick={() => setExpenseViewId(r.id)}
+                      >
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}</td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).docNumber || "—"}</td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).docDate ? new Date((r as any).docDate + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
@@ -8705,22 +8710,37 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         </td>
                         <td style={{ padding: "6px 8px" }}>{r.vehicleOrEmployee || "—"}</td>
                         <td style={{ padding: "6px 8px" }}>{(r as any).employeeName || "—"}</td>
-                        <td style={{ padding: "6px 8px", fontSize: "0.7rem" }}>
+                        <td style={{ padding: "6px 8px", fontSize: "0.7rem" }} onClick={(e) => e.stopPropagation()}>
                           {(r as any).attachments?.length
-                            ? (r as any).attachments.map((att: { name: string; dataUrl: string }, i: number) => (
-                                <React.Fragment key={att.name}>
+                            ? (r as any).attachments.map((att: { id?: number; fileName?: string; name?: string; dataUrl?: string }, i: number) => (
+                                <React.Fragment key={att.id ?? att.fileName ?? att.name ?? i}>
                                   {i > 0 && ", "}
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      const a = document.createElement("a");
-                                      a.href = att.dataUrl;
-                                      a.download = att.name;
-                                      a.click();
+                                    onClick={async (ev) => {
+                                      ev.stopPropagation();
+                                      if (att.dataUrl) {
+                                        const a = document.createElement("a");
+                                        a.href = att.dataUrl;
+                                        a.download = att.name ?? att.fileName ?? "file";
+                                        a.click();
+                                      } else if (att.id != null && adminToken) {
+                                        try {
+                                          const res = await fetch(
+                                            `/api/admin-expense-attachment?requestUid=${encodeURIComponent(r.id)}&attachmentId=${att.id}`,
+                                            { headers: { Authorization: `Bearer ${adminToken}` } }
+                                          );
+                                          if (!res.ok) return;
+                                          const blob = await res.blob();
+                                          const url = URL.createObjectURL(blob);
+                                          window.open(url, "_blank", "noopener");
+                                          setTimeout(() => URL.revokeObjectURL(url), 60000);
+                                        } catch { /* ignore */ }
+                                      }
                                     }}
                                     style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--color-primary-blue, #2563eb)", textDecoration: "underline", fontSize: "inherit" }}
                                   >
-                                    {att.name}
+                                    {att.fileName ?? att.name ?? "файл"}
                                   </button>
                                 </React.Fragment>
                               ))
@@ -8728,7 +8748,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               ? r.attachmentNames.join(", ")
                               : "—"}
                         </td>
-                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
                           <Flex gap="0.25rem" wrap="wrap">
                             {!hasPnlExpenseCombination(r) && (
                               <button
@@ -8763,6 +8783,69 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
             )}
               </>
             )}
+
+            {/* View modal */}
+            {expenseViewId && (() => {
+              const item = adminExpenseRequests.find((r) => r.id === expenseViewId);
+              if (!item) return null;
+              const atts = (item as any).attachments ?? [];
+              return (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setExpenseViewId(null)}>
+                  <div style={{ background: "var(--color-bg-card, #fff)", borderRadius: 12, padding: "1.25rem", maxWidth: 520, width: "92%", maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.75rem" }}>
+                      Заявка {(item as any).docNumber || item.id.slice(-8)}
+                    </Typography.Body>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Создано:</span> {new Date(item.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>№ док.:</span> {(item as any).docNumber || "—"}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Дата док.:</span> {(item as any).docDate || "—"}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Период:</span> {(item as any).period || "—"}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Логин:</span> {item.login || "—"}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Подразделение:</span> {item.department || "—"}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Статья:</span> {item.categoryName || "—"}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Сумма:</span> {item.amount.toLocaleString("ru-RU")} ₽</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Статус:</span> {statusBadge(item.status)}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Комментарий:</span> {item.comment || "—"}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>ТС:</span> {item.vehicleOrEmployee || "—"}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Сотрудник:</span> {(item as any).employeeName || "—"}</div>
+                      {atts.length > 0 && (
+                        <div>
+                          <Typography.Body style={{ fontWeight: 600, fontSize: "0.82rem", marginBottom: "0.25rem", display: "block" }}>Прикреплённые документы</Typography.Body>
+                          {atts.map((att: { id: number; fileName: string }) => (
+                            <a
+                              key={att.id}
+                              href="#"
+                              style={{ display: "block", marginTop: "0.25rem", color: "var(--color-primary-blue)", fontSize: "0.82rem" }}
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                if (!adminToken) return;
+                                try {
+                                  const res = await fetch(
+                                    `/api/admin-expense-attachment?requestUid=${encodeURIComponent(item.id)}&attachmentId=${att.id}`,
+                                    { headers: { Authorization: `Bearer ${adminToken}` } }
+                                  );
+                                  if (!res.ok) return;
+                                  const blob = await res.blob();
+                                  const url = URL.createObjectURL(blob);
+                                  window.open(url, "_blank", "noopener");
+                                  setTimeout(() => URL.revokeObjectURL(url), 60000);
+                                } catch { /* ignore */ }
+                              }}
+                            >
+                              {att.fileName}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <Flex gap="0.5rem" justify="flex-end">
+                      <Button type="button" className="filter-button" onClick={() => setExpenseViewId(null)}>Закрыть</Button>
+                      <Button type="button" className="filter-button" onClick={() => { setExpenseViewId(null); setExpenseEditId(item.id); setExpenseEditDocNumber((item as any).docNumber ?? ""); setExpenseEditDocDate((item as any).docDate ?? ""); setExpenseEditPeriod((item as any).period ?? ""); setExpenseEditDepartment(item.department); setExpenseEditCategory(item.categoryId); setExpenseEditAmount(String(item.amount)); setExpenseEditVatRate((item as any).vatRate ?? ""); setExpenseEditComment(item.comment); setExpenseEditVehicle(item.vehicleOrEmployee); setExpenseEditEmployee((item as any).employeeName ?? ""); }}>Изменить</Button>
+                    </Flex>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Reject modal */}
             {expenseRejectId && (
