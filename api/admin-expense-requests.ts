@@ -175,12 +175,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Укажите uid и корректный status" });
     }
     try {
+      const colsRes = await pool.query<{ column_name: string }>(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'expense_requests'`
+      );
+      const cols = new Set(colsRes.rows.map((r) => String(r.column_name || "").trim()));
+      const hasCol = (n: string) => cols.has(n);
+      const empSel = hasCol("employee_name") ? "er.employee_name" : "''::text AS employee_name";
+
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
 
         const { rows } = await client.query<RequestForPnlRow>(
-          `SELECT er.id, er.uid, er.status, er.amount, er.department, er.doc_number, er.doc_date, er.period, er.login, er.employee_name, er.comment,
+          `SELECT er.id, er.uid, er.status, er.amount, er.department, er.doc_number, er.doc_date, er.period, er.login, ${empSel}, er.comment,
                   ec.name AS category_name, ec.cost_type AS category_cost_type
            FROM expense_requests er
            LEFT JOIN expense_categories ec ON ec.id = er.category_id
