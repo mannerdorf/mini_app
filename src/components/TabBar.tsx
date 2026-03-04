@@ -78,7 +78,7 @@ export function TabBar({
   const showHome = true;
   const showCargo = true;
   const hasDocAccess = permissions
-    ? !!(permissions.doc_invoices || permissions.doc_acts || permissions.doc_orders || permissions.doc_sendings || permissions.doc_claims || permissions.doc_contracts || permissions.doc_acts_settlement || permissions.doc_tariffs)
+    ? !!(permissions.doc_invoices || permissions.doc_acts || permissions.doc_orders || permissions.doc_sendings || permissions.doc_claims || permissions.doc_contracts || permissions.doc_acts_settlement || permissions.doc_tariffs || permissions.haulz)
     : true;
 
   if (showAllTabs) {
