@@ -1760,7 +1760,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить документ");
       if (!data?.data) throw new Error("Документ не найден");
-      const binary = atob(String(data.data));
+      let binary: string;
+      try {
+        binary = atob(String(data.data));
+      } catch {
+        throw new Error("Документ получен в неверном формате");
+      }
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
       const blob = new Blob([bytes], { type: "application/pdf" });
@@ -1823,7 +1828,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить документ");
       if (!data?.data) throw new Error("Документ не найден");
-      const binary = atob(String(data.data));
+      let binary: string;
+      try {
+        binary = atob(String(data.data));
+      } catch {
+        throw new Error("Документ получен в неверном формате");
+      }
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
       const blob = new Blob([bytes], { type: "application/pdf" });
@@ -2275,7 +2285,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       if (!res.ok) throw new Error(data?.message || data?.error || `Не удалось получить ${method}`);
       if (!data?.data) throw new Error(`Документ ${method} не найден`);
 
-      const binary = atob(String(data.data));
+      let binary: string;
+      try {
+        binary = atob(String(data.data));
+      } catch {
+        throw new Error("Документ получен в неверном формате");
+      }
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
       const blob = new Blob([bytes], { type: "application/pdf" });
