@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator, ClipboardList } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator, ClipboardList, FileText } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import type { ExpenseRequestItem } from "./ExpenseRequestsPage";
@@ -3329,6 +3329,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <Calculator className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Бухгалтерия
+          </Button>
+        )}
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={{ background: tab === "accounting" && accountingSubsection === "claims" ? "var(--color-primary-blue)" : undefined, color: tab === "accounting" && accountingSubsection === "claims" ? "white" : undefined }}
+            onClick={() => { setTab("accounting"); setAccountingSubsection("claims"); }}
+          >
+            <FileText className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Претензии
           </Button>
         )}
         {isSuperAdmin && (
