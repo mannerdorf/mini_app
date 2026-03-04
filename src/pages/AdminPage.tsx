@@ -8489,14 +8489,23 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           setTab("pnl");
         };
         const statusBadge = (s: string) => {
-          const map: Record<string, { bg: string; color: string; label: string }> = {
-            draft: { bg: "rgba(245,158,11,0.15)", color: "#f59e0b", label: "Черновик" },
-            pending_approval: { bg: "rgba(59,130,246,0.15)", color: "#3b82f6", label: "На согласовании" },
-            approved: { bg: "rgba(16,185,129,0.15)", color: "#10b981", label: "Согласовано" },
-            rejected: { bg: "rgba(239,68,68,0.15)", color: "#ef4444", label: "Отклонено" },
-            sent: { bg: "rgba(16,185,129,0.15)", color: "#10b981", label: "Отправлено" },
-            paid: { bg: "rgba(139,92,246,0.15)", color: "#8b5cf6", label: "Оплачено" },
-          };
+          const map: Record<string, { bg: string; color: string; label: string }> = isAccountingExpenses
+            ? {
+                draft: { bg: "rgba(245,158,11,0.15)", color: "#f59e0b", label: "Черновик" },
+                pending_approval: { bg: "rgba(59,130,246,0.15)", color: "#3b82f6", label: "На согласовании" },
+                approved: { bg: "rgba(16,185,129,0.15)", color: "#10b981", label: "В банк" },
+                rejected: { bg: "rgba(239,68,68,0.15)", color: "#ef4444", label: "Отклонено" },
+                sent: { bg: "rgba(34,197,94,0.15)", color: "#22c55e", label: "Ожидает оплату" },
+                paid: { bg: "rgba(139,92,246,0.15)", color: "#8b5cf6", label: "Оплачено" },
+              }
+            : {
+                draft: { bg: "rgba(245,158,11,0.15)", color: "#f59e0b", label: "Черновик" },
+                pending_approval: { bg: "rgba(59,130,246,0.15)", color: "#3b82f6", label: "На согласовании" },
+                approved: { bg: "rgba(16,185,129,0.15)", color: "#10b981", label: "Согласовано" },
+                rejected: { bg: "rgba(239,68,68,0.15)", color: "#ef4444", label: "Отклонено" },
+                sent: { bg: "rgba(16,185,129,0.15)", color: "#10b981", label: "Отправлено" },
+                paid: { bg: "rgba(139,92,246,0.15)", color: "#8b5cf6", label: "Оплачено" },
+              };
           const m = map[s] ?? map.draft;
           return <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 999, fontWeight: 600, background: m.bg, color: m.color, whiteSpace: "nowrap" }}>{m.label}</span>;
         };
@@ -8529,7 +8538,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           return av.localeCompare(bv, "ru") * dir;
         });
         const title = isAccountingSverki ? "Бухгалтерия — акты сверок" : isAccountingExpenses ? `Бухгалтерия — согласованные заявки (${filtered.length})` : "Заявки на расходы";
-        const statusLabels: Record<string, string> = { draft: "Черновик", pending_approval: "На согласовании", approved: "Согласовано", rejected: "Отклонено", sent: "Отправлено", paid: "Оплачено" };
+        const statusLabels: Record<string, string> = isAccountingExpenses
+          ? { draft: "Черновик", pending_approval: "На согласовании", approved: "В банк", rejected: "Отклонено", sent: "Ожидает оплату", paid: "Оплачено" }
+          : { draft: "Черновик", pending_approval: "На согласовании", approved: "Согласовано", rejected: "Отклонено", sent: "Отправлено", paid: "Оплачено" };
         return (
           <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
             <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>{title}</Typography.Body>
@@ -8766,7 +8777,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               <button type="button" onClick={() => { setExpenseRejectId(r.id); setExpenseRejectComment(""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Отказать</button>
                             )}
                             {isAccounting && r.status === "approved" && (
-                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "sent", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #2563eb", background: "transparent", color: "#2563eb", cursor: "pointer" }}>Отправлено в банк</button>
+                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "sent", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #2563eb", background: "transparent", color: "#2563eb", cursor: "pointer" }}>Ожидает оплату</button>
                             )}
                             {isAccounting && (r.status === "approved" || r.status === "sent") && (
                               <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "paid", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
@@ -8812,28 +8823,56 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <Typography.Body style={{ fontWeight: 600, fontSize: "0.82rem", marginBottom: "0.25rem", display: "block" }}>Прикреплённые документы</Typography.Body>
                         {atts.length > 0 ? (
                           atts.map((att: { id: number; fileName: string }) => (
-                            <a
-                              key={att.id}
-                              href="#"
-                              style={{ display: "block", marginTop: "0.25rem", color: "var(--color-primary-blue)", fontSize: "0.82rem" }}
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                if (!adminToken) return;
-                                try {
-                                  const res = await fetch(
-                                    `/api/admin-expense-attachment?requestUid=${encodeURIComponent(item.id)}&attachmentId=${att.id}`,
-                                    { headers: { Authorization: `Bearer ${adminToken}` } }
-                                  );
-                                  if (!res.ok) return;
-                                  const blob = await res.blob();
-                                  const url = URL.createObjectURL(blob);
-                                  window.open(url, "_blank", "noopener");
-                                  setTimeout(() => URL.revokeObjectURL(url), 60000);
-                                } catch { /* ignore */ }
-                              }}
-                            >
-                              {att.fileName}
-                            </a>
+                            <div key={att.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.35rem", flexWrap: "wrap" }}>
+                              <Typography.Body style={{ fontSize: "0.82rem", minWidth: 0, flex: "1 1 200px" }}>{att.fileName}</Typography.Body>
+                              <Flex gap="0.25rem">
+                                <button
+                                  type="button"
+                                  className="filter-button"
+                                  style={{ fontSize: "0.72rem", padding: "0.2rem 0.5rem" }}
+                                  onClick={async () => {
+                                    if (!adminToken) return;
+                                    try {
+                                      const res = await fetch(
+                                        `/api/admin-expense-attachment?requestUid=${encodeURIComponent(item.id)}&attachmentId=${att.id}`,
+                                        { headers: { Authorization: `Bearer ${adminToken}` } }
+                                      );
+                                      if (!res.ok) return;
+                                      const blob = await res.blob();
+                                      const url = URL.createObjectURL(blob);
+                                      window.open(url, "_blank", "noopener");
+                                      setTimeout(() => URL.revokeObjectURL(url), 60000);
+                                    } catch { /* ignore */ }
+                                  }}
+                                >
+                                  Открыть
+                                </button>
+                                <button
+                                  type="button"
+                                  className="filter-button"
+                                  style={{ fontSize: "0.72rem", padding: "0.2rem 0.5rem" }}
+                                  onClick={async () => {
+                                    if (!adminToken) return;
+                                    try {
+                                      const res = await fetch(
+                                        `/api/admin-expense-attachment?requestUid=${encodeURIComponent(item.id)}&attachmentId=${att.id}`,
+                                        { headers: { Authorization: `Bearer ${adminToken}` } }
+                                      );
+                                      if (!res.ok) return;
+                                      const blob = await res.blob();
+                                      const url = URL.createObjectURL(blob);
+                                      const a = document.createElement("a");
+                                      a.href = url;
+                                      a.download = att.fileName || "файл";
+                                      a.click();
+                                      setTimeout(() => URL.revokeObjectURL(url), 5000);
+                                    } catch { /* ignore */ }
+                                  }}
+                                >
+                                  Скачать
+                                </button>
+                              </Flex>
+                            </div>
                           ))
                         ) : (
                           <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>

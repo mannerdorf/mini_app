@@ -1166,14 +1166,14 @@ export function ProfilePage({
     }
 
     if (currentView === 'accounting') {
-        const markPaid = async (itemId: string) => {
+        const patchStatus = async (itemId: string, status: "sent" | "paid") => {
             if (!activeAccount?.login || !activeAccount?.password) return;
             const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
             try {
                 const res = await fetch(`${origin}/api/accounting-expense-requests`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json", "x-login": activeAccount.login, "x-password": activeAccount.password },
-                    body: JSON.stringify({ uid: itemId, status: "paid" }),
+                    body: JSON.stringify({ uid: itemId, status }),
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) {
@@ -1185,11 +1185,13 @@ export function ProfilePage({
                 setAccountingRequestsError("Ошибка сети");
             }
         };
+        const markAwaitingPayment = (itemId: string) => { void patchStatus(itemId, "sent"); };
+        const markPaid = (itemId: string) => { void patchStatus(itemId, "paid"); };
 
         const statusBadge = (s: string) => {
             const map: Record<string, { bg: string; color: string; label: string }> = {
-                approved: { bg: "rgba(16,185,129,0.15)", color: "#10b981", label: "Согласовано" },
-                sent: { bg: "rgba(34,197,94,0.15)", color: "#22c55e", label: "Отправлено" },
+                approved: { bg: "rgba(16,185,129,0.15)", color: "#10b981", label: "В банк" },
+                sent: { bg: "rgba(34,197,94,0.15)", color: "#22c55e", label: "Ожидает оплату" },
                 paid: { bg: "rgba(139,92,246,0.15)", color: "#8b5cf6", label: "Оплачено" },
             };
             const m = map[s] ?? { bg: "rgba(107,114,128,0.15)", color: "#6b7280", label: s };
@@ -1254,9 +1256,14 @@ export function ProfilePage({
                                             <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.amount.toLocaleString("ru-RU")} ₽</td>
                                             <td style={{ padding: "6px 8px" }}>{statusBadge(r.status)}</td>
                                             <td style={{ padding: "6px 8px" }} onClick={(e) => e.stopPropagation()}>
-                                                {(r.status === "approved" || r.status === "sent") && (
-                                                    <button type="button" onClick={() => void markPaid(r.id)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
-                                                )}
+                                                <Flex gap="0.25rem" wrap="wrap">
+                                                    {r.status === "approved" && (
+                                                        <button type="button" onClick={() => markAwaitingPayment(r.id)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #2563eb", background: "transparent", color: "#2563eb", cursor: "pointer" }}>Ожидает оплату</button>
+                                                    )}
+                                                    {(r.status === "approved" || r.status === "sent") && (
+                                                        <button type="button" onClick={() => markPaid(r.id)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
+                                                    )}
+                                                </Flex>
                                             </td>
                                         </tr>
                                     ))}
@@ -1288,37 +1295,57 @@ export function ProfilePage({
                                     <div>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: "0.82rem", marginBottom: "0.25rem", display: "block" }}>Прикреплённые документы</Typography.Body>
                                         {selectedAccountingRequest.attachments.map((att) => (
-                                            <a
-                                                key={att.id}
-                                                href="#"
-                                                style={{ display: "block", marginTop: "0.25rem", color: "var(--color-primary-blue)", fontSize: "0.82rem" }}
-                                                onClick={async (e) => {
-                                                    e.preventDefault();
-                                                    if (!activeAccount?.login || !activeAccount?.password) return;
-                                                    const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
-                                                    try {
-                                                        const res = await fetch(
-                                                            `${origin}/api/accounting-expense-attachment?requestUid=${encodeURIComponent(selectedAccountingRequest.id)}&attachmentId=${att.id}`,
-                                                            { headers: { "x-login": activeAccount.login, "x-password": activeAccount.password } }
-                                                        );
-                                                        if (!res.ok) return;
-                                                        const blob = await res.blob();
-                                                        const url = URL.createObjectURL(blob);
-                                                        window.open(url, "_blank", "noopener");
-                                                        setTimeout(() => URL.revokeObjectURL(url), 60000);
-                                                    } catch { /* ignore */ }
-                                                }}
-                                            >
-                                                {att.fileName}
-                                            </a>
+                                            <div key={att.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.35rem", flexWrap: "wrap" }}>
+                                                <Typography.Body style={{ fontSize: "0.82rem", minWidth: 0, flex: "1 1 200px" }}>{att.fileName}</Typography.Body>
+                                                <Flex gap="0.25rem">
+                                                    <Button type="button" className="filter-button" style={{ fontSize: "0.72rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
+                                                        if (!activeAccount?.login || !activeAccount?.password) return;
+                                                        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+                                                        try {
+                                                            const res = await fetch(
+                                                                `${origin}/api/accounting-expense-attachment?requestUid=${encodeURIComponent(selectedAccountingRequest.id)}&attachmentId=${att.id}`,
+                                                                { headers: { "x-login": activeAccount.login, "x-password": activeAccount.password } }
+                                                            );
+                                                            if (!res.ok) return;
+                                                            const blob = await res.blob();
+                                                            const url = URL.createObjectURL(blob);
+                                                            window.open(url, "_blank", "noopener");
+                                                            setTimeout(() => URL.revokeObjectURL(url), 60000);
+                                                        } catch { /* ignore */ }
+                                                    }}>Открыть</Button>
+                                                    <Button type="button" className="filter-button" style={{ fontSize: "0.72rem", padding: "0.2rem 0.5rem" }} onClick={async () => {
+                                                        if (!activeAccount?.login || !activeAccount?.password) return;
+                                                        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+                                                        try {
+                                                            const res = await fetch(
+                                                                `${origin}/api/accounting-expense-attachment?requestUid=${encodeURIComponent(selectedAccountingRequest.id)}&attachmentId=${att.id}`,
+                                                                { headers: { "x-login": activeAccount.login, "x-password": activeAccount.password } }
+                                                            );
+                                                            if (!res.ok) return;
+                                                            const blob = await res.blob();
+                                                            const url = URL.createObjectURL(blob);
+                                                            const a = document.createElement("a");
+                                                            a.href = url;
+                                                            a.download = att.fileName || "файл";
+                                                            a.click();
+                                                            setTimeout(() => URL.revokeObjectURL(url), 5000);
+                                                        } catch { /* ignore */ }
+                                                    }}>Скачать</Button>
+                                                </Flex>
+                                            </div>
                                         ))}
                                     </div>
                                 )}
                             </div>
                             <Flex gap="0.5rem" justify="flex-end">
                                 <Button type="button" className="filter-button" onClick={() => setSelectedAccountingRequest(null)}>Закрыть</Button>
+                                {selectedAccountingRequest.status === "approved" && (
+                                    <Button type="button" className="filter-button" onClick={() => { markAwaitingPayment(selectedAccountingRequest.id); setSelectedAccountingRequest(null); }} style={{ borderColor: "#2563eb", color: "#2563eb" }}>
+                                        Ожидает оплату
+                                    </Button>
+                                )}
                                 {(selectedAccountingRequest.status === "approved" || selectedAccountingRequest.status === "sent") && (
-                                    <Button type="button" className="button-primary" onClick={() => { void markPaid(selectedAccountingRequest.id); setSelectedAccountingRequest(null); }}>
+                                    <Button type="button" className="button-primary" onClick={() => { markPaid(selectedAccountingRequest.id); setSelectedAccountingRequest(null); }}>
                                         Оплачено
                                     </Button>
                                 )}
@@ -1923,6 +1950,10 @@ export function ProfilePage({
                                                                 </select>
                                                             ) : (
                                                                 <input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    max={24}
+                                                                    step={0.5}
                                                                     value={hourInputValue}
                                                                     disabled={!departmentTimesheetIsEditableMonth || isPaidDate || !hourlyHoursEnabled}
                                                                     onChange={(e) => {
