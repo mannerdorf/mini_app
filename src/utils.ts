@@ -181,7 +181,7 @@ export async function downloadBase64File(payload: {
     isHtml?: boolean;
     convertHtmlToPdf?: boolean;
 }): Promise<void> {
-    const { data, name = "document", isHtml, convertHtmlToPdf = true } = payload;
+    const { data, name = "document", isHtml, convertHtmlToPdf = false } = payload;
     const isHtmlFile = Boolean(isHtml) || /\.html?$/i.test(String(name));
     let binary: string;
     try {
