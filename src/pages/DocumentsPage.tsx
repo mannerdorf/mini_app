@@ -5121,6 +5121,17 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     <option value="other">Прочее</option>
                                 </select>
                             </div>
+                            <div style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.55rem', background: 'var(--color-bg-secondary, #f8f9fa)' }}>
+                                <Typography.Body style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text)', marginBottom: '0.2rem' }}>Сумма требования, ₽</Typography.Body>
+                                <input
+                                    type="number"
+                                    className="admin-form-input"
+                                    placeholder="Введите сумму в рублях"
+                                    value={claimsCreateAmount}
+                                    onChange={(e) => setClaimsCreateAmount(e.target.value)}
+                                    style={{ width: '100%', padding: '0.45rem', maxWidth: 200 }}
+                                />
+                            </div>
                             <div>
                                 <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>
                                     Укажите номера мест
@@ -5283,18 +5294,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     style={{ width: '100%', minHeight: 90, padding: '0.45rem' }}
                                 />
                             </div>
-                            <Flex gap="0.5rem" wrap="wrap">
-                                <div style={{ flex: '1 1 180px' }}>
-                                    <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Сумма требования, ₽</Typography.Body>
-                                    <input
-                                        type="number"
-                                        className="admin-form-input"
-                                        value={claimsCreateAmount}
-                                        onChange={(e) => setClaimsCreateAmount(e.target.value)}
-                                        style={{ width: '100%', padding: '0.45rem' }}
-                                    />
-                                </div>
-                            </Flex>
                             <div>
                                 <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Ссылка на видео (опционально)</Typography.Body>
                                 <input

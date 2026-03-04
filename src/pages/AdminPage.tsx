@@ -178,6 +178,17 @@ const CLAIM_STATUS_LABELS_RU: Record<string, string> = {
   offset: "Зачтено",
   closed: "Закрыта",
 };
+const CLAIM_EVENT_TYPE_LABELS_RU: Record<string, string> = {
+  status_changed: "Смена статуса",
+  claim_submitted: "Претензия отправлена",
+  claim_draft_saved: "Черновик сохранён",
+  claim_created: "Претензия создана",
+  claim_updated: "Обновлена карточка",
+  documents_uploaded: "Добавлены вложения",
+  manager_decision: "Решение менеджера",
+  leader_decision: "Резолюция руководителя",
+  accounting_decision: "Решение бухгалтерии",
+};
 const CLAIM_MANIPULATION_SIGN_LABELS_RU: Record<string, string> = {
   fragile: "Хрупкое",
   keep_dry: "Беречь от влаги",
@@ -9528,7 +9539,38 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <strong>Тип претензии:</strong> {String(adminClaimDetail?.claimTypeLabel || "—")}
                     </Typography.Body>
                     <Typography.Body style={{ fontSize: "0.85rem", display: "block" }}>
-                      <strong>Статус:</strong> {CLAIM_STATUS_LABELS_RU[String(adminClaimDetail.claim.status || "")] || adminClaimDetail.claim.status || "—"}
+                      <strong>Статус:</strong>{" "}
+                      <span
+                        style={{
+                          display: "inline-block",
+                          fontSize: "0.75rem",
+                          padding: "0.2rem 0.5rem",
+                          borderRadius: 999,
+                          fontWeight: 600,
+                          ...((): { background: string; color: string } => {
+                            const s = String(adminClaimDetail.claim.status || "");
+                            const map: Record<string, { bg: string; color: string }> = {
+                              draft: { bg: "rgba(148,163,184,0.2)", color: "#64748b" },
+                              new: { bg: "rgba(59,130,246,0.15)", color: "#2563eb" },
+                              under_review: { bg: "rgba(59,130,246,0.15)", color: "#2563eb" },
+                              waiting_docs: { bg: "rgba(245,158,11,0.2)", color: "#d97706" },
+                              in_progress: { bg: "rgba(59,130,246,0.2)", color: "#1d4ed8" },
+                              awaiting_leader: { bg: "rgba(139,92,246,0.2)", color: "#7c3aed" },
+                              sent_to_accounting: { bg: "rgba(6,182,212,0.2)", color: "#0891b2" },
+                              approved: { bg: "rgba(34,197,94,0.2)", color: "#16a34a" },
+                              rejected: { bg: "rgba(239,68,68,0.2)", color: "#dc2626" },
+                              paid: { bg: "rgba(34,197,94,0.2)", color: "#16a34a" },
+                              offset: { bg: "rgba(34,197,94,0.15)", color: "#15803d" },
+                              closed: { bg: "rgba(148,163,184,0.2)", color: "#64748b" },
+                            };
+                            const v = map[s] ?? map.draft;
+                            return { background: v.bg, color: v.color };
+                          })(),
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {CLAIM_STATUS_LABELS_RU[String(adminClaimDetail.claim.status || "")] || adminClaimDetail.claim.status || "—"}
+                      </span>
                     </Typography.Body>
                     <Typography.Body style={{ fontSize: "0.85rem", display: "block" }}>
                       <strong>Описание:</strong> {adminClaimDetail.claim.description || "—"}
@@ -9653,126 +9695,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         onClick={uploadAdminClaimDocuments}
                         disabled={adminClaimAttachSubmitting}
                       >
-                        {adminClaimAttachSubmitting ? "Загрузка..." : "Отправить файлы заказчику"}
+                        {adminClaimAttachSubmitting ? "Отправка..." : "Ответить"}
                       </Button>
                     </Flex>
-                    <Flex gap="0.45rem" wrap="wrap" style={{ marginTop: "0.55rem", paddingTop: "0.55rem", borderTop: "1px dashed var(--color-border)" }}>
-                      <Button
-                        type="button"
-                        className="filter-button"
-                        onClick={() => setAdminRequestDocsOpen((prev) => !prev)}
-                        disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
-                      >
-                        Запросить документы
-                      </Button>
-                      <Button
-                        type="button"
-                        className="filter-button"
-                        onClick={() => setAdminDelegateOpen((prev) => !prev)}
-                        disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
-                      >
-                        Подключить сотрудника
-                      </Button>
-                    </Flex>
-                    {adminDelegateOpen && (
-                      <div style={{ marginTop: "0.55rem", border: "1px dashed var(--color-border)", borderRadius: 8, padding: "0.55rem" }}>
-                        <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.35rem" }}>
-                          Делегирование претензии сотруднику
-                        </Typography.Body>
-                        <Flex gap="0.45rem" wrap="wrap" style={{ marginBottom: "0.45rem" }}>
-                          <select
-                            className="admin-form-input"
-                            value={adminDelegateLogin}
-                            onChange={(e) => setAdminDelegateLogin(e.target.value)}
-                            style={{ minWidth: 240, padding: "0.4rem 0.5rem" }}
-                          >
-                            <option value="">Выберите сотрудника</option>
-                            {employeeDirectoryItems
-                              .filter((emp) => !!String(emp?.login || "").trim())
-                              .map((emp) => (
-                                <option key={`delegate-employee-${emp.id}`} value={String(emp.login || "").trim().toLowerCase()}>
-                                  {String(emp.full_name || emp.login || "").trim()}{emp.position ? ` — ${emp.position}` : ""}{emp.login ? ` (${emp.login})` : ""}
-                                </option>
-                              ))}
-                          </select>
-                        </Flex>
-                        <textarea
-                          className="admin-form-input"
-                          rows={2}
-                          placeholder="Комментарий к делегированию"
-                          value={adminDelegateComment}
-                          onChange={(e) => setAdminDelegateComment(e.target.value)}
-                          style={{ width: "100%" }}
-                        />
-                        <Flex justify="flex-end" style={{ marginTop: "0.35rem" }}>
-                          <Button
-                            type="button"
-                            className="filter-button"
-                            onClick={() => updateAdminClaimStatus(
-                              adminClaimDetail.claim.id,
-                              "in_progress",
-                              Number(adminClaimApprovedAmountDraft || 0),
-                              {
-                                expertLogin: adminDelegateLogin.trim(),
-                                managerNote: adminClaimNoteDraft.trim(),
-                                internalComment: `Делегировано сотруднику ${adminDelegateLogin.trim() || "—"}${adminDelegateComment.trim() ? `: ${adminDelegateComment.trim()}` : ""}`.trim(),
-                              }
-                            )}
-                            disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id || !adminDelegateLogin.trim()}
-                          >
-                            Подключить
-                          </Button>
-                        </Flex>
-                      </div>
-                    )}
-                    {adminRequestDocsOpen && (
-                      <div style={{ marginTop: "0.55rem", border: "1px dashed var(--color-border)", borderRadius: 8, padding: "0.55rem" }}>
-                        <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.35rem" }}>
-                          Какие документы запросить у клиента
-                        </Typography.Body>
-                        <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.45rem" }}>
-                          <label style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.82rem" }}>
-                            <input type="checkbox" checked={adminRequestDocUPD} onChange={(e) => setAdminRequestDocUPD(e.target.checked)} />
-                            УПД
-                          </label>
-                          <label style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.82rem" }}>
-                            <input type="checkbox" checked={adminRequestDocTTN} onChange={(e) => setAdminRequestDocTTN(e.target.checked)} />
-                            ТТН
-                          </label>
-                        </Flex>
-                        <textarea
-                          className="admin-form-input"
-                          rows={2}
-                          placeholder="Какие документы нужны дополнительно"
-                          value={adminRequestDocsComment}
-                          onChange={(e) => setAdminRequestDocsComment(e.target.value)}
-                          style={{ width: "100%" }}
-                        />
-                        <Flex justify="flex-end" style={{ marginTop: "0.35rem" }}>
-                          <Button
-                            type="button"
-                            className="filter-button"
-                            onClick={() => {
-                              const docs = [adminRequestDocUPD ? "УПД" : "", adminRequestDocTTN ? "ТТН" : ""].filter(Boolean);
-                              const text = docs.length > 0 ? `Запрошены документы: ${docs.join(", ")}` : "Запрошены дополнительные документы";
-                              const details = adminRequestDocsComment.trim() ? `${text}. ${adminRequestDocsComment.trim()}` : text;
-                              updateAdminClaimStatus(
-                                adminClaimDetail.claim.id,
-                                "waiting_docs",
-                                Number(adminClaimApprovedAmountDraft || 0),
-                                {
-                                  managerNote: [adminClaimNoteDraft.trim(), details].filter(Boolean).join("\n"),
-                                  internalComment: details,
-                                }
-                              );
-                            }}
-                            disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
-                          >
-                            Отправить запрос
-                          </Button>
-                        </Flex>
-                      </div>
-                    )}
                   </div>
                   {Array.isArray(adminClaimDetail.photos) && adminClaimDetail.photos.length > 0 && (
                     <div style={{ marginTop: "0.45rem" }}>
@@ -9868,6 +9793,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   </div>
                 </div>
 
+                {!isSuperAdmin && (
                 <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
                   <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Решение</Typography.Body>
                   <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}>
@@ -9916,6 +9842,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     </Button>
                   </Flex>
                 </div>
+                )}
 
                 <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
                   <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Резолюция руководителя</Typography.Body>
@@ -9975,12 +9902,65 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <div style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
                   <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Хронология</Typography.Body>
                   {Array.isArray(adminClaimDetail.events) && adminClaimDetail.events.length > 0 ? (
-                    <div style={{ display: "grid", gap: "0.3rem" }}>
-                      {adminClaimDetail.events.slice(-20).reverse().map((ev: any) => (
-                        <Typography.Body key={ev.id} style={{ fontSize: "0.8rem" }}>
-                          {new Date(ev.createdAt).toLocaleString("ru-RU")} — {ev.eventType} {ev.toStatus ? `→ ${ev.toStatus}` : ""}
-                        </Typography.Body>
-                      ))}
+                    <div style={{ display: "grid", gap: "0.4rem" }}>
+                      {adminClaimDetail.events.slice(-20).reverse().map((ev: any) => {
+                        const eventKey = String(ev.eventType || "").toLowerCase();
+                        const eventLabel = CLAIM_EVENT_TYPE_LABELS_RU[eventKey] || ev.eventType || "—";
+                        const statusKey = String(ev.toStatus || "").toLowerCase();
+                        const statusLabel = ev.toStatus ? (CLAIM_STATUS_LABELS_RU[statusKey] || ev.toStatus) : null;
+                        const statusBadgeBg = statusLabel ? ((): string => {
+                          const map: Record<string, string> = {
+                            draft: "rgba(148,163,184,0.2)", new: "rgba(59,130,246,0.15)", in_progress: "rgba(59,130,246,0.2)",
+                            waiting_docs: "rgba(245,158,11,0.2)", approved: "rgba(34,197,94,0.2)", rejected: "rgba(239,68,68,0.2)",
+                            paid: "rgba(34,197,94,0.2)", closed: "rgba(148,163,184,0.2)",
+                          };
+                          return map[statusKey] ?? "rgba(148,163,184,0.2)";
+                        })() : "";
+                        const statusBadgeColor = statusLabel ? ((): string => {
+                          const map: Record<string, string> = {
+                            draft: "#64748b", new: "#2563eb", in_progress: "#1d4ed8", waiting_docs: "#d97706",
+                            approved: "#16a34a", rejected: "#dc2626", paid: "#16a34a", closed: "#64748b",
+                          };
+                          return map[statusKey] ?? "#64748b";
+                        })() : "";
+                        return (
+                          <Typography.Body key={ev.id} style={{ fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
+                            <span style={{ color: "var(--color-text-secondary)", whiteSpace: "nowrap" }}>
+                              {new Date(ev.createdAt).toLocaleString("ru-RU")}
+                            </span>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                fontSize: "0.7rem",
+                                padding: "0.15rem 0.4rem",
+                                borderRadius: 999,
+                                fontWeight: 600,
+                                background: "rgba(59,130,246,0.12)",
+                                color: "#2563eb",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {eventLabel}
+                            </span>
+                            {statusLabel ? (
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  fontSize: "0.7rem",
+                                  padding: "0.15rem 0.4rem",
+                                  borderRadius: 999,
+                                  fontWeight: 600,
+                                  background: statusBadgeBg,
+                                  color: statusBadgeColor,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {statusLabel}
+                              </span>
+                            ) : null}
+                          </Typography.Body>
+                        );
+                      })}
                     </div>
                   ) : (
                     <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Событий пока нет</Typography.Body>
