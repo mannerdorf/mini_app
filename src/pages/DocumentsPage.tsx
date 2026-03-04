@@ -4314,7 +4314,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         <tr key={t.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                             <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={t.docDate || undefined} /></td>
                                             <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{t.docNumber || '—'}</td>
-                                            {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{t.customerName || '—'}</td> : null}
+                                            {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{stripOoo(t.customerName) || '—'}</td> : null}
                                             <td style={{ padding: '0.5rem 0.75rem' }}>
                                                 {(() => {
                                                     const fromCode = cityToCode(t.cityFrom || '') || t.cityFrom || '';
@@ -4477,7 +4477,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.docDate || undefined} /></td>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.periodFrom || undefined} /></td>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.periodTo || undefined} /></td>
-                                                {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{row.customerName || '—'}</td> : null}
+                                                {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{stripOoo(row.customerName) || '—'}</td> : null}
                                                 <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
                                                     {hasDownload ? (
                                                         <button
@@ -4537,7 +4537,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.docDate || undefined} /></td>
-                                                {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{row.customerName || '—'}</td> : null}
+                                                {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{stripOoo(row.customerName) || '—'}</td> : null}
                                                 <td style={{ padding: '0.5rem 0.75rem' }}>{row.title || '—'}</td>
                                                 <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
                                                     {hasDownload ? (

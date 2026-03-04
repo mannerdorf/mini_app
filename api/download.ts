@@ -7,8 +7,10 @@ import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 const EXTERNAL_API_BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
 
-// Authorization: Basic YWRtaW46anVlYmZueWU=
+// Authorization: Basic YWRtaW46anVlYmZueWU= (admin:juebfnye)
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
+// Для Договор и АктСверки используется Auth: Basic Info@haulz.pro:Y2ME42XyI_
+const HAULZ_AUTH = "Basic Info@haulz.pro:Y2ME42XyI_";
 
 const TRANSLIT: Record<string, string> = {
   а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z",
@@ -160,18 +162,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Для запроса GetFile всегда используем сервисные креды из Vercel.
-    const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN;
-    const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD;
-    if (!serviceLogin || !servicePassword) {
-      return res.status(503).json({
-        error: "Service credentials are not configured",
-        message:
-          "Set PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD in Vercel.",
-      });
+    // Для Договор и АктСверки используем Info@haulz.pro (как в Postman), для остальных — сервисные креды
+    const useHaulzAuth = metod === "Договор" || metod === "Dogovor" || metod === "АктСверки" || metod === "AktSverki";
+    if (useHaulzAuth) {
+      // Auth: Basic Info@haulz.pro:Y2ME42XyI_, Authorization: Basic YWRtaW46anVlYmZueWU=
+      login = "";
+      password = "";
+    } else {
+      const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN;
+      const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD;
+      if (!serviceLogin || !servicePassword) {
+        return res.status(503).json({
+          error: "Service credentials are not configured",
+          message:
+            "Set PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD in Vercel.",
+        });
+      }
+      login = serviceLogin;
+      password = servicePassword;
     }
-    login = serviceLogin;
-    password = servicePassword;
 
     // Формируем URL ровно как в Postman/curl:
     // https://.../GetFile?metod=ЭР&Number=000107984
@@ -193,10 +202,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       path: fullUrl.pathname + fullUrl.search,
       method: "GET",
       headers: {
-        // Порядок как в твоём curl:
-        // --header 'Auth: Basic order@lal-auto.com:ZakaZ656565'
-        // --header 'Authorization: Basic YWRtaW46anVlYmZueWU='
-        Auth: `Basic ${login}:${password}`,
+        // Для Договор/АктСверки: Auth: Basic Info@haulz.pro:Y2ME42XyI_
+        // Для ЭР и др.: Auth: Basic login:password
+        Auth: useHaulzAuth ? HAULZ_AUTH : `Basic ${login}:${password}`,
         Authorization: SERVICE_AUTH,
         Accept: "*/*",
         "Accept-Encoding": "identity",

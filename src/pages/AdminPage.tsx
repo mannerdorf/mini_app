@@ -8,6 +8,7 @@ import { useFocusTrap } from "../hooks/useFocusTrap";
 import { PnlSection } from "../pnl/PnlSection";
 import { RefSubdivisionsView } from "../pnl/RefSubdivisionsView";
 import { SUBDIVISIONS } from "../pnl/constants";
+import { stripOoo } from "../lib/formatUtils";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -5468,7 +5469,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <tr key={t.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                       <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{t.docDate ? new Date(t.docDate).toLocaleDateString("ru-RU") : "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{t.docNumber || "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>{t.customerName || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{stripOoo(t.customerName) || "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{t.customerInn || "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem" }}>{t.cityFrom || "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem" }}>{t.cityTo || "—"}</td>
@@ -5611,7 +5612,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? new Date(row.docDate).toLocaleDateString("ru-RU") : "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodFrom ? new Date(row.periodFrom).toLocaleDateString("ru-RU") : "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodTo ? new Date(row.periodTo).toLocaleDateString("ru-RU") : "—"}</td>
-                        <td style={{ padding: "0.5rem 0.75rem" }}>{row.customerName || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>{stripOoo(row.customerName) || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>
                           {hasDownload ? (
@@ -5758,7 +5759,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? new Date(row.docDate).toLocaleDateString("ru-RU") : "—"}</td>
-                        <td style={{ padding: "0.5rem 0.75rem" }}>{row.customerName || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>{stripOoo(row.customerName) || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem" }}>{row.title || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>
