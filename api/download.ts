@@ -345,25 +345,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
           }
           
-          // Если есть data (base64) — декодируем и отдаём как PDF
+          // Если есть data — может быть base64 (PDF) или raw HTML (Договор возвращает HTML в data)
           if (jsonResponse.data) {
-            console.log("✅ Got base64 data, decoding to PDF. Size:", jsonResponse.data.length);
-            const pdfBuffer = Buffer.from(jsonResponse.data, "base64");
+            const dataStr = String(jsonResponse.data);
             const fileName = jsonResponse.name || `${metod}_${number}.pdf`;
-            
-            // Для GET запросов (MAX) — отдаём бинарный PDF для просмотра
-            if (req.method === "GET") {
-              res.status(200);
-              res.setHeader("Content-Type", "application/pdf");
-              res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fileName)}"`);
-              res.setHeader("Content-Length", pdfBuffer.length.toString());
-              return res.end(pdfBuffer);
+            const isBase64 = /^[A-Za-z0-9+/]*=*$/.test(dataStr.replace(/\s/g, "")) && dataStr.length > 0;
+
+            if (isBase64) {
+              // Base64 — декодируем как PDF
+              console.log("✅ Got base64 data, decoding to PDF. Size:", dataStr.length);
+              const pdfBuffer = Buffer.from(dataStr, "base64");
+              if (req.method === "GET") {
+                res.status(200);
+                res.setHeader("Content-Type", "application/pdf");
+                res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fileName)}"`);
+                res.setHeader("Content-Length", pdfBuffer.length.toString());
+                return res.end(pdfBuffer);
+              }
+              return res.status(200).json({ data: dataStr, name: fileName });
             }
-            
-            // Для POST запросов (Telegram) — возвращаем JSON с base64 как ожидает клиент
-            return res.status(200).json({
-              data: jsonResponse.data,
-              name: fileName,
+
+            // Договор возвращает raw HTML в data — кодируем в base64 для передачи клиенту
+            if (dataStr.trimStart().startsWith("<") || /^\s*<!DOCTYPE/i.test(dataStr) || /^\s*<html/i.test(dataStr)) {
+              console.log("✅ Got HTML data (Договор), encoding to base64. Size:", dataStr.length);
+              const b64 = Buffer.from(dataStr, "utf-8").toString("base64");
+              const fname = /\.html?$/i.test(fileName) ? fileName : fileName.replace(/\.\w+$/, "") + ".html";
+              if (req.method === "GET") {
+                res.status(200);
+                res.setHeader("Content-Type", "text/html; charset=utf-8");
+                res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fname)}"`);
+                return res.end(dataStr, "utf-8");
+              }
+              return res.status(200).json({ data: b64, name: fname, isHtml: true });
+            }
+
+            console.error("❌ jsonResponse.data is neither base64 nor HTML");
+            return res.status(500).json({
+              error: "Invalid response format",
+              message: "Сервер вернул данные в неожиданном формате",
             });
           }
           

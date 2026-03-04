@@ -9,6 +9,7 @@ import { PnlSection } from "../pnl/PnlSection";
 import { RefSubdivisionsView } from "../pnl/RefSubdivisionsView";
 import { SUBDIVISIONS } from "../pnl/constants";
 import { stripOoo } from "../lib/formatUtils";
+import { downloadBase64File } from "../utils";
 
 const PERMISSION_KEYS = [
   { key: "cms_access", label: "Доступ в CMS" },
@@ -1760,16 +1761,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить документ");
       if (!data?.data) throw new Error("Документ не найден");
-      const binary = atob(String(data.data));
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = href;
-      a.download = String(data?.name || `АктСверки_${number}.pdf`);
-      a.click();
-      URL.revokeObjectURL(href);
+      downloadBase64File({
+        data: String(data.data),
+        name: data?.name || `АктСверки_${number}.pdf`,
+        isHtml: Boolean(data?.isHtml),
+      });
     } catch (e: unknown) {
       setSverkiDownloadError((e as Error)?.message || "Ошибка скачивания");
     } finally {
@@ -1823,16 +1819,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить документ");
       if (!data?.data) throw new Error("Документ не найден");
-      const binary = atob(String(data.data));
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = href;
-      a.download = String(data?.name || `Договор_${number}.pdf`);
-      a.click();
-      URL.revokeObjectURL(href);
+      downloadBase64File({
+        data: String(data.data),
+        name: data?.name || `Договор_${number}.pdf`,
+        isHtml: Boolean(data?.isHtml),
+      });
     } catch (e: unknown) {
       setDogovorsDownloadError((e as Error)?.message || "Ошибка скачивания");
     } finally {
@@ -2274,17 +2265,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.message || data?.error || `Не удалось получить ${method}`);
       if (!data?.data) throw new Error(`Документ ${method} не найден`);
-
-      const binary = atob(String(data.data));
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: "application/pdf" });
-      const href = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = href;
-      a.download = String(data?.name || `${method}_${cargoNumber}.pdf`);
-      a.click();
-      URL.revokeObjectURL(href);
+      downloadBase64File({
+        data: String(data.data),
+        name: data?.name || `${method}_${cargoNumber}.pdf`,
+        isHtml: Boolean(data?.isHtml),
+      });
     } catch (e: unknown) {
       setAdminClaimDocError((e as Error)?.message || `Ошибка скачивания ${method}`);
     } finally {

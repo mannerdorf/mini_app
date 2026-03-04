@@ -8,6 +8,7 @@ import { InvoiceDetailModal } from "../components/modals/InvoiceDetailModal";
 import { ActDetailModal } from "../components/modals/ActDetailModal";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
+import { downloadBase64File } from "../utils";
 import { normalizeStatus, STATUS_MAP, getFilterKeyByStatus } from "../lib/statusUtils";
 import { StatusBadge } from "../components/shared/StatusBadges";
 import {
@@ -1735,16 +1736,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data?.message || data?.error || 'Не удалось получить документ');
             if (!data?.data) throw new Error('Документ не найден');
-            const binary = atob(String(data.data));
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-            const blob = new Blob([bytes], { type: 'application/pdf' });
-            const href = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = href;
-            a.download = String(data?.name || `АктСверки_${number}.pdf`);
-            a.click();
-            URL.revokeObjectURL(href);
+            downloadBase64File({
+                data: String(data.data),
+                name: data?.name || `АктСверки_${number}.pdf`,
+                isHtml: Boolean(data?.isHtml),
+            });
         } catch (e: unknown) {
             setSverkiDownloadError((e as Error)?.message || 'Ошибка скачивания');
         } finally {
@@ -1787,16 +1783,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data?.message || data?.error || 'Не удалось получить документ');
             if (!data?.data) throw new Error('Документ не найден');
-            const binary = atob(String(data.data));
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-            const blob = new Blob([bytes], { type: 'application/pdf' });
-            const href = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = href;
-            a.download = String(data?.name || `Договор_${number}.pdf`);
-            a.click();
-            URL.revokeObjectURL(href);
+            downloadBase64File({
+                data: String(data.data),
+                name: data?.name || `Договор_${number}.pdf`,
+                isHtml: Boolean(data?.isHtml),
+            });
         } catch (e: unknown) {
             setDogovorsDownloadError((e as Error)?.message || 'Ошибка скачивания');
         } finally {

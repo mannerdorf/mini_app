@@ -170,6 +170,31 @@ export function dedupeCustomersByInn(list: CustomerOption[]): CustomerOption[] {
     return Array.from(byInn.values());
 }
 
+/**
+ * Скачать файл из ответа API download (base64 data).
+ * Поддерживает PDF и HTML (Договор возвращает HTML).
+ */
+export function downloadBase64File(payload: { data: string; name?: string; isHtml?: boolean }): void {
+    const { data, name = "document", isHtml } = payload;
+    const isHtmlFile = Boolean(isHtml) || /\.html?$/i.test(String(name));
+    let binary: string;
+    try {
+        binary = atob(String(data));
+    } catch {
+        throw new Error("Не удалось расшифровать документ");
+    }
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    const mime = isHtmlFile ? "text/html;charset=utf-8" : "application/pdf";
+    const blob = new Blob([bytes], { type: mime });
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = String(name);
+    a.click();
+    URL.revokeObjectURL(href);
+}
+
 /** Декодирование base64url в Uint8Array (для Web Push VAPID key) */
 export function urlBase64ToUint8Array(base64String: string): Uint8Array {
     const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
