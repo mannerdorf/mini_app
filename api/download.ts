@@ -345,19 +345,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
           }
           
-          // Если есть data (base64) — декодируем и отдаём как PDF. Проверяем, что это валидный base64.
+          // Если есть data (base64) — декодируем и отдаём как PDF
           if (jsonResponse.data) {
-            const dataStr = String(jsonResponse.data);
-            const isBase64 = /^[A-Za-z0-9+/]*=*$/.test(dataStr) && dataStr.length % 4 !== 1;
-            if (!isBase64) {
-              console.error("❌ jsonResponse.data is not valid base64 (contains non-Latin1 chars?)");
-              return res.status(500).json({
-                error: "Invalid response format",
-                message: "Сервер вернул данные в неверном формате (ожидался PDF)",
-              });
-            }
-            console.log("✅ Got base64 data, decoding to PDF. Size:", dataStr.length);
-            const pdfBuffer = Buffer.from(dataStr, "base64");
+            console.log("✅ Got base64 data, decoding to PDF. Size:", jsonResponse.data.length);
+            const pdfBuffer = Buffer.from(jsonResponse.data, "base64");
             const fileName = jsonResponse.name || `${metod}_${number}.pdf`;
             
             // Для GET запросов (MAX) — отдаём бинарный PDF для просмотра
@@ -371,7 +362,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             
             // Для POST запросов (Telegram) — возвращаем JSON с base64 как ожидает клиент
             return res.status(200).json({
-              data: dataStr,
+              data: jsonResponse.data,
               name: fileName,
             });
           }
