@@ -1369,8 +1369,18 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, [claimsCargoDropdownOpen]);
+    const [claimsCreateCargoNumberDebounced, setClaimsCreateCargoNumberDebounced] = useState('');
     useEffect(() => {
-        const number = String(claimsCreateCargoNumber || '').trim();
+        const q = String(claimsCreateCargoNumber || '').trim();
+        if (!q) {
+            setClaimsCreateCargoNumberDebounced('');
+            return;
+        }
+        const t = setTimeout(() => setClaimsCreateCargoNumberDebounced(q), 400);
+        return () => clearTimeout(t);
+    }, [claimsCreateCargoNumber]);
+    useEffect(() => {
+        const number = String(claimsCreateCargoNumberDebounced || '').trim();
         if (!number || !auth?.login || !auth?.password) {
             setClaimsAcceptedNomenclatureRows([]);
             setClaimsAcceptedNomenclatureError(null);
@@ -1390,7 +1400,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             CitySender: '',
             CityReceiver: '',
         };
-        fetchPerevozkaDetails(auth, number, cargoItem as any)
+        const numberRaw = number.replace(/^0+/, '') || number;
+        const numberForApi = /^\d{5,9}$/.test(numberRaw) ? numberRaw.padStart(9, '0') : number;
+        fetchPerevozkaDetails(auth, numberForApi, cargoItem as any)
             .then(({ nomenclature }) => {
                 if (cancelled) return;
                 const normalized = normalizeAcceptedCargoNomenclatureRows(Array.isArray(nomenclature) ? nomenclature : []);
@@ -1408,7 +1420,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         return () => {
             cancelled = true;
         };
-    }, [claimsCreateCargoNumber, auth?.login, auth?.password, perevozkiItems, normCargoKey, auth]);
+    }, [claimsCreateCargoNumberDebounced, auth?.login, auth?.password, perevozkiItems, normCargoKey, auth]);
     const claimNomenclatureOptions = claimsAcceptedNomenclatureRows;
     useEffect(() => {
         const allowed = new Set(claimNomenclatureOptions.map((row) => row.key));
@@ -4823,11 +4835,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 {claimsReplyError}
                             </Typography.Body>
                         ) : null}
-                        <Flex justify="flex-end" gap="0.45rem" style={{ marginTop: '0.7rem' }}>
-                            <Button className="filter-button" disabled={claimsReplySubmitting} onClick={() => setClaimsReplyOpen(false)}>
+                        <Flex justify="flex-end" gap="0.45rem" wrap="nowrap" style={{ marginTop: '0.7rem', flexWrap: 'nowrap' }}>
+                            <Button className="filter-button" disabled={claimsReplySubmitting} onClick={() => setClaimsReplyOpen(false)} style={{ flexShrink: 0 }}>
                                 Отмена
                             </Button>
-                            <Button className="button-primary" disabled={claimsReplySubmitting} onClick={submitClaimReplyDocuments}>
+                            <Button className="button-primary" disabled={claimsReplySubmitting} onClick={submitClaimReplyDocuments} style={{ flexShrink: 0 }}>
                                 {claimsReplySubmitting ? 'Отправка...' : 'Отправить документы'}
                             </Button>
                         </Flex>
@@ -5322,11 +5334,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 {claimsCreateError}
                             </Typography.Body>
                         ) : null}
-                        <Flex justify="flex-end" gap="0.45rem" align="center" wrap="nowrap">
+                        <Flex justify="flex-end" gap="0.45rem" align="center" wrap="nowrap" style={{ flexWrap: 'nowrap' }}>
                             <Button
                                 className="filter-button"
                                 disabled={claimsCreateSubmitting}
-                                style={{ height: 40, width: 180, padding: '0 0.7rem' }}
+                                style={{ height: 40, minWidth: 120, padding: '0 0.7rem', flexShrink: 0 }}
                                 onClick={() => {
                                     setClaimsCreateOpen(false);
                                     setClaimsEditingId(null);
@@ -5337,7 +5349,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             <Button
                                 className="button-primary"
                                 disabled={claimsCreateSubmitting}
-                                style={{ height: 40, width: 180, padding: '0 0.7rem' }}
+                                style={{ height: 40, minWidth: 120, padding: '0 0.7rem', flexShrink: 0 }}
                                 onClick={async () => {
                                     if (!auth?.login || !auth?.password) {
                                         setClaimsCreateError('Не удалось определить авторизацию');
@@ -5502,17 +5514,19 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 {sverkiOrderError}
                             </Typography.Body>
                         ) : null}
-                        <Flex justify="flex-end" gap="0.45rem">
+                        <Flex justify="flex-end" gap="0.45rem" wrap="nowrap" style={{ flexWrap: 'nowrap' }}>
                             <Button
                                 className="filter-button"
                                 disabled={sverkiOrderSubmitting}
                                 onClick={() => setSverkiOrderModalOpen(false)}
+                                style={{ flexShrink: 0 }}
                             >
                                 Отмена
                             </Button>
                             <Button
                                 className="button-primary"
                                 disabled={sverkiOrderSubmitting}
+                                style={{ flexShrink: 0 }}
                                 onClick={async () => {
                                     if (!effectiveActiveInn || !auth?.login || !auth?.password) {
                                         setSverkiOrderError('Не удалось определить ИНН или авторизацию');
