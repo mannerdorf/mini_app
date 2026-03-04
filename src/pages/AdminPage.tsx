@@ -8808,10 +8808,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <div><span style={{ color: "var(--color-text-secondary)" }}>Комментарий:</span> {item.comment || "—"}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>ТС:</span> {item.vehicleOrEmployee || "—"}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>Сотрудник:</span> {(item as any).employeeName || "—"}</div>
-                      {atts.length > 0 && (
-                        <div>
-                          <Typography.Body style={{ fontWeight: 600, fontSize: "0.82rem", marginBottom: "0.25rem", display: "block" }}>Прикреплённые документы</Typography.Body>
-                          {atts.map((att: { id: number; fileName: string }) => (
+                      <div>
+                        <Typography.Body style={{ fontWeight: 600, fontSize: "0.82rem", marginBottom: "0.25rem", display: "block" }}>Прикреплённые документы</Typography.Body>
+                        {atts.length > 0 ? (
+                          atts.map((att: { id: number; fileName: string }) => (
                             <a
                               key={att.id}
                               href="#"
@@ -8834,9 +8834,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             >
                               {att.fileName}
                             </a>
-                          ))}
-                        </div>
-                      )}
+                          ))
+                        ) : (
+                          <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>
+                            Нет. Вложения сохраняются в БД при отправке заявки «На согласование» из мини-приложения. Заявки, созданные до обновления, могли не содержать файлов.
+                          </Typography.Body>
+                        )}
+                      </div>
                     </div>
                     <Flex gap="0.5rem" justify="flex-end">
                       <Button type="button" className="filter-button" onClick={() => setExpenseViewId(null)}>Закрыть</Button>
