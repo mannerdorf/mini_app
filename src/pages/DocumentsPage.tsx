@@ -430,6 +430,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         title: string;
     }[]>([]);
     const [dogovorsLoading, setDogovorsLoading] = useState(false);
+    const [dogovorsDownloadingId, setDogovorsDownloadingId] = useState<number | null>(null);
+    const [dogovorsDownloadError, setDogovorsDownloadError] = useState<string | null>(null);
     const [claimsList, setClaimsList] = useState<{
         id: number;
         claimNumber: string;
@@ -1759,6 +1761,48 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return d >= fromDate && d <= toDate;
         });
     }, [dogovorsList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, dogovorsCustomerFilter]);
+    const downloadDogovorFile = useCallback(async (row: { id: number; docNumber: string; docDate: string | null; customerInn: string }) => {
+        const number = String(row.docNumber || '').trim();
+        const docDateRaw = row.docDate;
+        const dateDog = docDateRaw
+            ? (() => {
+                const d = new Date(docDateRaw);
+                if (isNaN(d.getTime())) return '';
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}T00:00:00`;
+            })()
+            : '';
+        const inn = String(row.customerInn || '').trim();
+        if (!number || !dateDog || !inn) return;
+        setDogovorsDownloadingId(row.id);
+        setDogovorsDownloadError(null);
+        try {
+            const res = await fetch('/api/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ metod: 'Договор', number, dateDog, inn }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.message || data?.error || 'Не удалось получить документ');
+            if (!data?.data) throw new Error('Документ не найден');
+            const binary = atob(String(data.data));
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const href = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = href;
+            a.download = String(data?.name || `Договор_${number}.pdf`);
+            a.click();
+            URL.revokeObjectURL(href);
+        } catch (e: unknown) {
+            setDogovorsDownloadError((e as Error)?.message || 'Ошибка скачивания');
+        } finally {
+            setDogovorsDownloadingId(null);
+        }
+    }, []);
     const filteredClaims = useMemo(() => {
         const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
@@ -4482,20 +4526,46 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
                                         {effectiveServiceMode ? <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Контрагент</th> : null}
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Наименование</th>
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredDogovors.map((row) => (
-                                        <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                            <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
-                                            <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.docDate || undefined} /></td>
-                                            {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{row.customerName || '—'}</td> : null}
-                                            <td style={{ padding: '0.5rem 0.75rem' }}>{row.title || '—'}</td>
-                                        </tr>
-                                    ))}
+                                    {filteredDogovors.map((row) => {
+                                        const hasDownload = row.docNumber && row.docDate && row.customerInn;
+                                        const isDownloading = dogovorsDownloadingId === row.id;
+                                        return (
+                                            <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.docDate || undefined} /></td>
+                                                {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{row.customerName || '—'}</td> : null}
+                                                <td style={{ padding: '0.5rem 0.75rem' }}>{row.title || '—'}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
+                                                    {hasDownload ? (
+                                                        <button
+                                                            type="button"
+                                                            className="button-primary"
+                                                            style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                                            disabled={isDownloading}
+                                                            onClick={() => downloadDogovorFile(row)}
+                                                        >
+                                                            {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                                            Скачать
+                                                        </button>
+                                                    ) : (
+                                                        '—'
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
+                    )}
+                    {dogovorsDownloadError && (
+                        <Typography.Body style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: '#ef4444' }}>
+                            {dogovorsDownloadError}
+                        </Typography.Body>
                     )}
                 </>
             )}

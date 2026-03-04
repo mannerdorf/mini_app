@@ -588,6 +588,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [dogovorsSyncMessage, setDogovorsSyncMessage] = useState<string | null>(null);
   const [dogovorsSyncDebugRequest, setDogovorsSyncDebugRequest] = useState<string>("");
   const [dogovorsSyncDebugResponse, setDogovorsSyncDebugResponse] = useState<string>("");
+  const [dogovorsDownloadingId, setDogovorsDownloadingId] = useState<number | null>(null);
+  const [dogovorsDownloadError, setDogovorsDownloadError] = useState<string | null>(null);
   const [sverkiRequests, setSverkiRequests] = useState<{
     id: number;
     login: string;
@@ -1793,6 +1795,49 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       .catch(() => setDogovorsList([]))
       .finally(() => setDogovorsLoading(false));
   }, [tab, dogovorsFetchTrigger]);
+
+  const downloadDogovorFile = useCallback(async (row: { id: number; docNumber: string; docDate: string | null; customerInn: string }) => {
+    const number = String(row.docNumber || "").trim();
+    const docDateRaw = row.docDate;
+    const dateDog = docDateRaw
+      ? (() => {
+          const d = new Date(docDateRaw);
+          if (isNaN(d.getTime())) return "";
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          return `${y}-${m}-${day}T00:00:00`;
+        })()
+      : "";
+    const inn = String(row.customerInn || "").trim();
+    if (!number || !dateDog || !inn) return;
+    setDogovorsDownloadingId(row.id);
+    setDogovorsDownloadError(null);
+    try {
+      const res = await fetch("/api/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metod: "Договор", number, dateDog, inn }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить документ");
+      if (!data?.data) throw new Error("Документ не найден");
+      const binary = atob(String(data.data));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = String(data?.name || `Договор_${number}.pdf`);
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch (e: unknown) {
+      setDogovorsDownloadError((e as Error)?.message || "Ошибка скачивания");
+    } finally {
+      setDogovorsDownloadingId(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (tab !== "customers") return;
@@ -5664,6 +5709,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               {dogovorsSyncMessage}
             </Typography.Body>
           )}
+          {dogovorsDownloadError && (
+            <Typography.Body style={{ marginBottom: "0.65rem", fontSize: "0.82rem", color: "#ef4444" }}>
+              {dogovorsDownloadError}
+            </Typography.Body>
+          )}
           {(dogovorsSyncDebugRequest || dogovorsSyncDebugResponse) && (
             <div style={{ marginBottom: "0.75rem", padding: "0.55rem 0.65rem", borderRadius: 8, border: "1px dashed var(--color-border)", background: "var(--color-bg-hover)" }}>
               {dogovorsSyncDebugRequest ? (
@@ -5697,18 +5747,39 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Контрагент</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dogovorsList.map((row) => (
-                    <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? new Date(row.docDate).toLocaleDateString("ru-RU") : "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>{row.customerName || "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>{row.title || "—"}</td>
-                    </tr>
-                  ))}
+                  {dogovorsList.map((row) => {
+                    const hasDownload = row.docNumber && row.docDate && row.customerInn;
+                    const isDownloading = dogovorsDownloadingId === row.id;
+                    return (
+                      <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? new Date(row.docDate).toLocaleDateString("ru-RU") : "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>{row.customerName || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>{row.title || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>
+                          {hasDownload ? (
+                            <Button
+                              type="button"
+                              className="filter-button"
+                              style={{ fontSize: "0.8rem", padding: "0.25rem 0.5rem" }}
+                              disabled={isDownloading}
+                              onClick={() => downloadDogovorFile(row)}
+                            >
+                              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.25rem" }} /> : <Download className="w-4 h-4" style={{ verticalAlign: "middle", marginRight: "0.25rem" }} />}
+                              Скачать
+                            </Button>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

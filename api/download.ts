@@ -41,6 +41,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let metod: string | undefined;
     let number: string | undefined;
     let dateDoc: string | undefined;
+    let dateDog: string | undefined;
+    let inn: string | undefined;
     let isRegisteredUser = false;
 
     if (req.method === "GET") {
@@ -51,6 +53,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       number =
         typeof req.query.number === "string" ? req.query.number : undefined;
       dateDoc = typeof req.query.dateDoc === "string" ? req.query.dateDoc : undefined;
+      dateDog = typeof req.query.dateDog === "string" ? req.query.dateDog : undefined;
+      inn = typeof req.query.inn === "string" ? req.query.inn : undefined;
       isRegisteredUser = req.query.isRegisteredUser === "true";
     } else {
       // Vercel иногда даёт body строкой
@@ -69,6 +73,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         metod,
         number,
         dateDoc,
+        dateDog,
+        inn,
         isRegisteredUser,
       } = {
         ...body,
@@ -87,6 +93,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: "Required fields for АктСверки: metod, number, dateDoc",
       });
     }
+    // Договор требует dateDog и inn
+    if ((metod === "Договор" || metod === "Dogovor") && (!dateDog || !inn)) {
+      return res.status(400).json({
+        error: "Required fields for Договор: metod, number, dateDog, inn",
+      });
+    }
     if (isRegisteredUser && (!login || !password)) {
       return res.status(400).json({
         error: "Required fields for registered user: login, password, metod, number",
@@ -102,6 +114,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (dateDoc && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(dateDoc)) {
       return res.status(400).json({ error: "Invalid dateDoc format (expected YYYY-MM-DDTHH:MM:SS)" });
+    }
+    if (dateDog && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(dateDog)) {
+      return res.status(400).json({ error: "Invalid dateDog format (expected YYYY-MM-DDTHH:MM:SS)" });
+    }
+    if (inn && !/^\d{10,12}$/.test(String(inn).trim())) {
+      return res.status(400).json({ error: "Invalid inn (expected 10-12 digits)" });
     }
 
     // Зарегистрированные (CMS) пользователи: проверяем доступ к перевозке, затем запрашиваем файл сервисным аккаунтом
@@ -162,9 +180,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     fullUrl.searchParams.set("metod", metod);
     fullUrl.searchParams.set("Number", number);
     if (dateDoc) fullUrl.searchParams.set("DateDoc", dateDoc);
+    if (dateDog) fullUrl.searchParams.set("DateDog", dateDog);
+    if (inn) fullUrl.searchParams.set("INN", String(inn).trim());
 
     // Do not log credentials/PII; keep logs minimal
-    console.log("➡️ GetFile:", { metod, number, dateDoc: dateDoc ? "***" : undefined });
+    console.log("➡️ GetFile:", { metod, number, dateDoc: dateDoc ? "***" : undefined, dateDog: dateDog ? "***" : undefined, inn: inn ? "***" : undefined });
 
     const options: https.RequestOptions = {
       protocol: fullUrl.protocol,
