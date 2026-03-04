@@ -11,8 +11,6 @@ import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import { EXPENSE_REQUESTS_WEBHOOK_URL, PROXY_API_BASE_URL } from "../constants/config";
 import type { AuthData } from "../types";
 
-const STORAGE_KEY_PREFIX = "haulz.expense_requests";
-
 const VAT_RATES = [
     { value: "", label: "Без НДС" },
     { value: "0", label: "0%" },
@@ -90,42 +88,6 @@ function normalizeTransportDisplay(value: unknown): string {
         .trim();
 }
 
-function storageKey(login: string) {
-    return `${STORAGE_KEY_PREFIX}.${login || "anon"}`;
-}
-
-function loadStoredRequests(login: string): ExpenseRequestItem[] {
-    try {
-        const raw = localStorage.getItem(storageKey(login));
-        if (!raw) return [];
-        const all = JSON.parse(raw) as ExpenseRequestItem[];
-        if (!Array.isArray(all)) return [];
-        return all
-            .filter((r) => r && r.createdAt)
-            .map((r) => {
-                const safeAttachments = Array.isArray((r as any)?.attachments)
-                    ? (r as any).attachments.filter((a: any) => a && typeof a.name === "string" && typeof a.dataUrl === "string")
-                    : [];
-                const safeAttachmentNames = Array.isArray((r as any)?.attachmentNames)
-                    ? (r as any).attachmentNames.map((n: any) => String(n)).filter(Boolean)
-                    : safeAttachments.map((a: any) => String(a.name || "")).filter(Boolean);
-                return {
-                    ...r,
-                    attachmentNames: safeAttachmentNames,
-                    attachments: safeAttachments,
-                } as ExpenseRequestItem;
-            });
-    } catch {
-        return [];
-    }
-}
-
-function saveStoredRequests(login: string, items: ExpenseRequestItem[]) {
-    try {
-        localStorage.setItem(storageKey(login), JSON.stringify(items));
-    } catch { /* ignore */ }
-}
-
 type Props = {
     auth: AuthData | null;
     /** Fallback-название подразделения (используется если API не вернул). */
@@ -154,7 +116,8 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [files, setFiles] = useState<{ name: string; dataUrl: string }[]>([]);
     const [sending, setSending] = useState(false);
     const [syncError, setSyncError] = useState("");
-    const [list, setList] = useState<ExpenseRequestItem[]>(() => loadStoredRequests(auth?.login ?? ""));
+    const [list, setList] = useState<ExpenseRequestItem[]>([]);
+    const [listLoading, setListLoading] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
 
@@ -183,75 +146,51 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         return [...new Set(items)];
     }, []);
 
-    useEffect(() => {
-        setList(loadStoredRequests(auth?.login ?? ""));
-    }, [auth?.login]);
-
-    // --- Синхронизация статусов из БД (rejected, approved и т.д.) — чтобы автор видел решения руководителя ---
-    useEffect(() => {
+    // --- Загрузка заявок из БД (единственный источник данных) ---
+    const fetchExpenseRequests = useCallback(async () => {
         if (!auth?.login || !auth?.password) return;
+        setListLoading(true);
         const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
-        fetch(`${origin}/api/my-expense-requests`, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "x-login": auth.login,
-                "x-password": auth.password,
-            },
-        })
-            .then((r) => (r.ok ? r.json() : Promise.resolve({ items: [] })))
-            .then((data: { items?: Array<{ id: string; createdAt?: string; department?: string; docNumber?: string; docDate?: string; period?: string; categoryId?: string; categoryName?: string; amount?: number; vatRate?: string; comment?: string; vehicleOrEmployee?: string; employeeName?: string; status: string; rejectionReason?: string }> }) => {
-                const apiItems = Array.isArray(data?.items) ? data.items : [];
-                if (apiItems.length === 0) return;
-                setList((prev) => {
-                    const byId = new Map(prev.map((r) => [r.id, r]));
-                    for (const api of apiItems) {
-                        const local = byId.get(api.id);
-                        if (local) {
-                            byId.set(api.id, {
-                                ...local,
-                                department: api.department ?? local.department,
-                                docNumber: api.docNumber ?? local.docNumber,
-                                docDate: api.docDate ?? local.docDate,
-                                period: api.period ?? local.period,
-                                categoryId: api.categoryId ?? local.categoryId,
-                                categoryName: api.categoryName ?? local.categoryName,
-                                amount: Number(api.amount) || local.amount,
-                                vatRate: api.vatRate ?? local.vatRate,
-                                comment: api.comment ?? local.comment,
-                                vehicleOrEmployee: api.vehicleOrEmployee ?? local.vehicleOrEmployee,
-                                employeeName: api.employeeName ?? local.employeeName,
-                                status: api.status as ExpenseRequestItem["status"],
-                                rejectionReason: api.rejectionReason ?? local.rejectionReason,
-                            });
-                        } else {
-                            byId.set(api.id, {
-                                id: api.id,
-                                createdAt: api.createdAt ?? "",
-                                department: api.department ?? "",
-                                docNumber: api.docNumber ?? "",
-                                docDate: api.docDate ?? "",
-                                period: api.period ?? "",
-                                categoryId: api.categoryId ?? "other",
-                                categoryName: api.categoryName ?? "—",
-                                amount: Number(api.amount) || 0,
-                                vatRate: api.vatRate ?? "",
-                                comment: api.comment ?? "",
-                                vehicleOrEmployee: api.vehicleOrEmployee ?? "",
-                                employeeName: api.employeeName ?? "",
-                                attachmentNames: [],
-                                status: api.status as ExpenseRequestItem["status"],
-                                rejectionReason: api.rejectionReason,
-                            } as ExpenseRequestItem);
-                        }
-                    }
-                    const next = [...byId.values()].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-                    saveStoredRequests(auth?.login ?? "", next);
-                    return next;
-                });
-            })
-            .catch(() => { /* ignore network errors */ });
+        try {
+            const r = await fetch(`${origin}/api/my-expense-requests`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-login": auth.login,
+                    "x-password": auth.password,
+                },
+            });
+            const data = await (r.ok ? r.json() : Promise.resolve({ items: [] })) as { items?: Array<{ id: string; createdAt?: string; department?: string; docNumber?: string; docDate?: string; period?: string; categoryId?: string; categoryName?: string; amount?: number; vatRate?: string; comment?: string; vehicleOrEmployee?: string; employeeName?: string; supplierName?: string; supplierInn?: string; status: string; rejectionReason?: string }> };
+            const apiItems = Array.isArray(data?.items) ? data.items : [];
+            const mapped: ExpenseRequestItem[] = apiItems.map((api) => ({
+                id: api.id,
+                createdAt: api.createdAt ?? "",
+                department: api.department ?? "",
+                docNumber: api.docNumber ?? "",
+                docDate: api.docDate ?? "",
+                period: api.period ?? "",
+                categoryId: api.categoryId ?? "other",
+                categoryName: api.categoryName ?? "—",
+                amount: Number(api.amount) || 0,
+                vatRate: api.vatRate ?? "",
+                comment: api.comment ?? "",
+                vehicleOrEmployee: api.vehicleOrEmployee ?? "",
+                employeeName: api.employeeName ?? "",
+                supplierName: api.supplierName,
+                supplierInn: api.supplierInn,
+                attachmentNames: [],
+                status: api.status as ExpenseRequestItem["status"],
+                rejectionReason: api.rejectionReason,
+            }));
+            setList(mapped.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")));
+        } catch { /* ignore */ } finally {
+            setListLoading(false);
+        }
     }, [auth?.login, auth?.password]);
+
+    useEffect(() => {
+        fetchExpenseRequests();
+    }, [fetchExpenseRequests]);
 
     // --- Fetch department from employee directory ---
     useEffect(() => {
@@ -482,29 +421,36 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             status: "draft",
         };
 
-        setList((prev) => {
-            const next = [item, ...prev];
-            saveStoredRequests(auth?.login ?? "", next);
-            return next;
-        });
-
-        setDocNumber("");
-        setDocDate(new Date().toISOString().slice(0, 10));
-        setPeriod(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`);
-        setCategoryId("");
-        setAmount("");
-        setVatRate("");
-        setComment("");
-        setSelectedSupplierName("");
-        setSelectedSupplierInn("");
-        setSupplierSearch("");
-        setSelectedVehicle("");
-        setVehicleSearch("");
-        setSelectedEmployee("");
-        setEmployeeSearch("");
-        setDuplicateWarning("");
-        setFiles([]);
-    }, [categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, selectedEmployee, files, auth?.login, department, docNumber, docDate, period, categories]);
+        if (!EXPENSE_REQUESTS_WEBHOOK_URL) {
+            setSyncError("Сервис заявок недоступен");
+            return;
+        }
+        setSending(true);
+        try {
+            const payload = {
+                ...item,
+                login: auth?.login ?? undefined,
+                attachmentNames: item.attachmentNames,
+                attachments: item.attachments ?? [],
+            };
+            const res = await fetch(EXPENSE_REQUESTS_WEBHOOK_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            if (res.ok) {
+                resetForm();
+                fetchExpenseRequests();
+                return;
+            }
+            const err = await res.json().catch(() => ({} as any));
+            setSyncError(String(err?.error || `Ошибка сохранения (${res.status})`));
+        } catch (e) {
+            setSyncError((e as Error)?.message || "Ошибка сохранения заявки");
+        } finally {
+            setSending(false);
+        }
+    }, [categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, selectedEmployee, files, auth?.login, department, docNumber, docDate, period, categories, fetchExpenseRequests, resetForm]);
 
     const sendForApproval = useCallback(async (itemId: string) => {
         setSending(true);
@@ -531,50 +477,58 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                     body: JSON.stringify(payload),
                 });
                 if (res.ok) {
-                    setList((prev) => {
-                        const next = prev.map((r) =>
-                            r.id === itemId ? { ...r, status: "pending_approval" as const, webhookSentAt: new Date().toISOString() } : r
-                        );
-                        saveStoredRequests(auth?.login ?? "", next);
-                        return next;
-                    });
+                    fetchExpenseRequests();
                     return;
                 }
                 const err = await res.json().catch(() => ({} as any));
                 setSyncError(String(err?.error || `Заявка не отправлена в бухгалтерию (${res.status})`));
                 return;
             }
-            setList((prev) => {
-                const next = prev.map((r) =>
-                    r.id === itemId ? { ...r, status: "pending_approval" as const } : r
-                );
-                saveStoredRequests(auth?.login ?? "", next);
-                return next;
-            });
+            fetchExpenseRequests();
         } catch (e: unknown) {
             const message = (e as Error)?.message ? String((e as Error).message) : "";
             setSyncError(message || "Ошибка отправки заявки. Проверьте соединение и попробуйте снова.");
         } finally {
             setSending(false);
         }
-    }, [list, auth?.login]);
+    }, [list, auth?.login, fetchExpenseRequests]);
 
-    const deleteRequest = useCallback((itemId: string) => {
+    const deleteRequest = useCallback(async (itemId: string) => {
         if (!window.confirm("Удалить заявку? Действие нельзя отменить.")) return;
-        setList((prev) => {
-            const next = prev.filter((r) => r.id !== itemId);
-            saveStoredRequests(auth?.login ?? "", next);
-            return next;
-        });
-    }, [auth?.login]);
+        if (!auth?.login || !auth?.password) return;
+        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        try {
+            const res = await fetch(`${origin}/api/my-expense-requests?uid=${encodeURIComponent(itemId)}`, {
+                method: "DELETE",
+                headers: { "x-login": auth.login, "x-password": auth.password },
+            });
+            if (res.ok) {
+                fetchExpenseRequests();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                setSyncError(String(err?.error || "Ошибка удаления"));
+            }
+        } catch (e) {
+            setSyncError((e as Error)?.message || "Ошибка удаления заявки");
+        }
+    }, [auth?.login, auth?.password, fetchExpenseRequests]);
 
-    const recallRequest = useCallback((itemId: string) => {
-        setList((prev) => {
-            const next = prev.map((r) => r.id === itemId ? { ...r, status: "draft" as const } : r);
-            saveStoredRequests(auth?.login ?? "", next);
-            return next;
-        });
-    }, [auth?.login]);
+    const recallRequest = useCallback(async (itemId: string) => {
+        if (!auth?.login || !auth?.password) return;
+        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        try {
+            const res = await fetch(`${origin}/api/my-expense-requests`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "x-login": auth.login,
+                    "x-password": auth.password,
+                },
+                body: JSON.stringify({ uid: itemId, status: "draft" }),
+            });
+            if (res.ok) fetchExpenseRequests();
+        } catch { /* ignore */ }
+    }, [auth?.login, auth?.password, fetchExpenseRequests]);
 
     const startEdit = useCallback((item: ExpenseRequestItem) => {
         setEditingId(item.id);
@@ -599,19 +553,23 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setTimeout(() => formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     }, [availableDepartments, fallbackDepartment]);
 
-    const saveEdit = useCallback(() => {
+    const saveEdit = useCallback(async () => {
         if (!editingId) return;
         const cat = categories.find((c) => c.id === categoryId);
         if (!cat || !amount.trim() || !docNumber.trim()) return;
         const num = parseFloat(amount.replace(",", "."));
         if (!Number.isFinite(num) || num <= 0) return;
-        setList((prev) => {
-            const next = prev.map((r) => r.id === editingId ? {
-                ...r,
+        const item = list.find((r) => r.id === editingId);
+        if (!item || !EXPENSE_REQUESTS_WEBHOOK_URL) return;
+        setSending(true);
+        setSyncError("");
+        try {
+            const payload = {
+                ...item,
                 department,
                 docNumber: docNumber.trim(),
-                docDate: docDate || r.docDate,
-                period: period || r.period,
+                docDate: docDate || item.docDate,
+                period: period || item.period,
                 categoryId: cat.id,
                 categoryName: cat.name,
                 amount: num,
@@ -621,12 +579,32 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 supplierInn: selectedSupplierInn.trim(),
                 vehicleOrEmployee: selectedVehicle.trim(),
                 employeeName: selectedEmployee,
-                status: "draft" as const,
-            } : r);
-            saveStoredRequests(auth?.login ?? "", next);
-            return next;
-        });
-        setEditingId(null);
+                status: "draft",
+                login: auth?.login ?? undefined,
+                attachmentNames: item.attachmentNames ?? [],
+                attachments: item.attachments ?? [],
+            };
+            const res = await fetch(EXPENSE_REQUESTS_WEBHOOK_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            if (res.ok) {
+                setEditingId(null);
+                resetForm();
+                fetchExpenseRequests();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                setSyncError(String(err?.error || "Ошибка сохранения"));
+            }
+        } catch (e) {
+            setSyncError((e as Error)?.message || "Ошибка сохранения заявки");
+        } finally {
+            setSending(false);
+        }
+    }, [editingId, department, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, selectedEmployee, auth?.login, categories, list, fetchExpenseRequests]);
+
+    const resetForm = useCallback(() => {
         setDocNumber("");
         setDocDate(new Date().toISOString().slice(0, 10));
         setPeriod(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`);
@@ -639,7 +617,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setSupplierSearch("");
         setSelectedVehicle("");
         setSelectedEmployee("");
-    }, [editingId, department, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, selectedEmployee, auth?.login, categories]);
+        setDuplicateWarning("");
+        setFiles([]);
+    }, []);
 
     const cancelEdit = useCallback(() => {
         setEditingId(null);
@@ -1112,7 +1092,11 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
 
             <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem" }}>Мои заявки</Typography.Body>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                {list.length === 0 ? (
+                {listLoading ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-secondary)", fontSize: "0.8rem" }}>
+                        <Loader2 className="w-4 h-4 animate-spin" /> Загрузка…
+                    </div>
+                ) : list.length === 0 ? (
                     <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>Пока нет заявок</Typography.Body>
                 ) : (
                     list.map((r) => (
