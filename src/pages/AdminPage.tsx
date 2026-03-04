@@ -9139,7 +9139,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 </div>
 
                 <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
-                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Вложения</Typography.Body>
+                  <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Ответ заказчику</Typography.Body>
                   <Typography.Body style={{ fontSize: "0.82rem" }}>
                     Фото: {Array.isArray(adminClaimDetail.photos) ? adminClaimDetail.photos.length : 0} |
                     PDF: {Array.isArray(adminClaimDetail.documents) ? adminClaimDetail.documents.length : 0} |
@@ -9147,7 +9147,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   </Typography.Body>
                   <div style={{ marginTop: "0.55rem", border: "1px dashed var(--color-border)", borderRadius: 8, padding: "0.55rem" }}>
                     <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.35rem" }}>
-                      Прикрепить файлы (менеджер/руководитель)
+                      Комментарий и вложения от лица менеджера/руководителя
                     </Typography.Body>
                     <Flex gap="0.45rem" wrap="wrap" align="center" style={{ marginBottom: "0.4rem" }}>
                       <select
@@ -9159,6 +9159,36 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <option value="manager">От имени менеджера</option>
                         <option value="leader">От имени руководителя</option>
                       </select>
+                      <Button
+                        type="button"
+                        className="filter-button"
+                        onClick={() => updateAdminClaimStatus(
+                          adminClaimDetail.claim.id,
+                          String(adminClaimDetail.claim.status || "in_progress"),
+                          Number(adminClaimApprovedAmountDraft || 0),
+                          {
+                            expertLogin: String(adminClaimDetail?.claim?.expertLogin || "").trim(),
+                            managerNote: adminClaimAttachRole === "manager" ? adminClaimNoteDraft.trim() : undefined,
+                            leaderComment: adminClaimAttachRole === "leader" ? adminLeaderCommentDraft.trim() : undefined,
+                          }
+                        )}
+                        disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
+                      >
+                        Сохранить комментарий
+                      </Button>
+                    </Flex>
+                    <textarea
+                      className="admin-form-input"
+                      rows={3}
+                      placeholder={adminClaimAttachRole === "leader" ? "Комментарий руководителя для заказчика" : "Комментарий менеджера для заказчика"}
+                      value={adminClaimAttachRole === "leader" ? adminLeaderCommentDraft : adminClaimNoteDraft}
+                      onChange={(e) => {
+                        if (adminClaimAttachRole === "leader") setAdminLeaderCommentDraft(e.target.value);
+                        else setAdminClaimNoteDraft(e.target.value);
+                      }}
+                      style={{ width: "100%", marginBottom: "0.45rem" }}
+                    />
+                    <Flex gap="0.45rem" wrap="wrap" align="center" style={{ marginBottom: "0.4rem" }}>
                       <label style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.78rem" }}>
                         <input
                           type="file"
@@ -9198,7 +9228,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         onClick={uploadAdminClaimDocuments}
                         disabled={adminClaimAttachSubmitting}
                       >
-                        {adminClaimAttachSubmitting ? "Загрузка..." : "Прикрепить"}
+                        {adminClaimAttachSubmitting ? "Загрузка..." : "Отправить файлы заказчику"}
                       </Button>
                     </Flex>
                   </div>
@@ -9428,31 +9458,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </Flex>
                     </div>
                   )}
-                  <div style={{ marginTop: "0.55rem" }}>
-                    <textarea
-                      className="admin-form-input"
-                      rows={3}
-                      placeholder="Служебная заметка менеджера/руководителя"
-                      value={adminClaimNoteDraft}
-                      onChange={(e) => setAdminClaimNoteDraft(e.target.value)}
-                      style={{ width: "100%" }}
-                    />
-                    <Flex justify="flex-end" style={{ marginTop: "0.35rem" }}>
-                      <Button
-                        type="button"
-                        className="filter-button"
-                        onClick={() => updateAdminClaimStatus(
-                          adminClaimDetail.claim.id,
-                          String(adminClaimDetail.claim.status || "in_progress"),
-                          Number(adminClaimApprovedAmountDraft || 0),
-                          { managerNote: adminClaimNoteDraft.trim(), expertLogin: String(adminClaimDetail?.claim?.expertLogin || "").trim() }
-                        )}
-                        disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
-                      >
-                        Сохранить заметки
-                      </Button>
-                    </Flex>
-                  </div>
+                  <Typography.Body style={{ marginTop: "0.55rem", fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+                    Ответ заказчику (комментарий и файлы от менеджера/руководителя) заполняется в одноименном блоке выше.
+                  </Typography.Body>
                 </div>
 
                 <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>

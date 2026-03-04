@@ -121,6 +121,17 @@ const FILE_PICKER_BUTTON_STYLE: React.CSSProperties = {
     fontSize: '0.82rem',
     fontWeight: 500,
 };
+const CLAIM_ROW_ACTION_BUTTON_STYLE: React.CSSProperties = {
+    width: 110,
+    height: 36,
+    boxSizing: 'border-box',
+    marginTop: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 0.7rem',
+    whiteSpace: 'nowrap',
+};
 
 async function fileToBase64(file: File): Promise<string> {
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -4391,7 +4402,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                             className="filter-button"
                                                             onClick={() => openClaimDetailModal(row.id)}
                                                             disabled={claimsActionLoadingId === row.id || claimsCreateSubmitting}
-                                                            style={{ minWidth: 110, height: 36 }}
+                                                            style={CLAIM_ROW_ACTION_BUTTON_STYLE}
                                                         >
                                                             Открыть
                                                         </Button>
@@ -4402,7 +4413,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                     className="filter-button"
                                                                     onClick={() => openDraftEditor(row.id)}
                                                                     disabled={claimsActionLoadingId === row.id || claimsCreateSubmitting}
-                                                                    style={{ minWidth: 110, height: 36 }}
+                                                                    style={CLAIM_ROW_ACTION_BUTTON_STYLE}
                                                                 >
                                                                     Изменить
                                                                 </Button>
@@ -4411,7 +4422,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                     className="button-primary"
                                                                     onClick={() => runClaimAction(row.id, 'submit')}
                                                                     disabled={claimsActionLoadingId === row.id}
-                                                                    style={{ minWidth: 110, height: 36 }}
+                                                                    style={CLAIM_ROW_ACTION_BUTTON_STYLE}
                                                                 >
                                                                     {claimsActionLoadingId === row.id ? '...' : 'Отправить'}
                                                                 </Button>
@@ -4437,7 +4448,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                                         claimsActionLoadingId === row.id
                                                                         || ['paid', 'offset', 'closed'].includes(status)
                                                                     }
-                                                                    style={{ minWidth: 110, height: 36 }}
+                                                                    style={CLAIM_ROW_ACTION_BUTTON_STYLE}
                                                                 >
                                                                     {claimsActionLoadingId === row.id ? '...' : 'Отозвать'}
                                                                 </Button>
@@ -4486,100 +4497,144 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         ) : (
                             <div style={{ display: 'grid', gap: '0.55rem' }}>
                                 <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '0.6rem' }}>
-                                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.35rem' }}>Ответы по претензии</Typography.Body>
+                                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.4rem' }}>Ответ HAULZ</Typography.Body>
                                     <div style={{ display: 'grid', gap: '0.25rem' }}>
                                         <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Статус:</strong> {CLAIM_STATUS_LABELS[String(claimsDetailData.claim.status || 'new') as ClaimStatusKey] || String(claimsDetailData.claim.status || '—')}</Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Ответ менеджера:</strong> {String(claimsDetailData.claim.managerNote || '—')}</Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Ответ руководителя:</strong> {String(claimsDetailData.claim.leaderComment || '—')}</Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Комментарий бухгалтерии:</strong> {String(claimsDetailData.claim.accountingNote || '—')}</Typography.Body>
                                     </div>
-                                </div>
 
-                                <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '0.6rem' }}>
-                                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.35rem' }}>Прикрепленные файлы</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                        Фото: {Array.isArray(claimsDetailData.photos) ? claimsDetailData.photos.length : 0} | PDF: {Array.isArray(claimsDetailData.documents) ? claimsDetailData.documents.length : 0} | Видео: {Array.isArray(claimsDetailData.videoLinks) ? claimsDetailData.videoLinks.length : 0}
-                                    </Typography.Body>
-                                    {Array.isArray(claimsDetailData.photos) && claimsDetailData.photos.length > 0 && (
-                                        <div style={{ marginTop: '0.45rem' }}>
-                                            <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Фото</Typography.Body>
-                                            <Flex gap="0.45rem" wrap="wrap">
-                                                {claimsDetailData.photos.slice(0, 16).map((p: any) => {
-                                                    const mime = String(p?.mimeType || 'image/jpeg');
-                                                    const src = p?.base64 ? `data:${mime};base64,${p.base64}` : '';
-                                                    const fileName = String(p?.fileName || p?.caption || `photo-${p?.id || 'file'}.jpg`);
-                                                    return (
-                                                        <div key={p.id} style={{ display: 'grid', gap: '0.2rem', width: 90 }}>
-                                                            <a href={src || '#'} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-                                                                <img
-                                                                    src={src}
-                                                                    alt={String(p?.caption || p?.fileName || 'Фото')}
-                                                                    style={{ width: 86, height: 86, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--color-border)' }}
-                                                                />
-                                                            </a>
-                                                            <a href={src || '#'} download={fileName} style={{ fontSize: '0.68rem', color: 'var(--color-primary-blue)', textDecoration: 'none' }}>Скачать</a>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </Flex>
-                                        </div>
-                                    )}
-                                    {Array.isArray(claimsDetailData.documents) && claimsDetailData.documents.length > 0 && (
-                                        <div style={{ marginTop: '0.45rem' }}>
-                                            <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>PDF</Typography.Body>
-                                            <Flex gap="0.35rem" wrap="wrap">
-                                                {claimsDetailData.documents.map((d: any) => {
-                                                    const mime = String(d?.mimeType || 'application/pdf');
-                                                    const href = d?.base64 ? `data:${mime};base64,${d.base64}` : '#';
-                                                    return (
-                                                        <a
-                                                            key={d.id}
-                                                            href={href}
-                                                            target="_blank"
-                                                            rel="noreferrer"
-                                                            style={{ border: '1px solid var(--color-border)', borderRadius: 999, padding: '0.14rem 0.45rem', textDecoration: 'none', fontSize: '0.74rem', color: 'var(--color-primary-blue)' }}
-                                                        >
-                                                            {String(d?.fileName || `Документ #${d.id}`)}
-                                                        </a>
-                                                    );
-                                                })}
-                                            </Flex>
-                                        </div>
-                                    )}
-                                    {Array.isArray(claimsDetailData.videoLinks) && claimsDetailData.videoLinks.length > 0 && (
-                                        <div style={{ marginTop: '0.45rem' }}>
-                                            <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Видео-ссылки</Typography.Body>
-                                            <div style={{ display: 'grid', gap: '0.25rem' }}>
-                                                {claimsDetailData.videoLinks.map((v: any) => (
-                                                    <a key={v.id} href={String(v?.url || '#')} target="_blank" rel="noreferrer" style={{ fontSize: '0.78rem', color: 'var(--color-primary-blue)' }}>
-                                                        {String(v?.title || 'Видео')}
-                                                    </a>
-                                                ))}
+                                    <div style={{ marginTop: '0.55rem' }}>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem' }}>Резолюции HAULZ</Typography.Body>
+                                        {Array.isArray(claimsDetailData.events) && claimsDetailData.events.filter((ev: any) => {
+                                            const role = String(ev?.actorRole || '').toLowerCase();
+                                            const eventType = String(ev?.eventType || '').toLowerCase();
+                                            if (!['manager', 'leader', 'accountant', 'admin'].includes(role)) return false;
+                                            return ['status_changed', 'claim_updated', 'documents_uploaded', 'manager_decision', 'leader_decision', 'accounting_decision'].includes(eventType);
+                                        }).length > 0 ? (
+                                            <div style={{ display: 'grid', gap: '0.3rem' }}>
+                                                {claimsDetailData.events
+                                                    .filter((ev: any) => {
+                                                        const role = String(ev?.actorRole || '').toLowerCase();
+                                                        const eventType = String(ev?.eventType || '').toLowerCase();
+                                                        if (!['manager', 'leader', 'accountant', 'admin'].includes(role)) return false;
+                                                        return ['status_changed', 'claim_updated', 'documents_uploaded', 'manager_decision', 'leader_decision', 'accounting_decision'].includes(eventType);
+                                                    })
+                                                    .map((ev: any) => {
+                                                        const role = String(ev?.actorRole || '').toLowerCase();
+                                                        const roleLabel = role === 'leader' ? 'Руководитель' : role === 'manager' ? 'Менеджер' : role === 'accountant' ? 'Бухгалтерия' : 'HAULZ';
+                                                        const eventType = String(ev?.eventType || '').toLowerCase();
+                                                        const eventLabel = eventType === 'status_changed'
+                                                            ? `Изменен статус${ev?.toStatus ? `: ${String(ev.toStatus)}` : ''}`
+                                                            : eventType === 'documents_uploaded'
+                                                                ? 'Добавлены вложения'
+                                                                : eventType === 'claim_updated'
+                                                                    ? 'Обновлена карточка'
+                                                                    : 'Резолюция';
+                                                        return (
+                                                            <div key={`resolution-${ev.id}`} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.35rem 0.45rem' }}>
+                                                                <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
+                                                                    {roleLabel} · <DateText value={ev?.createdAt || undefined} />
+                                                                </Typography.Body>
+                                                                <Typography.Body style={{ fontSize: '0.8rem' }}>{eventLabel}</Typography.Body>
+                                                            </div>
+                                                        );
+                                                    })}
                                             </div>
-                                        </div>
-                                    )}
-                                </div>
+                                        ) : (
+                                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                Резолюций от HAULZ пока нет.
+                                            </Typography.Body>
+                                        )}
+                                    </div>
 
-                                <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '0.6rem' }}>
-                                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.35rem' }}>Ответы сотрудников</Typography.Body>
-                                    {Array.isArray(claimsDetailData.comments) && claimsDetailData.comments.filter((c: any) => ['manager', 'leader'].includes(String(c?.authorRole || ''))).length > 0 ? (
-                                        <div style={{ display: 'grid', gap: '0.3rem' }}>
-                                            {claimsDetailData.comments
-                                                .filter((c: any) => ['manager', 'leader'].includes(String(c?.authorRole || '')))
-                                                .map((c: any) => (
-                                                    <div key={c.id} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.35rem 0.45rem' }}>
-                                                        <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
-                                                            {String(c?.authorRole || '') === 'leader' ? 'Руководитель' : 'Менеджер'} · <DateText value={c?.createdAt || undefined} />
-                                                        </Typography.Body>
-                                                        <Typography.Body style={{ fontSize: '0.82rem' }}>{String(c?.commentText || '')}</Typography.Body>
-                                                    </div>
-                                                ))}
-                                        </div>
-                                    ) : (
+                                    <div style={{ marginTop: '0.55rem' }}>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem' }}>Прикрепленные файлы</Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                            Дополнительных комментариев от менеджера/руководителя пока нет.
+                                            Фото: {Array.isArray(claimsDetailData.photos) ? claimsDetailData.photos.length : 0} | PDF: {Array.isArray(claimsDetailData.documents) ? claimsDetailData.documents.length : 0} | Видео: {Array.isArray(claimsDetailData.videoLinks) ? claimsDetailData.videoLinks.length : 0}
                                         </Typography.Body>
-                                    )}
+                                        {Array.isArray(claimsDetailData.photos) && claimsDetailData.photos.length > 0 && (
+                                            <div style={{ marginTop: '0.45rem' }}>
+                                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Фото</Typography.Body>
+                                                <Flex gap="0.45rem" wrap="wrap">
+                                                    {claimsDetailData.photos.slice(0, 16).map((p: any) => {
+                                                        const mime = String(p?.mimeType || 'image/jpeg');
+                                                        const src = p?.base64 ? `data:${mime};base64,${p.base64}` : '';
+                                                        const fileName = String(p?.fileName || p?.caption || `photo-${p?.id || 'file'}.jpg`);
+                                                        return (
+                                                            <div key={p.id} style={{ display: 'grid', gap: '0.2rem', width: 90 }}>
+                                                                <a href={src || '#'} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                                                                    <img
+                                                                        src={src}
+                                                                        alt={String(p?.caption || p?.fileName || 'Фото')}
+                                                                        style={{ width: 86, height: 86, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--color-border)' }}
+                                                                    />
+                                                                </a>
+                                                                <a href={src || '#'} download={fileName} style={{ fontSize: '0.68rem', color: 'var(--color-primary-blue)', textDecoration: 'none' }}>Скачать</a>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </Flex>
+                                            </div>
+                                        )}
+                                        {Array.isArray(claimsDetailData.documents) && claimsDetailData.documents.length > 0 && (
+                                            <div style={{ marginTop: '0.45rem' }}>
+                                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>PDF</Typography.Body>
+                                                <Flex gap="0.35rem" wrap="wrap">
+                                                    {claimsDetailData.documents.map((d: any) => {
+                                                        const mime = String(d?.mimeType || 'application/pdf');
+                                                        const href = d?.base64 ? `data:${mime};base64,${d.base64}` : '#';
+                                                        return (
+                                                            <a
+                                                                key={d.id}
+                                                                href={href}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                style={{ border: '1px solid var(--color-border)', borderRadius: 999, padding: '0.14rem 0.45rem', textDecoration: 'none', fontSize: '0.74rem', color: 'var(--color-primary-blue)' }}
+                                                            >
+                                                                {String(d?.fileName || `Документ #${d.id}`)}
+                                                            </a>
+                                                        );
+                                                    })}
+                                                </Flex>
+                                            </div>
+                                        )}
+                                        {Array.isArray(claimsDetailData.videoLinks) && claimsDetailData.videoLinks.length > 0 && (
+                                            <div style={{ marginTop: '0.45rem' }}>
+                                                <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Видео-ссылки</Typography.Body>
+                                                <div style={{ display: 'grid', gap: '0.25rem' }}>
+                                                    {claimsDetailData.videoLinks.map((v: any) => (
+                                                        <a key={v.id} href={String(v?.url || '#')} target="_blank" rel="noreferrer" style={{ fontSize: '0.78rem', color: 'var(--color-primary-blue)' }}>
+                                                            {String(v?.title || 'Видео')}
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div style={{ marginTop: '0.55rem' }}>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem' }}>Дополнительные ответы менеджера и руководителя</Typography.Body>
+                                        {Array.isArray(claimsDetailData.comments) && claimsDetailData.comments.filter((c: any) => ['manager', 'leader'].includes(String(c?.authorRole || ''))).length > 0 ? (
+                                            <div style={{ display: 'grid', gap: '0.3rem' }}>
+                                                {claimsDetailData.comments
+                                                    .filter((c: any) => ['manager', 'leader'].includes(String(c?.authorRole || '')))
+                                                    .map((c: any) => (
+                                                        <div key={c.id} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.35rem 0.45rem' }}>
+                                                            <Typography.Body style={{ fontSize: '0.74rem', color: 'var(--color-text-secondary)' }}>
+                                                                {String(c?.authorRole || '') === 'leader' ? 'Руководитель' : 'Менеджер'} · <DateText value={c?.createdAt || undefined} />
+                                                            </Typography.Body>
+                                                            <Typography.Body style={{ fontSize: '0.82rem' }}>{String(c?.commentText || '')}</Typography.Body>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        ) : (
+                                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                Дополнительных комментариев от менеджера/руководителя пока нет.
+                                            </Typography.Body>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         )}
