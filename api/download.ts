@@ -40,6 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let password: string | undefined;
     let metod: string | undefined;
     let number: string | undefined;
+    let dateDoc: string | undefined;
     let isRegisteredUser = false;
 
     if (req.method === "GET") {
@@ -49,6 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       metod = typeof req.query.metod === "string" ? req.query.metod : undefined;
       number =
         typeof req.query.number === "string" ? req.query.number : undefined;
+      dateDoc = typeof req.query.dateDoc === "string" ? req.query.dateDoc : undefined;
       isRegisteredUser = req.query.isRegisteredUser === "true";
     } else {
       // Vercel иногда даёт body строкой
@@ -66,6 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         password,
         metod,
         number,
+        dateDoc,
         isRegisteredUser,
       } = {
         ...body,
@@ -76,6 +79,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!metod || !number) {
       return res.status(400).json({
         error: "Required fields: metod, number",
+      });
+    }
+    // АктСверки требует dateDoc
+    if ((metod === "АктСверки" || metod === "AktSverki") && !dateDoc) {
+      return res.status(400).json({
+        error: "Required fields for АктСверки: metod, number, dateDoc",
       });
     }
     if (isRegisteredUser && (!login || !password)) {
@@ -90,6 +99,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     if (!/^[0-9A-Za-zА-Яа-я._-]{1,64}$/u.test(number)) {
       return res.status(400).json({ error: "Invalid number" });
+    }
+    if (dateDoc && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(dateDoc)) {
+      return res.status(400).json({ error: "Invalid dateDoc format (expected YYYY-MM-DDTHH:MM:SS)" });
     }
 
     // Зарегистрированные (CMS) пользователи: проверяем доступ к перевозке, затем запрашиваем файл сервисным аккаунтом
@@ -145,12 +157,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Формируем URL ровно как в Postman/curl:
     // https://.../GetFile?metod=ЭР&Number=000107984
+    // для АктСверки: metod=АктСверки&Number=0000-00015&DateDoc=2021-10-25T12:51:10
     const fullUrl = new URL(EXTERNAL_API_BASE_URL);
     fullUrl.searchParams.set("metod", metod);
     fullUrl.searchParams.set("Number", number);
+    if (dateDoc) fullUrl.searchParams.set("DateDoc", dateDoc);
 
     // Do not log credentials/PII; keep logs minimal
-    console.log("➡️ GetFile:", { metod, number });
+    console.log("➡️ GetFile:", { metod, number, dateDoc: dateDoc ? "***" : undefined });
 
     const options: https.RequestOptions = {
       protocol: fullUrl.protocol,

@@ -569,6 +569,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [sverkiFetchTrigger, setSverkiFetchTrigger] = useState(0);
   const [sverkiSyncLoading, setSverkiSyncLoading] = useState(false);
   const [sverkiSyncMessage, setSverkiSyncMessage] = useState<string | null>(null);
+  const [sverkiDownloadingId, setSverkiDownloadingId] = useState<number | null>(null);
+  const [sverkiDownloadError, setSverkiDownloadError] = useState<string | null>(null);
   const [sverkiSyncDebugRequest, setSverkiSyncDebugRequest] = useState<string>("");
   const [sverkiSyncDebugResponse, setSverkiSyncDebugResponse] = useState<string>("");
   const [dogovorsList, setDogovorsList] = useState<{
@@ -1729,6 +1731,48 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       .catch(() => setSverkiList([]))
       .finally(() => setSverkiLoading(false));
   }, [tab, sverkiFetchTrigger]);
+
+  const downloadSverkaFile = useCallback(async (row: { id: number; docNumber: string; docDate: string | null }) => {
+    const number = String(row.docNumber || "").trim();
+    const docDateRaw = row.docDate;
+    const dateDoc = docDateRaw
+      ? (() => {
+          const d = new Date(docDateRaw);
+          if (isNaN(d.getTime())) return "";
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          return `${y}-${m}-${day}T00:00:00`;
+        })()
+      : "";
+    if (!number || !dateDoc) return;
+    setSverkiDownloadingId(row.id);
+    setSverkiDownloadError(null);
+    try {
+      const res = await fetch("/api/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metod: "АктСверки", number, dateDoc }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить документ");
+      if (!data?.data) throw new Error("Документ не найден");
+      const binary = atob(String(data.data));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = String(data?.name || `АктСверки_${number}.pdf`);
+      a.click();
+      URL.revokeObjectURL(href);
+    } catch (e: unknown) {
+      setSverkiDownloadError((e as Error)?.message || "Ошибка скачивания");
+    } finally {
+      setSverkiDownloadingId(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (tab !== "dogovors") return;
@@ -5468,6 +5512,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               {sverkiSyncMessage}
             </Typography.Body>
           )}
+          {sverkiDownloadError && (
+            <Typography.Body style={{ marginBottom: "0.65rem", fontSize: "0.82rem", color: "#ef4444" }}>
+              {sverkiDownloadError}
+            </Typography.Body>
+          )}
           {(sverkiSyncDebugRequest || sverkiSyncDebugResponse) && (
             <div style={{ marginBottom: "0.75rem", padding: "0.55rem 0.65rem", borderRadius: 8, border: "1px dashed var(--color-border)", background: "var(--color-bg-hover)" }}>
               {sverkiSyncDebugRequest ? (
@@ -5509,19 +5558,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   {sverkiList.map((row) => {
                     const number = String(row.docNumber || "").trim();
                     const docDateRaw = row.docDate;
-                    const dateDoc = docDateRaw
-                      ? (() => {
-                          const d = new Date(docDateRaw);
-                          if (isNaN(d.getTime())) return "";
-                          const y = d.getFullYear();
-                          const m = String(d.getMonth() + 1).padStart(2, "0");
-                          const day = String(d.getDate()).padStart(2, "0");
-                          return `${y}-${m}-${day}T00:00:00`;
-                        })()
-                      : "";
-                    const downloadUrl = number && dateDoc
-                      ? `https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile?metod=АктСверки&Number=${encodeURIComponent(number)}&DateDoc=${encodeURIComponent(dateDoc)}`
-                      : null;
+                    const hasDownload = number && docDateRaw;
+                    const isDownloading = sverkiDownloadingId === row.id;
                     return (
                       <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
@@ -5531,14 +5569,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <td style={{ padding: "0.5rem 0.75rem" }}>{row.customerName || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
                         <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>
-                          {downloadUrl ? (
+                          {hasDownload ? (
                             <Button
                               type="button"
                               className="filter-button"
                               style={{ fontSize: "0.8rem", padding: "0.25rem 0.5rem" }}
-                              onClick={() => window.open(downloadUrl, "_blank", "noopener")}
+                              disabled={isDownloading}
+                              onClick={() => downloadSverkaFile(row)}
                             >
-                              <Download className="w-4 h-4" style={{ verticalAlign: "middle", marginRight: "0.25rem" }} />
+                              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" style={{ verticalAlign: "middle", marginRight: "0.25rem" }} /> : <Download className="w-4 h-4" style={{ verticalAlign: "middle", marginRight: "0.25rem" }} />}
                               Скачать
                             </Button>
                           ) : (

@@ -419,6 +419,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         customerInn: string;
     }[]>([]);
     const [sverkiLoading, setSverkiLoading] = useState(false);
+    const [sverkiDownloadingId, setSverkiDownloadingId] = useState<number | null>(null);
+    const [sverkiDownloadError, setSverkiDownloadError] = useState<string | null>(null);
     const [dogovorsList, setDogovorsList] = useState<{
         id: number;
         docNumber: string;
@@ -1706,6 +1708,47 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return d >= fromDate && d <= toDate;
         });
     }, [sverkiList, apiDateRange.dateFrom, apiDateRange.dateTo, effectiveServiceMode, sverkiCustomerFilter]);
+    const downloadSverkaFile = useCallback(async (row: { id: number; docNumber: string; docDate: string | null }) => {
+        const number = String(row.docNumber || '').trim();
+        const docDateRaw = row.docDate;
+        const dateDoc = docDateRaw
+            ? (() => {
+                const d = new Date(docDateRaw);
+                if (isNaN(d.getTime())) return '';
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}T00:00:00`;
+            })()
+            : '';
+        if (!number || !dateDoc) return;
+        setSverkiDownloadingId(row.id);
+        setSverkiDownloadError(null);
+        try {
+            const res = await fetch('/api/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ metod: 'АктСверки', number, dateDoc }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data?.message || data?.error || 'Не удалось получить документ');
+            if (!data?.data) throw new Error('Документ не найден');
+            const binary = atob(String(data.data));
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes], { type: 'application/pdf' });
+            const href = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = href;
+            a.download = String(data?.name || `АктСверки_${number}.pdf`);
+            a.click();
+            URL.revokeObjectURL(href);
+        } catch (e: unknown) {
+            setSverkiDownloadError((e as Error)?.message || 'Ошибка скачивания');
+        } finally {
+            setSverkiDownloadingId(null);
+        }
+    }, []);
     const filteredDogovors = useMemo(() => {
         const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
         const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
@@ -4382,20 +4425,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 <tbody>
                                     {filteredSverki.map((row) => {
                                         const number = String(row.docNumber || '').trim();
-                                        const docDateRaw = row.docDate;
-                                        const dateDoc = docDateRaw
-                                            ? (() => {
-                                                const d = new Date(docDateRaw);
-                                                if (isNaN(d.getTime())) return '';
-                                                const y = d.getFullYear();
-                                                const m = String(d.getMonth() + 1).padStart(2, '0');
-                                                const day = String(d.getDate()).padStart(2, '0');
-                                                return `${y}-${m}-${day}T00:00:00`;
-                                            })()
-                                            : '';
-                                        const downloadUrl = number && dateDoc
-                                            ? `https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile?metod=АктСверки&Number=${encodeURIComponent(number)}&DateDoc=${encodeURIComponent(dateDoc)}`
-                                            : null;
+                                        const hasDownload = number && row.docDate;
+                                        const isDownloading = sverkiDownloadingId === row.id;
                                         return (
                                             <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
@@ -4404,14 +4435,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                 <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.periodTo || undefined} /></td>
                                                 {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{row.customerName || '—'}</td> : null}
                                                 <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
-                                                    {downloadUrl ? (
+                                                    {hasDownload ? (
                                                         <button
                                                             type="button"
                                                             className="button-primary"
                                                             style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                                                            onClick={() => window.open(downloadUrl, '_blank', 'noopener')}
+                                                            disabled={isDownloading}
+                                                            onClick={() => downloadSverkaFile(row)}
                                                         >
-                                                            <Download className="w-4 h-4" />
+                                                            {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                                                             Скачать
                                                         </button>
                                                     ) : (
@@ -4424,6 +4456,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 </tbody>
                             </table>
                         </div>
+                    )}
+                    {sverkiDownloadError && (
+                        <Typography.Body style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: '#ef4444' }}>
+                            {sverkiDownloadError}
+                        </Typography.Body>
                     )}
                 </>
             )}
