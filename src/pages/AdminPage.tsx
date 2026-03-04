@@ -9626,23 +9626,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <option value="manager">От имени менеджера</option>
                         <option value="leader">От имени руководителя</option>
                       </select>
-                      <Button
-                        type="button"
-                        className="filter-button"
-                        onClick={() => updateAdminClaimStatus(
-                          adminClaimDetail.claim.id,
-                          String(adminClaimDetail.claim.status || "in_progress"),
-                          Number(adminClaimApprovedAmountDraft || 0),
-                          {
-                            expertLogin: String(adminClaimDetail?.claim?.expertLogin || "").trim(),
-                            managerNote: adminClaimAttachRole === "manager" ? adminClaimNoteDraft.trim() : undefined,
-                            leaderComment: adminClaimAttachRole === "leader" ? adminLeaderCommentDraft.trim() : undefined,
-                          }
-                        )}
-                        disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
-                      >
-                        Сохранить комментарий
-                      </Button>
                     </Flex>
                     <textarea
                       className="admin-form-input"
@@ -9656,24 +9639,31 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       style={{ width: "100%", marginBottom: "0.45rem" }}
                     />
                     <Flex gap="0.45rem" wrap="wrap" align="center" style={{ marginBottom: "0.4rem" }}>
-                      <label style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.78rem" }}>
+                      <label
+                        className="filter-button"
+                        style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.78rem", cursor: "pointer", padding: "0.35rem 0.6rem", margin: 0 }}
+                      >
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/*,.pdf,application/pdf"
                           multiple
-                          onChange={(e) => setAdminClaimAttachPhotoFiles(Array.from(e.target.files || []))}
+                          style={{ width: 0, height: 0, opacity: 0, position: "absolute" }}
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files || []);
+                            const photos = files.filter((f) => f.type.startsWith("image/"));
+                            const pdfs = files.filter((f) => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
+                            setAdminClaimAttachPhotoFiles(photos);
+                            setAdminClaimAttachDocumentFiles(pdfs);
+                            e.target.value = "";
+                          }}
                         />
-                        Фото ({adminClaimAttachPhotoFiles.length})
+                        Выбрать файлы
                       </label>
-                      <label style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", fontSize: "0.78rem" }}>
-                        <input
-                          type="file"
-                          accept=".pdf,application/pdf"
-                          multiple
-                          onChange={(e) => setAdminClaimAttachDocumentFiles(Array.from(e.target.files || []))}
-                        />
-                        PDF ({adminClaimAttachDocumentFiles.length})
-                      </label>
+                      <Typography.Body style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
+                        {adminClaimAttachPhotoFiles.length === 0 && adminClaimAttachDocumentFiles.length === 0
+                          ? "Файл не выбран"
+                          : `Фото: ${adminClaimAttachPhotoFiles.length} · PDF: ${adminClaimAttachDocumentFiles.length}`}
+                      </Typography.Body>
                     </Flex>
                     <input
                       className="admin-form-input"
