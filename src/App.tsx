@@ -887,6 +887,19 @@ export default function App() {
         setContextCargoNumber(num);
         setActiveTab("cargo");
     };
+    const openCargoFromDocuments = (cargoNumber: string) => {
+        if (!cargoNumber) return;
+        const num = String(cargoNumber).trim();
+        try {
+            window.localStorage.setItem("haulz.cargo.tableMode", "true");
+        } catch {
+            // ignore storage errors
+        }
+        setSearchText(num);
+        handleSearch(num);
+        setContextCargoNumber(num);
+        setActiveTab("cargo");
+    };
     const openClaimFromCargo = (cargoNumber: string) => {
         const number = String(cargoNumber || "").trim();
         if (!number) return;
@@ -1928,6 +1941,7 @@ export default function App() {
                             updateActiveAccountCustomer={updateActiveAccountCustomer}
                             openCargoWithFilters={openCargoWithFilters}
                             openCargoFromChat={openCargoFromChat}
+                            openCargoFromDocuments={openCargoFromDocuments}
                             openClaimFromCargo={openClaimFromCargo}
                             openTelegramBotWithAccount={openTelegramBotWithAccount}
                             handleSwitchAccount={handleSwitchAccount}

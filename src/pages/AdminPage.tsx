@@ -176,6 +176,23 @@ const CLAIM_STATUS_LABELS_RU: Record<string, string> = {
   offset: "Зачтено",
   closed: "Закрыта",
 };
+const CLAIM_MANIPULATION_SIGN_LABELS_RU: Record<string, string> = {
+  fragile: "Хрупкое",
+  keep_dry: "Беречь от влаги",
+  this_side_up: "Верх / Не кантовать",
+  do_not_stack: "Не штабелировать",
+  temperature_control: "Температурный режим",
+  handle_with_care: "Осторожно, обращаться бережно",
+};
+const CLAIM_PACKAGING_TYPE_LABELS_RU: Record<string, string> = {
+  box: "Коробка",
+  pallet: "Паллет",
+  crate: "Ящик",
+  bag: "Мешок",
+  film: "Стретч-пленка",
+  wooden_frame: "Обрешетка",
+  without_packaging: "Без упаковки",
+};
 const CLAIMS_FILTER_CONTROL_HEIGHT = 34;
 
 const PEREVOZKA_NOMENCLATURE_KEYS = ["Packages", "Nomenclature", "Goods", "CargoNomenclature", "ПринятыйГруз", "Номенклатура", "TablePart", "CargoItems", "Items", "GoodsList", "Nomenklatura"] as const;
@@ -227,6 +244,13 @@ function pickFirstNumericField(source: any, fieldNames: string[]): number {
     if (value > 0) return value;
   }
   return 0;
+}
+function mapClaimEnumValuesToRu(values: unknown, labels: Record<string, string>): string[] {
+  if (!Array.isArray(values)) return [];
+  return values
+    .map((v) => String(v ?? "").trim())
+    .filter(Boolean)
+    .map((v) => labels[v] || v);
 }
 type CooperationType = typeof COOPERATION_TYPE_OPTIONS[number]["value"];
 const normalizeCooperationType = (value: unknown): CooperationType => {
@@ -9125,12 +9149,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         </Typography.Body>
                         <Typography.Body style={{ fontSize: "0.82rem", display: "block" }}>
                           <strong>Манипуляционные знаки:</strong> {Array.isArray(adminClaimDetail.customerPayload?.manipulationSigns) && adminClaimDetail.customerPayload.manipulationSigns.length > 0
-                            ? adminClaimDetail.customerPayload.manipulationSigns.join(", ")
+                            ? mapClaimEnumValuesToRu(adminClaimDetail.customerPayload.manipulationSigns, CLAIM_MANIPULATION_SIGN_LABELS_RU).join(", ")
                             : "—"}
                         </Typography.Body>
                         <Typography.Body style={{ fontSize: "0.82rem", display: "block" }}>
                           <strong>Упаковка:</strong> {Array.isArray(adminClaimDetail.customerPayload?.packagingTypes) && adminClaimDetail.customerPayload.packagingTypes.length > 0
-                            ? adminClaimDetail.customerPayload.packagingTypes.join(", ")
+                            ? mapClaimEnumValuesToRu(adminClaimDetail.customerPayload.packagingTypes, CLAIM_PACKAGING_TYPE_LABELS_RU).join(", ")
                             : "—"}
                         </Typography.Body>
                       </div>
@@ -9329,19 +9353,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <div style={{ marginBottom: "0.75rem", border: "1px solid var(--color-border)", borderRadius: 10, padding: "0.65rem" }}>
                   <Typography.Body style={{ fontWeight: 600, marginBottom: "0.45rem" }}>Обработка</Typography.Body>
                   <Flex gap="0.45rem" wrap="wrap" style={{ marginBottom: "0.45rem" }}>
-                    <Button
-                      type="button"
-                      className="filter-button"
-                      onClick={() => updateAdminClaimStatus(
-                        adminClaimDetail.claim.id,
-                        "in_progress",
-                        Number(adminClaimApprovedAmountDraft || 0),
-                        { expertLogin: String(adminClaimDetail?.claim?.expertLogin || "").trim(), managerNote: adminClaimNoteDraft.trim() }
-                      )}
-                      disabled={adminClaimsUpdatingId === adminClaimDetail.claim.id}
-                    >
-                      В работу
-                    </Button>
                     <Button
                       type="button"
                       className="filter-button"

@@ -23,6 +23,7 @@ type Props = {
   updateActiveAccountCustomer: (customer: string) => void;
   openCargoWithFilters: (filters: { statuses?: string[]; customer?: string }) => void;
   openCargoFromChat: (cargoNumber: string) => void;
+  openCargoFromDocuments: (cargoNumber: string) => void;
   openClaimFromCargo: (cargoNumber: string) => void;
   openTelegramBotWithAccount: () => Promise<void>;
   handleSwitchAccount: (accountId: string) => void;
@@ -122,6 +123,7 @@ export function AppMainContent({
   updateActiveAccountCustomer,
   openCargoWithFilters,
   openCargoFromChat,
+  openCargoFromDocuments,
   openClaimFromCargo,
   openTelegramBotWithAccount,
   handleSwitchAccount,
@@ -172,7 +174,7 @@ export function AppMainContent({
         <Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>}>
           <DocumentsPage
             auth={auth}
-            onOpenCargo={openCargoFromChat}
+            onOpenCargo={openCargoFromDocuments}
             onOpenChat={undefined}
             permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined}
             showSums={activeAccount?.financialAccess ?? true}

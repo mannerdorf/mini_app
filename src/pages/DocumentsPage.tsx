@@ -232,6 +232,48 @@ function normalizeAcceptedCargoNomenclatureRows(rows: Record<string, unknown>[])
     return result;
 }
 
+function extractCustomerClaimPayloadFromEvents(events: any[]): {
+    contactName: string;
+    selectedPlaces: string[];
+    manipulationSigns: string[];
+    packagingTypes: string[];
+} {
+    if (!Array.isArray(events) || events.length === 0) {
+        return { contactName: '', selectedPlaces: [], manipulationSigns: [], packagingTypes: [] };
+    }
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+        const event = events[i];
+        const eventType = String(event?.eventType || '').trim().toLowerCase();
+        if (eventType !== 'claim_draft_saved' && eventType !== 'claim_created') continue;
+        const rawPayload = event?.payload;
+        const payload = typeof rawPayload === 'string'
+            ? (() => {
+                try {
+                    return JSON.parse(rawPayload);
+                } catch {
+                    return {};
+                }
+            })()
+            : (rawPayload && typeof rawPayload === 'object' ? rawPayload : {});
+        const selectedPlaces = Array.isArray((payload as any)?.selectedPlaces)
+            ? (payload as any).selectedPlaces.map((v: any) => String(v || '').trim()).filter(Boolean)
+            : [];
+        const manipulationSigns = Array.isArray((payload as any)?.manipulationSigns)
+            ? (payload as any).manipulationSigns.map((v: any) => String(v || '').trim()).filter(Boolean)
+            : [];
+        const packagingTypes = Array.isArray((payload as any)?.packagingTypes)
+            ? (payload as any).packagingTypes.map((v: any) => String(v || '').trim()).filter(Boolean)
+            : [];
+        return {
+            contactName: String((payload as any)?.customerContactName || '').trim(),
+            selectedPlaces,
+            manipulationSigns,
+            packagingTypes,
+        };
+    }
+    return { contactName: '', selectedPlaces: [], manipulationSigns: [], packagingTypes: [] };
+}
+
 type DocSectionKey = 'Счета' | 'УПД' | 'Заявки' | 'Отправки' | 'Претензии' | 'Договоры' | 'Акты сверок' | 'Тарифы';
 const DOC_SECTIONS: { key: DocSectionKey; label: string }[] = [
     { key: 'Счета', label: 'Счета' },
@@ -1640,6 +1682,18 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return d >= fromDate && d <= toDate;
         });
     }, [claimsList, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    const claimDetailStatusKey = useMemo(
+        () => String(claimsDetailData?.claim?.status || 'new') as ClaimStatusKey,
+        [claimsDetailData?.claim?.status]
+    );
+    const claimDetailStatusStyle = useMemo(
+        () => CLAIM_STATUS_BADGE[claimDetailStatusKey] || CLAIM_STATUS_BADGE.new,
+        [claimDetailStatusKey]
+    );
+    const claimCustomerPayload = useMemo(
+        () => extractCustomerClaimPayloadFromEvents(Array.isArray(claimsDetailData?.events) ? claimsDetailData.events : []),
+        [claimsDetailData?.events]
+    );
     const latestSverkiRequest = useMemo(() => sverkiRequests[0] || null, [sverkiRequests]);
     const sverkiStatusBadge = useMemo(() => {
         if (!latestSverkiRequest) return null;
@@ -4497,16 +4551,42 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         ) : (
                             <div style={{ display: 'grid', gap: '0.55rem' }}>
                                 <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '0.6rem' }}>
+                                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.35rem' }}>Данные заказчика и претензии</Typography.Body>
+                                    <div style={{ display: 'grid', gap: '0.25rem' }}>
+                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Перевозка:</strong> {String(claimsDetailData.claim.cargoNumber || '—')}</Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Тип претензии:</strong> {String(claimsDetailData.claim.claimType || '—')}</Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Описание:</strong> {String(claimsDetailData.claim.description || '—')}</Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Сумма требования:</strong> {claimsDetailData.claim.requestedAmount != null ? formatCurrency(Number(claimsDetailData.claim.requestedAmount)) : '—'}</Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Контактное лицо:</strong> {claimCustomerPayload.contactName || '—'}</Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Телефон:</strong> {String(claimsDetailData.claim.customerPhone || '—')}</Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Email:</strong> {String(claimsDetailData.claim.customerEmail || '—')}</Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.82rem' }}>
+                                            <strong>Номера мест:</strong> {claimCustomerPayload.selectedPlaces.length > 0 ? claimCustomerPayload.selectedPlaces.join(', ') : '—'}
+                                        </Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.82rem' }}>
+                                            <strong>Манипуляционные знаки:</strong> {claimCustomerPayload.manipulationSigns.length > 0 ? claimCustomerPayload.manipulationSigns.join(', ') : '—'}
+                                        </Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.82rem' }}>
+                                            <strong>Упаковка:</strong> {claimCustomerPayload.packagingTypes.length > 0 ? claimCustomerPayload.packagingTypes.join(', ') : '—'}
+                                        </Typography.Body>
+                                    </div>
+                                </div>
+                                <div style={{ border: '1px solid var(--color-border)', borderRadius: 10, padding: '0.6rem' }}>
                                     <Typography.Body style={{ fontWeight: 600, marginBottom: '0.4rem' }}>Ответ HAULZ</Typography.Body>
                                     <div style={{ display: 'grid', gap: '0.25rem' }}>
-                                        <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Статус:</strong> {CLAIM_STATUS_LABELS[String(claimsDetailData.claim.status || 'new') as ClaimStatusKey] || String(claimsDetailData.claim.status || '—')}</Typography.Body>
+                                        <Typography.Body style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                            <strong>Статус:</strong>
+                                            <span style={{ fontSize: '0.74rem', padding: '0.16rem 0.45rem', borderRadius: 999, fontWeight: 600, background: claimDetailStatusStyle.bg, color: claimDetailStatusStyle.color, whiteSpace: 'nowrap' }}>
+                                                {CLAIM_STATUS_LABELS[claimDetailStatusKey] || String(claimsDetailData.claim.status || '—')}
+                                            </span>
+                                        </Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Ответ менеджера:</strong> {String(claimsDetailData.claim.managerNote || '—')}</Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Ответ руководителя:</strong> {String(claimsDetailData.claim.leaderComment || '—')}</Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.82rem' }}><strong>Комментарий бухгалтерии:</strong> {String(claimsDetailData.claim.accountingNote || '—')}</Typography.Body>
                                     </div>
 
                                     <div style={{ marginTop: '0.55rem' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem' }}>Резолюции HAULZ</Typography.Body>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem', display: 'block' }}>Резолюции HAULZ</Typography.Body>
                                         {Array.isArray(claimsDetailData.events) && claimsDetailData.events.filter((ev: any) => {
                                             const role = String(ev?.actorRole || '').toLowerCase();
                                             const eventType = String(ev?.eventType || '').toLowerCase();
@@ -4550,7 +4630,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     </div>
 
                                     <div style={{ marginTop: '0.55rem' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem' }}>Прикрепленные файлы</Typography.Body>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem', display: 'block' }}>Прикрепленные файлы</Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
                                             Фото: {Array.isArray(claimsDetailData.photos) ? claimsDetailData.photos.length : 0} | PDF: {Array.isArray(claimsDetailData.documents) ? claimsDetailData.documents.length : 0} | Видео: {Array.isArray(claimsDetailData.videoLinks) ? claimsDetailData.videoLinks.length : 0}
                                         </Typography.Body>
@@ -4615,7 +4695,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     </div>
 
                                     <div style={{ marginTop: '0.55rem' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem' }}>Дополнительные ответы менеджера и руководителя</Typography.Body>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.25rem', display: 'block' }}>Дополнительные ответы менеджера и руководителя</Typography.Body>
                                         {Array.isArray(claimsDetailData.comments) && claimsDetailData.comments.filter((c: any) => ['manager', 'leader'].includes(String(c?.authorRole || ''))).length > 0 ? (
                                             <div style={{ display: 'grid', gap: '0.3rem' }}>
                                                 {claimsDetailData.comments
@@ -4630,9 +4710,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                     ))}
                                             </div>
                                         ) : (
-                                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
-                                                Дополнительных комментариев от менеджера/руководителя пока нет.
-                                            </Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Дополнительных комментариев от менеджера/руководителя пока нет.</Typography.Body>
                                         )}
                                     </div>
                                 </div>
