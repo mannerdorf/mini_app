@@ -1803,15 +1803,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             setDogovorsDownloadingId(null);
         }
     }, []);
-    const filteredClaims = useMemo(() => {
-        const fromDate = new Date(`${apiDateRange.dateFrom}T00:00:00`);
-        const toDate = new Date(`${apiDateRange.dateTo}T23:59:59`);
-        return claimsList.filter((row) => {
-            if (!row.createdAt) return true;
-            const d = new Date(row.createdAt);
-            return d >= fromDate && d <= toDate;
-        });
-    }, [claimsList, apiDateRange.dateFrom, apiDateRange.dateTo]);
+    const filteredClaims = useMemo(() => claimsList, [claimsList]);
     const claimDetailStatusKey = useMemo(
         () => String(claimsDetailData?.claim?.status || 'new') as ClaimStatusKey,
         [claimsDetailData?.claim?.status]
