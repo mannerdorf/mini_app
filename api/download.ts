@@ -31,6 +31,15 @@ function transliterateFilename(s: string): string {
   return out;
 }
 
+/** Удаляет служебные символы 1С из HTML: [#Ключ значение#] → значение, [#Ключ#] → "" */
+function clean1cPlaceholders(html: string): string {
+  return html.replace(/\[#([^#]+)#\]/g, (_, inner) => {
+    const trimmed = String(inner).trim();
+    const spaceIdx = trimmed.indexOf(" ");
+    return spaceIdx >= 0 ? trimmed.slice(spaceIdx + 1).trim() : "";
+  });
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST" && req.method !== "GET") {
     res.setHeader("Allow", "POST, GET");
@@ -365,16 +374,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               return res.status(200).json({ data: dataStr, name: fileName });
             }
 
-            // Договор возвращает raw HTML в data — кодируем в base64 для передачи клиенту
+            // Договор возвращает raw HTML в data — чистим [#ключ#] и кодируем в base64
             if (dataStr.trimStart().startsWith("<") || /^\s*<!DOCTYPE/i.test(dataStr) || /^\s*<html/i.test(dataStr)) {
-              console.log("✅ Got HTML data (Договор), encoding to base64. Size:", dataStr.length);
-              const b64 = Buffer.from(dataStr, "utf-8").toString("base64");
+              const cleanedHtml = clean1cPlaceholders(dataStr);
+              console.log("✅ Got HTML data (Договор), cleaned placeholders, encoding to base64. Size:", cleanedHtml.length);
+              const b64 = Buffer.from(cleanedHtml, "utf-8").toString("base64");
               const fname = /\.html?$/i.test(fileName) ? fileName : fileName.replace(/\.\w+$/, "") + ".html";
               if (req.method === "GET") {
                 res.status(200);
                 res.setHeader("Content-Type", "text/html; charset=utf-8");
                 res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fname)}"`);
-                return res.end(dataStr, "utf-8");
+                return res.end(cleanedHtml, "utf-8");
               }
               return res.status(200).json({ data: b64, name: fname, isHtml: true });
             }
