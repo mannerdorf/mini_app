@@ -424,6 +424,39 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      const fromUrl = url.searchParams.get("admin");
+      if (fromUrl && ADMIN_TABS.includes(fromUrl as AdminTab)) {
+        setTabState((prev) => (prev !== fromUrl ? (fromUrl as AdminTab) : prev));
+      } else {
+        const fromStorage = localStorage.getItem(ADMIN_TAB_KEY);
+        if (fromStorage && ADMIN_TABS.includes(fromStorage as AdminTab)) {
+          setTabState((prev) => (prev !== fromStorage ? (fromStorage as AdminTab) : prev));
+          url.searchParams.set("admin", fromStorage);
+          window.history.replaceState(null, "", url.toString());
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    const onPopState = () => {
+      try {
+        const url = new URL(window.location.href);
+        const fromUrl = url.searchParams.get("admin");
+        if (fromUrl && ADMIN_TABS.includes(fromUrl as AdminTab)) {
+          setTabState(fromUrl as AdminTab);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   const [accountingSubsection, setAccountingSubsection] = useState<"expense_requests" | "sverki" | "claims">("expense_requests");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
@@ -2397,7 +2430,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           return;
         }
         const errData = await res.json().catch(() => ({}));
-        setError(String(errData?.error || `Ошибка обновления статуса (${res.status})`));
+        const detail = errData?.details ? `: ${errData.details}` : "";
+        setError(String(errData?.error || `Ошибка обновления статуса (${res.status})`) + detail);
       } catch (e) {
         setError((e as Error)?.message || "Ошибка обновления статуса заявки");
       }

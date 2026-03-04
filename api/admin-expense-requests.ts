@@ -234,15 +234,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         await client.query("COMMIT");
       } catch (txErr) {
-        await client.query("ROLLBACK");
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackErr) {
+          console.error("admin-expense-requests PATCH rollback failed:", rollbackErr);
+        }
         throw txErr;
       } finally {
         client.release();
       }
       return res.json({ ok: true });
     } catch (e) {
-      console.error("admin-expense-requests PATCH:", e);
-      return res.status(500).json({ error: "Ошибка обновления статуса" });
+      const err = e as Error & { code?: string };
+      console.error("admin-expense-requests PATCH:", err);
+      const msg = err?.message || String(e);
+      return res.status(500).json({
+        error: "Ошибка обновления статуса",
+        details: msg.length > 200 ? msg.slice(0, 200) + "..." : msg,
+      });
     }
   }
 
