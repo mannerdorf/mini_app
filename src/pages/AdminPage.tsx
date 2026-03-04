@@ -392,10 +392,38 @@ function UserRow({
 }
 
 const ADMIN_THEME_KEY = "admin-theme";
+const ADMIN_TAB_KEY = "haulz.admin.tab";
+const ADMIN_TABS = ["users", "templates", "customers", "suppliers", "tariffs", "sverki", "dogovors", "audit", "logs", "integrations", "employee_directory", "subdivisions", "presets", "payment_calendar", "work_schedule", "timesheet", "expense_requests", "accounting", "claims", "pnl"] as const;
+type AdminTab = (typeof ADMIN_TABS)[number];
+
+function getInitialAdminTab(): AdminTab {
+  if (typeof window === "undefined") return "users";
+  try {
+    const url = new URL(window.location.href);
+    const fromUrl = url.searchParams.get("admin");
+    if (fromUrl && ADMIN_TABS.includes(fromUrl as AdminTab)) return fromUrl as AdminTab;
+    const fromStorage = localStorage.getItem(ADMIN_TAB_KEY);
+    if (fromStorage && ADMIN_TABS.includes(fromStorage as AdminTab)) return fromStorage as AdminTab;
+  } catch {
+    /* ignore */
+  }
+  return "users";
+}
 
 export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const USERS_PAGE_SIZE = 50;
-  const [tab, setTab] = useState<"users" | "templates" | "customers" | "suppliers" | "tariffs" | "sverki" | "dogovors" | "audit" | "logs" | "integrations" | "employee_directory" | "subdivisions" | "presets" | "payment_calendar" | "work_schedule" | "timesheet" | "expense_requests" | "accounting" | "claims" | "pnl">("users");
+  const [tab, setTabState] = useState<AdminTab>(getInitialAdminTab);
+  const setTab = useCallback((next: AdminTab) => {
+    setTabState(next);
+    try {
+      localStorage.setItem(ADMIN_TAB_KEY, next);
+      const url = new URL(window.location.href);
+      url.searchParams.set("admin", next);
+      window.history.replaceState(null, "", url.toString());
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [accountingSubsection, setAccountingSubsection] = useState<"expense_requests" | "sverki" | "claims">("expense_requests");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
@@ -2363,11 +2391,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           });
         }
         if (res.ok) {
+          setError(null);
           updateLocal();
           reloadAllExpenseRequests();
           return;
         }
-      } catch { /* fallback to localStorage */ }
+        const errData = await res.json().catch(() => ({}));
+        setError(String(errData?.error || `Ошибка обновления статуса (${res.status})`));
+      } catch (e) {
+        setError((e as Error)?.message || "Ошибка обновления статуса заявки");
+      }
     }
     updateLocal();
     reloadAllExpenseRequests();
@@ -8672,8 +8705,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                 Добавить в PnL
                               </button>
                             )}
-                            {!isAccounting && hasPnlExpenseCombination(r) && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
-                              <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "approved", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #10b981", background: "transparent", color: "#10b981", cursor: "pointer" }}>Согласовать</button>
+                            {!isAccounting && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
+                              <button type="button" onClick={() => updateExpenseStatus(r.id, (r as any).login ?? "", "approved", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #10b981", background: "transparent", color: "#10b981", cursor: "pointer" }}>Согласовать</button>
                             )}
                             {!isAccounting && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
                               <button type="button" onClick={() => { setExpenseRejectId(r.id); setExpenseRejectComment(""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Отказать</button>

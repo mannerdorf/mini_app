@@ -40,6 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     supplierInn?: string;
     status?: string;
     attachmentNames?: string[];
+    attachments?: Array<{ name: string; dataUrl: string }>;
   };
   const uid = String(b?.id ?? "").trim();
   const login = String(b?.login ?? "").trim();
@@ -115,12 +116,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? `ON CONFLICT (uid) DO UPDATE SET ${updateSet.join(", ")}`
       : `ON CONFLICT (uid) DO NOTHING`;
 
-    await pool.query(
+    const { rows: upsertRows } = await pool.query<{ id: number }>(
       `INSERT INTO expense_requests (${insertColumns.join(", ")})
        VALUES (${placeholders.join(", ")})
-       ${upsertSql}`,
+       ${upsertSql}
+       RETURNING id`,
       insertValues
     );
+    let requestId = upsertRows[0]?.id;
+    if (requestId == null) {
+      const byUid = await pool.query<{ id: number }>("SELECT id FROM expense_requests WHERE uid = $1", [uid]);
+      requestId = byUid.rows[0]?.id ?? null;
+    }
+    if (requestId != null) {
+      const attachments = Array.isArray(b?.attachments) ? b.attachments : [];
+      const hasAttachmentsTable = await pool.query(
+        `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'expense_request_attachments'`
+      );
+      if (hasAttachmentsTable.rows.length > 0 && attachments.length > 0) {
+        await pool.query("DELETE FROM expense_request_attachments WHERE request_id = $1", [requestId]);
+        for (const att of attachments) {
+          const name = String(att?.name ?? "").trim();
+          const dataUrl = String(att?.dataUrl ?? "");
+          if (!name || !dataUrl.startsWith("data:")) continue;
+          const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+          const mimeType = m?.[1]?.trim() || null;
+          const b64 = m?.[2] ?? "";
+          let fileData: Buffer | null = null;
+          try {
+            fileData = Buffer.from(b64, "base64");
+          } catch {
+            continue;
+          }
+          if (fileData.length > 15 * 1024 * 1024) continue; // max ~15 MB
+          await pool.query(
+            `INSERT INTO expense_request_attachments (request_id, file_name, mime_type, file_size, file_data)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [requestId, name, mimeType, fileData.length, fileData]
+          );
+        }
+      }
+    }
     return res.json({ ok: true });
   } catch (e) {
     console.error("expense-requests-webhook:", e);

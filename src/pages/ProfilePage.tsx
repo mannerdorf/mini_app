@@ -162,6 +162,11 @@ export function ProfilePage({
     type ShiftMarkCode = typeof SHIFT_MARK_OPTIONS[number]["code"];
     const [departmentShiftPicker, setDepartmentShiftPicker] = useState<{ key: string; employeeId: number; day: number; x: number; y: number; isShift: boolean } | null>(null);
     const departmentShiftHoldTimerRef = useRef<number | null>(null);
+
+    const [accountingRequestsItems, setAccountingRequestsItems] = useState<Array<{ id: string; createdAt: string; department: string; docNumber?: string; docDate?: string; period?: string; categoryName: string; amount: number; comment: string; vehicleOrEmployee: string; status: string; login: string; attachments?: Array<{ id: number; fileName: string; mimeType: string | null }> }>>([]);
+    const [selectedAccountingRequest, setSelectedAccountingRequest] = useState<typeof accountingRequestsItems[0] | null>(null);
+    const [accountingRequestsLoading, setAccountingRequestsLoading] = useState(false);
+    const [accountingRequestsError, setAccountingRequestsError] = useState<string | null>(null);
     const departmentShiftHoldTriggeredRef = useRef(false);
     const normalizeShiftMark = (rawValue: string): ShiftMarkCode | "" => {
         const raw = String(rawValue || "").trim().toUpperCase();
@@ -477,6 +482,57 @@ export function ProfilePage({
             setDepartmentTimesheetLoading(false);
         }
     }, [activeAccount?.login, activeAccount?.password, departmentTimesheetMonth]);
+
+    const fetchAccountingRequests = useCallback(async () => {
+        if (!activeAccount?.login || !activeAccount?.password || activeAccount?.permissions?.accounting !== true) return;
+        setAccountingRequestsLoading(true);
+        setAccountingRequestsError(null);
+        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        try {
+            const res = await fetch(`${origin}/api/accounting-expense-requests`, {
+                method: "GET",
+                headers: {
+                    "x-login": activeAccount.login,
+                    "x-password": activeAccount.password,
+                },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setAccountingRequestsError(data.error || "Ошибка загрузки заявок");
+                setAccountingRequestsItems([]);
+                return;
+            }
+            const items = Array.isArray(data.items)
+                ? data.items.map((r: any) => ({
+                    id: String(r.id ?? ""),
+                    createdAt: r.createdAt ?? "",
+                    department: r.department ?? "",
+                    docNumber: r.docNumber,
+                    docDate: r.docDate,
+                    period: r.period,
+                    categoryName: r.categoryName ?? r.categoryId ?? "",
+                    amount: Number(r.amount) || 0,
+                    comment: r.comment ?? "",
+                    vehicleOrEmployee: r.vehicleOrEmployee ?? "",
+                    status: r.status ?? "",
+                    login: r.login ?? "",
+                    attachments: Array.isArray(r.attachments) ? r.attachments : [],
+                }))
+                : [];
+            setAccountingRequestsItems(items);
+        } catch {
+            setAccountingRequestsError("Ошибка сети");
+            setAccountingRequestsItems([]);
+        } finally {
+            setAccountingRequestsLoading(false);
+        }
+    }, [activeAccount?.login, activeAccount?.password, activeAccount?.permissions?.accounting]);
+
+    useEffect(() => {
+        if (currentView === "accounting" && activeAccount?.permissions?.accounting === true) {
+            void fetchAccountingRequests();
+        }
+    }, [currentView, activeAccount?.permissions?.accounting, fetchAccountingRequests]);
 
     const saveDepartmentTimesheetCell = useCallback(async (employeeId: number, day: number, value: string) => {
         if (!activeAccount?.login || !activeAccount?.password) return;
@@ -1110,43 +1166,37 @@ export function ProfilePage({
     }
 
     if (currentView === 'accounting') {
-        const prefix = "haulz.expense_requests.";
-        const allRequests: { id: string; createdAt: string; department: string; docNumber?: string; docDate?: string; period?: string; categoryName: string; amount: number; comment: string; vehicleOrEmployee: string; attachmentNames: string[]; status: string; login: string }[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (!k || !k.startsWith(prefix)) continue;
-            const login = k.slice(prefix.length);
+        const markPaid = async (itemId: string) => {
+            if (!activeAccount?.login || !activeAccount?.password) return;
+            const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
             try {
-                const items = JSON.parse(localStorage.getItem(k) ?? "[]");
-                if (Array.isArray(items)) items.forEach((r: any) => {
-                    if (r && (r.status === "approved" || r.status === "paid")) allRequests.push({ ...r, login });
+                const res = await fetch(`${origin}/api/accounting-expense-requests`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json", "x-login": activeAccount.login, "x-password": activeAccount.password },
+                    body: JSON.stringify({ uid: itemId, status: "paid" }),
                 });
-            } catch { /* skip */ }
-        }
-        allRequests.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-
-        const markPaid = (itemId: string, itemLogin: string) => {
-            const storageKey = `haulz.expense_requests.${itemLogin}`;
-            try {
-                const raw = localStorage.getItem(storageKey);
-                if (!raw) return;
-                const items = JSON.parse(raw);
-                if (!Array.isArray(items)) return;
-                const updated = items.map((r: any) => r.id === itemId ? { ...r, status: "paid" } : r);
-                localStorage.setItem(storageKey, JSON.stringify(updated));
-                setCurrentView('main');
-                setTimeout(() => setCurrentView('accounting'), 0);
-            } catch { /* skip */ }
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    setAccountingRequestsError(data.error || "Ошибка обновления статуса");
+                    return;
+                }
+                void fetchAccountingRequests();
+            } catch {
+                setAccountingRequestsError("Ошибка сети");
+            }
         };
 
         const statusBadge = (s: string) => {
             const map: Record<string, { bg: string; color: string; label: string }> = {
                 approved: { bg: "rgba(16,185,129,0.15)", color: "#10b981", label: "Согласовано" },
+                sent: { bg: "rgba(34,197,94,0.15)", color: "#22c55e", label: "Отправлено" },
                 paid: { bg: "rgba(139,92,246,0.15)", color: "#8b5cf6", label: "Оплачено" },
             };
             const m = map[s] ?? { bg: "rgba(107,114,128,0.15)", color: "#6b7280", label: s };
             return <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 999, fontWeight: 600, background: m.bg, color: m.color }}>{m.label}</span>;
         };
+
+        const allRequests = accountingRequestsItems;
 
         return (
             <div className="w-full">
@@ -1157,10 +1207,24 @@ export function ProfilePage({
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Бухгалтерия</Typography.Headline>
                 </Flex>
                 <Panel className="cargo-card" style={{ padding: '1rem' }}>
-                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
-                        Согласованные заявки ({allRequests.length})
-                    </Typography.Body>
-                    {allRequests.length === 0 ? (
+                    <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
+                        <Typography.Body style={{ fontWeight: 600 }}>
+                            Согласованные заявки ({allRequests.length})
+                        </Typography.Body>
+                        {!accountingRequestsLoading && (
+                            <Button type="button" className="filter-button" onClick={() => void fetchAccountingRequests()} style={{ padding: "0.25rem 0.5rem", fontSize: "0.8rem" }}>
+                                Обновить
+                            </Button>
+                        )}
+                    </Flex>
+                    {accountingRequestsLoading ? (
+                        <Flex align="center" gap="0.5rem" style={{ padding: "1rem", color: "var(--color-text-secondary)" }}>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Typography.Body>Загрузка заявок...</Typography.Body>
+                        </Flex>
+                    ) : accountingRequestsError ? (
+                        <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-error, #dc2626)" }}>{accountingRequestsError}</Typography.Body>
+                    ) : allRequests.length === 0 ? (
                         <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Нет согласованных заявок</Typography.Body>
                     ) : (
                         <div style={{ maxHeight: 600, overflowY: "auto" }}>
@@ -1178,16 +1242,20 @@ export function ProfilePage({
                                 </thead>
                                 <tbody>
                                     {allRequests.map((r) => (
-                                        <tr key={r.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                            <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}</td>
+                                        <tr
+                                            key={r.id}
+                                            style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
+                                            onClick={() => setSelectedAccountingRequest(r)}
+                                        >
+                                            <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
                                             <td style={{ padding: "6px 8px" }}>{r.docNumber || "—"}</td>
                                             <td style={{ padding: "6px 8px" }}>{r.department}</td>
                                             <td style={{ padding: "6px 8px" }}>{r.categoryName}</td>
                                             <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.amount.toLocaleString("ru-RU")} ₽</td>
                                             <td style={{ padding: "6px 8px" }}>{statusBadge(r.status)}</td>
-                                            <td style={{ padding: "6px 8px" }}>
-                                                {r.status === "approved" && (
-                                                    <button type="button" onClick={() => markPaid(r.id, r.login)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
+                                            <td style={{ padding: "6px 8px" }} onClick={(e) => e.stopPropagation()}>
+                                                {(r.status === "approved" || r.status === "sent") && (
+                                                    <button type="button" onClick={() => void markPaid(r.id)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
                                                 )}
                                             </td>
                                         </tr>
@@ -1197,6 +1265,67 @@ export function ProfilePage({
                         </div>
                     )}
                 </Panel>
+
+                {selectedAccountingRequest && (
+                    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setSelectedAccountingRequest(null)}>
+                        <div style={{ background: "var(--color-bg-card, #fff)", borderRadius: 12, padding: "1.25rem", maxWidth: 480, width: "92%", maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+                            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.75rem" }}>
+                                Заявка {selectedAccountingRequest.docNumber || selectedAccountingRequest.id.slice(-8)}
+                            </Typography.Body>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>Создано:</span> {selectedAccountingRequest.createdAt ? new Date(selectedAccountingRequest.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>№ док.:</span> {selectedAccountingRequest.docNumber || "—"}</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>Дата док.:</span> {selectedAccountingRequest.docDate || "—"}</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>Период:</span> {selectedAccountingRequest.period || "—"}</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>Логин:</span> {selectedAccountingRequest.login || "—"}</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>Подразделение:</span> {selectedAccountingRequest.department || "—"}</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>Статья:</span> {selectedAccountingRequest.categoryName || "—"}</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>Сумма:</span> {selectedAccountingRequest.amount.toLocaleString("ru-RU")} ₽</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>Статус:</span> {statusBadge(selectedAccountingRequest.status)}</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>Комментарий:</span> {selectedAccountingRequest.comment || "—"}</div>
+                                <div><span style={{ color: "var(--color-text-secondary)" }}>ТС:</span> {selectedAccountingRequest.vehicleOrEmployee || "—"}</div>
+                                {selectedAccountingRequest.attachments && selectedAccountingRequest.attachments.length > 0 && (
+                                    <div>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: "0.82rem", marginBottom: "0.25rem", display: "block" }}>Прикреплённые документы</Typography.Body>
+                                        {selectedAccountingRequest.attachments.map((att) => (
+                                            <a
+                                                key={att.id}
+                                                href="#"
+                                                style={{ display: "block", marginTop: "0.25rem", color: "var(--color-primary-blue)", fontSize: "0.82rem" }}
+                                                onClick={async (e) => {
+                                                    e.preventDefault();
+                                                    if (!activeAccount?.login || !activeAccount?.password) return;
+                                                    const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+                                                    try {
+                                                        const res = await fetch(
+                                                            `${origin}/api/accounting-expense-attachment?requestUid=${encodeURIComponent(selectedAccountingRequest.id)}&attachmentId=${att.id}`,
+                                                            { headers: { "x-login": activeAccount.login, "x-password": activeAccount.password } }
+                                                        );
+                                                        if (!res.ok) return;
+                                                        const blob = await res.blob();
+                                                        const url = URL.createObjectURL(blob);
+                                                        window.open(url, "_blank", "noopener");
+                                                        setTimeout(() => URL.revokeObjectURL(url), 60000);
+                                                    } catch { /* ignore */ }
+                                                }}
+                                            >
+                                                {att.fileName}
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <Flex gap="0.5rem" justify="flex-end">
+                                <Button type="button" className="filter-button" onClick={() => setSelectedAccountingRequest(null)}>Закрыть</Button>
+                                {(selectedAccountingRequest.status === "approved" || selectedAccountingRequest.status === "sent") && (
+                                    <Button type="button" className="button-primary" onClick={() => { void markPaid(selectedAccountingRequest.id); setSelectedAccountingRequest(null); }}>
+                                        Оплачено
+                                    </Button>
+                                )}
+                            </Flex>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }

@@ -187,6 +187,61 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setList(loadStoredRequests(auth?.login ?? ""));
     }, [auth?.login]);
 
+    // --- Синхронизация статусов из БД (rejected, approved и т.д.) — чтобы автор видел решения руководителя ---
+    useEffect(() => {
+        if (!auth?.login || !auth?.password) return;
+        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        fetch(`${origin}/api/my-expense-requests`, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "x-login": auth.login,
+                "x-password": auth.password,
+            },
+        })
+            .then((r) => (r.ok ? r.json() : Promise.resolve({ items: [] })))
+            .then((data: { items?: Array<{ id: string; createdAt?: string; department?: string; docNumber?: string; docDate?: string; period?: string; categoryId?: string; categoryName?: string; amount?: number; vatRate?: string; comment?: string; vehicleOrEmployee?: string; employeeName?: string; status: string; rejectionReason?: string }> }) => {
+                const apiItems = Array.isArray(data?.items) ? data.items : [];
+                if (apiItems.length === 0) return;
+                setList((prev) => {
+                    const byId = new Map(prev.map((r) => [r.id, r]));
+                    for (const api of apiItems) {
+                        const local = byId.get(api.id);
+                        if (local) {
+                            byId.set(api.id, {
+                                ...local,
+                                status: api.status as ExpenseRequestItem["status"],
+                                rejectionReason: api.rejectionReason ?? local.rejectionReason,
+                            });
+                        } else {
+                            byId.set(api.id, {
+                                id: api.id,
+                                createdAt: api.createdAt ?? "",
+                                department: api.department ?? "",
+                                docNumber: api.docNumber ?? "",
+                                docDate: api.docDate ?? "",
+                                period: api.period ?? "",
+                                categoryId: api.categoryId ?? "other",
+                                categoryName: api.categoryName ?? "—",
+                                amount: Number(api.amount) || 0,
+                                vatRate: api.vatRate ?? "",
+                                comment: api.comment ?? "",
+                                vehicleOrEmployee: api.vehicleOrEmployee ?? "",
+                                employeeName: api.employeeName ?? "",
+                                attachmentNames: [],
+                                status: api.status as ExpenseRequestItem["status"],
+                                rejectionReason: api.rejectionReason,
+                            } as ExpenseRequestItem);
+                        }
+                    }
+                    const next = [...byId.values()].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+                    saveStoredRequests(auth?.login ?? "", next);
+                    return next;
+                });
+            })
+            .catch(() => { /* ignore network errors */ });
+    }, [auth?.login, auth?.password]);
+
     // --- Fetch department from employee directory ---
     useEffect(() => {
         if (!auth?.login || !auth?.password) return;
