@@ -1179,41 +1179,25 @@ export function ProfilePage({
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>HAULZ</Typography.Headline>
                 </Flex>
                 <Flex align="center" gap="0.6rem" wrap="wrap">
-                    {activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true ? (
-                        <>
-                            <Button type="button" className="button-primary" onClick={() => setCurrentView('departmentTimesheet')}>
-                                Табель учета рабочего времени
-                            </Button>
-                            <Button type="button" className="button-primary" onClick={() => setCurrentView('expenseRequests')}>
-                                Заявки на расходы
-                            </Button>
-                            {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.doc_claims === true && (
-                                <Button type="button" className="button-primary" onClick={() => { setCurrentView('accounting'); setAccountingSubsection('claims'); setSelectedAccountingRequest(null); }}>
-                                    Претензии
-                                </Button>
-                            )}
-                            {activeAccount?.permissions?.accounting === true && (
-                                <Button type="button" className="button-primary" onClick={() => setCurrentView('accounting')}>
-                                    Бухгалтерия
-                                </Button>
-                            )}
-                        </>
-                    ) : (
-                        <Flex align="center" gap="0.6rem" wrap="wrap">
-                            <Typography.Body style={{ color: 'var(--color-text-secondary)' }}>
-                                Раздел доступен только руководителю подразделения HAULZ.
-                            </Typography.Body>
-                            {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.doc_claims === true && (
-                                <Button type="button" className="button-primary" onClick={() => { setCurrentView('accounting'); setAccountingSubsection('claims'); setSelectedAccountingRequest(null); }}>
-                                    Претензии
-                                </Button>
-                            )}
-                            {activeAccount?.permissions?.accounting === true && (
-                                <Button type="button" className="button-primary" onClick={() => setCurrentView('accounting')}>
-                                    Бухгалтерия
-                                </Button>
-                            )}
-                        </Flex>
+                    {activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true && (
+                        <Button type="button" className="button-primary" onClick={() => setCurrentView('departmentTimesheet')}>
+                            Табель учета рабочего времени
+                        </Button>
+                    )}
+                    {activeAccount?.permissions?.haulz === true && (
+                        <Button type="button" className="button-primary" onClick={() => setCurrentView('expenseRequests')}>
+                            Заявки на расходы
+                        </Button>
+                    )}
+                    {activeAccount?.permissions?.haulz === true && activeAccount?.permissions?.doc_claims === true && (
+                        <Button type="button" className="button-primary" onClick={() => { setCurrentView('accounting'); setAccountingSubsection('claims'); setSelectedAccountingRequest(null); }}>
+                            Претензии
+                        </Button>
+                    )}
+                    {activeAccount?.permissions?.accounting === true && (
+                        <Button type="button" className="button-primary" onClick={() => setCurrentView('accounting')}>
+                            Бухгалтерия
+                        </Button>
                     )}
                 </Flex>
             </div>

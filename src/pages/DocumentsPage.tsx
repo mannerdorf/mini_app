@@ -1130,8 +1130,16 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             if (!raw) return;
             const statusKey = getFilterKeyByStatus(String(cargo?.State ?? cargo?.state ?? cargo?.Статус ?? ''));
             if (statusKey !== 'ready' && statusKey !== 'delivered') return;
+            // Окончание «в пути» — момент получения статуса «Готов к выдаче» или «Доставлено» (дата статуса)
             const stopDate = parseDateTimeValue(
-                cargo?.DateVr
+                cargo?.StatusDate
+                ?? cargo?.DateStatus
+                ?? cargo?.DateState
+                ?? cargo?.UpdatedAt
+                ?? cargo?.updated_at
+                ?? cargo?.ДатаСтатуса
+                ?? cargo?.ДатаИзменения
+                ?? cargo?.DateVr
                 ?? cargo?.DatePrih
                 ?? cargo?.DateDelivery
                 ?? cargo?.DeliveryDate
@@ -1237,8 +1245,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             if (!stopDateByCargo || cargoStopDate.getTime() < stopDateByCargo.getTime()) stopDateByCargo = cargoStopDate;
         });
         const hasReadyStatusInRow = rowStatusKey === 'ready' || rowStatusKey === 'delivered';
+        // Окончание «в пути» — дата получения статуса «Готов к выдаче»/«Доставлено», затем явная дата доставки
         const end = (hasStopStatus || hasReadyStatusInRow)
-            ? (stopDateByCargo ?? explicitEnd ?? rowStopDate ?? new Date())
+            ? (stopDateByCargo ?? rowStopDate ?? explicitEnd ?? new Date())
             : (explicitEnd ?? new Date());
         const diffMs = end.getTime() - start.getTime();
         if (!Number.isFinite(diffMs) || diffMs < 0) return null;
