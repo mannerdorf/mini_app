@@ -22,6 +22,8 @@ type DbRow = {
   employee_name: string;
   comment: string;
   vehicle_text: string | null;
+  supplier_name: string | null;
+  supplier_inn: string | null;
   status: string;
   rejection_reason: string | null;
   created_at: string;
@@ -92,6 +94,8 @@ function toFrontendFormat(r: DbRow, login: string) {
     employeeName: r.employee_name || "",
     comment: r.comment || "",
     vehicleOrEmployee: r.vehicle_text || "",
+    supplierName: r.supplier_name || "",
+    supplierInn: r.supplier_inn || "",
     attachmentNames: [] as string[],
     status: r.status,
     rejectionReason: r.rejection_reason,
@@ -135,6 +139,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            ${selectExpr("employee_name", "''::text")},
            ${selectExpr("comment", "''::text")},
            ${selectExpr("vehicle_text", "NULL::text")},
+           ${selectExpr("supplier_name", "NULL::text")},
+           ${selectExpr("supplier_inn", "NULL::text")},
            ${selectExpr("status", "'draft'::text")},
            ${selectExpr("rejection_reason", "NULL::text")},
            ${selectExpr("created_at", "now()")}
@@ -324,6 +330,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const vText = String(b?.vehicleOrEmployee ?? "").trim();
       add("vehicle_text", vText || null);
       add("employee_name", String(b?.employeeName ?? "").trim());
+      add("supplier_name", String(b?.supplierName ?? "").trim() || null);
+      add("supplier_inn", String(b?.supplierInn ?? "").trim() || null);
       if (has("updated_at")) {
         sets.push("updated_at = now()");
       }

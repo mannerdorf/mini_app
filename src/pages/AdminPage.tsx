@@ -843,6 +843,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [expenseEditComment, setExpenseEditComment] = useState("");
   const [expenseEditVehicle, setExpenseEditVehicle] = useState("");
   const [expenseEditEmployee, setExpenseEditEmployee] = useState("");
+  const [expenseEditSupplierName, setExpenseEditSupplierName] = useState("");
+  const [expenseEditSupplierInn, setExpenseEditSupplierInn] = useState("");
   const [editorChangeLoginValue, setEditorChangeLoginValue] = useState("");
   const [editorChangeLoginOpen, setEditorChangeLoginOpen] = useState(false);
   const [editorChangeLoginLoading, setEditorChangeLoginLoading] = useState(false);
@@ -2499,6 +2501,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       comment: expenseEditComment,
       vehicleOrEmployee: expenseEditVehicle,
       employeeName: expenseEditEmployee,
+      supplierName: expenseEditSupplierName,
+      supplierInn: expenseEditSupplierInn,
     };
     if (adminToken) {
       try {
@@ -2538,13 +2542,15 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           comment: expenseEditComment,
           vehicleOrEmployee: expenseEditVehicle,
           employeeName: expenseEditEmployee,
+          supplierName: expenseEditSupplierName,
+          supplierInn: expenseEditSupplierInn,
         } : r
       );
       localStorage.setItem(storageKey, JSON.stringify(updated));
       setExpenseEditId(null);
       reloadAllExpenseRequests();
     } catch { /* skip */ }
-  }, [adminToken, expenseEditDocNumber, expenseEditDocDate, expenseEditPeriod, expenseEditDepartment, expenseEditCategory, expenseEditAmount, expenseEditVatRate, expenseEditComment, expenseEditVehicle, expenseEditEmployee, reloadAllExpenseRequests]);
+  }, [adminToken, expenseEditDocNumber, expenseEditDocDate, expenseEditPeriod, expenseEditDepartment, expenseEditCategory, expenseEditAmount, expenseEditVatRate, expenseEditComment, expenseEditVehicle, expenseEditEmployee, expenseEditSupplierName, expenseEditSupplierInn, reloadAllExpenseRequests]);
 
   const fetchEmployeeDirectory = useCallback(async (monthForTimesheet?: string) => {
     if (!adminToken || !isSuperAdmin) return;
@@ -8735,6 +8741,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Комментарий</th>
                       <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>ТС</th>
                       <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Сотрудник</th>
+                      <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Поставщик услуг</th>
                       <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Вложения</th>
                       <th style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--color-border)" }}>Действия</th>
                     </tr>
@@ -8761,6 +8768,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         </td>
                         <td style={{ padding: "6px 8px" }}>{r.vehicleOrEmployee || "—"}</td>
                         <td style={{ padding: "6px 8px" }}>{(r as any).employeeName || "—"}</td>
+                        <td style={{ padding: "6px 8px" }}>
+                          {(() => {
+                            const sn = (r as any).supplierName;
+                            const inn = (r as any).supplierInn;
+                            return sn || inn ? [sn, inn ? `ИНН ${inn}` : ""].filter(Boolean).join(", ") : "—";
+                          })()}
+                        </td>
                         <td style={{ padding: "6px 8px", fontSize: "0.7rem" }} onClick={(e) => e.stopPropagation()}>
                           {(r as any).attachments?.length
                             ? (r as any).attachments.map((att: { id?: number; fileName?: string; name?: string; dataUrl?: string }, i: number) => (
@@ -8822,7 +8836,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             {isAccounting && (r.status === "approved" || r.status === "sent") && (
                               <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "paid", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
                             )}
-                            <button type="button" onClick={() => { setExpenseEditId(r.id); setExpenseEditDocNumber((r as any).docNumber ?? ""); setExpenseEditDocDate((r as any).docDate ?? ""); setExpenseEditPeriod((r as any).period ?? ""); setExpenseEditDepartment(r.department); setExpenseEditCategory(r.categoryId); setExpenseEditAmount(String(r.amount)); setExpenseEditVatRate((r as any).vatRate ?? ""); setExpenseEditComment(r.comment); setExpenseEditVehicle(r.vehicleOrEmployee); setExpenseEditEmployee((r as any).employeeName ?? ""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer" }}>Изменить</button>
+                            <button type="button" onClick={() => { setExpenseEditId(r.id); setExpenseEditDocNumber((r as any).docNumber ?? ""); setExpenseEditDocDate((r as any).docDate ?? ""); setExpenseEditPeriod((r as any).period ?? ""); setExpenseEditDepartment(r.department); setExpenseEditCategory(r.categoryId); setExpenseEditAmount(String(r.amount)); setExpenseEditVatRate((r as any).vatRate ?? ""); setExpenseEditComment(r.comment); setExpenseEditVehicle(r.vehicleOrEmployee); setExpenseEditEmployee((r as any).employeeName ?? ""); setExpenseEditSupplierName((r as any).supplierName ?? ""); setExpenseEditSupplierInn((r as any).supplierInn ?? ""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer" }}>Изменить</button>
                             <button type="button" onClick={() => { if (window.confirm("Удалить заявку? Действие нельзя отменить.")) deleteExpenseRequest(r.id, r.login); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Удалить</button>
                           </Flex>
                         </td>
@@ -8859,6 +8873,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <div><span style={{ color: "var(--color-text-secondary)" }}>Комментарий:</span> {item.comment || "—"}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>ТС:</span> {item.vehicleOrEmployee || "—"}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>Сотрудник:</span> {(item as any).employeeName || "—"}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>Поставщик услуг:</span> {(() => {
+                        const sn = (item as any).supplierName;
+                        const inn = (item as any).supplierInn;
+                        return sn || inn ? [sn, inn ? `ИНН ${inn}` : ""].filter(Boolean).join(", ") : "—";
+                      })()}</div>
                       <div>
                         <Typography.Body style={{ fontWeight: 600, fontSize: "0.82rem", marginBottom: "0.25rem", display: "block" }}>Прикреплённые документы</Typography.Body>
                         {atts.length > 0 ? (
@@ -8923,7 +8942,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     </div>
                     <Flex gap="0.5rem" justify="flex-end">
                       <Button type="button" className="filter-button" onClick={() => setExpenseViewId(null)}>Закрыть</Button>
-                      <Button type="button" className="filter-button" onClick={() => { setExpenseViewId(null); setExpenseEditId(item.id); setExpenseEditDocNumber((item as any).docNumber ?? ""); setExpenseEditDocDate((item as any).docDate ?? ""); setExpenseEditPeriod((item as any).period ?? ""); setExpenseEditDepartment(item.department); setExpenseEditCategory(item.categoryId); setExpenseEditAmount(String(item.amount)); setExpenseEditVatRate((item as any).vatRate ?? ""); setExpenseEditComment(item.comment); setExpenseEditVehicle(item.vehicleOrEmployee); setExpenseEditEmployee((item as any).employeeName ?? ""); }}>Изменить</Button>
+                      <Button type="button" className="filter-button" onClick={() => { setExpenseViewId(null); setExpenseEditId(item.id); setExpenseEditDocNumber((item as any).docNumber ?? ""); setExpenseEditDocDate((item as any).docDate ?? ""); setExpenseEditPeriod((item as any).period ?? ""); setExpenseEditDepartment(item.department); setExpenseEditCategory(item.categoryId); setExpenseEditAmount(String(item.amount)); setExpenseEditVatRate((item as any).vatRate ?? ""); setExpenseEditComment(item.comment); setExpenseEditVehicle(item.vehicleOrEmployee); setExpenseEditEmployee((item as any).employeeName ?? ""); setExpenseEditSupplierName((item as any).supplierName ?? ""); setExpenseEditSupplierInn((item as any).supplierInn ?? ""); }}>Изменить</Button>
                     </Flex>
                   </div>
                 </div>
@@ -9045,6 +9064,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             return opts.map((n) => <option key={n} value={n}>{n}</option>);
                           })()}
                         </select>
+                      </div>
+                      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+                          <label style={fieldLabel}>Поставщик услуг (название)</label>
+                          <input type="text" className="admin-form-input" value={expenseEditSupplierName} onChange={(e) => setExpenseEditSupplierName(e.target.value)} style={fieldInput} placeholder="Название поставщика" />
+                        </div>
+                        <div style={{ flex: "0 1 140px", minWidth: 100 }}>
+                          <label style={fieldLabel}>ИНН поставщика</label>
+                          <input type="text" className="admin-form-input" value={expenseEditSupplierInn} onChange={(e) => setExpenseEditSupplierInn(e.target.value)} style={fieldInput} placeholder="ИНН" />
+                        </div>
                       </div>
                       <div>
                         <label style={fieldLabel}>Комментарий</label>
