@@ -210,6 +210,17 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                         if (local) {
                             byId.set(api.id, {
                                 ...local,
+                                department: api.department ?? local.department,
+                                docNumber: api.docNumber ?? local.docNumber,
+                                docDate: api.docDate ?? local.docDate,
+                                period: api.period ?? local.period,
+                                categoryId: api.categoryId ?? local.categoryId,
+                                categoryName: api.categoryName ?? local.categoryName,
+                                amount: Number(api.amount) || local.amount,
+                                vatRate: api.vatRate ?? local.vatRate,
+                                comment: api.comment ?? local.comment,
+                                vehicleOrEmployee: api.vehicleOrEmployee ?? local.vehicleOrEmployee,
+                                employeeName: api.employeeName ?? local.employeeName,
                                 status: api.status as ExpenseRequestItem["status"],
                                 rejectionReason: api.rejectionReason ?? local.rejectionReason,
                             });
