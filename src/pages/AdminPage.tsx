@@ -817,6 +817,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [adminMeLoaded, setAdminMeLoaded] = useState(false);
   const [adminExpenseRequests, setAdminExpenseRequests] = useState<(ExpenseRequestItem & { login: string })[]>([]);
   const [adminExpenseSortCol, setAdminExpenseSortCol] = useState<"createdAt" | "docNumber" | "docDate" | "period" | "department" | "categoryName" | "amount" | "status" | "login">("createdAt");
   const [adminExpenseSortAsc, setAdminExpenseSortAsc] = useState(false);
@@ -1911,16 +1912,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [tab, adminToken, fetchWorkScheduleCustomers]);
 
   useEffect(() => {
-    if (!adminToken) return;
+    if (!adminToken) {
+      setAdminMeLoaded(false);
+      return;
+    }
+    setAdminMeLoaded(false);
     fetch("/api/admin-me", { headers: { Authorization: `Bearer ${adminToken}` } })
       .then((res) => (res.ok ? res.json() : {}))
-      .then((data: { isSuperAdmin?: boolean }) => setIsSuperAdmin(data?.isSuperAdmin === true))
-      .catch(() => {});
+      .then((data: { isSuperAdmin?: boolean }) => {
+        setIsSuperAdmin(data?.isSuperAdmin === true);
+        setAdminMeLoaded(true);
+      })
+      .catch(() => setAdminMeLoaded(true));
   }, [adminToken]);
 
   useEffect(() => {
+    if (!adminMeLoaded) return;
     if (!isSuperAdmin && (tab === "employee_directory" || tab === "subdivisions" || tab === "presets" || tab === "payment_calendar" || tab === "work_schedule" || tab === "timesheet" || tab === "expense_requests" || tab === "accounting" || tab === "claims" || tab === "pnl")) setTab("users");
-  }, [isSuperAdmin, tab]);
+  }, [adminMeLoaded, isSuperAdmin, tab]);
 
   const reloadAllExpenseRequests = useCallback(async () => {
     const fromLocalStorage = () => {
@@ -2471,15 +2480,46 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
 
   const CATEGORIES_LIST = [{ id: "fuel", name: "Топливо" }, { id: "repair", name: "Ремонт и обслуживание" }, { id: "spare_parts", name: "Запасные части" }, { id: "salary", name: "Зарплата" }, { id: "office", name: "Офис" }, { id: "rent", name: "Аренда" }, { id: "insurance", name: "Страхование" }, { id: "mainline", name: "Магистраль" }, { id: "pickup_logistics", name: "Заборная логистика" }, { id: "other", name: "Прочее" }];
 
-  const saveExpenseEdit = useCallback((itemId: string, itemLogin: string) => {
+  const saveExpenseEdit = useCallback(async (itemId: string, itemLogin: string) => {
+    const num = parseFloat(expenseEditAmount.replace(",", "."));
+    const catObj = CATEGORIES_LIST.find((c) => c.id === expenseEditCategory);
+    const payload = {
+      uid: itemId,
+      docNumber: expenseEditDocNumber,
+      docDate: expenseEditDocDate || null,
+      period: expenseEditPeriod,
+      department: expenseEditDepartment,
+      categoryId: catObj?.id ?? expenseEditCategory,
+      amount: Number.isFinite(num) && num > 0 ? num : undefined,
+      vatRate: expenseEditVatRate,
+      comment: expenseEditComment,
+      vehicleOrEmployee: expenseEditVehicle,
+      employeeName: expenseEditEmployee,
+    };
+    if (adminToken) {
+      try {
+        const res = await fetch("/api/admin-expense-requests", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          setExpenseEditId(null);
+          reloadAllExpenseRequests();
+          return;
+        }
+        const errData = await res.json().catch(() => ({}));
+        setError(String(errData?.error || "Ошибка сохранения заявки"));
+      } catch (e) {
+        setError((e as Error)?.message || "Ошибка сохранения заявки");
+      }
+    }
     const storageKey = `haulz.expense_requests.${itemLogin}`;
     try {
       const raw = localStorage.getItem(storageKey);
       if (!raw) return;
       const items = JSON.parse(raw) as ExpenseRequestItem[];
       if (!Array.isArray(items)) return;
-      const num = parseFloat(expenseEditAmount.replace(",", "."));
-      const catObj = CATEGORIES_LIST.find((c) => c.id === expenseEditCategory);
       const updated = items.map((r) =>
         r.id === itemId ? {
           ...r,
@@ -2499,7 +2539,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setExpenseEditId(null);
       reloadAllExpenseRequests();
     } catch { /* skip */ }
-  }, [expenseEditDocNumber, expenseEditDocDate, expenseEditPeriod, expenseEditDepartment, expenseEditCategory, expenseEditAmount, expenseEditVatRate, expenseEditComment, expenseEditVehicle, expenseEditEmployee, reloadAllExpenseRequests]);
+  }, [adminToken, expenseEditDocNumber, expenseEditDocDate, expenseEditPeriod, expenseEditDepartment, expenseEditCategory, expenseEditAmount, expenseEditVatRate, expenseEditComment, expenseEditVehicle, expenseEditEmployee, reloadAllExpenseRequests]);
 
   const fetchEmployeeDirectory = useCallback(async (monthForTimesheet?: string) => {
     if (!adminToken || !isSuperAdmin) return;
@@ -8514,6 +8554,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           else { setAdminExpenseSortCol(col); setAdminExpenseSortAsc(true); }
         };
         const arrow = (col: typeof adminExpenseSortCol) => adminExpenseSortCol === col ? (adminExpenseSortAsc ? " ▲" : " ▼") : "";
+        const loginToFullName = Object.fromEntries(
+          employeeDirectoryItems.map((e) => [e.login.trim().toLowerCase(), e.full_name?.trim() || e.login])
+        ) as Record<string, string>;
+        const getLoginDisplayName = (login: string) =>
+          loginToFullName[login?.trim().toLowerCase() ?? ""] || login || "—";
         const baseFiltered = isAccountingExpenses ? adminExpenseRequests.filter((r) => r.status === "approved" || r.status === "sent" || r.status === "paid") : adminExpenseRequests;
         const filtered = baseFiltered.filter((r) => {
           if (expenseFilterDate && (r as any).period !== expenseFilterDate) return false;
@@ -8684,7 +8729,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         ["docNumber", "№ док."],
                         ["docDate", "Дата док."],
                         ["period", "Период"],
-                        ["login", "Логин"],
+                        ["login", "ФИО"],
                         ["department", "Подразделение"],
                         ["categoryName", "Статья"],
                         ["amount", "Сумма"],
@@ -8710,7 +8755,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).docNumber || "—"}</td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).docDate ? new Date((r as any).docDate + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).period || "—"}</td>
-                        <td style={{ padding: "6px 8px" }}>{r.login}</td>
+                        <td style={{ padding: "6px 8px" }}>{getLoginDisplayName(r.login)}</td>
                         <td style={{ padding: "6px 8px" }}>{r.department}</td>
                         <td style={{ padding: "6px 8px" }}>{r.categoryName}</td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.amount.toLocaleString("ru-RU")} ₽{(r as any).vatRate ? ` (${(r as any).vatRate}%)` : ""}</td>
@@ -8811,7 +8856,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <div><span style={{ color: "var(--color-text-secondary)" }}>№ док.:</span> {(item as any).docNumber || "—"}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>Дата док.:</span> {(item as any).docDate || "—"}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>Период:</span> {(item as any).period || "—"}</div>
-                      <div><span style={{ color: "var(--color-text-secondary)" }}>Логин:</span> {item.login || "—"}</div>
+                      <div><span style={{ color: "var(--color-text-secondary)" }}>ФИО:</span> {getLoginDisplayName(item.login)}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>Подразделение:</span> {item.department || "—"}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>Статья:</span> {item.categoryName || "—"}</div>
                       <div><span style={{ color: "var(--color-text-secondary)" }}>Сумма:</span> {item.amount.toLocaleString("ru-RU")} ₽</div>

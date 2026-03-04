@@ -167,6 +167,7 @@ export function ProfilePage({
     const [selectedAccountingRequest, setSelectedAccountingRequest] = useState<typeof accountingRequestsItems[0] | null>(null);
     const [accountingRequestsLoading, setAccountingRequestsLoading] = useState(false);
     const [accountingRequestsError, setAccountingRequestsError] = useState<string | null>(null);
+    const [accountingSubsection, setAccountingSubsection] = useState<"expense_requests" | "sverki" | "claims">("expense_requests");
     const departmentShiftHoldTriggeredRef = useRef(false);
     const normalizeShiftMark = (rawValue: string): ShiftMarkCode | "" => {
         const raw = String(rawValue || "").trim().toUpperCase();
@@ -1208,6 +1209,54 @@ export function ProfilePage({
                     </Button>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Бухгалтерия</Typography.Headline>
                 </Flex>
+                <Panel className="cargo-card" style={{ padding: '0.75rem 1rem', marginBottom: '1rem' }}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: '0.55rem' }}>Бухгалтерия — подразделы</Typography.Body>
+                    <Flex gap="0.5rem" wrap="wrap">
+                        <Button
+                            type="button"
+                            className="filter-button"
+                            style={{
+                                background: accountingSubsection === "expense_requests" ? "var(--color-primary-blue)" : undefined,
+                                color: accountingSubsection === "expense_requests" ? "white" : undefined,
+                                height: 36,
+                                padding: "0 0.85rem",
+                                minWidth: 170,
+                            }}
+                            onClick={() => { setAccountingSubsection("expense_requests"); setSelectedAccountingRequest(null); }}
+                        >
+                            Заявки на расходы
+                        </Button>
+                        <Button
+                            type="button"
+                            className="filter-button"
+                            style={{
+                                background: accountingSubsection === "sverki" ? "var(--color-primary-blue)" : undefined,
+                                color: accountingSubsection === "sverki" ? "white" : undefined,
+                                height: 36,
+                                padding: "0 0.85rem",
+                                minWidth: 130,
+                            }}
+                            onClick={() => { setAccountingSubsection("sverki"); setSelectedAccountingRequest(null); }}
+                        >
+                            Акты сверок
+                        </Button>
+                        <Button
+                            type="button"
+                            className="filter-button"
+                            style={{
+                                background: accountingSubsection === "claims" ? "var(--color-primary-blue)" : undefined,
+                                color: accountingSubsection === "claims" ? "white" : undefined,
+                                height: 36,
+                                padding: "0 0.85rem",
+                                minWidth: 120,
+                            }}
+                            onClick={() => { setAccountingSubsection("claims"); setSelectedAccountingRequest(null); }}
+                        >
+                            Претензии
+                        </Button>
+                    </Flex>
+                </Panel>
+                {accountingSubsection === "expense_requests" && (
                 <Panel className="cargo-card" style={{ padding: '1rem' }}>
                     <Flex align="center" justify="space-between" wrap="wrap" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
                         <Typography.Body style={{ fontWeight: 600 }}>
@@ -1272,6 +1321,23 @@ export function ProfilePage({
                         </div>
                     )}
                 </Panel>
+                )}
+                {accountingSubsection === "sverki" && (
+                <Panel className="cargo-card" style={{ padding: "1rem" }}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Акты сверок</Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+                        Заявки на формирование актов сверок доступны в веб-версии (CMS) в разделе Бухгалтерия.
+                    </Typography.Body>
+                </Panel>
+                )}
+                {accountingSubsection === "claims" && (
+                <Panel className="cargo-card" style={{ padding: "1rem" }}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Претензии</Typography.Body>
+                    <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+                        Работа с претензиями финансового контура доступна в веб-версии (CMS) в разделе Бухгалтерия.
+                    </Typography.Body>
+                </Panel>
+                )}
 
                 {selectedAccountingRequest && (
                     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setSelectedAccountingRequest(null)}>

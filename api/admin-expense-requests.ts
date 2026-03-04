@@ -283,6 +283,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  res.setHeader("Allow", "GET, PATCH, DELETE");
+  if (req.method === "PUT") {
+    let body: unknown = req.body;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        return res.status(400).json({ error: "Invalid JSON" });
+      }
+    }
+    const b = body as Record<string, unknown>;
+    const uid = String(b?.uid ?? "").trim();
+    if (!uid) return res.status(400).json({ error: "Укажите uid" });
+    try {
+      const colsRes = await pool.query<{ column_name: string }>(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'expense_requests'`
+      );
+      const cols = new Set(colsRes.rows.map((r) => String(r.column_name || "").trim()));
+      const has = (n: string) => cols.has(n);
+      const sets: string[] = [];
+      const values: unknown[] = [];
+      let i = 0;
+      const add = (col: string, val: unknown) => {
+        if (has(col) && val !== undefined) {
+          i += 1;
+          sets.push(`${col} = $${i}`);
+          values.push(val);
+        }
+      };
+      add("doc_number", String(b?.docNumber ?? "").trim());
+      add("doc_date", typeof b?.docDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.docDate) ? b.docDate : null);
+      add("period", String(b?.period ?? "").trim());
+      add("department", String(b?.department ?? "").trim());
+      add("category_id", String(b?.categoryId ?? "other").trim());
+      const amount = Number(b?.amount);
+      if (Number.isFinite(amount)) add("amount", amount);
+      add("vat_rate", String(b?.vatRate ?? "").trim());
+      add("comment", String(b?.comment ?? "").trim());
+      const vText = String(b?.vehicleOrEmployee ?? "").trim();
+      add("vehicle_text", vText || null);
+      add("employee_name", String(b?.employeeName ?? "").trim());
+      if (has("updated_at")) {
+        i += 1;
+        sets.push("updated_at = now()");
+      }
+      if (sets.length === 0) return res.status(400).json({ error: "Нет полей для обновления" });
+      values.push(uid);
+      const { rowCount } = await pool.query(
+        `UPDATE expense_requests SET ${sets.join(", ")} WHERE uid = $${i + 1}`,
+        values
+      );
+      if (rowCount === 0) return res.status(404).json({ error: "Заявка не найдена" });
+      return res.json({ ok: true });
+    } catch (e) {
+      console.error("admin-expense-requests PUT:", e);
+      return res.status(500).json({ error: "Ошибка обновления заявки" });
+    }
+  }
+
+  res.setHeader("Allow", "GET, PATCH, PUT, DELETE");
   return res.status(405).json({ error: "Method not allowed" });
 }
