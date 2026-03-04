@@ -5502,19 +5502,52 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Период по</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Контрагент</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>ИНН</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sverkiList.map((row) => (
-                    <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? new Date(row.docDate).toLocaleDateString("ru-RU") : "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodFrom ? new Date(row.periodFrom).toLocaleDateString("ru-RU") : "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodTo ? new Date(row.periodTo).toLocaleDateString("ru-RU") : "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>{row.customerName || "—"}</td>
-                      <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
-                    </tr>
-                  ))}
+                  {sverkiList.map((row) => {
+                    const number = String(row.docNumber || "").trim();
+                    const docDateRaw = row.docDate;
+                    const dateDoc = docDateRaw
+                      ? (() => {
+                          const d = new Date(docDateRaw);
+                          if (isNaN(d.getTime())) return "";
+                          const y = d.getFullYear();
+                          const m = String(d.getMonth() + 1).padStart(2, "0");
+                          const day = String(d.getDate()).padStart(2, "0");
+                          return `${y}-${m}-${day}T00:00:00`;
+                        })()
+                      : "";
+                    const downloadUrl = number && dateDoc
+                      ? `https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile?metod=АктСверки&Number=${encodeURIComponent(number)}&DateDoc=${encodeURIComponent(dateDoc)}`
+                      : null;
+                    return (
+                      <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docNumber || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.docDate ? new Date(row.docDate).toLocaleDateString("ru-RU") : "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodFrom ? new Date(row.periodFrom).toLocaleDateString("ru-RU") : "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.periodTo ? new Date(row.periodTo).toLocaleDateString("ru-RU") : "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem" }}>{row.customerName || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", whiteSpace: "nowrap" }}>{row.customerInn || "—"}</td>
+                        <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>
+                          {downloadUrl ? (
+                            <Button
+                              type="button"
+                              className="filter-button"
+                              style={{ fontSize: "0.8rem", padding: "0.25rem 0.5rem" }}
+                              onClick={() => window.open(downloadUrl, "_blank", "noopener")}
+                            >
+                              <Download className="w-4 h-4" style={{ verticalAlign: "middle", marginRight: "0.25rem" }} />
+                              Скачать
+                            </Button>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

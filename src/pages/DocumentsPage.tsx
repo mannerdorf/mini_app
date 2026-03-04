@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { Calendar, ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck, Flag, ClipboardList, RotateCcw } from "lucide-react";
+import { Calendar, ChevronDown, ArrowUp, ArrowDown, Share2, Heart, Ship, Loader2, Truck, Flag, ClipboardList, RotateCcw, Download } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
@@ -4376,18 +4376,51 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Период с</th>
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Период по</th>
                                         {effectiveServiceMode ? <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Контрагент</th> : null}
+                                        <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right', fontWeight: 600 }}></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredSverki.map((row) => (
-                                        <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                            <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
-                                            <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.docDate || undefined} /></td>
-                                            <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.periodFrom || undefined} /></td>
-                                            <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.periodTo || undefined} /></td>
-                                            {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{row.customerName || '—'}</td> : null}
-                                        </tr>
-                                    ))}
+                                    {filteredSverki.map((row) => {
+                                        const number = String(row.docNumber || '').trim();
+                                        const docDateRaw = row.docDate;
+                                        const dateDoc = docDateRaw
+                                            ? (() => {
+                                                const d = new Date(docDateRaw);
+                                                if (isNaN(d.getTime())) return '';
+                                                const y = d.getFullYear();
+                                                const m = String(d.getMonth() + 1).padStart(2, '0');
+                                                const day = String(d.getDate()).padStart(2, '0');
+                                                return `${y}-${m}-${day}T00:00:00`;
+                                            })()
+                                            : '';
+                                        const downloadUrl = number && dateDoc
+                                            ? `https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile?metod=АктСверки&Number=${encodeURIComponent(number)}&DateDoc=${encodeURIComponent(dateDoc)}`
+                                            : null;
+                                        return (
+                                            <tr key={row.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{row.docNumber || '—'}</td>
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.docDate || undefined} /></td>
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.periodFrom || undefined} /></td>
+                                                <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}><DateText value={row.periodTo || undefined} /></td>
+                                                {effectiveServiceMode ? <td style={{ padding: '0.5rem 0.75rem' }}>{row.customerName || '—'}</td> : null}
+                                                <td style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>
+                                                    {downloadUrl ? (
+                                                        <button
+                                                            type="button"
+                                                            className="button-primary"
+                                                            style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                                            onClick={() => window.open(downloadUrl, '_blank', 'noopener')}
+                                                        >
+                                                            <Download className="w-4 h-4" />
+                                                            Скачать
+                                                        </button>
+                                                    ) : (
+                                                        '—'
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
