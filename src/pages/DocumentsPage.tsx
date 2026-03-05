@@ -507,6 +507,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const allowedDocSections = useMemo(() => {
         if (!permissions) return DOC_SECTIONS;
         return DOC_SECTIONS.filter(({ key }) => {
+            if (key === 'Отправки') return permissions.doc_sendings === true && permissions.haulz === true;
             if (key === 'Претензии') return permissions.doc_claims === true;
             return permissions[DOC_SECTION_TO_PERMISSION[key]] !== false;
         });

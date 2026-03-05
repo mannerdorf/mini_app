@@ -64,7 +64,7 @@ import { formatCurrency, stripOoo, formatInvoiceNumber, cityToCode, transliterat
 import { PROXY_API_BASE_URL, PROXY_API_GETCUSTOMERS_URL, PROXY_API_DOWNLOAD_URL, PROXY_API_SEND_DOC_URL, PROXY_API_GETPEREVOZKA_URL, PROXY_API_INVOICES_URL } from "./constants/config";
 import { usePerevozki, usePerevozkiMulti, usePerevozkiMultiAccounts, usePrevPeriodPerevozki, useInvoices } from "./hooks/useApi";
 import type {
-    Account, ApiError, AuthData, CargoItem, CompanyRow, CustomerOption,
+    Account, AccountPermissions, ApiError, AuthData, CargoItem, CompanyRow, CustomerOption,
     PerevozkiRole, ProfileView, StatusFilter, Tab,
 } from "./types";
 
@@ -82,6 +82,31 @@ const resolveChecked = (value: unknown): boolean => {
         if (typeof target?.checked === "boolean") return target.checked;
     }
     return false;
+};
+
+const toBooleanPermission = (value: unknown): boolean | undefined => {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") {
+        if (value === 1) return true;
+        if (value === 0) return false;
+        return undefined;
+    }
+    if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on") return true;
+        if (normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off") return false;
+    }
+    return undefined;
+};
+
+const normalizePermissions = (raw: unknown): AccountPermissions | undefined => {
+    if (!raw || typeof raw !== "object") return undefined;
+    const out: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+        const boolValue = toBooleanPermission(value);
+        if (boolValue !== undefined) out[key] = boolValue;
+    }
+    return out as AccountPermissions;
 };
 
 const getFileNameFromDisposition = (header: string | null, fallback: string) => {
@@ -572,7 +597,12 @@ export default function App() {
                         // При загрузке: подставить customer по первому заказчику; не доверять inCustomerDirectory из кэша — подтянем с бэкенда
                         parsedAccounts = parsedAccounts.map((acc) => {
                             const withCustomer = acc.customers?.length && !acc.customer ? { ...acc, customer: acc.customers[0].name } : acc;
-                            return { ...withCustomer, inCustomerDirectory: undefined as boolean | undefined };
+                            const normalizedPerms = normalizePermissions(withCustomer.permissions);
+                            return {
+                                ...withCustomer,
+                                ...(normalizedPerms ? { permissions: normalizedPerms } : {}),
+                                inCustomerDirectory: undefined as boolean | undefined,
+                            };
                         });
                         setAccounts(parsedAccounts);
                         if (savedActiveId && parsedAccounts.find(acc => acc.id === savedActiveId)) {
@@ -718,7 +748,7 @@ export default function App() {
                         customer: u.companyName ?? null,
                         accessAllInns: !!u.accessAllInns,
                         inCustomerDirectory: !!u.inCustomerDirectory,
-                        permissions: u.permissions,
+                        permissions: normalizePermissions(u.permissions),
                         financialAccess: u.financialAccess,
                     });
                 } catch {
@@ -778,7 +808,7 @@ export default function App() {
                                 customer: acc.customer ?? user.companyName ?? undefined,
                                 accessAllInns: !!user.accessAllInns,
                                 inCustomerDirectory: !!user.inCustomerDirectory,
-                                ...(user.permissions && typeof user.permissions === "object" ? { permissions: user.permissions } : {}),
+                                ...(normalizePermissions(user.permissions) ? { permissions: normalizePermissions(user.permissions) } : {}),
                                 ...(user.financialAccess != null ? { financialAccess: user.financialAccess } : {}),
                             }
                     )
@@ -814,7 +844,7 @@ export default function App() {
                             ? acc
                             : {
                                 ...acc,
-                                ...(user.permissions && typeof user.permissions === "object" ? { permissions: user.permissions } : {}),
+                                ...(normalizePermissions(user.permissions) ? { permissions: normalizePermissions(user.permissions) } : {}),
                                 ...(user.financialAccess != null ? { financialAccess: user.financialAccess } : {}),
                                 inCustomerDirectory: user.inCustomerDirectory !== undefined ? !!user.inCustomerDirectory : acc.inCustomerDirectory,
                             }
@@ -1060,8 +1090,8 @@ export default function App() {
         const customers: CustomerOption[] = user.inn ? [{ name: user.companyName || user.inn, inn: user.inn }] : [];
         const existingAccount = accounts.find(acc => acc.login === loginKey);
         const normalizedPermissions =
-            user.permissions && typeof user.permissions === "object"
-                ? user.permissions
+            normalizePermissions(user.permissions)
+                ? normalizePermissions(user.permissions)
                 : {
                     cargo: true,
                     doc_invoices: true,
@@ -1148,7 +1178,18 @@ export default function App() {
                         setAccounts((prev) =>
                             prev.map((acc) =>
                                 acc.id === existingAccount.id
-                                    ? { ...acc, password, customers, activeCustomerInn: acc.activeCustomerInn ?? u.inn, customer: u.companyName, isRegisteredUser: true, accessAllInns, inCustomerDirectory: !!u.inCustomerDirectory, permissions: u.permissions, financialAccess: u.financialAccess }
+                                    ? {
+                                        ...acc,
+                                        password,
+                                        customers,
+                                        activeCustomerInn: acc.activeCustomerInn ?? u.inn,
+                                        customer: u.companyName,
+                                        isRegisteredUser: true,
+                                        accessAllInns,
+                                        inCustomerDirectory: !!u.inCustomerDirectory,
+                                        ...(normalizePermissions(u.permissions) ? { permissions: normalizePermissions(u.permissions) } : {}),
+                                        financialAccess: u.financialAccess,
+                                    }
                                     : acc
                             )
                         );
@@ -1165,7 +1206,7 @@ export default function App() {
                             isRegisteredUser: true,
                             accessAllInns,
                             inCustomerDirectory: !!u.inCustomerDirectory,
-                            permissions: u.permissions,
+                            ...(normalizePermissions(u.permissions) ? { permissions: normalizePermissions(u.permissions) } : {}),
                             financialAccess: u.financialAccess,
                         };
                         setAccounts((prev) => [...prev, newAccount]);
