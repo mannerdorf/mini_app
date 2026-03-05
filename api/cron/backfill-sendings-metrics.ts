@@ -378,23 +378,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const insertCargoRes = await pool.query<{ count: string }>(
         `with ins as (
            insert into sendings_30d_cargo_queue (cargo_number, customer_inn, sending_number, updated_at)
-           select distinct
-             trim(both '"' from c.value::text) as cargo_number,
-             q.customer_inn,
-             q.sending_number,
+           select
+             d.cargo_number,
+             d.customer_inn,
+             d.sending_number,
              now()
-           from sendings_30d_queue q
-           cross join lateral jsonb_array_elements(coalesce(q.cargo_numbers, '[]'::jsonb)) c
-           where (
-                   q.send_start_at::date between $1::date and $2::date
-                   or q.first_ready_at::date between $1::date and $2::date
-                   or (
-                     q.send_start_at is not null
-                     and q.send_start_at::date <= $2::date
-                     and (q.first_ready_at is null or q.first_ready_at::date >= $1::date)
+           from (
+             select distinct on (trim(both '"' from c.value::text))
+               trim(both '"' from c.value::text) as cargo_number,
+               q.customer_inn,
+               q.sending_number,
+               q.send_start_at,
+               q.updated_at
+             from sendings_30d_queue q
+             cross join lateral jsonb_array_elements(coalesce(q.cargo_numbers, '[]'::jsonb)) c
+             where (
+                     q.send_start_at::date between $1::date and $2::date
+                     or q.first_ready_at::date between $1::date and $2::date
+                     or (
+                       q.send_start_at is not null
+                       and q.send_start_at::date <= $2::date
+                       and (q.first_ready_at is null or q.first_ready_at::date >= $1::date)
+                     )
                    )
-                 )
-             and trim(both '"' from c.value::text) <> ''
+               and trim(both '"' from c.value::text) <> ''
+             order by
+               trim(both '"' from c.value::text),
+               q.send_start_at desc nulls last,
+               q.updated_at desc
+           ) d
            on conflict (cargo_number) do update
              set customer_inn = excluded.customer_inn,
                  sending_number = excluded.sending_number,
