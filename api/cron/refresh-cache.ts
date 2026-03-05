@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
+import { buildSendingsMetrics, extractArrayFromAnyPayload, upsertSendingsMetrics } from "../../lib/sendingsMetrics.js";
 
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 const INVOICES_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices";
@@ -28,34 +29,6 @@ function getStr(el: any, ...keys: string[]): string {
     if (v != null && v !== "") return String(v).trim();
   }
   return "";
-}
-
-function extractArrayFromAnyPayload(raw: unknown): unknown[] {
-  if (Array.isArray(raw)) return raw;
-  if (!raw || typeof raw !== "object") return [];
-  const obj = raw as Record<string, unknown>;
-  const known = [
-    obj.items,
-    obj.Items,
-    obj.zayavki,
-    obj.Zayavki,
-    obj.otpravki,
-    obj.Otpravki,
-    obj.data,
-    obj.Data,
-    obj.result,
-    obj.Result,
-    obj.rows,
-    obj.Rows,
-  ];
-  for (const candidate of known) {
-    if (Array.isArray(candidate)) return candidate;
-  }
-  // Fallback: first array-like field in payload.
-  for (const value of Object.values(obj)) {
-    if (Array.isArray(value)) return value;
-  }
-  return [];
 }
 
 function escapeHtml(input: string): string {
@@ -163,6 +136,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await pool.query(
       "insert into cache_sendings (id, data, fetched_at) values (1, '[]', '1970-01-01') on conflict (id) do nothing"
     );
+    await pool.query(
+      `create table if not exists sendings_metrics (
+         customer_inn text not null,
+         sending_number text not null,
+         cargo_numbers jsonb not null default '[]'::jsonb,
+         send_start_at timestamptz,
+         first_ready_at timestamptz,
+         in_transit_hours numeric(12, 2),
+         first_seen_at timestamptz not null default now(),
+         last_seen_at timestamptz not null default now(),
+         updated_at timestamptz not null default now(),
+         primary key (customer_inn, sending_number)
+       )`
+    );
     markStep("tables", true);
   } catch (e: any) {
     markStep("tables", false, undefined, e?.message || String(e));
@@ -186,6 +173,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (e: any) {
     console.error("refresh-cache sendings error:", e?.message || e);
     markStep("sendings", false, 0, e?.message || String(e));
+  }
+
+  try {
+    const metricsRows = buildSendingsMetrics(sendingsList as any[], perevozkiList as any[]);
+    const upsertResult = await upsertSendingsMetrics(pool, metricsRows);
+    markStep("sendings_metrics", true, upsertResult.updated);
+  } catch (e: any) {
+    console.error("refresh-cache sendings_metrics error:", e?.message || e);
+    markStep("sendings_metrics", false, 0, e?.message || String(e));
   }
 
   try {
