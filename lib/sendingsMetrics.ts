@@ -279,8 +279,13 @@ export function buildSendingsMetrics(sendingsItems: any[], perevozkiItems: any[]
 
   (sendingsItems || []).forEach((row: any) => {
     let customerInn = pickSendingInn(row);
-    const sendingNumber = pickSendingNumber(row);
     const cargoNumbers = getSendingCargoNumbers(row);
+    let sendingNumber = pickSendingNumber(row);
+    // Исторические выгрузки иногда не содержат номер отправки, но содержат номера перевозок.
+    // В таком случае используем первый номер перевозки как стабильный fallback-ключ.
+    if (!sendingNumber && cargoNumbers.length > 0) {
+      sendingNumber = cargoNumbers[0];
+    }
     if (!customerInn && cargoNumbers.length > 0) {
       for (const cargoNumber of cargoNumbers) {
         const inferredInn = cargoInnByNumber.get(cargoNumber);
