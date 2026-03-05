@@ -1274,6 +1274,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         return Array.from(new Set(numbers));
     }, []);
     const getSendingTransitHours = useCallback((row: any): number | null => {
+        const metricHoursRaw = row?.in_transit_hours ?? row?.inTransitHours ?? row?.InTransitHours;
+        const metricHours = Number(metricHoursRaw);
+        if (Number.isFinite(metricHours) && metricHours >= 0) {
+            return Math.round(metricHours * 10) / 10;
+        }
         const start = parseDateTimeValue(
             row?.DateOtpr
             ?? row?.DateSend

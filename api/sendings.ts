@@ -8,6 +8,10 @@ const BASE_URL =
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const CACHE_FRESH_MINUTES = 15;
 
+function normalizeInn(value: unknown): string {
+  return String(value ?? "").replace(/\D/g, "").trim();
+}
+
 function normalizeDateOnly(raw: unknown): string {
   const s = String(raw ?? "").trim();
   if (!s) return "";
@@ -23,6 +27,10 @@ function normalizeDateOnly(raw: unknown): string {
 
 function pickInn(item: any): string {
   const candidates = [
+    item?.CustomerINN,
+    item?.customerINN,
+    item?.CustomerInn,
+    item?.customerInn,
     item?.SenderINN,
     item?.senderINN,
     item?.InnSender,
@@ -41,6 +49,102 @@ function pickInn(item: any): string {
     if (value) return value;
   }
   return "";
+}
+
+function pickSendingNumber(item: any): string {
+  const candidates = [
+    item?.SendingNumber,
+    item?.sendingNumber,
+    item?.NumberSend,
+    item?.NumberSending,
+    item?.НомерОтправки,
+    item?.НомерОтправления,
+    item?.НомерОтпр,
+    item?.Номер,
+    item?.Number,
+    item?.number,
+    item?.ИДОтправления,
+    item?.ID,
+    item?.Id,
+    item?.id,
+    item?.Ref_Key,
+    item?.RefKey,
+    item?.GUID,
+    item?.Guid,
+    item?.guid,
+  ];
+  for (const candidate of candidates) {
+    const value = String(candidate ?? "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+async function attachMetricsToSendings(
+  pool: { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }> },
+  list: any[]
+): Promise<any[]> {
+  if (!Array.isArray(list) || list.length === 0) return list;
+
+  const keys = list
+    .map((row) => ({
+      customer_inn: normalizeInn(pickInn(row)),
+      sending_number: pickSendingNumber(row),
+    }))
+    .filter((k) => k.sending_number);
+  if (!keys.length) return list;
+
+  const metricsRes = await pool.query<{
+    customer_inn: string;
+    sending_number: string;
+    in_transit_hours: number | null;
+    send_start_at: string | null;
+    first_ready_at: string | null;
+  }>(
+    `with src as (
+       select *
+       from jsonb_to_recordset($1::jsonb) as x(customer_inn text, sending_number text)
+     ),
+     s_numbers as (
+       select distinct sending_number from src where sending_number <> ''
+     )
+     select m.customer_inn, m.sending_number, m.in_transit_hours, m.send_start_at, m.first_ready_at
+     from sendings_metrics m
+     join s_numbers n on n.sending_number = m.sending_number`,
+    [JSON.stringify(keys)]
+  );
+
+  const byInnAndSending = new Map<string, (typeof metricsRes.rows)[number]>();
+  const bySendingUnique = new Map<string, (typeof metricsRes.rows)[number]>();
+  const sendingCounts = new Map<string, number>();
+
+  metricsRes.rows.forEach((row) => {
+    const inn = normalizeInn(row.customer_inn);
+    const sending = String(row.sending_number || "").trim();
+    if (!sending) return;
+    byInnAndSending.set(`${inn}|${sending}`, row);
+    sendingCounts.set(sending, (sendingCounts.get(sending) || 0) + 1);
+  });
+  metricsRes.rows.forEach((row) => {
+    const sending = String(row.sending_number || "").trim();
+    if (!sending) return;
+    if ((sendingCounts.get(sending) || 0) === 1) {
+      bySendingUnique.set(sending, row);
+    }
+  });
+
+  return list.map((row) => {
+    const inn = normalizeInn(pickInn(row));
+    const sending = pickSendingNumber(row);
+    const metric = byInnAndSending.get(`${inn}|${sending}`) ?? bySendingUnique.get(sending);
+    if (!metric) return row;
+    return {
+      ...row,
+      in_transit_hours: metric.in_transit_hours,
+      send_start_at_metric: metric.send_start_at,
+      first_ready_at_metric: metric.first_ready_at,
+    };
+  });
 }
 
 function pickDate(item: any): string {
@@ -160,7 +264,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               ? (filterInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>())
               : filterInns);
         const list = Array.isArray(cacheRow.rows[0].data) ? (cacheRow.rows[0].data as any[]) : [];
-        return res.status(200).json(filterCachedItems(list, finalInns));
+        const filtered = filterCachedItems(list, finalInns);
+        const withMetrics = await attachMetricsToSendings(pool, filtered);
+        return res.status(200).json(withMetrics);
       }
       return res.status(200).json([]);
     } catch (e) {
@@ -196,8 +302,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       const list = Array.isArray(cacheRow.rows[0].data) ? (cacheRow.rows[0].data as any[]) : [];
       const filtered = filterCachedItems(list, finalInns);
+      const withMetrics = await attachMetricsToSendings(pool, filtered);
       if ((isService || (finalInns && finalInns.size > 0)) && filtered.length > 0) {
-        return res.status(200).json(filtered);
+        return res.status(200).json(withMetrics);
       }
     }
   } catch {
