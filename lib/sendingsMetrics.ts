@@ -89,6 +89,31 @@ function pickSendingInn(item: any): string {
   );
 }
 
+function pickCargoInn(item: any): string {
+  return normalizeInn(
+    item?.CustomerINN ??
+      item?.customerINN ??
+      item?.CustomerInn ??
+      item?.customerInn ??
+      item?.ReceiverINN ??
+      item?.receiverINN ??
+      item?.ConsigneeINN ??
+      item?.consigneeINN ??
+      item?.SenderINN ??
+      item?.senderINN ??
+      item?.InnSender ??
+      item?.INNSender ??
+      item?.SenderInn ??
+      item?.senderInn ??
+      item?.ИННЗаказчика ??
+      item?.ИННПолучателя ??
+      item?.ИННОтправителя ??
+      item?.INN ??
+      item?.Inn ??
+      item?.inn
+  );
+}
+
 function pickSendingNumber(item: any): string {
   return normalizeText(
     item?.SendingNumber ??
@@ -196,6 +221,18 @@ function buildCargoStopDateByNumber(perevozkiItems: any[]): Map<string, Date> {
   return map;
 }
 
+function buildCargoInnByNumber(perevozkiItems: any[]): Map<string, string> {
+  const map = new Map<string, string>();
+  (perevozkiItems || []).forEach((cargo: any) => {
+    const raw = normalizeCargoNumber(cargo?.Number ?? cargo?.number ?? cargo?.НомерПеревозки ?? cargo?.CargoNumber ?? cargo?.NumberPerevozki);
+    if (!raw) return;
+    const inn = pickCargoInn(cargo);
+    if (!inn) return;
+    if (!map.has(raw)) map.set(raw, inn);
+  });
+  return map;
+}
+
 export function extractArrayFromAnyPayload(raw: unknown): unknown[] {
   if (Array.isArray(raw)) return raw;
   if (!raw || typeof raw !== "object") return [];
@@ -225,15 +262,25 @@ export function extractArrayFromAnyPayload(raw: unknown): unknown[] {
 
 export function buildSendingsMetrics(sendingsItems: any[], perevozkiItems: any[]): SendingMetricRow[] {
   const stopDateByCargo = buildCargoStopDateByNumber(perevozkiItems || []);
+  const cargoInnByNumber = buildCargoInnByNumber(perevozkiItems || []);
   const byKey = new Map<string, SendingMetricRow>();
 
   (sendingsItems || []).forEach((row: any) => {
-    const customerInn = pickSendingInn(row);
+    let customerInn = pickSendingInn(row);
     const sendingNumber = pickSendingNumber(row);
+    const cargoNumbers = getSendingCargoNumbers(row);
+    if (!customerInn && cargoNumbers.length > 0) {
+      for (const cargoNumber of cargoNumbers) {
+        const inferredInn = cargoInnByNumber.get(cargoNumber);
+        if (inferredInn) {
+          customerInn = inferredInn;
+          break;
+        }
+      }
+    }
     if (!customerInn || !sendingNumber) return;
 
     const sendStartAt = pickSendingStartDate(row);
-    const cargoNumbers = getSendingCargoNumbers(row);
 
     let firstReadyAt: Date | null = null;
     cargoNumbers.forEach((cargoNumber) => {
