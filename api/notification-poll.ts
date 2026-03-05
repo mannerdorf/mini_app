@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import webpush from "web-push";
 import { getPool } from "./_db";
-import { getRedisValue } from "./redis";
+import { getRedisValue } from "./redis.js";
 import {
   type CargoEvent,
   getCargoStatusKey,

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import webpush from "web-push";
-import { getRedisValue } from "./redis";
+import { getRedisValue } from "./redis.js";
 
 /** POST: отправить Web Push одному или нескольким пользователям. Body: { logins: string[], title, body?, url? } */
 export default async function handler(req: VercelRequest, res: VercelResponse) {

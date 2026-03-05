@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { generateSecret, verify, generateURI } from "otplib";
-import { getRedisValue, setRedisValue, deleteRedisValue } from "./redis";
+import { getRedisValue, setRedisValue, deleteRedisValue } from "./redis.js";
 
 const ISSUER = "HAULZ";
 

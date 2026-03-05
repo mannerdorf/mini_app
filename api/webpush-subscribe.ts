@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getRedisValue, setRedisValue } from "./redis";
+import { getRedisValue, setRedisValue } from "./redis.js";
 
 const REDIS_TTL = 60 * 60 * 24 * 365; // 1 year
 
