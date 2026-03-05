@@ -264,6 +264,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const cacheSendings = await loadCacheList(pool, "cache_sendings");
   const cachePerevozki = await loadCacheList(pool, "cache_perevozki");
+  const allSeedRows = buildSendingsMetrics(cacheSendings as any[], cachePerevozki as any[]);
 
   while (currentFrom <= dateTo && chunksProcessed < maxChunks) {
     if (Date.now() - startedAt >= RUNTIME_BUDGET_MS) {
@@ -271,23 +272,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const currentTo = minIso(addDays(currentFrom, chunkDays - 1), dateTo);
     try {
-      const sendingsForChunk = (cacheSendings || []).filter((row: any) => {
-        const d = toDateOnly(
-          row?.DateOtpr ??
-            row?.DateSend ??
-            row?.DateShipment ??
-            row?.ShipmentDate ??
-            row?.ДатаОтправки ??
-            row?.ДатаОтгрузки ??
-            row?.DateDoc ??
-            row?.Date ??
-            row?.date ??
-            row?.Дата
-        );
-        return d && d >= currentFrom && d <= currentTo;
+      const seedRows = allSeedRows.filter((row) => {
+        if (!row?.sendStartAt) return false;
+        const d = row.sendStartAt.toISOString().split("T")[0];
+        return d >= currentFrom && d <= currentTo;
       });
-
-      const seedRows = buildSendingsMetrics(sendingsForChunk as any[], cachePerevozki as any[]);
       let seededSendings = 0;
       for (const row of seedRows) {
         await pool.query(
