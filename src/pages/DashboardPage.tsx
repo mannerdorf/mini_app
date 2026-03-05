@@ -708,34 +708,129 @@ export function DashboardPage({
         if (routeFilter === 'KGD-MSK') res = res.filter(i => cityToCode(i.CitySender) === 'KGD' && cityToCode(i.CityReceiver) === 'MSK');
         return res;
     }, [items, statusFilter, senderFilter, receiverFilter, billStatusFilter, typeFilter, routeFilter]);
+    const parseDashboardDateOnly = useCallback((value: unknown): Date | null => {
+        const raw = String(value ?? '').trim();
+        if (!raw) return null;
+        if (/^0?1[./-]0?1[./-](1900|1901|0001)$/.test(raw)) return null;
+        const parsed = dateUtils.parseDateOnly(raw) ?? new Date(raw);
+        if (!Number.isFinite(parsed.getTime()) || parsed.getFullYear() <= 1901) return null;
+        return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+    }, []);
+    const getManualPlannedDate = useCallback((item: CargoItem): Date | null => {
+        const candidates = [
+            (item as any).DateArrival,
+            (item as any).PlannedDeliveryDate,
+            (item as any).PlanDeliveryDate,
+            (item as any).DateDeliveryPlan,
+            (item as any).ПлановаяДатаДоставки,
+            (item as any).ПланДатаДоставки,
+            (item as any).ПлановаяДата,
+            (item as any).PlanDate,
+        ];
+        for (const candidate of candidates) {
+            const parsed = parseDashboardDateOnly(candidate);
+            if (parsed) return parsed;
+        }
+        return null;
+    }, [parseDashboardDateOnly]);
+    const getSendingStartDate = useCallback((item: CargoItem): Date | null => {
+        const candidates = [
+            (item as any).DateOtpr,
+            (item as any).DateSend,
+            (item as any).DateShipment,
+            (item as any).ShipmentDate,
+            (item as any).ДатаОтправки,
+            (item as any).ДатаОтгрузки,
+            (item as any).DateDoc,
+            (item as any).DatePrih,
+            (item as any).Date,
+            (item as any).date,
+            (item as any).Дата,
+        ];
+        for (const candidate of candidates) {
+            const parsed = parseDashboardDateOnly(candidate);
+            if (parsed) return parsed;
+        }
+        return null;
+    }, [parseDashboardDateOnly]);
+    const getActualDeliveryDate = useCallback((item: CargoItem): Date | null => {
+        const candidates = [
+            (item as any).DateVr,
+            (item as any).DateDeliveryFact,
+            (item as any).FactDeliveryDate,
+            (item as any).ДатаФактическойДоставки,
+            (item as any).ДатаВручения,
+            (item as any).DateDelivery,
+            (item as any).DeliveryDate,
+        ];
+        for (const candidate of candidates) {
+            const parsed = parseDashboardDateOnly(candidate);
+            if (parsed) return parsed;
+        }
+        return null;
+    }, [parseDashboardDateOnly]);
+    const getRouteTypePlanDays = useMemo(() => {
+        const dayMs = 24 * 60 * 60 * 1000;
+        const byBucket = new Map<string, Array<{ actualMs: number; days: number }>>();
+        const routeKeyFor = (item: CargoItem): string => {
+            const from = cityToCode(item.CitySender) || String(item.CitySender ?? '').trim().toUpperCase() || '—';
+            const to = cityToCode(item.CityReceiver) || String(item.CityReceiver ?? '').trim().toUpperCase() || '—';
+            return `${from}-${to}`;
+        };
+        const typeKeyFor = (item: CargoItem): 'ferry' | 'auto' => (isFerry(item) ? 'ferry' : 'auto');
+        (items || []).forEach((item) => {
+            const start = getSendingStartDate(item);
+            const actual = getActualDeliveryDate(item);
+            if (!start || !actual) return;
+            const diffDays = Math.round((actual.getTime() - start.getTime()) / dayMs);
+            if (!Number.isFinite(diffDays) || diffDays <= 0) return;
+            if (diffDays > 120) return;
+            const bucket = `${routeKeyFor(item)}|${typeKeyFor(item)}`;
+            const list = byBucket.get(bucket) ?? [];
+            list.push({ actualMs: actual.getTime(), days: diffDays });
+            byBucket.set(bucket, list);
+        });
+
+        const planDaysByBucket = new Map<string, number>();
+        byBucket.forEach((rows, bucket) => {
+            const lastFive = [...rows]
+                .sort((a, b) => b.actualMs - a.actualMs)
+                .slice(0, 5)
+                .map((r) => r.days);
+            if (lastFive.length === 0) return;
+            const values =
+                lastFive.length >= 3
+                    ? (() => {
+                          const sorted = [...lastFive].sort((a, b) => a - b);
+                          return sorted.slice(1, -1);
+                      })()
+                    : lastFive;
+            if (values.length === 0) return;
+            const avg = values.reduce((acc, n) => acc + n, 0) / values.length;
+            const rounded = Math.max(1, Math.round(avg));
+            planDaysByBucket.set(bucket, rounded);
+        });
+        return planDaysByBucket;
+    }, [items, getSendingStartDate, getActualDeliveryDate]);
+    const getEffectivePlannedDate = useCallback((item: CargoItem): Date | null => {
+        const manual = getManualPlannedDate(item);
+        if (manual) return manual;
+        const start = getSendingStartDate(item);
+        if (!start) return null;
+        const from = cityToCode(item.CitySender) || String(item.CitySender ?? '').trim().toUpperCase() || '—';
+        const to = cityToCode(item.CityReceiver) || String(item.CityReceiver ?? '').trim().toUpperCase() || '—';
+        const type = isFerry(item) ? 'ferry' : 'auto';
+        const days = getRouteTypePlanDays.get(`${from}-${to}|${type}`);
+        if (!days) return null;
+        const planned = new Date(start);
+        planned.setDate(planned.getDate() + days);
+        return planned;
+    }, [getManualPlannedDate, getSendingStartDate, getRouteTypePlanDays]);
     const cargoFlowByPlan = useMemo(() => {
         const dateToKey = (date: Date): string => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        const parseKey = (value: unknown): string | null => {
-            const raw = String(value ?? '').trim();
-            if (!raw) return null;
-            if (/^0?1[./-]0?1[./-](1900|1901|0001)$/.test(raw)) return null;
-            const parsedByUtils = dateUtils.parseDateOnly(raw);
-            if (parsedByUtils && parsedByUtils.getFullYear() > 1901) return dateToKey(parsedByUtils);
-            const fallback = new Date(raw);
-            if (!Number.isFinite(fallback.getTime()) || fallback.getFullYear() <= 1901) return null;
-            return dateToKey(fallback);
-        };
         const getPlannedKey = (item: CargoItem): string | null => {
-            const candidates = [
-                (item as any).DateArrival,
-                (item as any).PlannedDeliveryDate,
-                (item as any).PlanDeliveryDate,
-                (item as any).DateDeliveryPlan,
-                (item as any).ПлановаяДатаДоставки,
-                (item as any).ПланДатаДоставки,
-                (item as any).ПлановаяДата,
-                (item as any).PlanDate,
-            ];
-            for (const candidate of candidates) {
-                const key = parseKey(candidate);
-                if (key) return key;
-            }
-            return null;
+            const planned = getEffectivePlannedDate(item);
+            return planned ? dateToKey(planned) : null;
         };
         const getActualKey = (item: CargoItem): string | null => {
             const candidates = [
@@ -864,7 +959,7 @@ export function DashboardPage({
             deliveredLate,
             upcomingSeries,
         };
-    }, [filteredItems]);
+    }, [filteredItems, getEffectivePlannedDate]);
     const planVsFactDashboard = useMemo(() => {
         const dayMs = 24 * 60 * 60 * 1000;
         const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -878,21 +973,8 @@ export function DashboardPage({
             return startOfDay(parsed);
         };
         const getPlannedDate = (item: CargoItem): Date | null => {
-            const candidates = [
-                (item as any).DateArrival,
-                (item as any).PlannedDeliveryDate,
-                (item as any).PlanDeliveryDate,
-                (item as any).DateDeliveryPlan,
-                (item as any).ПлановаяДатаДоставки,
-                (item as any).ПланДатаДоставки,
-                (item as any).ПлановаяДата,
-                (item as any).PlanDate,
-            ];
-            for (const candidate of candidates) {
-                const parsed = parseDate(candidate);
-                if (parsed) return parsed;
-            }
-            return null;
+            const planned = getEffectivePlannedDate(item);
+            return planned ? startOfDay(planned) : null;
         };
         const getActualDate = (item: CargoItem): Date | null => {
             const candidates = [
@@ -990,7 +1072,7 @@ export function DashboardPage({
             maxTotal,
             topLate,
         };
-    }, [filteredItems]);
+    }, [filteredItems, getEffectivePlannedDate]);
 
     useEffect(() => {
         if (!useServiceRequest || !auth?.login || !auth?.password || filteredItems.length === 0) return;

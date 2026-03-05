@@ -1334,6 +1334,51 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         if (!Number.isFinite(diffMs) || diffMs < 0) return null;
         return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
     }, [parseDateTimeValue, getSendingCargoNumbers, cargoStateByNumber, normCargoKey, cargoStopDateByNumber]);
+    const getSendingTransitIsFinal = useCallback((row: any): boolean => {
+        const rowStatusKey = getFilterKeyByStatus(
+            String(
+                row?.State
+                ?? row?.state
+                ?? row?.Статус
+                ?? row?.Status
+                ?? row?.StatusName
+                ?? ''
+            )
+        );
+        const rowStopDate = parseDateTimeValue(
+            row?.StatusDate
+            ?? row?.DateStatus
+            ?? row?.DateState
+            ?? row?.UpdatedAt
+            ?? row?.updated_at
+            ?? row?.ДатаСтатуса
+            ?? row?.ДатаИзменения
+        );
+        const explicitEnd = parseDateTimeValue(
+            row?.DatePrih
+            ?? row?.DateVr
+            ?? row?.DateDelivery
+            ?? row?.DeliveryDate
+            ?? row?.ДатаДоставки
+            ?? row?.ДатаПрибытия
+        );
+        const cargoNumbers = getSendingCargoNumbers(row);
+        let hasStopStatus = false;
+        let stopDateByCargo: Date | null = null;
+        cargoNumbers.forEach((cargoNumber) => {
+            const statusKey = getFilterKeyByStatus(String(cargoStateByNumber.get(normCargoKey(cargoNumber)) ?? ''));
+            if (statusKey !== 'ready' && statusKey !== 'delivered') return;
+            hasStopStatus = true;
+            const cargoStopDate = cargoStopDateByNumber.get(normCargoKey(cargoNumber)) ?? cargoStopDateByNumber.get(cargoNumber);
+            if (!cargoStopDate) return;
+            if (!stopDateByCargo || cargoStopDate.getTime() < stopDateByCargo.getTime()) stopDateByCargo = cargoStopDate;
+        });
+        const hasReadyStatusInRow = rowStatusKey === 'ready' || rowStatusKey === 'delivered';
+        const finalEnd = (hasStopStatus || hasReadyStatusInRow)
+            ? (stopDateByCargo ?? rowStopDate ?? explicitEnd ?? null)
+            : (explicitEnd ?? null);
+        return finalEnd instanceof Date && Number.isFinite(finalEnd.getTime());
+    }, [parseDateTimeValue, getSendingCargoNumbers, cargoStateByNumber, normCargoKey, cargoStopDateByNumber]);
     const getSendingPlannedArrivalDate = useCallback((row: any): Date | null => {
         try {
             const plannedKeys = [
@@ -3608,6 +3653,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 const sendingStatusLabel = sendingStatusKey === 'all' ? '' : STATUS_MAP[sendingStatusKey];
                                 const transitHours = getSendingTransitHours(row);
                                 const transitDays = transitHours == null ? null : Math.round((transitHours / 24) * 10) / 10;
+                                const isFinalTransit = getSendingTransitIsFinal(row);
                                 const plannedArrivalDate = getSendingPlannedArrivalDate(row);
                                 const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
@@ -3655,7 +3701,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                             <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                 {transitHours == null ? '—' : (
                                                     <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: 1.15 }}>
-                                                        <span style={sendingStatusKey === 'ready' ? { color: '#16a34a', fontWeight: 600 } : undefined}>
+                                                        <span style={isFinalTransit ? { color: '#16a34a', fontWeight: 600 } : undefined}>
                                                             {Number.isInteger(transitHours) ? transitHours : transitHours.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ч
                                                         </span>
                                                         <span style={{ color: 'var(--color-text-secondary)', fontSize: '0.75rem' }}>
