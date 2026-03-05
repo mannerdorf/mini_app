@@ -1276,9 +1276,6 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const getSendingTransitHours = useCallback((row: any): number | null => {
         const metricHoursRaw = row?.in_transit_hours ?? row?.inTransitHours ?? row?.InTransitHours;
         const metricHours = Number(metricHoursRaw);
-        if (Number.isFinite(metricHours) && metricHours >= 0) {
-            return Math.round(metricHours * 10) / 10;
-        }
         const start = parseDateTimeValue(
             row?.DateOtpr
             ?? row?.DateSend
@@ -1331,13 +1328,22 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             if (!stopDateByCargo || cargoStopDate.getTime() < stopDateByCargo.getTime()) stopDateByCargo = cargoStopDate;
         });
         const hasReadyStatusInRow = rowStatusKey === 'ready' || rowStatusKey === 'delivered';
+        const hasMetricHours = Number.isFinite(metricHours) && metricHours >= 0;
+        if (hasReadyStatusInRow && hasMetricHours) {
+            return Math.round(metricHours * 10) / 10;
+        }
         // Окончание «в пути» — дата получения статуса «Готов к выдаче»/«Доставлено», затем явная дата доставки
         const end = (hasStopStatus || hasReadyStatusInRow)
             ? (stopDateByCargo ?? rowStopDate ?? explicitEnd ?? new Date())
             : (explicitEnd ?? new Date());
         const diffMs = end.getTime() - start.getTime();
-        if (!Number.isFinite(diffMs) || diffMs < 0) return null;
-        return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+        if (Number.isFinite(diffMs) && diffMs >= 0) {
+            return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+        }
+
+        // Fallback only: если локально не удалось посчитать, берем значение из sendings_metrics.
+        if (hasMetricHours) return Math.round(metricHours * 10) / 10;
+        return null;
     }, [parseDateTimeValue, getSendingCargoNumbers, cargoStateByNumber, normCargoKey, cargoStopDateByNumber]);
     const getSendingPlannedArrivalDate = useCallback((row: any): Date | null => {
         try {
