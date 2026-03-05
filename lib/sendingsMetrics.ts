@@ -20,6 +20,26 @@ function normalizeCargoNumber(value: unknown): string {
   return s;
 }
 
+function collectValuesByKeyRegex(
+  node: unknown,
+  keyPattern: RegExp,
+  maxDepth = 4,
+  currentDepth = 0,
+  out: unknown[] = []
+): unknown[] {
+  if (node == null || currentDepth > maxDepth) return out;
+  if (Array.isArray(node)) {
+    node.forEach((item) => collectValuesByKeyRegex(item, keyPattern, maxDepth, currentDepth + 1, out));
+    return out;
+  }
+  if (typeof node !== "object") return out;
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (keyPattern.test(key)) out.push(value);
+    collectValuesByKeyRegex(value, keyPattern, maxDepth, currentDepth + 1, out);
+  }
+  return out;
+}
+
 function dateToIso(date: Date | null): string | null {
   return date ? date.toISOString() : null;
 }
@@ -89,7 +109,15 @@ function pickSendingInn(item: any): string {
   );
   if (direct) return direct;
   // Fallback: в некоторых ответах Getotpravki ИНН лежит в "грузовых" полях.
-  return pickCargoInn(item);
+  const cargoInn = pickCargoInn(item);
+  if (cargoInn) return cargoInn;
+  // Дополнительный fallback: ищем ИНН в любых вложенных полях объекта отправки.
+  const nestedCandidates = collectValuesByKeyRegex(item, /(inn|инн)/i, 5);
+  for (const candidate of nestedCandidates) {
+    const inn = normalizeInn(candidate);
+    if (inn && (inn.length === 10 || inn.length === 12)) return inn;
+  }
+  return "";
 }
 
 function pickCargoInn(item: any): string {
@@ -118,7 +146,7 @@ function pickCargoInn(item: any): string {
 }
 
 function pickSendingNumber(item: any): string {
-  return normalizeText(
+  const direct = normalizeText(
     item?.SendingNumber ??
       item?.sendingNumber ??
       item?.NumberSend ??
@@ -139,6 +167,15 @@ function pickSendingNumber(item: any): string {
       item?.Guid ??
       item?.guid
   );
+  if (direct) return direct;
+  const nestedCandidates = collectValuesByKeyRegex(item, /(sending|отправ|number|номер|ref[_\s-]?key|guid|\bid\b)/i, 5);
+  for (const candidate of nestedCandidates) {
+    const value = normalizeText(candidate);
+    if (!value) continue;
+    // Отсекаем слишком короткие/пустые значения, чтобы не брать шум.
+    if (value.length >= 4) return value;
+  }
+  return "";
 }
 
 function pickSendingStartDate(item: any): Date | null {
@@ -200,6 +237,9 @@ function getSendingCargoNumbers(row: any): string[] {
       add((goods as any)?.NumberPerevozki);
     }
   });
+  // Глубокий fallback для нестандартных структур Getotpravki.
+  const deepCandidates = collectValuesByKeyRegex(row, /(номерперевоз|cargo(number)?|numberperevozki|идотправлен)/i, 5);
+  deepCandidates.forEach((value) => add(value));
   return Array.from(numbers);
 }
 

@@ -3,10 +3,12 @@ import { getPool } from "../_db.js";
 import { buildSendingsMetrics, extractArrayFromAnyPayload, upsertSendingsMetrics } from "../../lib/sendingsMetrics.js";
 
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
-const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const HTTP_TIMEOUT_MS = 110_000;
 const RUNTIME_BUDGET_MS = 260_000;
+const DEFAULT_CHUNK_DAYS = 7;
+const DEFAULT_MAX_CHUNKS = 1;
+const DEFAULT_CARGO_BATCH_SIZE = 100;
 
 function toIsoDate(value: unknown): string | null {
   const s = String(value ?? "").trim();
@@ -26,6 +28,126 @@ function addDays(baseIso: string, delta: number): string {
 
 function minIso(a: string, b: string): string {
   return a <= b ? a : b;
+}
+
+function normalizeCargoNumber(value: unknown): string {
+  return String(value ?? "").replace(/^0000-/, "").trim().replace(/^0+/, "");
+}
+
+function toDateOnly(value: unknown): string {
+  const d = new Date(String(value ?? ""));
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().split("T")[0];
+}
+
+function asDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const d = new Date(String(value));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function pickCargoNumber(item: any): string {
+  return normalizeCargoNumber(
+    item?.Number ?? item?.number ?? item?.НомерПеревозки ?? item?.CargoNumber ?? item?.NumberPerevozki ?? item?.ИДОтправления
+  );
+}
+
+function pickCargoStatus(item: any): string {
+  return String(item?.State ?? item?.state ?? item?.Статус ?? item?.Status ?? item?.StatusName ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function pickCargoStatusDate(item: any): Date | null {
+  const source =
+    item?.StatusDate ??
+    item?.DateStatus ??
+    item?.DateState ??
+    item?.UpdatedAt ??
+    item?.updated_at ??
+    item?.ДатаСтатуса ??
+    item?.ДатаИзменения ??
+    item?.DateVr ??
+    item?.DatePrih ??
+    item?.DateDelivery ??
+    item?.DeliveryDate ??
+    item?.ДатаДоставки;
+  return asDate(source);
+}
+
+function isReadyLikeStatus(status: string): boolean {
+  if (!status) return false;
+  return (status.includes("готов") && status.includes("выдач")) || status.includes("ready") || status.includes("достав");
+}
+
+async function loadCacheList(pool: { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }> }, tableName: string) {
+  const safeName = tableName.replace(/[^a-z0-9_]/gi, "");
+  const row = await pool.query(`select data from ${safeName} where id = 1`);
+  if (!row.rows.length) return [];
+  const data = row.rows[0]?.data;
+  return Array.isArray(data) ? data : extractArrayFromAnyPayload(data);
+}
+
+async function ensureTables(pool: { query: (sql: string, params?: any[]) => Promise<{ rows: any[] }> }) {
+  await pool.query(
+    `create table if not exists sendings_metrics (
+       customer_inn text not null,
+       sending_number text not null,
+       cargo_numbers jsonb not null default '[]'::jsonb,
+       send_start_at timestamptz,
+       first_ready_at timestamptz,
+       in_transit_hours numeric(12, 2),
+       first_seen_at timestamptz not null default now(),
+       last_seen_at timestamptz not null default now(),
+       updated_at timestamptz not null default now(),
+       primary key (customer_inn, sending_number)
+     )`
+  );
+  await pool.query(
+    `create table if not exists sendings_backfill_state (
+       id int primary key default 1 check (id = 1),
+       current_from date not null,
+       date_to date not null,
+       done boolean not null default false,
+       updated_at timestamptz not null default now()
+     )`
+  );
+  await pool.query(
+    `create table if not exists sendings_30d_queue (
+       customer_inn text not null,
+       sending_number text not null,
+       send_start_at timestamptz,
+       cargo_numbers jsonb not null default '[]'::jsonb,
+       first_ready_at timestamptz,
+       state text not null default 'pending',
+       created_at timestamptz not null default now(),
+       updated_at timestamptz not null default now(),
+       primary key (customer_inn, sending_number)
+     )`
+  );
+  await pool.query(`create index if not exists sendings_30d_queue_state_idx on sendings_30d_queue(state)`);
+  await pool.query(`create index if not exists sendings_30d_queue_updated_at_idx on sendings_30d_queue(updated_at desc)`);
+  await pool.query(
+    `create table if not exists sendings_30d_cargo_queue (
+       cargo_number text primary key,
+       customer_inn text not null,
+       sending_number text not null,
+       ready_at timestamptz,
+       last_status text,
+       last_status_at timestamptz,
+       poll_attempts int not null default 0,
+       done boolean not null default false,
+       created_at timestamptz not null default now(),
+       updated_at timestamptz not null default now()
+     )`
+  );
+  await pool.query(
+    `create index if not exists sendings_30d_cargo_queue_done_idx on sendings_30d_cargo_queue(done, updated_at)`
+  );
+  await pool.query(
+    `create index if not exists sendings_30d_cargo_queue_send_idx on sendings_30d_cargo_queue(customer_inn, sending_number)`
+  );
 }
 
 async function fetchServiceJson(url: string, login: string, password: string) {
@@ -88,36 +210,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const today = new Date().toISOString().split("T")[0];
   const cfgFrom = toIsoDate(process.env.SENDINGS_BACKFILL_FROM || "") || "2023-01-01";
   const cfgTo = toIsoDate(process.env.SENDINGS_BACKFILL_TO || "") || today;
-  const chunkDays = Math.max(1, Math.min(90, Number(process.env.SENDINGS_BACKFILL_CHUNK_DAYS) || 14));
-  const maxChunks = Math.max(1, Math.min(24, Number(process.env.SENDINGS_BACKFILL_MAX_CHUNKS_PER_RUN) || 1));
+  const chunkDays = Math.max(1, Math.min(90, Number(process.env.SENDINGS_BACKFILL_CHUNK_DAYS) || DEFAULT_CHUNK_DAYS));
+  const maxChunks = Math.max(1, Math.min(24, Number(process.env.SENDINGS_BACKFILL_MAX_CHUNKS_PER_RUN) || DEFAULT_MAX_CHUNKS));
+  const cargoBatchSize = Math.max(
+    10,
+    Math.min(500, Number(process.env.SENDINGS_BACKFILL_CARGO_BATCH_SIZE) || DEFAULT_CARGO_BATCH_SIZE)
+  );
   if (cfgFrom > cfgTo) {
     return res.status(400).json({ error: "SENDINGS_BACKFILL_FROM > SENDINGS_BACKFILL_TO" });
   }
 
   const pool = getPool();
-  await pool.query(
-    `create table if not exists sendings_metrics (
-       customer_inn text not null,
-       sending_number text not null,
-       cargo_numbers jsonb not null default '[]'::jsonb,
-       send_start_at timestamptz,
-       first_ready_at timestamptz,
-       in_transit_hours numeric(12, 2),
-       first_seen_at timestamptz not null default now(),
-       last_seen_at timestamptz not null default now(),
-       updated_at timestamptz not null default now(),
-       primary key (customer_inn, sending_number)
-     )`
-  );
-  await pool.query(
-    `create table if not exists sendings_backfill_state (
-       id int primary key default 1 check (id = 1),
-       current_from date not null,
-       date_to date not null,
-       done boolean not null default false,
-       updated_at timestamptz not null default now()
-     )`
-  );
+  await ensureTables(pool);
   await pool.query(
     `insert into sendings_backfill_state (id, current_from, date_to, done, updated_at)
      values (1, $1::date, $2::date, false, now())
@@ -141,10 +245,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   let chunksProcessed = 0;
-  let sendingsTotal = 0;
-  let perevozkiTotal = 0;
+  let sendingsSeededTotal = 0;
+  let cargoQueuedTotal = 0;
+  let cargoProcessedTotal = 0;
+  let cargoMarkedReadyTotal = 0;
   let metricsUpserted = 0;
-  const chunks: Array<{ from: string; to: string; sendings: number; perevozki: number; updated: number; error?: string }> = [];
+  const chunks: Array<{
+    from: string;
+    to: string;
+    seededSendings: number;
+    queuedCargo: number;
+    cargoProcessed: number;
+    cargoMarkedReady: number;
+    updated: number;
+    queueLeft: number;
+    error?: string;
+  }> = [];
+
+  const cacheSendings = await loadCacheList(pool, "cache_sendings");
+  const cachePerevozki = await loadCacheList(pool, "cache_perevozki");
 
   while (currentFrom <= dateTo && chunksProcessed < maxChunks) {
     if (Date.now() - startedAt >= RUNTIME_BUDGET_MS) {
@@ -152,25 +271,236 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const currentTo = minIso(addDays(currentFrom, chunkDays - 1), dateTo);
     try {
-      const [perevozkiJson, sendingsJson] = await Promise.all([
-        fetchServiceJson(`${PEREVOZKI_URL}?DateB=${currentFrom}&DateE=${currentTo}`, serviceLogin, servicePassword),
-        fetchServiceJson(`${GETAPI_URL}?metod=Getotpravki&DateB=${currentFrom}&DateE=${currentTo}`, serviceLogin, servicePassword),
-      ]);
-      const perevozkiList = Array.isArray(perevozkiJson) ? perevozkiJson : extractArrayFromAnyPayload(perevozkiJson);
-      const sendingsList = extractArrayFromAnyPayload(sendingsJson);
-      const metricRows = buildSendingsMetrics(sendingsList as any[], perevozkiList as any[]);
-      const updated = (await upsertSendingsMetrics(pool, metricRows)).updated;
-      sendingsTotal += sendingsList.length;
-      perevozkiTotal += perevozkiList.length;
+      const sendingsForChunk = (cacheSendings || []).filter((row: any) => {
+        const d = toDateOnly(
+          row?.DateOtpr ??
+            row?.DateSend ??
+            row?.DateShipment ??
+            row?.ShipmentDate ??
+            row?.ДатаОтправки ??
+            row?.ДатаОтгрузки ??
+            row?.DateDoc ??
+            row?.Date ??
+            row?.date ??
+            row?.Дата
+        );
+        return d && d >= currentFrom && d <= currentTo;
+      });
+
+      const seedRows = buildSendingsMetrics(sendingsForChunk as any[], cachePerevozki as any[]);
+      let seededSendings = 0;
+      for (const row of seedRows) {
+        await pool.query(
+          `insert into sendings_30d_queue (
+             customer_inn, sending_number, send_start_at, cargo_numbers, first_ready_at, state, updated_at
+           )
+           values ($1, $2, $3::timestamptz, $4::jsonb, $5::timestamptz, 'pending', now())
+           on conflict (customer_inn, sending_number) do update
+             set send_start_at = case
+                                  when sendings_30d_queue.send_start_at is null then excluded.send_start_at
+                                  when excluded.send_start_at is null then sendings_30d_queue.send_start_at
+                                  else least(sendings_30d_queue.send_start_at, excluded.send_start_at)
+                                end,
+                 cargo_numbers = (
+                   select coalesce(jsonb_agg(distinct x), '[]'::jsonb)
+                   from (
+                     select jsonb_array_elements(coalesce(sendings_30d_queue.cargo_numbers, '[]'::jsonb)) as x
+                     union all
+                     select jsonb_array_elements(coalesce(excluded.cargo_numbers, '[]'::jsonb)) as x
+                   ) z
+                 ),
+                 first_ready_at = case
+                                    when sendings_30d_queue.first_ready_at is null then excluded.first_ready_at
+                                    when excluded.first_ready_at is null then sendings_30d_queue.first_ready_at
+                                    else least(sendings_30d_queue.first_ready_at, excluded.first_ready_at)
+                                  end,
+                 updated_at = now()`,
+          [
+            row.customerInn,
+            row.sendingNumber,
+            row.sendStartAt ? row.sendStartAt.toISOString() : null,
+            JSON.stringify(Array.isArray(row.cargoNumbers) ? row.cargoNumbers : []),
+            row.firstReadyAt ? row.firstReadyAt.toISOString() : null,
+          ]
+        );
+        seededSendings += 1;
+      }
+
+      const insertCargoRes = await pool.query<{ count: string }>(
+        `with ins as (
+           insert into sendings_30d_cargo_queue (cargo_number, customer_inn, sending_number, updated_at)
+           select distinct
+             trim(both '"' from c.value::text) as cargo_number,
+             q.customer_inn,
+             q.sending_number,
+             now()
+           from sendings_30d_queue q
+           cross join lateral jsonb_array_elements(coalesce(q.cargo_numbers, '[]'::jsonb)) c
+           where q.send_start_at::date between $1::date and $2::date
+             and trim(both '"' from c.value::text) <> ''
+           on conflict (cargo_number) do update
+             set customer_inn = excluded.customer_inn,
+                 sending_number = excluded.sending_number,
+                 updated_at = now()
+           returning 1
+         )
+         select count(*)::text as count from ins`,
+        [currentFrom, currentTo]
+      );
+      const queuedCargo = Number(insertCargoRes.rows[0]?.count || 0);
+
+      const batchRows = await pool.query<{ cargo_number: string }>(
+        `select cargo_number
+           from sendings_30d_cargo_queue
+          where done = false
+          order by updated_at asc
+          limit $1`,
+        [cargoBatchSize]
+      );
+      const cargoBatch = batchRows.rows.map((r) => normalizeCargoNumber(r.cargo_number)).filter(Boolean);
+
+      let cargoProcessed = 0;
+      let cargoMarkedReady = 0;
+      if (cargoBatch.length > 0) {
+        const livePerevozkiJson = await fetchServiceJson(
+          `${PEREVOZKI_URL}?DateB=${currentFrom}&DateE=${currentTo}`,
+          serviceLogin,
+          servicePassword
+        );
+        const livePerevozkiList = Array.isArray(livePerevozkiJson)
+          ? livePerevozkiJson
+          : extractArrayFromAnyPayload(livePerevozkiJson);
+
+        const liveMap = new Map<string, { readyAt: Date | null; lastStatus: string; lastStatusAt: Date | null }>();
+        for (const item of livePerevozkiList as any[]) {
+          const cargoNumber = pickCargoNumber(item);
+          if (!cargoNumber || !cargoBatch.includes(cargoNumber)) continue;
+          const status = pickCargoStatus(item);
+          const statusDate = pickCargoStatusDate(item);
+          const isReady = isReadyLikeStatus(status);
+          const prev = liveMap.get(cargoNumber);
+          if (!prev) {
+            liveMap.set(cargoNumber, {
+              readyAt: isReady ? statusDate : null,
+              lastStatus: status,
+              lastStatusAt: statusDate,
+            });
+            continue;
+          }
+          if (statusDate && (!prev.lastStatusAt || statusDate.getTime() > prev.lastStatusAt.getTime())) {
+            prev.lastStatusAt = statusDate;
+            prev.lastStatus = status || prev.lastStatus;
+          }
+          if (isReady && statusDate && (!prev.readyAt || statusDate.getTime() < prev.readyAt.getTime())) {
+            prev.readyAt = statusDate;
+          }
+          liveMap.set(cargoNumber, prev);
+        }
+
+        for (const cargoNumber of cargoBatch) {
+          const info = liveMap.get(cargoNumber);
+          const readyAt = info?.readyAt ?? null;
+          const lastStatus = info?.lastStatus ?? null;
+          const lastStatusAt = info?.lastStatusAt ?? null;
+          if (readyAt) cargoMarkedReady += 1;
+          cargoProcessed += 1;
+          await pool.query(
+            `update sendings_30d_cargo_queue
+               set ready_at = coalesce(ready_at, $2::timestamptz),
+                   last_status = coalesce($3::text, last_status),
+                   last_status_at = coalesce($4::timestamptz, last_status_at),
+                   done = case when coalesce(ready_at, $2::timestamptz) is not null then true else done end,
+                   poll_attempts = poll_attempts + 1,
+                   updated_at = now()
+             where cargo_number = $1`,
+            [
+              cargoNumber,
+              readyAt ? readyAt.toISOString() : null,
+              lastStatus,
+              lastStatusAt ? lastStatusAt.toISOString() : null,
+            ]
+          );
+        }
+      }
+
+      await pool.query(
+        `update sendings_30d_queue q
+           set first_ready_at = case
+                                  when q.first_ready_at is null then x.min_ready_at
+                                  when x.min_ready_at is null then q.first_ready_at
+                                  else least(q.first_ready_at, x.min_ready_at)
+                                end,
+               state = case when x.min_ready_at is not null then 'done' else q.state end,
+               updated_at = now()
+          from (
+            select customer_inn, sending_number, min(ready_at) as min_ready_at
+            from sendings_30d_cargo_queue
+            where ready_at is not null
+            group by customer_inn, sending_number
+          ) x
+         where q.customer_inn = x.customer_inn
+           and q.sending_number = x.sending_number`
+      );
+
+      const metricSourceRes = await pool.query<{
+        customer_inn: string;
+        sending_number: string;
+        cargo_numbers: unknown;
+        send_start_at: unknown;
+        first_ready_at: unknown;
+      }>(
+        `select customer_inn, sending_number, cargo_numbers, send_start_at, first_ready_at
+           from sendings_30d_queue
+          where send_start_at::date between $1::date and $2::date`,
+        [currentFrom, currentTo]
+      );
+      const metricsRows = metricSourceRes.rows.map((row) => {
+        const sendStartAt = asDate(row.send_start_at);
+        const firstReadyAt = asDate(row.first_ready_at);
+        const cargoNumbersRaw = Array.isArray(row.cargo_numbers) ? row.cargo_numbers : [];
+        const cargoNumbers = cargoNumbersRaw.map((v) => normalizeCargoNumber(v)).filter(Boolean);
+        return {
+          customerInn: String(row.customer_inn || "").trim(),
+          sendingNumber: String(row.sending_number || "").trim(),
+          cargoNumbers,
+          sendStartAt,
+          firstReadyAt,
+          inTransitHours: null as number | null,
+        };
+      });
+      const updated = (await upsertSendingsMetrics(pool, metricsRows)).updated;
       metricsUpserted += updated;
-      chunks.push({ from: currentFrom, to: currentTo, sendings: sendingsList.length, perevozki: perevozkiList.length, updated });
+
+      const leftRes = await pool.query<{ left_count: string }>(
+        `select count(*)::text as left_count from sendings_30d_cargo_queue where done = false`
+      );
+      const queueLeft = Number(leftRes.rows[0]?.left_count || 0);
+
+      sendingsSeededTotal += seededSendings;
+      cargoQueuedTotal += queuedCargo;
+      cargoProcessedTotal += cargoProcessed;
+      cargoMarkedReadyTotal += cargoMarkedReady;
+
+      chunks.push({
+        from: currentFrom,
+        to: currentTo,
+        seededSendings,
+        queuedCargo,
+        cargoProcessed,
+        cargoMarkedReady,
+        updated,
+        queueLeft,
+      });
     } catch (e: any) {
       chunks.push({
         from: currentFrom,
         to: currentTo,
-        sendings: 0,
-        perevozki: 0,
+        seededSendings: 0,
+        queuedCargo: 0,
+        cargoProcessed: 0,
+        cargoMarkedReady: 0,
         updated: 0,
+        queueLeft: 0,
         error: String(e?.message || e),
       });
     }
@@ -195,8 +525,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     nextDateFrom: done ? null : currentFrom,
     dateTo,
     processedChunks: chunksProcessed,
-    sendingsTotal,
-    perevozkiTotal,
+    sendingsSeededTotal,
+    cargoQueuedTotal,
+    cargoProcessedTotal,
+    cargoMarkedReadyTotal,
+    cargoBatchSize,
     metricsUpserted,
     chunks,
   });
