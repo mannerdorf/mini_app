@@ -690,6 +690,7 @@ export function CargoPage({
                     isFavorite={isFavorite}
                     onToggleFavorite={toggleFavorite}
                     onShare={handleShareCargo}
+                    onCreateClaim={onOpenClaim}
                     onSelectCargo={setSelectedCargo}
                 />
             )}

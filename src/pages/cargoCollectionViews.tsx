@@ -3,7 +3,7 @@ import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import {
   ArrowDown,
   ArrowUp,
-  Calendar,
+  ClipboardList,
   Heart,
   Share2,
   Ship,
@@ -633,6 +633,7 @@ type CargoCardsListProps = {
   isFavorite: (cargoNumber: string | undefined) => boolean;
   onToggleFavorite: (cargoNumber: string | undefined) => void;
   onShare: (item: CargoItem) => Promise<void>;
+  onCreateClaim?: (cargoNumber: string) => void;
   onSelectCargo: (item: CargoItem) => void;
 };
 
@@ -644,6 +645,7 @@ export function CargoCardsList({
   isFavorite,
   onToggleFavorite,
   onShare,
+  onCreateClaim,
   onSelectCargo,
 }: CargoCardsListProps) {
   return (
@@ -725,6 +727,27 @@ export function CargoCardsList({
                 >
                   <Share2 className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
                 </Button>
+                {onCreateClaim && item.Number ? (
+                  <Button
+                    style={{
+                      padding: "0.25rem",
+                      minWidth: "auto",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCreateClaim(item.Number as string);
+                    }}
+                    title="Создать претензию"
+                  >
+                    <ClipboardList className="w-4 h-4" style={{ color: "var(--color-text-secondary)" }} />
+                  </Button>
+                ) : null}
                 <Button
                   style={{
                     padding: "0.25rem",
@@ -758,7 +781,6 @@ export function CargoCardsList({
                   />
                 </Button>
               </Flex>
-              <Calendar className="w-4 h-4 text-theme-secondary" style={{ flexShrink: 0 }} />
               <Typography.Label
                 className="text-theme-secondary"
                 style={{ fontSize: "0.85rem", whiteSpace: "nowrap" }}

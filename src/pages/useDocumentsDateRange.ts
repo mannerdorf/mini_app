@@ -26,6 +26,9 @@ export function useDocumentsDateRange(params: Params) {
 
   return useMemo(() => {
     const api =
+      dateFilter === "все"
+        ? { dateFrom: "2000-01-01", dateTo: new Date().toISOString().slice(0, 10) }
+        :
       dateFilter === "период"
         ? { dateFrom: customDateFrom, dateTo: customDateTo }
         : dateFilter === "месяц" && selectedMonthForFilter
