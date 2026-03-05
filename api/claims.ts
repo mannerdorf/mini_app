@@ -98,7 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(403).json({ error: "Нет доступа к выбранной компании" });
       }
       params.push(selectedInnNorm);
-      where.push(`regexp_replace(customer_inn, '\\D', '', 'g') = $${params.length}`);
+      where.push(`regexp_replace(customer_inn::text, '\\D', '', 'g') = $${params.length}`);
     }
 
     if (status) {
