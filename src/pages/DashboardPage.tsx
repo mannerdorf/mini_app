@@ -31,8 +31,6 @@ import { getWebApp, isMaxWebApp } from "../webApp";
 import type { AuthData, CargoItem, DateFilter, PerevozkaTimelineStep, StatusFilter } from "../types";
 
 const {
-    loadDateFilterState,
-    saveDateFilterState,
     DEFAULT_DATE_FROM,
     DEFAULT_DATE_TO,
     getDateRange,
@@ -96,8 +94,25 @@ export function DashboardPage({
     const WIDGET_4_SLA = true;
     const WIDGET_5_PAYMENT_CALENDAR = !showOnlySla;
 
-    // Filters State (такие же как на странице грузов); при переключении вкладок восстанавливаем из localStorage
-    const initDate = () => loadDateFilterState();
+    // Filters State (для Главной храним отдельно от Документов/Грузов)
+    const DASHBOARD_DATE_FILTER_STORAGE_KEY = "haulz.dashboard.dateFilterState";
+    const initDate = () => {
+        try {
+            const raw = typeof localStorage !== "undefined" ? localStorage.getItem(DASHBOARD_DATE_FILTER_STORAGE_KEY) : null;
+            return raw
+                ? JSON.parse(raw) as {
+                    dateFilter?: DateFilter;
+                    customDateFrom?: string;
+                    customDateTo?: string;
+                    selectedMonthForFilter?: { year: number; month: number } | null;
+                    selectedYearForFilter?: number | null;
+                    selectedWeekForFilter?: string | null;
+                }
+                : null;
+        } catch {
+            return null;
+        }
+    };
     const [dateFilter, setDateFilter] = useState<DateFilter>(() => initDate()?.dateFilter ?? "месяц");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
     const [customDateFrom, setCustomDateFrom] = useState(() => initDate()?.customDateFrom ?? DEFAULT_DATE_FROM);
@@ -109,7 +124,16 @@ export function DashboardPage({
     const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(() => initDate()?.selectedYearForFilter ?? null);
     const [selectedWeekForFilter, setSelectedWeekForFilter] = useState<string | null>(() => initDate()?.selectedWeekForFilter ?? null);
     useEffect(() => {
-        saveDateFilterState({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter });
+        try {
+            if (typeof localStorage !== "undefined") {
+                localStorage.setItem(
+                    DASHBOARD_DATE_FILTER_STORAGE_KEY,
+                    JSON.stringify({ dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter })
+                );
+            }
+        } catch {
+            // ignore
+        }
     }, [dateFilter, customDateFrom, customDateTo, selectedMonthForFilter, selectedYearForFilter, selectedWeekForFilter]);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
@@ -3326,7 +3350,7 @@ export function DashboardPage({
             {!showOnlySla && !loading && !error && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                        Cargo Flow (по плановой дате)
+                        Грузовой поток (по плановой дате)
                     </Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
                         Поток перевозок по плановой дате доставки: нагрузка на ближайшие дни и риск просрочки.
@@ -3386,13 +3410,13 @@ export function DashboardPage({
                                             </div>
                                         </div>
                                         <div style={{ marginTop: '0.1rem', paddingTop: '0.3rem', borderTop: '1px dashed var(--color-border)' }}>
-                                            <Typography.Body style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                                            <Typography.Body style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
                                                 Мест: {Math.round(row.mest).toLocaleString('ru-RU')}
                                             </Typography.Body>
-                                            <Typography.Body style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                                            <Typography.Body style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
                                                 Вес: {Math.round(row.pw).toLocaleString('ru-RU')} кг
                                             </Typography.Body>
-                                            <Typography.Body style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                                            <Typography.Body style={{ display: 'block', fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
                                                 Объём: {row.vol.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} м³
                                             </Typography.Body>
                                         </div>
@@ -3413,7 +3437,7 @@ export function DashboardPage({
             {!showOnlySla && !loading && !error && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                        Plan vs Fact Dashboard
+                        План-Факт
                     </Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.75rem' }}>
                         Сравнение плановой и фактической даты доставки по выбранному периоду.
@@ -3452,9 +3476,9 @@ export function DashboardPage({
                                             <div style={{ height: 7, borderRadius: 4, background: 'rgba(148,163,184,0.25)', overflow: 'hidden', marginBottom: '0.2rem' }}>
                                                 <div style={{ width: `${Math.round((row.total / planVsFactDashboard.maxTotal) * 100)}%`, height: '100%', background: 'rgba(99,102,241,0.7)' }} />
                                             </div>
-                                            <Typography.Body style={{ fontSize: '0.68rem' }}>Всего: {row.total}</Typography.Body>
-                                            <Typography.Body style={{ fontSize: '0.68rem', color: '#16a34a' }}>В срок: {row.onTime}</Typography.Body>
-                                            <Typography.Body style={{ fontSize: '0.68rem', color: '#ef4444' }}>Late: {row.late}</Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.68rem', display: 'block' }}>Всего: {row.total}</Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.68rem', color: '#16a34a', display: 'block' }}>В срок: {row.onTime}</Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.68rem', color: '#ef4444', display: 'block' }}>Опоздание: {row.late}</Typography.Body>
                                         </div>
                                     ))}
                                 </div>
@@ -3485,7 +3509,7 @@ export function DashboardPage({
                 <Panel className="cargo-card sla-monitor-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.5rem' }}>
                     <Flex align="center" justify="space-between" className="sla-monitor-header" style={{ marginBottom: '0.2rem' }}>
                         <Typography.Headline style={{ fontSize: '0.95rem', fontWeight: 600 }}>
-                            Монитор SLA
+                            мониотор срока доставки
                         </Typography.Headline>
                         {slaStats.total > 0 && slaTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} title="Динамика SLA улучшается" />}
                         {slaStats.total > 0 && slaTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} title="Динамика SLA ухудшается" />}
