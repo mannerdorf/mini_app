@@ -494,6 +494,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [sverkiRequestsLoading, setSverkiRequestsLoading] = useState(false);
     const [sverkiOrderModalOpen, setSverkiOrderModalOpen] = useState(false);
     const [sverkiOrderContract, setSverkiOrderContract] = useState('');
+    const [sverkiOrderContractOptions, setSverkiOrderContractOptions] = useState<string[]>([]);
+    const [sverkiOrderContractsLoading, setSverkiOrderContractsLoading] = useState(false);
     const [sverkiOrderPeriodFrom, setSverkiOrderPeriodFrom] = useState('');
     const [sverkiOrderPeriodTo, setSverkiOrderPeriodTo] = useState('');
     const [sverkiOrderSubmitting, setSverkiOrderSubmitting] = useState(false);
@@ -648,6 +650,42 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             setClaimsLoading(false);
         }
     }, [docSection, auth?.login, auth?.password, auth?.inn, claimsStatusFilter, effectiveActiveInn]);
+    const loadSverkiOrderContracts = useCallback(async () => {
+        if (!effectiveActiveInn) {
+            setSverkiOrderContractOptions([]);
+            setSverkiOrderContract('');
+            return;
+        }
+        setSverkiOrderContractsLoading(true);
+        try {
+            const params = new URLSearchParams();
+            params.set('inn', String(effectiveActiveInn));
+            const resp = await fetch(`/api/dogovors?${params.toString()}`);
+            const data = await resp.json().catch(() => ({} as any));
+            const rows = Array.isArray((data as any)?.dogovors)
+                ? ((data as any).dogovors as Array<{ docNumber?: string; title?: string }>)
+                : [];
+            const options = Array.from(
+                new Set(
+                    rows
+                        .map((row) => {
+                            const number = String(row?.docNumber || '').trim();
+                            const title = String(row?.title || '').trim();
+                            if (number && title) return `${number} - ${title}`;
+                            return number || title;
+                        })
+                        .filter(Boolean)
+                )
+            );
+            setSverkiOrderContractOptions(options);
+            setSverkiOrderContract((prev) => (prev && options.includes(prev) ? prev : (options[0] || '')));
+        } catch {
+            setSverkiOrderContractOptions([]);
+            setSverkiOrderContract('');
+        } finally {
+            setSverkiOrderContractsLoading(false);
+        }
+    }, [effectiveActiveInn]);
     useEffect(() => {
         reloadClaims();
     }, [reloadClaims]);
@@ -946,6 +984,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [isTariffsCustomerDropdownOpen, setIsTariffsCustomerDropdownOpen] = useState(false);
     const [isTariffsRouteDropdownOpen, setIsTariffsRouteDropdownOpen] = useState(false);
     const [isTariffsTypeDropdownOpen, setIsTariffsTypeDropdownOpen] = useState(false);
+    const [isClaimsStatusDropdownOpen, setIsClaimsStatusDropdownOpen] = useState(false);
     const [favVersion, setFavVersion] = useState(0);
     useEffect(() => {
         setSelectedByCustomerSummaryKeys(new Set());
@@ -974,6 +1013,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const tariffsCustomerButtonRef = useRef<HTMLDivElement | null>(null);
     const tariffsRouteButtonRef = useRef<HTMLDivElement | null>(null);
     const tariffsTypeButtonRef = useRef<HTMLDivElement | null>(null);
+    const claimsStatusButtonRef = useRef<HTMLDivElement | null>(null);
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
     const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -4408,9 +4448,17 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             onClick={() => {
                                 setSverkiOrderError(null);
                                 setSverkiOrderContract('');
-                                setSverkiOrderPeriodFrom(apiDateRange.dateFrom);
-                                setSverkiOrderPeriodTo(apiDateRange.dateTo);
+                                setSverkiOrderContractOptions([]);
+                                const now = new Date();
+                                const year = now.getFullYear();
+                                const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+                                const quarterEndMonth = quarterStartMonth + 2;
+                                const pad = (n: number) => String(n).padStart(2, '0');
+                                const quarterLastDay = new Date(year, quarterEndMonth + 1, 0).getDate();
+                                setSverkiOrderPeriodFrom(`${year}-${pad(quarterStartMonth + 1)}-01`);
+                                setSverkiOrderPeriodTo(`${year}-${pad(quarterEndMonth + 1)}-${pad(quarterLastDay)}`);
                                 setSverkiOrderModalOpen(true);
+                                loadSverkiOrderContracts();
                             }}
                         >
                             Заказать Акт сверки
@@ -4433,7 +4481,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             </Typography.Body>
                         ) : sverkiRequests.length === 0 ? (
                             <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
-                                Заявок пока нет
+                                {'   '}Заявок пока нет
                             </Typography.Body>
                         ) : (
                             <div style={{ overflowX: 'auto' }}>
@@ -4612,17 +4660,38 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         >
                             + Создать претензию
                         </Button>
-                        <select
-                            className="admin-form-input"
-                            value={claimsStatusFilter}
-                            onChange={(e) => setClaimsStatusFilter(e.target.value)}
-                            style={{ maxWidth: 260, padding: '0.45rem 0.55rem' }}
+                        <div ref={claimsStatusButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button
+                                className="filter-button"
+                                onClick={() => setIsClaimsStatusDropdownOpen(!isClaimsStatusDropdownOpen)}
+                            >
+                                {claimsStatusFilter === 'all'
+                                    ? 'Все статусы'
+                                    : (CLAIM_STATUS_LABELS[claimsStatusFilter as ClaimStatusKey] || 'Все статусы')}
+                                <ChevronDown className="w-4 h-4" />
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal
+                            triggerRef={claimsStatusButtonRef}
+                            isOpen={isClaimsStatusDropdownOpen}
+                            onClose={() => setIsClaimsStatusDropdownOpen(false)}
                         >
-                            <option value="all">Все статусы</option>
+                            <div className="dropdown-item" onClick={() => { setClaimsStatusFilter('all'); setIsClaimsStatusDropdownOpen(false); }}>
+                                <Typography.Body>Все статусы</Typography.Body>
+                            </div>
                             {Object.entries(CLAIM_STATUS_LABELS).map(([value, label]) => (
-                                <option key={value} value={value}>{label}</option>
+                                <div
+                                    key={value}
+                                    className="dropdown-item"
+                                    onClick={() => {
+                                        setClaimsStatusFilter(value);
+                                        setIsClaimsStatusDropdownOpen(false);
+                                    }}
+                                >
+                                    <Typography.Body>{label}</Typography.Body>
+                                </div>
                             ))}
-                        </select>
+                        </FilterDropdownPortal>
                     </Flex>
                     {claimsLoading ? (
                         <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
@@ -5626,14 +5695,25 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             </div>
                             <div>
                                 <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.2rem' }}>Договор</Typography.Body>
-                                <input
-                                    type="text"
+                                <select
                                     className="admin-form-input"
-                                    placeholder="Номер или название договора"
                                     value={sverkiOrderContract}
                                     onChange={(e) => setSverkiOrderContract(e.target.value)}
                                     style={{ width: '100%', padding: '0.45rem' }}
-                                />
+                                    disabled={sverkiOrderContractsLoading || sverkiOrderContractOptions.length === 0}
+                                >
+                                    {sverkiOrderContractsLoading ? (
+                                        <option value="">Загрузка договоров...</option>
+                                    ) : sverkiOrderContractOptions.length === 0 ? (
+                                        <option value="">Нет договоров для выбранного заказчика</option>
+                                    ) : (
+                                        sverkiOrderContractOptions.map((contract) => (
+                                            <option key={contract} value={contract}>
+                                                {contract}
+                                            </option>
+                                        ))
+                                    )}
+                                </select>
                             </div>
                         </div>
                         {sverkiOrderError ? (
@@ -5646,21 +5726,21 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 className="filter-button"
                                 disabled={sverkiOrderSubmitting}
                                 onClick={() => setSverkiOrderModalOpen(false)}
-                                style={{ flexShrink: 0 }}
+                                style={{ flex: 1, height: '3rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                             >
                                 Отмена
                             </Button>
                             <Button
                                 className="button-primary"
                                 disabled={sverkiOrderSubmitting}
-                                style={{ flexShrink: 0 }}
+                                style={{ flex: 1, height: '3rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                                 onClick={async () => {
                                     if (!effectiveActiveInn || !auth?.login || !auth?.password) {
                                         setSverkiOrderError('Не удалось определить ИНН или авторизацию');
                                         return;
                                     }
                                     if (!sverkiOrderPeriodFrom || !sverkiOrderPeriodTo || !sverkiOrderContract.trim()) {
-                                        setSverkiOrderError('Заполните период и договор');
+                                        setSverkiOrderError('Заполните период и выберите договор');
                                         return;
                                     }
                                     setSverkiOrderSubmitting(true);
