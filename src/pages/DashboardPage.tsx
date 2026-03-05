@@ -841,7 +841,8 @@ export function DashboardPage({
                 (item as any).ДатаВручения,
             ];
             for (const candidate of candidates) {
-                const key = parseKey(candidate);
+                const parsed = parseDashboardDateOnly(candidate);
+                const key = parsed ? dateToKey(parsed) : null;
                 if (key) return key;
             }
             return null;
