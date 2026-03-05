@@ -189,6 +189,10 @@ function pickSendingStartDate(item: any): Date | null {
       item?.DateDoc ??
       item?.Date ??
       item?.date ??
+      item?.DateVr ??
+      item?.DatePrih ??
+      item?.ДатаПогрузки ??
+      item?.ДатаНачала ??
       item?.Дата
   );
 }
