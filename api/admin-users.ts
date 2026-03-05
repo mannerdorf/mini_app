@@ -83,7 +83,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const usersWithCompanies = users.map((u) => {
       const key = normalizeLogin(u.login);
-      const list = [...(byLogin.get(key) || []), ...(byEmail.get(key) || [])];
+      const assignedCompanies = byLogin.get(key) || [];
+      // Если у пользователя уже есть явные привязки компаний в account_companies,
+      // не подмешиваем автоподбор по email из cache_customers.
+      const list = assignedCompanies.length > 0 ? assignedCompanies : (byEmail.get(key) || []);
       // Дедуп по ИНН, чтобы не было дублей при смешанном регистре логинов.
       const unique = new Map<string, { inn: string; name: string }>();
       for (const c of list) {

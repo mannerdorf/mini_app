@@ -445,6 +445,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         createdAt: string;
         updatedAt: string;
     }[]>([]);
+    const claimsRequestIdRef = useRef(0);
     const [claimsLoading, setClaimsLoading] = useState(false);
     const [claimsStatusFilter, setClaimsStatusFilter] = useState<string>('all');
     const [claimsCreateOpen, setClaimsCreateOpen] = useState(false);
@@ -624,7 +625,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         setSelectedWeekForFilter(null);
     }, [docSection]);
     const reloadClaims = useCallback(async () => {
+        const requestId = ++claimsRequestIdRef.current;
         if (docSection !== 'Претензии' || !auth?.login || !auth?.password) {
+            setClaimsLoading(false);
             setClaimsList([]);
             return;
         }
@@ -643,11 +646,17 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 },
             });
             const data = await res.json().catch(() => ({}));
-            setClaimsList(Array.isArray((data as any)?.claims) ? ((data as any).claims as any[]) : []);
+            if (requestId === claimsRequestIdRef.current) {
+                setClaimsList(Array.isArray((data as any)?.claims) ? ((data as any).claims as any[]) : []);
+            }
         } catch {
-            setClaimsList([]);
+            if (requestId === claimsRequestIdRef.current) {
+                setClaimsList([]);
+            }
         } finally {
-            setClaimsLoading(false);
+            if (requestId === claimsRequestIdRef.current) {
+                setClaimsLoading(false);
+            }
         }
     }, [docSection, auth?.login, auth?.password, auth?.inn, claimsStatusFilter, effectiveActiveInn]);
     const loadSverkiOrderContracts = useCallback(async () => {
@@ -4394,8 +4403,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                             display: 'inline-block',
                                                             padding: '0.2rem 0.45rem',
                                                             borderRadius: 999,
-                                                            background: 'var(--color-bg-hover)',
-                                                            border: '1px solid var(--color-border)',
+                                                            background: 'rgba(59, 130, 246, 0.15)',
+                                                            border: '1px solid rgba(59, 130, 246, 0.4)',
+                                                            color: 'var(--color-primary-blue)',
                                                             fontWeight: 600,
                                                             fontSize: '0.78rem',
                                                             lineHeight: 1.2,
@@ -4414,8 +4424,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                             display: 'inline-block',
                                                             padding: '0.2rem 0.45rem',
                                                             borderRadius: 999,
-                                                            background: 'var(--color-bg-hover)',
-                                                            border: '1px solid var(--color-border)',
+                                                            background: 'rgba(59, 130, 246, 0.15)',
+                                                            border: '1px solid rgba(59, 130, 246, 0.4)',
+                                                            color: 'var(--color-primary-blue)',
                                                             fontWeight: 600,
                                                             fontSize: '0.78rem',
                                                             lineHeight: 1.2,
