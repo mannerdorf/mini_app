@@ -5,6 +5,8 @@ import { buildSendingsMetrics, extractArrayFromAnyPayload, upsertSendingsMetrics
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
+const HTTP_TIMEOUT_MS = 110_000;
+const RUNTIME_BUDGET_MS = 260_000;
 
 function toIsoDate(value: unknown): string | null {
   const s = String(value ?? "").trim();
@@ -27,29 +29,37 @@ function minIso(a: string, b: string): string {
 }
 
 async function fetchServiceJson(url: string, login: string, password: string) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
   const response = await fetch(url, {
     method: "GET",
     headers: {
       Auth: `Basic ${login}:${password}`,
       Authorization: SERVICE_AUTH,
     },
+    signal: controller.signal,
   });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
-  let json: any;
   try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error(`Invalid JSON: ${text.slice(0, 200)}`);
+    const text = await response.text();
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
+    let json: any;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new Error(`Invalid JSON: ${text.slice(0, 200)}`);
+    }
+    if (json && typeof json === "object" && json.Success === false) {
+      const err = String(json.Error ?? json.error ?? json.message ?? "Success=false");
+      throw new Error(err);
+    }
+    return json;
+  } finally {
+    clearTimeout(timer);
   }
-  if (json && typeof json === "object" && json.Success === false) {
-    const err = String(json.Error ?? json.error ?? json.message ?? "Success=false");
-    throw new Error(err);
-  }
-  return json;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const startedAt = Date.now();
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
     return res.status(405).json({ error: "Method not allowed" });
@@ -78,8 +88,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const today = new Date().toISOString().split("T")[0];
   const cfgFrom = toIsoDate(process.env.SENDINGS_BACKFILL_FROM || "") || "2023-01-01";
   const cfgTo = toIsoDate(process.env.SENDINGS_BACKFILL_TO || "") || today;
-  const chunkDays = Math.max(1, Math.min(90, Number(process.env.SENDINGS_BACKFILL_CHUNK_DAYS) || 30));
-  const maxChunks = Math.max(1, Math.min(24, Number(process.env.SENDINGS_BACKFILL_MAX_CHUNKS_PER_RUN) || 2));
+  const chunkDays = Math.max(1, Math.min(90, Number(process.env.SENDINGS_BACKFILL_CHUNK_DAYS) || 14));
+  const maxChunks = Math.max(1, Math.min(24, Number(process.env.SENDINGS_BACKFILL_MAX_CHUNKS_PER_RUN) || 1));
   if (cfgFrom > cfgTo) {
     return res.status(400).json({ error: "SENDINGS_BACKFILL_FROM > SENDINGS_BACKFILL_TO" });
   }
@@ -137,6 +147,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const chunks: Array<{ from: string; to: string; sendings: number; perevozki: number; updated: number; error?: string }> = [];
 
   while (currentFrom <= dateTo && chunksProcessed < maxChunks) {
+    if (Date.now() - startedAt >= RUNTIME_BUDGET_MS) {
+      break;
+    }
     const currentTo = minIso(addDays(currentFrom, chunkDays - 1), dateTo);
     try {
       const [perevozkiJson, sendingsJson] = await Promise.all([
