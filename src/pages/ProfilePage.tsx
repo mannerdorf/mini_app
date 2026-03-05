@@ -851,7 +851,7 @@ export function ProfilePage({
             icon: <UserIcon className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,
             onClick: () => setCurrentView('roles')
         },
-        ...((activeAccount?.isSuperAdmin || activeAccount?.permissions?.haulz === true || activeAccount?.permissions?.doc_claims === true) ? [{
+        ...((activeAccount?.isSuperAdmin || activeAccount?.permissions?.haulz === true) ? [{
             id: 'haulz',
             label: 'HAULZ',
             icon: <LayoutGrid className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />,

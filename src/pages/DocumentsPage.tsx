@@ -600,6 +600,27 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             .catch(() => setDogovorsList([]))
             .finally(() => setDogovorsLoading(false));
     }, [docSection, effectiveActiveInn, effectiveServiceMode]);
+    useEffect(() => {
+        if (docSection !== 'Договоры') return;
+        setDateFilter('все');
+        setSelectedMonthForFilter(null);
+        setSelectedYearForFilter(null);
+        setSelectedWeekForFilter(null);
+    }, [docSection]);
+    useEffect(() => {
+        if (docSection !== 'Акты сверок') return;
+        setDateFilter('год');
+        setSelectedMonthForFilter(null);
+        setSelectedYearForFilter(new Date().getFullYear());
+        setSelectedWeekForFilter(null);
+    }, [docSection]);
+    useEffect(() => {
+        if (docSection !== 'Тарифы') return;
+        setDateFilter('все');
+        setSelectedMonthForFilter(null);
+        setSelectedYearForFilter(null);
+        setSelectedWeekForFilter(null);
+    }, [docSection]);
     const reloadClaims = useCallback(async () => {
         if (docSection !== 'Претензии' || !auth?.login || !auth?.password) {
             setClaimsList([]);
@@ -608,12 +629,15 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         setClaimsLoading(true);
         const params = new URLSearchParams();
         if (claimsStatusFilter !== 'all') params.set('status', claimsStatusFilter);
+        const selectedInn = String(effectiveActiveInn || auth?.inn || '').trim();
+        if (selectedInn) params.set('inn', selectedInn);
         try {
             const res = await fetch(`/api/claims${params.toString() ? `?${params.toString()}` : ''}`, {
                 method: 'GET',
                 headers: {
                     'x-login': auth.login,
                     'x-password': auth.password,
+                    'x-inn': selectedInn,
                 },
             });
             const data = await res.json().catch(() => ({}));
@@ -623,7 +647,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         } finally {
             setClaimsLoading(false);
         }
-    }, [docSection, auth?.login, auth?.password, claimsStatusFilter]);
+    }, [docSection, auth?.login, auth?.password, auth?.inn, claimsStatusFilter, effectiveActiveInn]);
     useEffect(() => {
         reloadClaims();
     }, [reloadClaims]);
@@ -683,6 +707,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 headers: {
                     'x-login': auth.login,
                     'x-password': auth.password,
+                    'x-inn': String(effectiveActiveInn || auth?.inn || '').trim(),
                 },
             });
             const data = await res.json().catch(() => ({}));
@@ -713,7 +738,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         } finally {
             setClaimsCreateSubmitting(false);
         }
-    }, [auth?.login, auth?.password]);
+    }, [auth?.login, auth?.password, auth?.inn, effectiveActiveInn]);
     const openClaimDetailModal = useCallback(async (claimId: number) => {
         if (!auth?.login || !auth?.password) return;
         setClaimsDetailOpen(true);
@@ -726,6 +751,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 headers: {
                     'x-login': auth.login,
                     'x-password': auth.password,
+                    'x-inn': String(effectiveActiveInn || auth?.inn || '').trim(),
                 },
             });
             const data = await res.json().catch(() => ({}));
@@ -736,7 +762,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         } finally {
             setClaimsDetailLoading(false);
         }
-    }, [auth?.login, auth?.password]);
+    }, [auth?.login, auth?.password, auth?.inn, effectiveActiveInn]);
     const runClaimAction = useCallback(async (claimId: number, action: 'submit' | 'withdraw') => {
         if (!auth?.login || !auth?.password) return;
         setClaimsActionLoadingId(claimId);
@@ -747,6 +773,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     'Content-Type': 'application/json',
                     'x-login': auth.login,
                     'x-password': auth.password,
+                    'x-inn': String(effectiveActiveInn || auth?.inn || '').trim(),
                 },
                 body: JSON.stringify({ action }),
             });
@@ -758,7 +785,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         } finally {
             setClaimsActionLoadingId(null);
         }
-    }, [auth?.login, auth?.password, reloadClaims]);
+    }, [auth?.login, auth?.password, auth?.inn, effectiveActiveInn, reloadClaims]);
     const openClaimReplyModal = useCallback((claimId: number) => {
         setClaimsReplyClaimId(claimId);
         setClaimsReplyPhotoFiles([]);
@@ -794,6 +821,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     'Content-Type': 'application/json',
                     'x-login': auth.login,
                     'x-password': auth.password,
+                    'x-inn': String(effectiveActiveInn || auth?.inn || '').trim(),
                 },
                 body: JSON.stringify({
                     action: 'upload_documents',
@@ -815,7 +843,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         } finally {
             setClaimsReplySubmitting(false);
         }
-    }, [claimsReplyClaimId, auth?.login, auth?.password, claimsReplyPhotoFiles, claimsReplyDocumentFiles, claimsReplyVideoLink, reloadClaims]);
+    }, [claimsReplyClaimId, auth?.login, auth?.password, auth?.inn, effectiveActiveInn, claimsReplyPhotoFiles, claimsReplyDocumentFiles, claimsReplyVideoLink, reloadClaims]);
     useEffect(() => {
         if (docSection !== 'Акты сверок' || !effectiveActiveInn || !auth?.login || !auth?.password) {
             setSverkiRequests([]);
@@ -2034,8 +2062,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             return innerTableSortOrder === 'asc' ? cmp : -cmp;
         });
     }, [innerTableSortColumn, innerTableSortOrder]);
-    const isRequestJournalSection = docSection === 'Заявки' || docSection === 'Отправки';
-    const tableModeEffective = isRequestJournalSection ? true : tableModeByCustomer;
+    const tableModeEffective = tableModeByCustomer;
     const orderRowsSorted = useMemo(() => {
         const getDate = (row: any) => String(row?.Дата ?? row?.DateZayavki ?? row?.Date ?? row?.date ?? "");
         const getNumber = (row: any) => String(row?.НомерЗаявки ?? row?.Номер ?? row?.Number ?? row?.number ?? row?.N ?? "");
@@ -2388,14 +2415,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             <div className="cargo-page-sticky-header">
                 <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Документы</Typography.Headline>
-                    {!isRequestJournalSection && (
-                        <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                            <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
-                            <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
-                                <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
-                            </span>
-                        </Flex>
-                    )}
+                    <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                        <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
+                        <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
+                            <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
+                        </span>
+                    </Flex>
                 </Flex>
                 {/* Кнопки разделов: ниже «Документы», выше фильтров */}
                 <div
@@ -5530,6 +5555,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                                 'Content-Type': 'application/json',
                                                 'x-login': auth.login,
                                                 'x-password': auth.password,
+                                                'x-inn': String(effectiveActiveInn || auth?.inn || '').trim(),
                                             },
                                             body: JSON.stringify(
                                                 isEditDraft

@@ -30,6 +30,11 @@ function pickCredentials(req: VercelRequest, body: any): { login: string; passwo
   return { login, password };
 }
 
+function pickInn(req: VercelRequest, body: any): string {
+  const innFromHeader = typeof req.headers["x-inn"] === "string" ? req.headers["x-inn"] : "";
+  return String(body?.inn || innFromHeader || "").trim();
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
@@ -42,6 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pool = getPool();
   const body = req.method === "POST" ? req.body : req.query;
   const { login, password } = pickCredentials(req, body);
+  const selectedInn = pickInn(req, body);
   if (!login || !password) return res.status(400).json({ error: "login and password are required" });
 
   const verified = await verifyRegisteredUser(pool, login, password);
@@ -67,6 +73,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
   const claim = claimRes.rows[0];
   if (!claim) return res.status(404).json({ error: "Претензия не найдена" });
+
+  if (selectedInn && claim.customerInn !== selectedInn) {
+    return res.status(403).json({ error: "Нет доступа к этой претензии по выбранной компании" });
+  }
 
   const hasInnAccess = verified.accessAllInns || (!!verified.inn && claim.customerInn === verified.inn);
   const hasAccess = claim.customerLogin === loginKey || hasInnAccess;

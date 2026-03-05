@@ -36,6 +36,11 @@ function pickCredentials(req: VercelRequest, body: any): { login: string; passwo
   return { login, password };
 }
 
+function pickInn(req: VercelRequest, body: any): string {
+  const innFromHeader = typeof req.headers["x-inn"] === "string" ? req.headers["x-inn"] : "";
+  return String(body?.inn || innFromHeader || "").trim();
+}
+
 function isIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
@@ -55,6 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const pool = getPool();
   const body = req.method === "POST" ? req.body : req.query;
   const { login, password } = pickCredentials(req, body);
+  const selectedInn = pickInn(req, body);
   if (!login || !password) return res.status(400).json({ error: "login and password are required" });
 
   const verified = await verifyRegisteredUser(pool, login, password);
@@ -80,6 +86,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const where: string[] = [hasExpertLogin ? "(customer_login = $1 OR expert_login = $1)" : "customer_login = $1"];
     const params: unknown[] = [loginKey];
+
+    if (selectedInn) {
+      if (!verified.accessAllInns && verified.inn && selectedInn !== verified.inn) {
+        return res.status(403).json({ error: "Нет доступа к выбранной компании" });
+      }
+      params.push(selectedInn);
+      where.push(`customer_inn = $${params.length}`);
+    }
 
     if (status) {
       params.push(status);
