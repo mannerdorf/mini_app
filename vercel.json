@@ -1,6 +1,7 @@
 {
   "crons": [
     {"path": "/api/cron/refresh-cache", "schedule": "*/5 * * * *"},
+    {"path": "/api/cron/backfill-sendings-metrics", "schedule": "*/5 * * * *"},
     {"path": "/api/cron/refresh-orders-cache", "schedule": "*/15 * * * *"},
     {"path": "/api/cron/refresh-suppliers-cache", "schedule": "*/15 * * * *"},
     {"path": "/api/cron/process-claim-push-queue", "schedule": "*/5 * * * *"},
@@ -13,6 +14,7 @@
     "api/chat.ts": {"maxDuration": 60},
     "api/tg-webhook.ts": {"maxDuration": 60},
     "api/cron/refresh-cache.ts": {"maxDuration": 300},
+    "api/cron/backfill-sendings-metrics.ts": {"maxDuration": 300},
     "api/cron/refresh-orders-cache.ts": {"maxDuration": 300},
     "api/cron/refresh-suppliers-cache.ts": {"maxDuration": 300},
     "api/cron/process-claim-push-queue.ts": {"maxDuration": 300},
