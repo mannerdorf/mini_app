@@ -70,7 +70,7 @@ function calcTransitHours(sendStartAt: Date | null, firstReadyAt: Date | null): 
 }
 
 function pickSendingInn(item: any): string {
-  return normalizeInn(
+  const direct = normalizeInn(
     item?.CustomerINN ??
       item?.customerINN ??
       item?.CustomerInn ??
@@ -87,6 +87,9 @@ function pickSendingInn(item: any): string {
       item?.Inn ??
       item?.inn
   );
+  if (direct) return direct;
+  // Fallback: в некоторых ответах Getotpravki ИНН лежит в "грузовых" полях.
+  return pickCargoInn(item);
 }
 
 function pickCargoInn(item: any): string {
@@ -121,11 +124,20 @@ function pickSendingNumber(item: any): string {
       item?.NumberSend ??
       item?.NumberSending ??
       item?.НомерОтправки ??
+      item?.НомерОтправления ??
       item?.НомерОтпр ??
       item?.Номер ??
       item?.Number ??
       item?.number ??
-      item?.ИДОтправления
+      item?.ИДОтправления ??
+      item?.ID ??
+      item?.Id ??
+      item?.id ??
+      item?.Ref_Key ??
+      item?.RefKey ??
+      item?.GUID ??
+      item?.Guid ??
+      item?.guid
   );
 }
 
