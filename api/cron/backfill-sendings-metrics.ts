@@ -273,9 +273,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const currentTo = minIso(addDays(currentFrom, chunkDays - 1), dateTo);
     try {
       const seedRows = allSeedRows.filter((row) => {
-        if (!row?.sendStartAt) return false;
-        const d = row.sendStartAt.toISOString().split("T")[0];
-        return d >= currentFrom && d <= currentTo;
+        const start = row?.sendStartAt ? row.sendStartAt.toISOString().split("T")[0] : "";
+        const ready = row?.firstReadyAt ? row.firstReadyAt.toISOString().split("T")[0] : "";
+        if (!start && !ready) return false;
+        if (start && start >= currentFrom && start <= currentTo) return true;
+        if (ready && ready >= currentFrom && ready <= currentTo) return true;
+        if (start && start <= currentTo && (!ready || ready >= currentFrom)) return true;
+        return false;
       });
       let seededSendings = 0;
       for (const row of seedRows) {
@@ -315,6 +319,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         seededSendings += 1;
       }
 
+      const metricSeedRes = await pool.query<{
+        customer_inn: string;
+        sending_number: string;
+        cargo_numbers: unknown;
+        send_start_at: unknown;
+        first_ready_at: unknown;
+      }>(
+        `select customer_inn, sending_number, cargo_numbers, send_start_at, first_ready_at
+           from sendings_metrics
+          where
+            (send_start_at::date between $1::date and $2::date)
+            or (first_ready_at::date between $1::date and $2::date)
+            or (
+              send_start_at is not null
+              and send_start_at::date <= $2::date
+              and (first_ready_at is null or first_ready_at::date >= $1::date)
+            )`,
+        [currentFrom, currentTo]
+      );
+      for (const row of metricSeedRes.rows) {
+        await pool.query(
+          `insert into sendings_30d_queue (
+             customer_inn, sending_number, send_start_at, cargo_numbers, first_ready_at, state, updated_at
+           )
+           values ($1, $2, $3::timestamptz, $4::jsonb, $5::timestamptz, 'pending', now())
+           on conflict (customer_inn, sending_number) do update
+             set send_start_at = case
+                                  when sendings_30d_queue.send_start_at is null then excluded.send_start_at
+                                  when excluded.send_start_at is null then sendings_30d_queue.send_start_at
+                                  else least(sendings_30d_queue.send_start_at, excluded.send_start_at)
+                                end,
+                 cargo_numbers = (
+                   select coalesce(jsonb_agg(distinct x), '[]'::jsonb)
+                   from (
+                     select jsonb_array_elements(coalesce(sendings_30d_queue.cargo_numbers, '[]'::jsonb)) as x
+                     union all
+                     select jsonb_array_elements(coalesce(excluded.cargo_numbers, '[]'::jsonb)) as x
+                   ) z
+                 ),
+                 first_ready_at = case
+                                    when sendings_30d_queue.first_ready_at is null then excluded.first_ready_at
+                                    when excluded.first_ready_at is null then sendings_30d_queue.first_ready_at
+                                    else least(sendings_30d_queue.first_ready_at, excluded.first_ready_at)
+                                  end,
+                 updated_at = now()`,
+          [
+            row.customer_inn,
+            row.sending_number,
+            row.send_start_at ? new Date(String(row.send_start_at)).toISOString() : null,
+            JSON.stringify(Array.isArray(row.cargo_numbers) ? row.cargo_numbers : []),
+            row.first_ready_at ? new Date(String(row.first_ready_at)).toISOString() : null,
+          ]
+        );
+        seededSendings += 1;
+      }
+
       const insertCargoRes = await pool.query<{ count: string }>(
         `with ins as (
            insert into sendings_30d_cargo_queue (cargo_number, customer_inn, sending_number, updated_at)
@@ -325,7 +385,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
              now()
            from sendings_30d_queue q
            cross join lateral jsonb_array_elements(coalesce(q.cargo_numbers, '[]'::jsonb)) c
-           where q.send_start_at::date between $1::date and $2::date
+           where (
+                   q.send_start_at::date between $1::date and $2::date
+                   or q.first_ready_at::date between $1::date and $2::date
+                   or (
+                     q.send_start_at is not null
+                     and q.send_start_at::date <= $2::date
+                     and (q.first_ready_at is null or q.first_ready_at::date >= $1::date)
+                   )
+                 )
              and trim(both '"' from c.value::text) <> ''
            on conflict (cargo_number) do update
              set customer_inn = excluded.customer_inn,
@@ -440,7 +508,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }>(
         `select customer_inn, sending_number, cargo_numbers, send_start_at, first_ready_at
            from sendings_30d_queue
-          where send_start_at::date between $1::date and $2::date`,
+          where
+            (send_start_at::date between $1::date and $2::date)
+            or (first_ready_at::date between $1::date and $2::date)
+            or (
+              send_start_at is not null
+              and send_start_at::date <= $2::date
+              and (first_ready_at is null or first_ready_at::date >= $1::date)
+            )`,
         [currentFrom, currentTo]
       );
       const metricsRows = metricSourceRes.rows.map((row) => {
