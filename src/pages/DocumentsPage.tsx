@@ -3828,6 +3828,7 @@ useEffect(() => {
                         )}
                     </div>
                 )}
+                {tableModeEffective && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -4602,6 +4603,193 @@ useEffect(() => {
                         </tbody>
                     </table>
                 </div>
+                )}
+                {!tableModeEffective && (
+                    <div className="cargo-list">
+                        {sendingRowsSorted.map((row: any, idx: number) => {
+                            const rawDate = row?.Дата ?? row?.Date ?? row?.date ?? '';
+                            const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '');
+                            const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
+                            const comment = String(row?.Комментарий ?? row?.Comment ?? '');
+                            const eor = String(row?.EOR ?? row?.ЗаписьОВыходе ?? row?.ExitOfRecords ?? '').trim();
+                            const rowKey = getSendingRowKey(row, idx);
+                            const eorStatuses = (() => {
+                                const withNormalized = (raw: string) => {
+                                    const base = String(raw ?? '').trim();
+                                    if (!base) return [] as string[];
+                                    const compact = base.replace(/\D+/g, '');
+                                    return compact && compact !== base ? [base, compact] : [base];
+                                };
+                                const candidates = [
+                                    ...withNormalized(rowKey),
+                                    ...withNormalized(number),
+                                    ...withNormalized(String(row?.ИДОтправления ?? '').trim()),
+                                ];
+                                for (const candidate of Array.from(new Set(candidates))) {
+                                    const statuses = eorStatusMap[candidate];
+                                    if (Array.isArray(statuses) && statuses.length > 0) return statuses;
+                                }
+                                return [] as EorStatus[];
+                            })();
+                            const parcels = getRequestParcels(row);
+                            const searchLower = effectiveSearchText.trim().toLowerCase();
+                            const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
+                            const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
+                            const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
+                            const transportType = getSendingTransportType(vehicle);
+                            const sendingStatusKey = getSendingStatusKey(row);
+                            const sendingStatusLabel = sendingStatusKey === 'all' ? '' : STATUS_MAP[sendingStatusKey];
+                            const transitHours = getSendingTransitHours(row);
+                            const transitDays = transitHours == null ? null : Math.round((transitHours / 24) * 10) / 10;
+                            const isFinalTransit = getSendingTransitIsFinal(row);
+                            const plannedArrivalDate = getSendingPlannedArrivalDate(row);
+                            const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
+                            const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
+                            const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
+                            const expanded = expandedSendingRow === rowKey;
+                            return (
+                                <Panel
+                                    key={rowKey}
+                                    className="cargo-card"
+                                    onClick={() => setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey))}
+                                    style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
+                                    title={expanded ? 'Свернуть отправку' : 'Показать детали отправки'}
+                                >
+                                    {canEditEor && (
+                                        <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedSendingRowKeys.has(rowKey)}
+                                                onChange={(e) => {
+                                                    const checked = e.target.checked;
+                                                    setSelectedSendingRowKeys((prev) => {
+                                                        const next = new Set(prev);
+                                                        if (checked) next.add(rowKey);
+                                                        else next.delete(rowKey);
+                                                        return next;
+                                                    });
+                                                }}
+                                                aria-label={`Выбрать отправку ${number || rowKey}`}
+                                            />
+                                        </div>
+                                    )}
+                                    <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)', paddingRight: canEditEor ? '1.25rem' : 0 }}>
+                                            {number ? formatInvoiceNumber(number) : '—'}
+                                        </Typography.Body>
+                                        <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem', flexShrink: 0 }}>
+                                            <DateText value={rawDate ? String(rawDate) : undefined} />
+                                        </Typography.Label>
+                                    </Flex>
+                                    <Flex justify="space-between" align="center" style={{ marginBottom: '0.45rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                        <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap' }}>
+                                            {route}
+                                        </span>
+                                        <Flex align="center" gap="0.35rem">
+                                            {transportType === 'ferry' ? (
+                                                <Ship className="w-4 h-4" style={{ color: 'var(--color-primary-blue)' }} title="Паром" />
+                                            ) : transportType === 'auto' ? (
+                                                <Truck className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} title="Авто" />
+                                            ) : null}
+                                            {sendingStatusLabel ? <StatusBadge status={sendingStatusLabel} /> : <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>—</Typography.Label>}
+                                        </Flex>
+                                    </Flex>
+                                    <Flex justify="space-between" align="center" style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginBottom: '0.4rem' }}>
+                                        <Typography.Label>
+                                            В пути:{' '}
+                                            {transitHours == null ? '—' : (
+                                                <span style={isFinalTransit ? { color: '#16a34a', fontWeight: 600 } : undefined}>
+                                                    {Number.isInteger(transitHours) ? transitHours : transitHours.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ч
+                                                    {' / '}
+                                                    {(transitDays != null && Number.isInteger(transitDays) ? transitDays : (transitDays ?? 0).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 }))} д
+                                                </span>
+                                            )}
+                                        </Typography.Label>
+                                        <Typography.Label>
+                                            План: {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}
+                                        </Typography.Label>
+                                    </Flex>
+                                    <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={vehicle || '—'}>
+                                        ТС: {vehicle || '—'}
+                                    </Typography.Label>
+                                    {comment && (
+                                        <Typography.Label style={{ marginTop: '0.2rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={comment}>
+                                            Комментарий: {comment}
+                                        </Typography.Label>
+                                    )}
+                                    {showEorColumn && (
+                                        <div style={{ marginTop: '0.3rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }} title="Exit of Records (Запись о выходе)">
+                                            EOR:{' '}
+                                            {eorStatuses.length > 0 ? (
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', verticalAlign: 'middle' }}>
+                                                    {eorStatuses.includes('entry_allowed') && (
+                                                        <span title="Въезд разрешен"><Flag className="w-4 h-4" style={{ color: '#003399', display: 'inline-block' }} /></span>
+                                                    )}
+                                                    {eorStatuses.includes('full_inspection') && (
+                                                        <span title="Полный досмотр"><ClipboardList className="w-4 h-4" style={{ color: 'var(--color-text-primary)', display: 'inline-block' }} /></span>
+                                                    )}
+                                                    {eorStatuses.includes('turnaround') && (
+                                                        <span title="Разворот" style={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                                                            <RotateCcw className="w-4 h-4" style={{ color: 'var(--color-text-primary)', flexShrink: 0 }} />
+                                                            <Truck className="w-3.5 h-3.5" style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            ) : (
+                                                eor || '—'
+                                            )}
+                                        </div>
+                                    )}
+                                    {expanded && (
+                                        <div style={{ marginTop: '0.6rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.55rem' }} onClick={(ev) => ev.stopPropagation()}>
+                                            <Typography.Label style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem', display: 'block' }}>
+                                                Посылок: {parcelsToRender.length}
+                                            </Typography.Label>
+                                            {parcelsToRender.length === 0 ? (
+                                                <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '0.35rem 0.2rem', fontSize: '0.8rem' }}>
+                                                    Нет данных по посылкам
+                                                </Typography.Body>
+                                            ) : (
+                                                <div style={{ overflowX: 'auto' }}>
+                                                    <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                                                        <thead>
+                                                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Посылка</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номенклатура</th>
+                                                                <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {parcelsToRender.map((parcel: any, parcelIdx: number) => {
+                                                                const goodsRaw = parcel?.Товары;
+                                                                const goods = Array.isArray(goodsRaw) ? goodsRaw[0] : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : {});
+                                                                return (
+                                                                    <tr
+                                                                        key={`${rowKey}-card-parcel-${parcel?.Посылка ?? parcelIdx}`}
+                                                                        style={{
+                                                                            borderBottom: '1px solid var(--color-border)',
+                                                                            background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
+                                                                        }}
+                                                                    >
+                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? '—'}</td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.Перевозка ?? '—'}</td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
+                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </Panel>
+                            );
+                        })}
+                    </div>
+                )}
                 </>
             )}
             {!sendingsLoading && !sendingsError && sendingRowsSorted.length === 0 && (
@@ -5745,6 +5933,7 @@ useEffect(() => {
             )}
             {claimsCreateOpen && (
                 <div
+                    className="claims-create-overlay"
                     style={{
                         position: 'fixed',
                         inset: 0,
@@ -5764,6 +5953,7 @@ useEffect(() => {
                     }}
                 >
                     <div
+                        className="claims-create-content"
                         style={{
                             width: '100%',
                             maxWidth: 560,

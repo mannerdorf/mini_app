@@ -286,6 +286,16 @@ body {
     z-index: 45;
 }
 
+/* Модалка создания претензии: прокрутка внутри контента */
+.claims-create-overlay {
+    overflow: hidden !important;
+}
+.claims-create-content {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
 /* Мобильная версия: хедер и таббар фиксированы, скролл только в контенте */
 @media (max-width: 768px) {
     .app-container {
@@ -352,6 +362,16 @@ body {
     .tabbar-container {
         transform: translateX(-50%) translateZ(0);
         backface-visibility: hidden;
+    }
+    /* Форма создания претензии: на мобильном не перекрывать верхним хедером */
+    .claims-create-overlay {
+        padding-top: calc(124px + env(safe-area-inset-top)) !important;
+        padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+    }
+    .claims-create-content {
+        max-height: calc(100vh - 124px - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+        max-height: calc(100dvh - 124px - 72px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+        padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
     }
 }
 .light-mode .app-header {
