@@ -179,7 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             `SELECT id
              FROM registered_users
              WHERE id = $1
-               AND coalesce((permissions->>'haulz')::boolean, false) = true
+               AND active = true
              LIMIT 1`,
             [employeeId]
           )
@@ -192,7 +192,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                  FROM unnest(string_to_array(lower(coalesce(department, '')), ',')) dep(value)
                  WHERE trim(dep.value) = any($2::text[])
                )
-               AND coalesce((permissions->>'haulz')::boolean, false) = true
+               AND active = true
              LIMIT 1`,
             [employeeId, departmentList]
           );
@@ -217,7 +217,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               `SELECT id
                FROM registered_users
                WHERE id = $1
-                 AND coalesce((permissions->>'haulz')::boolean, false) = true
+                 AND active = true
                LIMIT 1`,
               [existingEmployeeId]
             )
@@ -230,7 +230,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                    FROM unnest(string_to_array(lower(coalesce(department, '')), ',')) dep(value)
                    WHERE trim(dep.value) = any($2::text[])
                  )
-                 AND coalesce((permissions->>'haulz')::boolean, false) = true
+                 AND active = true
                LIMIT 1`,
               [existingEmployeeId, departmentList]
             );
@@ -338,7 +338,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             `SELECT id
              FROM registered_users
              WHERE id = $1
-               AND coalesce((permissions->>'haulz')::boolean, false) = true
+               AND active = true
              LIMIT 1`,
             [employeeId]
           )
@@ -351,7 +351,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                  FROM unnest(string_to_array(lower(coalesce(department, '')), ',')) dep(value)
                  WHERE trim(dep.value) = any($2::text[])
                )
-               AND coalesce((permissions->>'haulz')::boolean, false) = true
+               AND active = true
              LIMIT 1`,
             [employeeId, departmentList]
           );
@@ -447,7 +447,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         hasCooperationType ? ", cooperation_type" : ", null::text as cooperation_type"
       }, active
        FROM registered_users
-       WHERE coalesce((permissions->>'haulz')::boolean, false) = true
+       WHERE active = true
+         ${hasEmployeeRole ? "AND coalesce(employee_role, 'employee') in ('employee', 'department_head')" : ""}
          ${canViewAllDepartments ? "" : `AND EXISTS (
               SELECT 1
               FROM unnest(string_to_array(lower(coalesce(department, '')), ',')) dep(value)
@@ -478,7 +479,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         hasEmployeeRole ? ", employee_role" : ", null::text as employee_role"
       }
        FROM registered_users
-       WHERE coalesce((permissions->>'haulz')::boolean, false) = true
+       WHERE active = true
+         ${hasEmployeeRole ? "AND coalesce(employee_role, 'employee') in ('employee', 'department_head')" : ""}
          ${canViewAllDepartments ? "" : `AND EXISTS (
               SELECT 1
               FROM unnest(string_to_array(lower(coalesce(department, '')), ',')) dep(value)
