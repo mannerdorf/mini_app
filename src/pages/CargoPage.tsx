@@ -279,9 +279,12 @@ export function CargoPage({
 
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
+    const normalizeTransportOption = useCallback((value: unknown) => String(value ?? '').trim().toUpperCase().replace(/\s+/g, ' '), []);
     const uniqueTransportVehicles = useMemo(
-        () => [...new Set(items.map(i => String(i.AutoReg ?? '').trim()).filter(Boolean))].sort(),
-        [items]
+        () => [...new Set(items
+            .map(i => normalizeTransportOption((i as any).AutoReg ?? (i as any).autoReg ?? (i as any).АвтомобильCMRНаименование ?? (i as any).Transport ?? (i as any).transport ?? (i as any).AutoType))
+            .filter(Boolean))].sort(),
+        [items, normalizeTransportOption]
     );
 
     // Client-side filtering and sorting

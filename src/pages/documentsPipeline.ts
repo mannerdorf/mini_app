@@ -266,9 +266,34 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   }
   if (transportFilter) {
     res = res.filter((i) => {
-      const cargoNum = getFirstCargoNumberFromInvoice(i);
-      const transport = cargoNum ? normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum))) : "";
-      return transport === transportFilter;
+      const selected = normalizeTransportName(transportFilter);
+      const direct = normalizeTransportName(
+        i?.AutoReg ??
+          i?.autoReg ??
+          i?.АвтомобильCMRНаименование ??
+          i?.Transport ??
+          i?.transport ??
+          i?.AutoType
+      );
+      if (direct && direct === selected) return true;
+
+      const cargoNums = new Set<string>();
+      const firstCargoNum = getFirstCargoNumberFromInvoice(i);
+      if (firstCargoNum) cargoNums.add(firstCargoNum);
+      const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(i?.List) ? i.List : [];
+      list.forEach((row) => {
+        const text = String(row?.Operation ?? row?.Name ?? "").trim();
+        if (!text) return;
+        parseCargoNumbersFromText(text)
+          .filter((p) => p.type === "cargo" && p.value)
+          .forEach((p) => cargoNums.add(p.value));
+      });
+
+      for (const cargoNum of cargoNums) {
+        const transport = normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum)));
+        if (transport && transport === selected) return true;
+      }
+      return false;
     });
   }
   if (searchText.trim()) {
@@ -339,9 +364,19 @@ export function buildFilteredActs(params: FilterActsParams) {
   }
   if (transportFilter) {
     res = res.filter((a) => {
+      const selected = normalizeTransportName(transportFilter);
+      const direct = normalizeTransportName(
+        a?.AutoReg ??
+          a?.autoReg ??
+          a?.АвтомобильCMRНаименование ??
+          a?.Transport ??
+          a?.transport ??
+          a?.AutoType
+      );
+      if (direct && direct === selected) return true;
       const cargoNum = getFirstCargoNumberFromInvoice(a);
       const transport = cargoNum ? normalizeTransportName(cargoTransportByNumber.get(normCargoKey(cargoNum))) : "";
-      return transport === transportFilter;
+      return transport === selected;
     });
   }
   return res;

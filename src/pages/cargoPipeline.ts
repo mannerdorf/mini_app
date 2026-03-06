@@ -97,6 +97,19 @@ const parseDateSafe = (dateString: string | undefined): number | null => {
   return null;
 };
 
+const normalizeTransportKey = (value: unknown): string =>
+  String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+
+const getCargoTransport = (item: CargoItem): string =>
+  normalizeTransportKey(
+    (item as any)?.AutoReg ??
+      (item as any)?.autoReg ??
+      (item as any)?.АвтомобильCMRНаименование ??
+      (item as any)?.Transport ??
+      (item as any)?.transport ??
+      (item as any)?.AutoType
+  );
+
 export function buildFilteredCargoItems(
   params: CargoFilterPipelineParams
 ): CargoItem[] {
@@ -161,7 +174,8 @@ export function buildFilteredCargoItems(
     );
   }
   if (useServiceRequest && transportFilter) {
-    res = res.filter((i) => String(i.AutoReg ?? "").trim() === transportFilter);
+    const selectedTransport = normalizeTransportKey(transportFilter);
+    res = res.filter((i) => getCargoTransport(i) === selectedTransport);
   }
   if (useServiceRequest && billStatusFilterSet.size > 0) {
     res = res.filter((i) => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));

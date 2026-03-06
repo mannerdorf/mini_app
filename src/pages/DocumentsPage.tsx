@@ -1599,8 +1599,20 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const normalized = normalizeTransportDisplay(v);
             if (normalized) set.add(normalized);
         });
+        [...items, ...(actsItems || [])].forEach((row: any) => {
+            const normalized = normalizeTransportDisplay(
+                row?.АвтомобильCMRНаименование ??
+                row?.AutoReg ??
+                row?.autoReg ??
+                row?.Transport ??
+                row?.transport ??
+                row?.AutoType ??
+                ''
+            );
+            if (normalized) set.add(normalized);
+        });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
-    }, [cargoTransportByNumber, normalizeTransportDisplay]);
+    }, [cargoTransportByNumber, items, actsItems, normalizeTransportDisplay]);
     const uniqueOrderTransportVehicles = useMemo(() => {
         const set = new Set<string>();
         (ordersItems || []).forEach((item: any) => {
@@ -5159,15 +5171,6 @@ useEffect(() => {
             {docSection === 'Претензии' && (
                 <>
                     <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
-                        <Button
-                            className="button-primary"
-                            onClick={() => {
-                                openClaimsCreateModal();
-                            }}
-                            disabled={!auth?.login || !auth?.password}
-                        >
-                            + Создать претензию
-                        </Button>
                         <div ref={claimsStatusButtonRef} style={{ display: 'inline-flex' }}>
                             <Button
                                 className="filter-button"
@@ -5200,6 +5203,18 @@ useEffect(() => {
                                 </div>
                             ))}
                         </FilterDropdownPortal>
+                    </Flex>
+                    <Flex align="center" gap="0.6rem" wrap="wrap" style={{ marginBottom: '0.75rem' }}>
+                        <Button
+                            className="button-primary"
+                            onClick={() => {
+                                openClaimsCreateModal();
+                            }}
+                            disabled={!auth?.login || !auth?.password}
+                            style={{ marginTop: 0 }}
+                        >
+                            + Создать претензию
+                        </Button>
                     </Flex>
                     {claimsLoading ? (
                         <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
