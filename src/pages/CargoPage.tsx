@@ -311,6 +311,14 @@ export function CargoPage({
         return sortGroupedByCustomer(groupedByCustomer, tableSortColumn, tableSortOrder, stripOoo);
     }, [groupedByCustomer, tableSortColumn, tableSortOrder]);
 
+useEffect(() => {
+    if (!tableModeByCustomer || sortedGroupedByCustomer.length === 0) return;
+    setExpandedTableCustomer((prev) => {
+        if (prev && sortedGroupedByCustomer.some((row) => row.customer === prev)) return prev;
+        return sortedGroupedByCustomer[0]?.customer ?? null;
+    });
+}, [tableModeByCustomer, sortedGroupedByCustomer]);
+
     const handleTableSort = (column: typeof tableSortColumn) => {
         if (tableSortColumn === column) {
             setTableSortOrder(o => o === 'asc' ? 'desc' : 'asc');

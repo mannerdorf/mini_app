@@ -2058,6 +2058,23 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             return tableSortOrder === 'asc' ? cmp : -cmp;
         });
     }, [groupedActsByCustomer, tableSortColumn, tableSortOrder]);
+
+useEffect(() => {
+    if (docSection !== 'Счета' || !tableModeEffective || sortedGroupedByCustomer.length === 0) return;
+    setExpandedTableCustomer((prev) => {
+        if (prev && sortedGroupedByCustomer.some((row) => row.customer === prev)) return prev;
+        return sortedGroupedByCustomer[0]?.customer ?? null;
+    });
+}, [docSection, tableModeEffective, sortedGroupedByCustomer]);
+
+useEffect(() => {
+    if (docSection !== 'УПД' || !tableModeEffective || sortedGroupedActsByCustomer.length === 0) return;
+    setExpandedTableActCustomer((prev) => {
+        if (prev && sortedGroupedActsByCustomer.some((row) => row.customer === prev)) return prev;
+        return sortedGroupedActsByCustomer[0]?.customer ?? null;
+    });
+}, [docSection, tableModeEffective, sortedGroupedActsByCustomer]);
+
     const groupedOrdersByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
         filteredOrders.forEach((order: any) => {
@@ -6342,14 +6359,14 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
                                 className="filter-button"
                                 disabled={sverkiOrderSubmitting}
                                 onClick={() => setSverkiOrderModalOpen(false)}
-                                style={{ flex: 1, height: '3rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                style={{ flex: 1, height: '3rem', marginTop: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                             >
                                 Отмена
                             </Button>
                             <Button
                                 className="button-primary"
                                 disabled={sverkiOrderSubmitting}
-                                style={{ flex: 1, height: '3rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                                style={{ flex: 1, height: '3rem', marginTop: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                                 onClick={async () => {
                                     if (!effectiveActiveInn || !auth?.login || !auth?.password) {
                                         setSverkiOrderError('Не удалось определить ИНН или авторизацию');
