@@ -88,6 +88,7 @@ export function ProfilePage({
     const [employeePresetLoadingId, setEmployeePresetLoadingId] = useState<number | null>(null);
     const [departmentTimesheetDepartment, setDepartmentTimesheetDepartment] = useState("");
     const [departmentTimesheetAllDepartments, setDepartmentTimesheetAllDepartments] = useState(false);
+    const [departmentTimesheetDepartmentFilter, setDepartmentTimesheetDepartmentFilter] = useState<string>("all");
     const [departmentTimesheetEmployees, setDepartmentTimesheetEmployees] = useState<Array<{
         id: number;
         login: string;
@@ -145,16 +146,29 @@ export function ProfilePage({
             return nameA.localeCompare(nameB, "ru");
         });
     }, [departmentTimesheetEmployees]);
+    const departmentTimesheetDepartmentOptions = useMemo(() => {
+        const uniq = new Set<string>();
+        for (const emp of departmentTimesheetEmployees) {
+            const dep = String(emp.department || "").trim();
+            if (dep) uniq.add(dep);
+        }
+        return Array.from(uniq).sort((a, b) => a.localeCompare(b, "ru"));
+    }, [departmentTimesheetEmployees]);
     const filteredDepartmentTimesheetEmployees = useMemo(() => {
+        const selectedDepartment = String(departmentTimesheetDepartmentFilter || "all").trim();
+        const byDepartment =
+            departmentTimesheetAllDepartments && selectedDepartment !== "all"
+                ? sortedDepartmentTimesheetEmployees.filter((emp) => String(emp.department || "").trim() === selectedDepartment)
+                : sortedDepartmentTimesheetEmployees;
         const q = departmentTimesheetSearch.trim().toLowerCase();
-        if (!q) return sortedDepartmentTimesheetEmployees;
-        return sortedDepartmentTimesheetEmployees.filter((emp) => {
+        if (!q) return byDepartment;
+        return byDepartment.filter((emp) => {
             const haystack = [emp.fullName, emp.login, emp.position, emp.department]
                 .map((x) => String(x || "").toLowerCase())
                 .join(" ");
             return haystack.includes(q);
         });
-    }, [departmentTimesheetSearch, sortedDepartmentTimesheetEmployees]);
+    }, [departmentTimesheetSearch, sortedDepartmentTimesheetEmployees, departmentTimesheetDepartmentFilter, departmentTimesheetAllDepartments]);
     const [departmentTimesheetEmployeeFullName, setDepartmentTimesheetEmployeeFullName] = useState("");
     const [departmentTimesheetEmployeePosition, setDepartmentTimesheetEmployeePosition] = useState("");
     const [departmentTimesheetEmployeeAccrualType, setDepartmentTimesheetEmployeeAccrualType] = useState<"hour" | "shift" | "month">("hour");
@@ -377,9 +391,6 @@ export function ProfilePage({
             totalOutstanding: Math.max(0, Number((totalMoney - totalPaid).toFixed(2))),
         };
     };
-    const departmentTimesheetSummary = useMemo(() => {
-        return calculateTimesheetSummary(departmentTimesheetEmployees);
-    }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee, departmentTimesheetShiftRateOverrides]);
     const departmentTimesheetDepartmentSummaries = useMemo(() => {
         const grouped = new Map<string, typeof departmentTimesheetEmployees>();
         for (const emp of departmentTimesheetEmployees) {
@@ -397,6 +408,25 @@ export function ProfilePage({
     const companyTimesheetSummary = useMemo(() => {
         return calculateTimesheetSummary(departmentTimesheetEmployees);
     }, [departmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee, departmentTimesheetShiftRateOverrides]);
+    const filteredDepartmentTimesheetSummary = useMemo(() => {
+        return calculateTimesheetSummary(filteredDepartmentTimesheetEmployees);
+    }, [filteredDepartmentTimesheetEmployees, departmentTimesheetDays, departmentTimesheetHours, departmentTimesheetPayoutsByEmployee, departmentTimesheetShiftRateOverrides]);
+    const visibleDepartmentTimesheetSummaries = useMemo(() => {
+        if (!departmentTimesheetAllDepartments) {
+            return [{
+                departmentName: departmentTimesheetDepartment || "—",
+                ...filteredDepartmentTimesheetSummary,
+            }];
+        }
+        if (departmentTimesheetDepartmentFilter === "all") return departmentTimesheetDepartmentSummaries;
+        return departmentTimesheetDepartmentSummaries.filter((summary) => summary.departmentName === departmentTimesheetDepartmentFilter);
+    }, [
+        departmentTimesheetAllDepartments,
+        departmentTimesheetDepartment,
+        filteredDepartmentTimesheetSummary,
+        departmentTimesheetDepartmentFilter,
+        departmentTimesheetDepartmentSummaries,
+    ]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -412,6 +442,18 @@ export function ProfilePage({
         window.addEventListener('resize', update);
         return () => window.removeEventListener('resize', update);
     }, []);
+    useEffect(() => {
+        if (!departmentTimesheetAllDepartments) {
+            setDepartmentTimesheetDepartmentFilter("all");
+            return;
+        }
+        if (
+            departmentTimesheetDepartmentFilter !== "all" &&
+            !departmentTimesheetDepartmentOptions.includes(departmentTimesheetDepartmentFilter)
+        ) {
+            setDepartmentTimesheetDepartmentFilter("all");
+        }
+    }, [departmentTimesheetAllDepartments, departmentTimesheetDepartmentFilter, departmentTimesheetDepartmentOptions]);
     useEffect(() => {
         if (typeof window === "undefined") return;
         try {
@@ -1602,6 +1644,21 @@ export function ProfilePage({
                             Подразделение: {departmentTimesheetAllDepartments ? "Все подразделения" : (departmentTimesheetDepartment || "—")}
                         </Typography.Body>
                         <Flex align="center" gap="0.5rem">
+                            {departmentTimesheetAllDepartments && (
+                                <select
+                                    value={departmentTimesheetDepartmentFilter}
+                                    onChange={(e) => setDepartmentTimesheetDepartmentFilter(e.target.value)}
+                                    style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.4rem 0.6rem', background: 'var(--color-bg)', minWidth: '12.5rem' }}
+                                    aria-label="Фильтр подразделения"
+                                >
+                                    <option value="all">Все подразделения</option>
+                                    {departmentTimesheetDepartmentOptions.map((dep) => (
+                                        <option key={`timesheet-department-filter-${dep}`} value={dep}>
+                                            {dep}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
                             <input
                                 type="month"
                                 value={departmentTimesheetMonth}
@@ -2238,13 +2295,7 @@ export function ProfilePage({
                         <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>ОТ - отпуск</Typography.Body>
                         <Typography.Body style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>УВ - Уволен</Typography.Body>
                     </Flex>
-                    {(departmentTimesheetAllDepartments
-                        ? departmentTimesheetDepartmentSummaries
-                        : [{
-                            departmentName: departmentTimesheetDepartment || "—",
-                            ...departmentTimesheetSummary,
-                        }]
-                    ).map((summary, idx) => (
+                    {visibleDepartmentTimesheetSummaries.map((summary, idx) => (
                         <Panel key={`department-summary-${summary.departmentName}`} className="cargo-card" style={{ marginTop: idx === 0 ? '0.7rem' : '0.45rem', padding: '0.7rem' }}>
                             <Typography.Body style={{ fontWeight: 600 }}>
                                 Итого по подразделению: {summary.departmentName} · {summary.totalShifts} смен · {summary.totalHours} ч
@@ -2263,16 +2314,27 @@ export function ProfilePage({
                     {activeAccount?.permissions?.analytics === true ? (
                         <Panel className="cargo-card" style={{ marginTop: '0.45rem', padding: '0.7rem' }}>
                             <Typography.Body style={{ fontWeight: 600 }}>
-                                Итого по компании: {companyTimesheetSummary.totalShifts} смен · {companyTimesheetSummary.totalHours} ч
+                                {departmentTimesheetAllDepartments && departmentTimesheetDepartmentFilter !== "all"
+                                    ? `Итого по выбранному подразделению: ${filteredDepartmentTimesheetSummary.totalShifts} смен · ${filteredDepartmentTimesheetSummary.totalHours} ч`
+                                    : `Итого по компании: ${companyTimesheetSummary.totalShifts} смен · ${companyTimesheetSummary.totalHours} ч`}
                             </Typography.Body>
                             <Typography.Body style={{ marginTop: '0.12rem', color: 'var(--color-text-secondary)' }}>
-                                {companyTimesheetSummary.totalMoney.toLocaleString('ru-RU')} ₽
+                                {(departmentTimesheetAllDepartments && departmentTimesheetDepartmentFilter !== "all"
+                                    ? filteredDepartmentTimesheetSummary.totalMoney
+                                    : companyTimesheetSummary.totalMoney
+                                ).toLocaleString('ru-RU')} ₽
                             </Typography.Body>
                             <Typography.Body style={{ marginTop: '0.08rem', color: '#065f46', fontSize: '0.84rem' }}>
-                                Выплачено: {companyTimesheetSummary.totalPaid.toLocaleString('ru-RU')} ₽
+                                Выплачено: {(departmentTimesheetAllDepartments && departmentTimesheetDepartmentFilter !== "all"
+                                    ? filteredDepartmentTimesheetSummary.totalPaid
+                                    : companyTimesheetSummary.totalPaid
+                                ).toLocaleString('ru-RU')} ₽
                             </Typography.Body>
                             <Typography.Body style={{ marginTop: '0.08rem', color: '#15803d', fontSize: '0.84rem' }}>
-                                Остаток: {companyTimesheetSummary.totalOutstanding.toLocaleString('ru-RU')} ₽
+                                Остаток: {(departmentTimesheetAllDepartments && departmentTimesheetDepartmentFilter !== "all"
+                                    ? filteredDepartmentTimesheetSummary.totalOutstanding
+                                    : companyTimesheetSummary.totalOutstanding
+                                ).toLocaleString('ru-RU')} ₽
                             </Typography.Body>
                         </Panel>
                     ) : null}
