@@ -1680,6 +1680,34 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         } catch { return false; }
     }, []);
 
+const toDocFavoriteKey = useCallback((section: 'claims' | 'contracts' | 'reconciliation' | 'tariffs', itemKey: string | number | undefined): string => {
+    return `${section}:${String(itemKey ?? '').trim()}`;
+}, []);
+
+const toggleDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconciliation' | 'tariffs', itemKey: string | number | undefined) => {
+    const key = toDocFavoriteKey(section, itemKey);
+    if (!key || key.endsWith(':')) return;
+    try {
+        const raw = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.docFavorites');
+        const arr: string[] = raw ? JSON.parse(raw) : [];
+        const set = new Set(arr);
+        if (set.has(key)) set.delete(key);
+        else set.add(key);
+        localStorage.setItem('haulz.docFavorites', JSON.stringify([...set]));
+        setFavVersion(v => v + 1);
+    } catch {}
+}, [toDocFavoriteKey]);
+
+const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconciliation' | 'tariffs', itemKey: string | number | undefined): boolean => {
+    const key = toDocFavoriteKey(section, itemKey);
+    if (!key || key.endsWith(':')) return false;
+    try {
+        const raw = typeof localStorage !== 'undefined' && localStorage.getItem('haulz.docFavorites');
+        const arr: string[] = raw ? JSON.parse(raw) : [];
+        return arr.includes(key);
+    } catch { return false; }
+}, [toDocFavoriteKey]);
+
     const filteredItems = useMemo(() => {
         return buildFilteredInvoices({
             items,
@@ -4508,7 +4536,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         </Flex>
                     ) : filteredTariffs.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по тарифам</Typography.Body>
-                    ) : (
+                    ) : tableModeEffective ? (
                         <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
@@ -4623,6 +4651,74 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 </tbody>
                             </table>
                         </div>
+                    ) : (
+                        <div className="cargo-list">
+                            {filteredTariffs.map((t) => {
+                                const favorite = isDocFavorite('tariffs', t.id);
+                                const fromCode = cityToCode(t.cityFrom || '') || t.cityFrom || '';
+                                const toCode = cityToCode(t.cityTo || '') || t.cityTo || '';
+                                const route = [fromCode, toCode].filter(Boolean).join(' – ') || '—';
+                                const shareLines = [
+                                    `Тариф: ${t.docNumber || '—'}`,
+                                    t.docDate ? `Дата: ${t.docDate}` : '',
+                                    effectiveServiceMode ? `Заказчик: ${stripOoo(t.customerName) || '—'}` : '',
+                                    `Маршрут: ${route}`,
+                                    `Тип: ${t.transportType || '—'}`,
+                                    `Опасный груз: ${t.isDangerous ? 'Да' : 'Нет'}`,
+                                    t.tariff != null ? `Тариф: ${formatCurrency(Number(t.tariff))}` : '',
+                                ].filter(Boolean);
+                                return (
+                                    <Panel key={t.id} className="cargo-card" style={{ marginBottom: '0.75rem' }}>
+                                        <Flex justify="space-between" align="start" style={{ marginBottom: '0.45rem' }}>
+                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>{t.docNumber || '—'}</Typography.Body>
+                                            <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                                                <Button
+                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                    onClick={() => {
+                                                        const text = shareLines.join('\n');
+                                                        if (typeof navigator !== 'undefined' && (navigator as any).share) {
+                                                            (navigator as any).share({ title: `Тариф ${t.docNumber || ''}`, text }).catch(() => {});
+                                                        } else {
+                                                            try { navigator.clipboard?.writeText(text); } catch {}
+                                                        }
+                                                    }}
+                                                    title="Поделиться"
+                                                >
+                                                    <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                                                </Button>
+                                                <Button
+                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                    onClick={() => toggleDocFavorite('tariffs', t.id)}
+                                                    title={favorite ? 'Удалить из избранного' : 'В избранное'}
+                                                >
+                                                    <Heart className="w-4 h-4" style={{ fill: favorite ? '#ef4444' : 'transparent', color: favorite ? '#ef4444' : 'var(--color-text-secondary)' }} />
+                                                </Button>
+                                                <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
+                                                    <DateText value={t.docDate || undefined} />
+                                                </Typography.Label>
+                                            </Flex>
+                                        </Flex>
+                                        <Flex justify="space-between" align="center" style={{ marginBottom: '0.35rem' }}>
+                                            <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap' }}>
+                                                {route}
+                                            </span>
+                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
+                                                {t.tariff != null ? formatCurrency(Number(t.tariff)) : '—'}
+                                            </Typography.Body>
+                                        </Flex>
+                                        <Flex justify="space-between" align="center" style={{ fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>
+                                            <Typography.Label>{t.transportType || '—'}</Typography.Label>
+                                            <Typography.Label>{t.isDangerous ? 'Опасный груз' : 'Не опасный'}</Typography.Label>
+                                        </Flex>
+                                        {effectiveServiceMode && (
+                                            <Typography.Label style={{ marginTop: '0.25rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                Заказчик: {stripOoo(t.customerName) || '—'}
+                                            </Typography.Label>
+                                        )}
+                                    </Panel>
+                                );
+                            })}
+                        </div>
                     )}
                 </>
             )}
@@ -4670,7 +4766,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
                                 {'   '}Заявок пока нет
                             </Typography.Body>
-                        ) : (
+                        ) : tableModeEffective ? (
                             <div style={{ overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                     <thead>
@@ -4710,6 +4806,65 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     </tbody>
                                 </table>
                             </div>
+                        ) : (
+                            <div className="cargo-list">
+                                {sverkiRequests.map((req) => {
+                                    const sent = req.status === 'edo_sent';
+                                    const favorite = isDocFavorite('reconciliation', `request-${req.id}`);
+                                    const shareLines = [
+                                        `Заявка на акт сверки #${req.id}`,
+                                        `Договор: ${req.contract || '—'}`,
+                                        req.periodFrom ? `Период с: ${req.periodFrom}` : '',
+                                        req.periodTo ? `Период по: ${req.periodTo}` : '',
+                                        req.createdAt ? `Создана: ${req.createdAt}` : '',
+                                        `Статус: ${sent ? 'Отправлена в ЭДО' : 'Ожидает формирования'}`,
+                                    ].filter(Boolean);
+                                    return (
+                                        <Panel key={req.id} className="cargo-card" style={{ marginBottom: '0.6rem' }}>
+                                            <Flex justify="space-between" align="start" style={{ marginBottom: '0.4rem' }}>
+                                                <Typography.Body style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                                                    Договор: {req.contract || '—'}
+                                                </Typography.Body>
+                                                <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                                                    <Button
+                                                        style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                        onClick={() => {
+                                                            const text = shareLines.join('\n');
+                                                            if (typeof navigator !== 'undefined' && (navigator as any).share) {
+                                                                (navigator as any).share({ title: `Акт сверки #${req.id}`, text }).catch(() => {});
+                                                            } else {
+                                                                try { navigator.clipboard?.writeText(text); } catch {}
+                                                            }
+                                                        }}
+                                                        title="Поделиться"
+                                                    >
+                                                        <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                                                    </Button>
+                                                    <Button
+                                                        style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                        onClick={() => toggleDocFavorite('reconciliation', `request-${req.id}`)}
+                                                        title={favorite ? 'Удалить из избранного' : 'В избранное'}
+                                                    >
+                                                        <Heart className="w-4 h-4" style={{ fill: favorite ? '#ef4444' : 'transparent', color: favorite ? '#ef4444' : 'var(--color-text-secondary)' }} />
+                                                    </Button>
+                                                </Flex>
+                                            </Flex>
+                                            <Flex justify="space-between" align="center" style={{ marginBottom: '0.35rem', fontSize: '0.82rem', color: 'var(--color-text-secondary)' }}>
+                                                <Typography.Label>С: <DateText value={req.periodFrom || undefined} /></Typography.Label>
+                                                <Typography.Label>По: <DateText value={req.periodTo || undefined} /></Typography.Label>
+                                            </Flex>
+                                            <Flex justify="space-between" align="center">
+                                                <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                    <DateText value={req.createdAt || undefined} />
+                                                </Typography.Label>
+                                                <span style={{ fontSize: '0.74rem', padding: '0.14rem 0.45rem', borderRadius: 999, fontWeight: 600, background: sent ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', color: sent ? '#10b981' : '#3b82f6', whiteSpace: 'nowrap' }}>
+                                                    {sent ? 'Отправлена в ЭДО' : 'Ожидает формирования'}
+                                                </span>
+                                            </Flex>
+                                        </Panel>
+                                    );
+                                })}
+                            </div>
                         )}
                     </div>
                     {sverkiLoading ? (
@@ -4719,7 +4874,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         </Flex>
                     ) : filteredSverki.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по актам сверок</Typography.Body>
-                    ) : (
+                    ) : tableModeEffective ? (
                         <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
@@ -4766,6 +4921,82 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                 </tbody>
                             </table>
                         </div>
+                    ) : (
+                        <div className="cargo-list">
+                            {filteredSverki.map((row) => {
+                                const number = String(row.docNumber || '').trim();
+                                const hasDownload = number && row.docDate;
+                                const isDownloading = sverkiDownloadingId === row.id;
+                                const favorite = isDocFavorite('reconciliation', `act-${row.id}`);
+                                const shareLines = [
+                                    `Акт сверки: ${row.docNumber || '—'}`,
+                                    row.docDate ? `Дата: ${row.docDate}` : '',
+                                    row.periodFrom ? `Период с: ${row.periodFrom}` : '',
+                                    row.periodTo ? `Период по: ${row.periodTo}` : '',
+                                    effectiveServiceMode ? `Контрагент: ${stripOoo(row.customerName) || '—'}` : '',
+                                ].filter(Boolean);
+                                return (
+                                    <Panel key={row.id} className="cargo-card" style={{ marginBottom: '0.75rem' }}>
+                                        <Flex justify="space-between" align="start" style={{ marginBottom: '0.45rem' }}>
+                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
+                                                {row.docNumber || '—'}
+                                            </Typography.Body>
+                                            <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                                                <Button
+                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                    onClick={() => {
+                                                        const text = shareLines.join('\n');
+                                                        if (typeof navigator !== 'undefined' && (navigator as any).share) {
+                                                            (navigator as any).share({ title: `Акт сверки ${row.docNumber || ''}`, text }).catch(() => {});
+                                                        } else {
+                                                            try { navigator.clipboard?.writeText(text); } catch {}
+                                                        }
+                                                    }}
+                                                    title="Поделиться"
+                                                >
+                                                    <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                                                </Button>
+                                                <Button
+                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                    onClick={() => toggleDocFavorite('reconciliation', `act-${row.id}`)}
+                                                    title={favorite ? 'Удалить из избранного' : 'В избранное'}
+                                                >
+                                                    <Heart className="w-4 h-4" style={{ fill: favorite ? '#ef4444' : 'transparent', color: favorite ? '#ef4444' : 'var(--color-text-secondary)' }} />
+                                                </Button>
+                                                <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
+                                                    <DateText value={row.docDate || undefined} />
+                                                </Typography.Label>
+                                            </Flex>
+                                        </Flex>
+                                        <Flex justify="space-between" align="center" style={{ fontSize: '0.84rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem' }}>
+                                            <Typography.Label>С: <DateText value={row.periodFrom || undefined} /></Typography.Label>
+                                            <Typography.Label>По: <DateText value={row.periodTo || undefined} /></Typography.Label>
+                                        </Flex>
+                                        {effectiveServiceMode && (
+                                            <Typography.Label style={{ marginBottom: '0.45rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                Контрагент: {stripOoo(row.customerName) || '—'}
+                                            </Typography.Label>
+                                        )}
+                                        <Flex justify="flex-end">
+                                            {hasDownload ? (
+                                                <button
+                                                    type="button"
+                                                    className="button-primary"
+                                                    style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                                    disabled={isDownloading}
+                                                    onClick={() => downloadSverkaFile(row)}
+                                                >
+                                                    {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                                    Скачать
+                                                </button>
+                                            ) : (
+                                                <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>—</Typography.Label>
+                                            )}
+                                        </Flex>
+                                    </Panel>
+                                );
+                            })}
+                        </div>
                     )}
                     {sverkiDownloadError && (
                         <Typography.Body style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: '#ef4444' }}>
@@ -4783,7 +5014,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         </Flex>
                     ) : filteredDogovors.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по договорам</Typography.Body>
-                    ) : (
+                    ) : tableModeEffective ? (
                         <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
@@ -4826,6 +5057,79 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     })}
                                 </tbody>
                             </table>
+                        </div>
+                    ) : (
+                        <div className="cargo-list">
+                            {filteredDogovors.map((row) => {
+                                const hasDownload = row.docNumber && row.docDate && row.customerInn;
+                                const isDownloading = dogovorsDownloadingId === row.id;
+                                const favorite = isDocFavorite('contracts', row.id);
+                                const shareLines = [
+                                    `Договор: ${row.docNumber || '—'}`,
+                                    row.docDate ? `Дата: ${row.docDate}` : '',
+                                    effectiveServiceMode ? `Контрагент: ${stripOoo(row.customerName) || '—'}` : '',
+                                    `Наименование: ${row.title || '—'}`,
+                                ].filter(Boolean);
+                                return (
+                                    <Panel key={row.id} className="cargo-card" style={{ marginBottom: '0.75rem' }}>
+                                        <Flex justify="space-between" align="start" style={{ marginBottom: '0.45rem' }}>
+                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
+                                                {row.docNumber || '—'}
+                                            </Typography.Body>
+                                            <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                                                <Button
+                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                    onClick={() => {
+                                                        const text = shareLines.join('\n');
+                                                        if (typeof navigator !== 'undefined' && (navigator as any).share) {
+                                                            (navigator as any).share({ title: `Договор ${row.docNumber || ''}`, text }).catch(() => {});
+                                                        } else {
+                                                            try { navigator.clipboard?.writeText(text); } catch {}
+                                                        }
+                                                    }}
+                                                    title="Поделиться"
+                                                >
+                                                    <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                                                </Button>
+                                                <Button
+                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                    onClick={() => toggleDocFavorite('contracts', row.id)}
+                                                    title={favorite ? 'Удалить из избранного' : 'В избранное'}
+                                                >
+                                                    <Heart className="w-4 h-4" style={{ fill: favorite ? '#ef4444' : 'transparent', color: favorite ? '#ef4444' : 'var(--color-text-secondary)' }} />
+                                                </Button>
+                                                <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
+                                                    <DateText value={row.docDate || undefined} />
+                                                </Typography.Label>
+                                            </Flex>
+                                        </Flex>
+                                        {effectiveServiceMode && (
+                                            <Typography.Label style={{ marginBottom: '0.35rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                                Контрагент: {stripOoo(row.customerName) || '—'}
+                                            </Typography.Label>
+                                        )}
+                                        <Typography.Body style={{ marginBottom: '0.45rem', fontSize: '0.9rem' }}>
+                                            {row.title || '—'}
+                                        </Typography.Body>
+                                        <Flex justify="flex-end">
+                                            {hasDownload ? (
+                                                <button
+                                                    type="button"
+                                                    className="button-primary"
+                                                    style={{ fontSize: '0.8rem', padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                                                    disabled={isDownloading}
+                                                    onClick={() => downloadDogovorFile(row)}
+                                                >
+                                                    {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                                    Скачать
+                                                </button>
+                                            ) : (
+                                                <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>—</Typography.Label>
+                                            )}
+                                        </Flex>
+                                    </Panel>
+                                );
+                            })}
                         </div>
                     )}
                     {dogovorsDownloadError && (
@@ -4887,7 +5191,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                         </Flex>
                     ) : filteredClaims.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Претензий пока нет</Typography.Body>
-                    ) : (
+                    ) : tableModeEffective ? (
                         <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
@@ -4985,6 +5289,131 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                                     })}
                                 </tbody>
                             </table>
+                        </div>
+                    ) : (
+                        <div className="cargo-list">
+                            {filteredClaims.map((row) => {
+                                const status = (row.status || 'new') as ClaimStatusKey;
+                                const statusStyle = CLAIM_STATUS_BADGE[status] || CLAIM_STATUS_BADGE.new;
+                                const favorite = isDocFavorite('claims', row.id);
+                                const shareLines = [
+                                    `Претензия: ${row.claimNumber || `#${row.id}`}`,
+                                    row.createdAt ? `Дата: ${row.createdAt}` : '',
+                                    `Перевозка: ${row.cargoNumber || '—'}`,
+                                    `Статус: ${CLAIM_STATUS_LABELS[status] || status}`,
+                                    `Суть: ${row.description || '—'}`,
+                                    row.requestedAmount != null ? `Сумма: ${formatCurrency(Number(row.requestedAmount))}` : '',
+                                ].filter(Boolean);
+                                return (
+                                    <Panel key={row.id} className="cargo-card" style={{ marginBottom: '0.75rem' }}>
+                                        <Flex justify="space-between" align="start" style={{ marginBottom: '0.45rem' }}>
+                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
+                                                {row.claimNumber || `#${row.id}`}
+                                            </Typography.Body>
+                                            <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
+                                                <Button
+                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                    onClick={() => {
+                                                        const text = shareLines.join('\n');
+                                                        if (typeof navigator !== 'undefined' && (navigator as any).share) {
+                                                            (navigator as any).share({ title: `Претензия ${row.claimNumber || `#${row.id}`}`, text }).catch(() => {});
+                                                        } else {
+                                                            try { navigator.clipboard?.writeText(text); } catch {}
+                                                        }
+                                                    }}
+                                                    title="Поделиться"
+                                                >
+                                                    <Share2 className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+                                                </Button>
+                                                <Button
+                                                    style={{ padding: '0.25rem', minWidth: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                                    onClick={() => toggleDocFavorite('claims', row.id)}
+                                                    title={favorite ? 'Удалить из избранного' : 'В избранное'}
+                                                >
+                                                    <Heart className="w-4 h-4" style={{ fill: favorite ? '#ef4444' : 'transparent', color: favorite ? '#ef4444' : 'var(--color-text-secondary)' }} />
+                                                </Button>
+                                                <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem' }}>
+                                                    <DateText value={row.createdAt || undefined} />
+                                                </Typography.Label>
+                                            </Flex>
+                                        </Flex>
+                                        <Flex justify="space-between" align="center" style={{ marginBottom: '0.4rem' }}>
+                                            <Typography.Label style={{ fontSize: '0.84rem', color: 'var(--color-text-secondary)' }}>
+                                                Перевозка: {row.cargoNumber || '—'}
+                                            </Typography.Label>
+                                            <span style={{ fontSize: '0.75rem', padding: '0.18rem 0.45rem', borderRadius: 999, fontWeight: 600, background: statusStyle.bg, color: statusStyle.color, whiteSpace: 'nowrap' }}>
+                                                {CLAIM_STATUS_LABELS[status] || status}
+                                            </span>
+                                        </Flex>
+                                        <Typography.Body style={{ fontSize: '0.86rem', marginBottom: '0.45rem' }}>{row.description || '—'}</Typography.Body>
+                                        <Flex justify="space-between" align="center" style={{ marginBottom: '0.55rem' }}>
+                                            <Typography.Label style={{ color: 'var(--color-text-secondary)', fontSize: '0.82rem' }}>Сумма</Typography.Label>
+                                            <Typography.Body style={{ fontWeight: 600, fontSize: '1rem' }}>
+                                                {row.requestedAmount != null ? formatCurrency(Number(row.requestedAmount)) : '—'}
+                                            </Typography.Body>
+                                        </Flex>
+                                        <Flex gap="0.35rem" justify="flex-end" wrap="wrap">
+                                            <Button
+                                                type="button"
+                                                className="filter-button"
+                                                onClick={() => openClaimDetailModal(row.id)}
+                                                disabled={claimsActionLoadingId === row.id || claimsCreateSubmitting}
+                                                style={CLAIM_ROW_ACTION_BUTTON_STYLE}
+                                            >
+                                                Открыть
+                                            </Button>
+                                            {status === 'draft' ? (
+                                                <>
+                                                    <Button
+                                                        type="button"
+                                                        className="filter-button"
+                                                        onClick={() => openDraftEditor(row.id)}
+                                                        disabled={claimsActionLoadingId === row.id || claimsCreateSubmitting}
+                                                        style={CLAIM_ROW_ACTION_BUTTON_STYLE}
+                                                    >
+                                                        Изменить
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        className="button-primary"
+                                                        onClick={() => runClaimAction(row.id, 'submit')}
+                                                        disabled={claimsActionLoadingId === row.id}
+                                                        style={CLAIM_ROW_ACTION_BUTTON_STYLE}
+                                                    >
+                                                        {claimsActionLoadingId === row.id ? '...' : 'Отправить'}
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {status === 'waiting_docs' && (
+                                                        <Button
+                                                            type="button"
+                                                            className="button-primary"
+                                                            onClick={() => openClaimReplyModal(row.id)}
+                                                            disabled={claimsActionLoadingId === row.id || claimsReplySubmitting}
+                                                            style={{ minWidth: 170, height: 36 }}
+                                                        >
+                                                            Ответить документами
+                                                        </Button>
+                                                    )}
+                                                    <Button
+                                                        type="button"
+                                                        className="filter-button"
+                                                        onClick={() => runClaimAction(row.id, 'withdraw')}
+                                                        disabled={
+                                                            claimsActionLoadingId === row.id
+                                                            || ['paid', 'offset', 'closed'].includes(status)
+                                                        }
+                                                        style={CLAIM_ROW_ACTION_BUTTON_STYLE}
+                                                    >
+                                                        {claimsActionLoadingId === row.id ? '...' : 'Отозвать'}
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </Flex>
+                                    </Panel>
+                                );
+                            })}
                         </div>
                     )}
                 </>
