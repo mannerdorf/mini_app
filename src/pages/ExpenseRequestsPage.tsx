@@ -222,13 +222,27 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                     setDepartment(String(data.department).trim());
                     setAvailableDepartments(parseDepartmentList(data.department));
                 }
-                if (Array.isArray(data?.employees)) {
-                    setEmployees(data.employees.map((e: any) => ({
-                        id: e.id,
-                        fullName: e.fullName || e.full_name || e.login || "",
-                        login: e.login || "",
-                        position: e.position || "",
-                    })).filter((e: any) => e.fullName || e.login));
+                const employeeSources = [
+                    ...(Array.isArray(data?.employees) ? data.employees : []),
+                    ...(Array.isArray(data?.availableEmployees) ? data.availableEmployees : []),
+                ];
+                if (employeeSources.length > 0) {
+                    const byId = new Map<string, { id: number; fullName: string; login: string; position?: string }>();
+                    employeeSources.forEach((e: any) => {
+                        const idNum = Number(e?.id);
+                        const key = Number.isFinite(idNum) && idNum > 0 ? String(idNum) : String(e?.login || e?.fullName || e?.full_name || "").trim().toLowerCase();
+                        if (!key) return;
+                        const normalized = {
+                            id: Number.isFinite(idNum) && idNum > 0 ? idNum : 0,
+                            fullName: e?.fullName || e?.full_name || e?.login || "",
+                            login: e?.login || "",
+                            position: e?.position || "",
+                        };
+                        if (!byId.has(key)) byId.set(key, normalized);
+                    });
+                    setEmployees(Array.from(byId.values()).filter((e: any) => e.fullName || e.login));
+                } else {
+                    setEmployees([]);
                 }
             })
             .catch(() => { /* keep fallback */ })
