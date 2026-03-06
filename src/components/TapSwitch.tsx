@@ -4,15 +4,15 @@ import React from "react";
 export function TapSwitch({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
     const lastToggleAtRef = React.useRef(0);
     const touchHandledRef = React.useRef(false);
-    const toggle = (e?: React.MouseEvent | React.TouchEvent | React.PointerEvent) => {
+    const toggle = () => {
         const now = Date.now();
         if (now - lastToggleAtRef.current < 300) return;
         lastToggleAtRef.current = now;
         onToggle();
     };
-    const handleTouchEnd = (e: React.TouchEvent) => {
+    const handleTouchEnd = () => {
         touchHandledRef.current = true;
-        toggle(e);
+        toggle();
         window.setTimeout(() => {
             touchHandledRef.current = false;
         }, 400);
@@ -25,16 +25,11 @@ export function TapSwitch({ checked, onToggle }: { checked: boolean; onToggle: (
         }
         toggle(e);
     };
-    const handlePointerUp = (e: React.PointerEvent) => {
-        if (e.pointerType === "touch") return;
-        toggle(e);
-    };
     return (
         <button
             type="button"
             aria-pressed={checked}
             onClick={handleClick}
-            onPointerUp={handlePointerUp}
             onTouchEnd={handleTouchEnd}
             onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
