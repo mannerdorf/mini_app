@@ -1,0 +1,345 @@
+{
+  "url": "http://127.0.0.1:4173/",
+  "createdAt": "2026-03-06T18:59:30.177Z",
+  "viewports": [
+    {
+      "viewport": {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      "pageTitle": "HAULZ",
+      "location": "http://127.0.0.1:4173/?tab=cargo",
+      "issueCount": 10,
+      "issues": [
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > div.absolute.top-4 > button.Button__0OJ.Button_appearance_themed__z2B",
+          "details": {
+            "selector": "div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > div.absolute.top-4 > button.Button__0OJ.Button_appearance_themed__z2B",
+            "width": 44,
+            "height": 40
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.field > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+          "details": {
+            "selector": "div.field > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+            "width": 229,
+            "height": 20
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.password-input-container > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+          "details": {
+            "selector": "div.password-input-container > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+            "width": 229,
+            "height": 20
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > div.field > div.password-input-container > button.Button__0OJ.Button_appearance_themed__z2B",
+          "details": {
+            "selector": "form.form > div.field > div.password-input-container > button.Button__0OJ.Button_appearance_themed__z2B",
+            "width": 40,
+            "height": 40
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span > a",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span > a",
+            "width": 131,
+            "height": 16
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+            "width": 52,
+            "height": 32
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span > a",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span > a",
+            "width": 121,
+            "height": 16
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+            "width": 52,
+            "height": 32
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > form.form > button.Button__0OJ.Button_appearance_themed__z2B",
+          "details": {
+            "selector": "div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > form.form > button.Button__0OJ.Button_appearance_themed__z2B",
+            "width": 263,
+            "height": 40
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.Panel__kpB.Panel_mode_secondary__yer > form.form > div.Flex__8ia > button",
+          "details": {
+            "selector": "div.Panel__kpB.Panel_mode_secondary__yer > form.form > div.Flex__8ia > button",
+            "width": 111,
+            "height": 16
+          },
+          "severity": "medium"
+        }
+      ],
+      "screenshotPath": "/Users/aleksandr/mini_app_last/mini_app/audit-output/mobile.png"
+    },
+    {
+      "viewport": {
+        "name": "tablet",
+        "width": 768,
+        "height": 1024
+      },
+      "pageTitle": "HAULZ",
+      "location": "http://127.0.0.1:4173/?tab=cargo",
+      "issueCount": 10,
+      "issues": [
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > div.absolute.top-4 > button.Button__0OJ.Button_appearance_themed__z2B",
+          "details": {
+            "selector": "div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > div.absolute.top-4 > button.Button__0OJ.Button_appearance_themed__z2B",
+            "width": 44,
+            "height": 40
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.field > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+          "details": {
+            "selector": "div.field > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+            "width": 300,
+            "height": 20
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.password-input-container > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+          "details": {
+            "selector": "div.password-input-container > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+            "width": 300,
+            "height": 20
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > div.field > div.password-input-container > button.Button__0OJ.Button_appearance_themed__z2B",
+          "details": {
+            "selector": "form.form > div.field > div.password-input-container > button.Button__0OJ.Button_appearance_themed__z2B",
+            "width": 40,
+            "height": 40
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span > a",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span > a",
+            "width": 131,
+            "height": 16
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+            "width": 52,
+            "height": 32
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span > a",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span > a",
+            "width": 121,
+            "height": 16
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+            "width": 52,
+            "height": 32
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > form.form > button.Button__0OJ.Button_appearance_themed__z2B",
+          "details": {
+            "selector": "div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > form.form > button.Button__0OJ.Button_appearance_themed__z2B",
+            "width": 334,
+            "height": 40
+          },
+          "severity": "medium"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.Panel__kpB.Panel_mode_secondary__yer > form.form > div.Flex__8ia > button",
+          "details": {
+            "selector": "div.Panel__kpB.Panel_mode_secondary__yer > form.form > div.Flex__8ia > button",
+            "width": 111,
+            "height": 16
+          },
+          "severity": "medium"
+        }
+      ],
+      "screenshotPath": "/Users/aleksandr/mini_app_last/mini_app/audit-output/tablet.png"
+    },
+    {
+      "viewport": {
+        "name": "desktop",
+        "width": 1366,
+        "height": 768
+      },
+      "pageTitle": "HAULZ",
+      "location": "http://127.0.0.1:4173/?tab=cargo",
+      "issueCount": 10,
+      "issues": [
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > div.absolute.top-4 > button.Button__0OJ.Button_appearance_themed__z2B",
+          "details": {
+            "selector": "div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > div.absolute.top-4 > button.Button__0OJ.Button_appearance_themed__z2B",
+            "width": 44,
+            "height": 40
+          },
+          "severity": "low"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.field > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+          "details": {
+            "selector": "div.field > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+            "width": 300,
+            "height": 20
+          },
+          "severity": "low"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.password-input-container > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+          "details": {
+            "selector": "div.password-input-container > label.Input__A3w.Input_mode_primary__2Mr > span.ClearableInput__FRL.Input__body__sVJ > input.Input__input__gy5",
+            "width": 300,
+            "height": 20
+          },
+          "severity": "low"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > div.field > div.password-input-container > button.Button__0OJ.Button_appearance_themed__z2B",
+          "details": {
+            "selector": "form.form > div.field > div.password-input-container > button.Button__0OJ.Button_appearance_themed__z2B",
+            "width": 40,
+            "height": 40
+          },
+          "severity": "low"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span > a",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span > a",
+            "width": 131,
+            "height": 16
+          },
+          "severity": "low"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+            "width": 52,
+            "height": 32
+          },
+          "severity": "low"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span > a",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span > a",
+            "width": 121,
+            "height": 16
+          },
+          "severity": "low"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+          "details": {
+            "selector": "form.form > label.checkbox-row.switch-wrapper > span.Switch__-vj.Switch_platform_android__72T > input.Switch__input__EDr",
+            "width": 52,
+            "height": 32
+          },
+          "severity": "low"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > form.form > button.Button__0OJ.Button_appearance_themed__z2B",
+          "details": {
+            "selector": "div.Container__MSr.app-container > div.Panel__kpB.Panel_mode_secondary__yer > form.form > button.Button__0OJ.Button_appearance_themed__z2B",
+            "width": 334,
+            "height": 40
+          },
+          "severity": "low"
+        },
+        {
+          "type": "small-tap-target",
+          "message": "Interactive element under 44x44 in div.Panel__kpB.Panel_mode_secondary__yer > form.form > div.Flex__8ia > button",
+          "details": {
+            "selector": "div.Panel__kpB.Panel_mode_secondary__yer > form.form > div.Flex__8ia > button",
+            "width": 111,
+            "height": 16
+          },
+          "severity": "low"
+        }
+      ],
+      "screenshotPath": "/Users/aleksandr/mini_app_last/mini_app/audit-output/desktop.png"
+    }
+  ]
+}
