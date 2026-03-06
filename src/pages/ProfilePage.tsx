@@ -195,6 +195,22 @@ export function ProfilePage({
     const [accountingRequestsLoading, setAccountingRequestsLoading] = useState(false);
     const [accountingRequestsError, setAccountingRequestsError] = useState<string | null>(null);
     const [accountingSubsection, setAccountingSubsection] = useState<"expense_requests" | "sverki" | "claims">("expense_requests");
+    const [accountingClaimsItems, setAccountingClaimsItems] = useState<Array<{
+        id: number;
+        claimNumber?: string;
+        cargoNumber?: string;
+        description?: string;
+        requestedAmount?: number;
+        approvedAmount?: number;
+        status?: string;
+        slaDueAt?: string | null;
+        createdAt?: string;
+    }>>([]);
+    const [accountingClaimsLoading, setAccountingClaimsLoading] = useState(false);
+    const [accountingClaimsError, setAccountingClaimsError] = useState<string | null>(null);
+    const [accountingClaimsView, setAccountingClaimsView] = useState<"new" | "in_progress" | "all">("all");
+    const [accountingClaimsSearch, setAccountingClaimsSearch] = useState("");
+    const [accountingClaimsStatusFilter, setAccountingClaimsStatusFilter] = useState("");
     const [sverkiRequests, setSverkiRequests] = useState<Array<{ id: number; login: string; customerInn: string; contract: string; periodFrom: string; periodTo: string; status: string; createdAt: string }>>([]);
     const [sverkiRequestsLoading, setSverkiRequestsLoading] = useState(false);
     const [sverkiRequestsUpdatingId, setSverkiRequestsUpdatingId] = useState<number | null>(null);
@@ -659,6 +675,83 @@ export function ProfilePage({
         }
     }, [activeAccount?.login, activeAccount?.password]);
 
+    const CLAIM_STATUS_LABELS: Record<string, string> = {
+        draft: "Черновик",
+        new: "Новая",
+        under_review: "На рассмотрении",
+        waiting_docs: "Ожидает документы",
+        in_progress: "В работе",
+        awaiting_leader: "Ожидает решения руководителя",
+        sent_to_accounting: "Передана в бухгалтерию",
+        approved: "Удовлетворена",
+        rejected: "Отказ",
+        paid: "Выплачено",
+        offset: "Зачтено",
+        closed: "Закрыта",
+    };
+    const CLAIM_STATUS_BADGE: Record<string, { bg: string; color: string }> = {
+        draft: { bg: "rgba(107,114,128,0.15)", color: "#6b7280" },
+        new: { bg: "rgba(107,114,128,0.15)", color: "#6b7280" },
+        under_review: { bg: "rgba(245,158,11,0.18)", color: "#b45309" },
+        waiting_docs: { bg: "rgba(245,158,11,0.18)", color: "#b45309" },
+        in_progress: { bg: "rgba(59,130,246,0.15)", color: "#2563eb" },
+        awaiting_leader: { bg: "rgba(59,130,246,0.15)", color: "#2563eb" },
+        sent_to_accounting: { bg: "rgba(59,130,246,0.15)", color: "#2563eb" },
+        approved: { bg: "rgba(16,185,129,0.15)", color: "#059669" },
+        paid: { bg: "rgba(16,185,129,0.15)", color: "#059669" },
+        offset: { bg: "rgba(16,185,129,0.15)", color: "#059669" },
+        rejected: { bg: "rgba(239,68,68,0.15)", color: "#dc2626" },
+        closed: { bg: "rgba(107,114,128,0.15)", color: "#6b7280" },
+    };
+    const reloadAccountingClaims = useCallback(async () => {
+        if (!activeAccount?.login || !activeAccount?.password || activeAccount?.permissions?.accounting !== true) return;
+        setAccountingClaimsLoading(true);
+        setAccountingClaimsError(null);
+        const params = new URLSearchParams();
+        const q = accountingClaimsSearch.trim();
+        if (q) params.set("q", q);
+        if (accountingClaimsStatusFilter) {
+            params.set("status", accountingClaimsStatusFilter);
+        } else if (accountingClaimsView === "new") {
+            params.set("status", "new");
+        }
+        const selectedInn = String(activeAccount.activeCustomerInn || activeAccount.inn || "").trim();
+        if (selectedInn) params.set("inn", selectedInn);
+        const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+        try {
+            const res = await fetch(`${origin}/api/claims${params.toString() ? `?${params.toString()}` : ""}`, {
+                method: "GET",
+                headers: {
+                    "x-login": activeAccount.login,
+                    "x-password": activeAccount.password,
+                    "x-inn": selectedInn,
+                },
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                setAccountingClaimsItems([]);
+                setAccountingClaimsError(data?.error || "Ошибка загрузки претензий");
+                return;
+            }
+            const items = Array.isArray(data?.claims) ? data.claims : [];
+            setAccountingClaimsItems(items);
+        } catch {
+            setAccountingClaimsItems([]);
+            setAccountingClaimsError("Ошибка сети");
+        } finally {
+            setAccountingClaimsLoading(false);
+        }
+    }, [
+        activeAccount?.activeCustomerInn,
+        activeAccount?.inn,
+        activeAccount?.login,
+        activeAccount?.password,
+        activeAccount?.permissions?.accounting,
+        accountingClaimsSearch,
+        accountingClaimsStatusFilter,
+        accountingClaimsView,
+    ]);
+
     useEffect(() => {
         if (currentView === "accounting" && activeAccount?.permissions?.accounting === true) {
             void fetchAccountingRequests();
@@ -670,6 +763,11 @@ export function ProfilePage({
             void fetchSverkiRequests();
         }
     }, [currentView, accountingSubsection, activeAccount?.permissions?.accounting, fetchSverkiRequests]);
+    useEffect(() => {
+        if (currentView === "accounting" && accountingSubsection === "claims" && activeAccount?.permissions?.accounting === true) {
+            void reloadAccountingClaims();
+        }
+    }, [currentView, accountingSubsection, activeAccount?.permissions?.accounting, reloadAccountingClaims]);
 
     const saveDepartmentTimesheetCell = useCallback(async (employeeId: number, day: number, value: string) => {
         if (!activeAccount?.login || !activeAccount?.password) return;
@@ -1330,6 +1428,27 @@ export function ProfilePage({
         };
 
         const allRequests = accountingRequestsItems;
+        const accountingClaimsDisplayed = accountingClaimsItems.filter((item) => {
+            const status = String(item?.status || "");
+            if (!accountingClaimsStatusFilter) {
+                if (accountingClaimsView === "new" && status !== "new") return false;
+                if (accountingClaimsView === "in_progress" && !["under_review", "waiting_docs", "in_progress", "awaiting_leader", "sent_to_accounting"].includes(status)) {
+                    return false;
+                }
+            }
+            return true;
+        });
+        const accountingClaimsKpi = accountingClaimsDisplayed.reduce((acc, item) => {
+            const status = String(item?.status || "");
+            const isClosed = ["paid", "offset", "rejected", "closed"].includes(status);
+            if (!isClosed) acc.activeCount += 1;
+            if (!isClosed && item?.slaDueAt && new Date(item.slaDueAt).getTime() < Date.now()) {
+                acc.overdueCount += 1;
+            }
+            acc.requestedSum += Number(item?.requestedAmount || 0);
+            acc.approvedSum += Number(item?.approvedAmount || 0);
+            return acc;
+        }, { activeCount: 0, overdueCount: 0, requestedSum: 0, approvedSum: 0 });
 
         return (
             <div className="w-full">
@@ -1370,12 +1489,18 @@ export function ProfilePage({
                         >
                             Акты сверок
                         </Button>
-                        {activeAccount?.permissions?.doc_claims === true && onOpenDocumentsWithSection && (
+                        {activeAccount?.permissions?.doc_claims === true && (
                             <Button
                                 type="button"
                                 className="filter-button"
-                                style={{ height: 36, padding: "0 0.85rem", minWidth: 120 }}
-                                onClick={() => onOpenDocumentsWithSection('Претензии')}
+                                style={{
+                                    background: accountingSubsection === "claims" ? "var(--color-primary-blue)" : undefined,
+                                    color: accountingSubsection === "claims" ? "white" : undefined,
+                                    height: 36,
+                                    padding: "0 0.85rem",
+                                    minWidth: 120,
+                                }}
+                                onClick={() => { setAccountingSubsection("claims"); setSelectedAccountingRequest(null); }}
                             >
                                 Претензии
                             </Button>
@@ -1442,6 +1567,126 @@ export function ProfilePage({
                                             </td>
                                         </tr>
                                     ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </Panel>
+                )}
+                {accountingSubsection === "claims" && (
+                <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
+                    <Typography.Body style={{ fontWeight: 600, marginBottom: "0.55rem" }}>Претензии (финансовый контур)</Typography.Body>
+                    <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+                        <Button
+                            type="button"
+                            className="filter-button"
+                            style={{ background: accountingClaimsView === "new" ? "var(--color-primary-blue)" : undefined, color: accountingClaimsView === "new" ? "white" : undefined, height: 36, minWidth: 70 }}
+                            onClick={() => { setAccountingClaimsView("new"); setAccountingClaimsStatusFilter(""); }}
+                        >
+                            Новые
+                        </Button>
+                        <Button
+                            type="button"
+                            className="filter-button"
+                            style={{ background: accountingClaimsView === "in_progress" ? "var(--color-primary-blue)" : undefined, color: accountingClaimsView === "in_progress" ? "white" : undefined, height: 36, minWidth: 86 }}
+                            onClick={() => { setAccountingClaimsView("in_progress"); setAccountingClaimsStatusFilter(""); }}
+                        >
+                            В работе
+                        </Button>
+                        <Button
+                            type="button"
+                            className="filter-button"
+                            style={{ background: accountingClaimsView === "all" ? "var(--color-primary-blue)" : undefined, color: accountingClaimsView === "all" ? "white" : undefined, height: 36, minWidth: 58 }}
+                            onClick={() => setAccountingClaimsView("all")}
+                        >
+                            Все
+                        </Button>
+                    </Flex>
+                    <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+                        <div className="cargo-card" style={{ padding: "0 0.65rem", minWidth: 130, minHeight: 36, display: "flex", alignItems: "center" }}>
+                            <Typography.Body style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>Активные: <strong style={{ color: "var(--color-text-primary)" }}>{accountingClaimsKpi.activeCount}</strong></Typography.Body>
+                        </div>
+                        <div className="cargo-card" style={{ padding: "0 0.65rem", minWidth: 130, minHeight: 36, display: "flex", alignItems: "center" }}>
+                            <Typography.Body style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>Просроченные: <strong style={{ color: accountingClaimsKpi.overdueCount > 0 ? "#ef4444" : "var(--color-text-primary)" }}>{accountingClaimsKpi.overdueCount}</strong></Typography.Body>
+                        </div>
+                        <div className="cargo-card" style={{ padding: "0 0.65rem", minWidth: 170, minHeight: 36, display: "flex", alignItems: "center" }}>
+                            <Typography.Body style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>Сумма требований: <strong style={{ color: "var(--color-text-primary)" }}>{accountingClaimsKpi.requestedSum.toLocaleString("ru-RU")} ₽</strong></Typography.Body>
+                        </div>
+                        <div className="cargo-card" style={{ padding: "0 0.65rem", minWidth: 190, minHeight: 36, display: "flex", alignItems: "center" }}>
+                            <Typography.Body style={{ fontSize: "0.76rem", color: "var(--color-text-secondary)" }}>Сумма одобренных: <strong style={{ color: "var(--color-text-primary)" }}>{accountingClaimsKpi.approvedSum.toLocaleString("ru-RU")} ₽</strong></Typography.Body>
+                        </div>
+                    </Flex>
+                    <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "0.75rem" }}>
+                        <Input
+                            type="text"
+                            className="admin-form-input"
+                            placeholder="Поиск: номер претензии / перевозка"
+                            value={accountingClaimsSearch}
+                            onChange={(e) => setAccountingClaimsSearch(e.target.value)}
+                            style={{ minWidth: 260, maxWidth: 420, height: 36, padding: "0 0.55rem", boxSizing: "border-box" }}
+                        />
+                        <select
+                            className="admin-form-input"
+                            value={accountingClaimsStatusFilter}
+                            onChange={(e) => { setAccountingClaimsView("all"); setAccountingClaimsStatusFilter(e.target.value); }}
+                            style={{ padding: "0 0.5rem", height: 36, minWidth: 210, boxSizing: "border-box" }}
+                        >
+                            <option value="">Все статусы</option>
+                            <option value="new">Новая</option>
+                            <option value="under_review">На рассмотрении</option>
+                            <option value="waiting_docs">Ожидает документы</option>
+                            <option value="in_progress">В работе</option>
+                            <option value="awaiting_leader">Ожидает решения руководителя</option>
+                            <option value="sent_to_accounting">Передана в бухгалтерию</option>
+                            <option value="approved">Удовлетворена</option>
+                            <option value="paid">Выплачено</option>
+                            <option value="offset">Зачтено</option>
+                            <option value="rejected">Отказ</option>
+                        </select>
+                        <Button type="button" className="filter-button" style={{ height: 36, minWidth: 92, padding: "0 0.65rem" }} onClick={() => void reloadAccountingClaims()} disabled={accountingClaimsLoading}>
+                            {accountingClaimsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Обновить"}
+                        </Button>
+                    </Flex>
+                    {accountingClaimsLoading ? (
+                        <Flex align="center" gap="0.5rem">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <Typography.Body>Загрузка претензий...</Typography.Body>
+                        </Flex>
+                    ) : accountingClaimsError ? (
+                        <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-error, #dc2626)" }}>{accountingClaimsError}</Typography.Body>
+                    ) : accountingClaimsDisplayed.length === 0 ? (
+                        <Typography.Body style={{ fontSize: "0.82rem", color: "var(--color-text-secondary)" }}>Претензий не найдено</Typography.Body>
+                    ) : (
+                        <div style={{ maxHeight: 360, overflowY: "auto" }}>
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                                <thead>
+                                    <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>Претензия</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>Перевозка</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>Сумма</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>Статус</th>
+                                        <th style={{ textAlign: "left", padding: "6px 8px" }}>Создана</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {accountingClaimsDisplayed.map((c) => {
+                                        const statusKey = String(c?.status || "");
+                                        const badge = CLAIM_STATUS_BADGE[statusKey] || { bg: "rgba(107,114,128,0.15)", color: "#6b7280" };
+                                        const statusLabel = CLAIM_STATUS_LABELS[statusKey] || statusKey || "—";
+                                        return (
+                                            <tr key={c.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{String(c?.claimNumber || `#${c.id}`)}</td>
+                                                <td style={{ padding: "6px 8px" }}>{String(c?.cargoNumber || "—")}</td>
+                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{Number(c?.requestedAmount || 0).toLocaleString("ru-RU")} ₽</td>
+                                                <td style={{ padding: "6px 8px" }}>
+                                                    <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.45rem", borderRadius: 999, fontWeight: 600, background: badge.bg, color: badge.color }}>
+                                                        {statusLabel}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{c?.createdAt ? new Date(c.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"}</td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
