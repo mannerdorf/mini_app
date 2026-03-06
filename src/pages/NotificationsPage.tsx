@@ -122,7 +122,7 @@ export function NotificationsPage({
             cancelled = true;
             clearTimeout(hardStop);
         };
-    }, [login, checkTelegramLinked]);
+    }, [login]);
 
     useEffect(() => {
         if (!login) return;
@@ -170,6 +170,13 @@ export function NotificationsPage({
                 });
                 if (!res.ok) {
                     throw new Error("Не удалось сохранить настройки уведомлений.");
+                }
+                const data = await res.json().catch(() => null);
+                if (data?.preferences) {
+                    setPrefs({
+                        telegram: data.preferences.telegram || {},
+                        webpush: data.preferences.webpush || {},
+                    });
                 }
             } catch {
                 setTgLinkError("Не удалось сохранить настройки. Проверьте миграции notification_preferences.");
