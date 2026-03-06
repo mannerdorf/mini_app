@@ -123,6 +123,17 @@ export function ProfilePage({
     const [departmentTimesheetPaidDayMarks, setDepartmentTimesheetPaidDayMarks] = useState<Record<string, boolean>>({});
     const [departmentTimesheetShiftRateOverrides, setDepartmentTimesheetShiftRateOverrides] = useState<Record<string, number>>({});
     const [departmentTimesheetMobilePicker, setDepartmentTimesheetMobilePicker] = useState(false);
+    const [departmentTimesheetWideMode, setDepartmentTimesheetWideMode] = useState<boolean>(() => {
+        if (typeof window === "undefined") return true;
+        try {
+            const saved = window.localStorage.getItem("haulz.profile.timesheetWideMode");
+            if (saved === "0") return false;
+            if (saved === "1") return true;
+        } catch {
+            // ignore storage access errors
+        }
+        return true;
+    });
     const sortedDepartmentTimesheetEmployees = useMemo(() => {
         return [...departmentTimesheetEmployees].sort((a, b) => {
             const posA = String(a.position || "").trim();
@@ -401,6 +412,26 @@ export function ProfilePage({
         window.addEventListener('resize', update);
         return () => window.removeEventListener('resize', update);
     }, []);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            window.localStorage.setItem("haulz.profile.timesheetWideMode", departmentTimesheetWideMode ? "1" : "0");
+        } catch {
+            // ignore storage access errors
+        }
+    }, [departmentTimesheetWideMode]);
+    const departmentTimesheetContainerStyle = useMemo<React.CSSProperties | undefined>(() => {
+        if (departmentTimesheetMobilePicker || !departmentTimesheetWideMode) return undefined;
+        return {
+            width: "100vw",
+            maxWidth: "100vw",
+            marginLeft: "calc(50% - 50vw)",
+            marginRight: "calc(50% - 50vw)",
+            paddingLeft: "1rem",
+            paddingRight: "1rem",
+            boxSizing: "border-box",
+        };
+    }, [departmentTimesheetMobilePicker, departmentTimesheetWideMode]);
 
     const fetchDepartmentTimesheet = useCallback(async () => {
         if (!activeAccount?.login || !activeAccount?.password) return;
@@ -1545,12 +1576,22 @@ export function ProfilePage({
 
     if (currentView === 'departmentTimesheet') {
         return (
-            <div className="w-full">
+            <div className="w-full" style={departmentTimesheetContainerStyle}>
                 <Flex align="center" style={{ marginBottom: '1rem', gap: '0.75rem' }}>
                     <Button className="filter-button" onClick={() => setCurrentView('haulz')} style={{ padding: '0.5rem' }}>
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
                     <Typography.Headline style={{ fontSize: '1.25rem' }}>Табель учета рабочего времени</Typography.Headline>
+                    {!departmentTimesheetMobilePicker && (
+                        <Button
+                            type="button"
+                            className="filter-button"
+                            onClick={() => setDepartmentTimesheetWideMode((prev) => !prev)}
+                            style={{ marginLeft: "auto" }}
+                        >
+                            {departmentTimesheetWideMode ? "Стандартная ширина" : "Шире экран"}
+                        </Button>
+                    )}
                 </Flex>
                 <Typography.Body style={{ marginBottom: '0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>
                     Отображаются только сотрудники вашего подразделения HAULZ.
