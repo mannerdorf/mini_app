@@ -320,7 +320,7 @@ export function NotificationsPage({
     const SHOW_WEB_PUSH_SECTION = true;
 
     return (
-        <div className="w-full">
+        <div className="w-full" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom))" }}>
             <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
                 <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
                     <ArrowLeft className="w-4 h-4" />
