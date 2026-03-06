@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { buildSendingsMetrics, extractArrayFromAnyPayload, upsertSendingsMetrics } from "../../lib/sendingsMetrics.js";
+import { dispatchWebPushCargoEvents } from "../_lib/webpushEventDispatch.js";
 
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 const INVOICES_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices";
@@ -163,6 +164,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (e: any) {
     console.error("refresh-cache perevozki error:", e?.message || e);
     markStep("perevozki", false, 0, e?.message || String(e));
+  }
+
+  try {
+    if (Array.isArray(perevozkiList) && perevozkiList.length > 0) {
+      const dispatchResult = await dispatchWebPushCargoEvents({
+        pool,
+        items: perevozkiList as any[],
+        source: "cron_refresh_cache",
+        dedupeTtlSeconds: 300,
+      });
+      const details = `changed=${dispatchResult.changed}, delivered=${dispatchResult.delivered}, failed=${dispatchResult.failed}, deduped=${dispatchResult.deduped}`;
+      markStep("webpush_events", true, dispatchResult.attempted, details);
+    } else {
+      markStep("webpush_events", true, 0, "no cargo items");
+    }
+  } catch (e: any) {
+    console.error("refresh-cache webpush dispatch error:", e?.message || e);
+    markStep("webpush_events", false, 0, e?.message || String(e));
   }
 
   try {

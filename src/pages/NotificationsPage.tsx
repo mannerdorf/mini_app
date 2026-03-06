@@ -91,6 +91,7 @@ export function NotificationsPage({
             setPrefsLoading(false);
             setTelegramLinkedFromApi(null);
             setMaxLinkedFromApi(null);
+            setWebPushSubscribed(false);
             return;
         }
         let cancelled = false;
@@ -122,6 +123,31 @@ export function NotificationsPage({
             clearTimeout(hardStop);
         };
     }, [login, checkTelegramLinked]);
+
+    useEffect(() => {
+        if (!login) return;
+        if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+            setWebPushSubscribed(false);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const reg = (await navigator.serviceWorker.getRegistration("/")) || (await navigator.serviceWorker.getRegistration());
+                if (!reg) {
+                    if (!cancelled) setWebPushSubscribed(false);
+                    return;
+                }
+                const sub = await reg.pushManager.getSubscription();
+                if (!cancelled) setWebPushSubscribed(!!sub);
+            } catch {
+                if (!cancelled) setWebPushSubscribed(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [login]);
 
     const savePrefs = useCallback(
         async (channel: "telegram" | "webpush", eventId: string, value: boolean) => {
@@ -174,11 +200,12 @@ export function NotificationsPage({
             }
             const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
             await reg.update();
+            const existing = await reg.pushManager.getSubscription();
             const res = await fetch("/api/webpush-vapid");
             if (!res.ok) throw new Error("VAPID not configured");
             const { publicKey } = await res.json();
             if (!publicKey) throw new Error("No public key");
-            const sub = await reg.pushManager.subscribe({
+            const sub = existing || await reg.pushManager.subscribe({
                 userVisibleOnly: true,
                 applicationServerKey: urlBase64ToUint8Array(publicKey),
             });
@@ -191,6 +218,38 @@ export function NotificationsPage({
             setWebPushSubscribed(true);
         } catch (e: unknown) {
             setWebPushError((e as { message?: string })?.message || "Не удалось включить уведомления.");
+        } finally {
+            setWebPushLoading(false);
+        }
+    }, [login]);
+    const disableWebPush = useCallback(async () => {
+        if (!login) return;
+        if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+            setWebPushSubscribed(false);
+            return;
+        }
+        setWebPushError(null);
+        setWebPushLoading(true);
+        try {
+            const reg = (await navigator.serviceWorker.getRegistration("/")) || (await navigator.serviceWorker.getRegistration());
+            if (!reg) {
+                setWebPushSubscribed(false);
+                return;
+            }
+            const sub = await reg.pushManager.getSubscription();
+            if (!sub) {
+                setWebPushSubscribed(false);
+                return;
+            }
+            await fetch("/api/webpush-unsubscribe", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ login, endpoint: sub.endpoint }),
+            }).catch(() => null);
+            await sub.unsubscribe().catch(() => false);
+            setWebPushSubscribed(false);
+        } catch (e: unknown) {
+            setWebPushError((e as { message?: string })?.message || "Не удалось отключить Web Push.");
         } finally {
             setWebPushLoading(false);
         }
@@ -251,7 +310,7 @@ export function NotificationsPage({
 
     const webPushSupported =
         typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
-    const SHOW_WEB_PUSH_SECTION = false;
+    const SHOW_WEB_PUSH_SECTION = true;
 
     return (
         <div className="w-full">
@@ -452,9 +511,19 @@ export function NotificationsPage({
                                             </Button>
                                         )}
                                         {webPushSubscribed && (
-                                            <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
-                                                Уведомления в браузере включены.
-                                            </Typography.Body>
+                                            <>
+                                                <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-success, #22c55e)" }}>
+                                                    Уведомления в браузере включены.
+                                                </Typography.Body>
+                                                <Button
+                                                    type="button"
+                                                    className="button-secondary"
+                                                    disabled={webPushLoading}
+                                                    onClick={disableWebPush}
+                                                >
+                                                    {webPushLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Отключить Web Push"}
+                                                </Button>
+                                            </>
                                         )}
                                         {webPushError && (
                                             <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error, #ef4444)" }}>

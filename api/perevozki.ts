@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { upsertDocument } from "../lib/rag.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { dispatchWebPushCargoEvents } from "./_lib/webpushEventDispatch.js";
 
 /**
  * Запрос данных перевозок — только этот метод:
@@ -222,6 +223,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ingestCargoItems(list, login).catch((error) => {
           console.error("RAG cargo ingest error:", error?.message || error);
         });
+        try {
+          const pool = getPool();
+          await dispatchWebPushCargoEvents({
+            pool,
+            items: list as any[],
+            source: "api_perevozki",
+            dedupeTtlSeconds: 300,
+          });
+        } catch (error: any) {
+          console.error("webpush event dispatch from perevozki failed:", error?.message || error);
+        }
       }
       return res.status(200).json(json);
     } catch {

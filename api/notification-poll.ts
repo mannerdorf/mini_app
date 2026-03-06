@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import webpush from "web-push";
 import { getPool } from "./_db";
 import { getRedisValue } from "./redis.js";
+import { sendWebPushToLogin } from "./_lib/webpushDelivery.js";
 import {
   type CargoEvent,
   getCargoStatusKey,
@@ -10,12 +10,10 @@ import {
   formatTelegramMessage,
 } from "../lib/notificationPoll";
 
-const CRON_SECRET = process.env.CRON_SECRET;
+const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
 const POLL_SERVICE_LOGIN = process.env.POLL_SERVICE_LOGIN;
 const POLL_SERVICE_PASSWORD = process.env.POLL_SERVICE_PASSWORD;
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 
 const NOTIFICATION_EVENTS: CargoEvent[] = ["accepted", "in_transit", "delivered", "bill_created", "bill_paid"];
 
@@ -51,41 +49,6 @@ async function sendTelegramMessage(
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
   }
-}
-
-async function sendWebPushToLogin(
-  login: string,
-  title: string,
-  body: string
-): Promise<{ ok: boolean; sent: number; error?: string }> {
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return { ok: false, sent: 0, error: "VAPID not set" };
-  const raw = await getRedisValue(`webpush:subs:${login}`);
-  let list: any[] = [];
-  try {
-    list = raw ? JSON.parse(raw) : [];
-  } catch {
-    list = [];
-  }
-  if (!Array.isArray(list)) list = [];
-  webpush.setVapidDetails("mailto:support@haulz.ru", VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-  const payload = JSON.stringify({ title, body, url: "/" });
-  let sent = 0;
-  for (const sub of list) {
-    if (!sub?.endpoint || !sub?.keys) continue;
-    try {
-      await webpush.sendNotification(
-        {
-          endpoint: sub.endpoint,
-          keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth },
-          expirationTime: sub.expirationTime ?? undefined,
-        },
-        payload,
-        { TTL: 60 * 60 * 24 }
-      );
-      sent += 1;
-    } catch (_) {}
-  }
-  return { ok: sent > 0, sent };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -297,7 +260,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               if (!sendResult.ok) status = "partial";
             }
             if (sub.prefsWeb[event]) {
-              const sendResult = await sendWebPushToLogin(sub.login, title, text);
+              const sendResult = await sendWebPushToLogin(sub.login, { title, body: text, url: "/" });
               notificationsSent += 1;
               await pool.query(
                 `insert into notification_deliveries (poll_run_id, login, inn, cargo_number, event, channel, telegram_chat_id, success, error_message)
