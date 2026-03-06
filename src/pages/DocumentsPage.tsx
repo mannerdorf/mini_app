@@ -2060,20 +2060,20 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
     }, [groupedActsByCustomer, tableSortColumn, tableSortOrder]);
 
 useEffect(() => {
-    if (docSection !== 'Счета' || !tableModeEffective || sortedGroupedByCustomer.length === 0) return;
+    if (docSection !== 'Счета' || !tableModeByCustomer || sortedGroupedByCustomer.length === 0) return;
     setExpandedTableCustomer((prev) => {
         if (prev && sortedGroupedByCustomer.some((row) => row.customer === prev)) return prev;
         return sortedGroupedByCustomer[0]?.customer ?? null;
     });
-}, [docSection, tableModeEffective, sortedGroupedByCustomer]);
+}, [docSection, tableModeByCustomer, sortedGroupedByCustomer]);
 
 useEffect(() => {
-    if (docSection !== 'УПД' || !tableModeEffective || sortedGroupedActsByCustomer.length === 0) return;
+    if (docSection !== 'УПД' || !tableModeByCustomer || sortedGroupedActsByCustomer.length === 0) return;
     setExpandedTableActCustomer((prev) => {
         if (prev && sortedGroupedActsByCustomer.some((row) => row.customer === prev)) return prev;
         return sortedGroupedActsByCustomer[0]?.customer ?? null;
     });
-}, [docSection, tableModeEffective, sortedGroupedActsByCustomer]);
+}, [docSection, tableModeByCustomer, sortedGroupedActsByCustomer]);
 
     const groupedOrdersByCustomer = useMemo(() => {
         const map = new Map<string, { customer: string; items: any[]; sum: number }>();
