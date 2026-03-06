@@ -15,15 +15,14 @@ function normalizeTransportName(value: unknown): string {
     const base = vehicle[1];
     const region = vehicle[3] ?? "";
     if (!region) return base;
-    const rawTail = vehicle[2] ?? "";
-    return rawTail.includes("/") ? `${base}/${region}` : `${base}${region}`;
+    return `${base}${region}`;
   }
   const looseVehicle = normalizedSpaces.match(/([A-ZА-Я])[\s\-]*([0-9]{3})[\s\-]*([A-ZА-Я]{2})(?:[\s\-]*\/?[\s\-]*([0-9]{2,3}))?$/u);
   if (looseVehicle) {
     const base = `${looseVehicle[1]}${looseVehicle[2]}${looseVehicle[3]}`;
     const region = looseVehicle[4] ?? "";
     if (!region) return base;
-    return normalizedSpaces.includes("/") ? `${base}/${region}` : `${base}${region}`;
+    return `${base}${region}`;
   }
   return normalizedSpaces
     .replace(/\bнаименование\s*тс\b[:\-]?\s*/giu, "")

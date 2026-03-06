@@ -1160,15 +1160,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             const base = vehicle[1];
             const region = vehicle[3] ?? '';
             if (!region) return base;
-            const rawTail = vehicle[2] ?? '';
-            return rawTail.includes('/') ? `${base}/${region}` : `${base}${region}`;
+            return `${base}${region}`;
         }
         const looseVehicle = normalizedSpaces.match(/([A-ZА-Я])[\s\-]*([0-9]{3})[\s\-]*([A-ZА-Я]{2})(?:[\s\-]*\/?[\s\-]*([0-9]{2,3}))?$/u);
         if (looseVehicle) {
             const base = `${looseVehicle[1]}${looseVehicle[2]}${looseVehicle[3]}`;
             const region = looseVehicle[4] ?? '';
             if (!region) return base;
-            return normalizedSpaces.includes('/') ? `${base}/${region}` : `${base}${region}`;
+            return `${base}${region}`;
         }
         return normalizedSpaces
             .replace(/\bнаименование\s*тс\b[:\-]?\s*/giu, '')
@@ -1613,6 +1612,48 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [cargoTransportByNumber, items, actsItems, normalizeTransportDisplay]);
+    const uniqueInvoiceTransportVehicles = useMemo(() => {
+        const set = new Set<string>();
+        (items || []).forEach((row: any) => {
+            const direct = normalizeTransportDisplay(
+                row?.АвтомобильCMRНаименование ??
+                row?.AutoReg ??
+                row?.autoReg ??
+                row?.Transport ??
+                row?.transport ??
+                row?.AutoType ??
+                ''
+            );
+            if (direct) set.add(direct);
+            const cargoNum = getFirstCargoNumberFromInvoice(row);
+            if (cargoNum) {
+                const byCargo = normalizeTransportDisplay(cargoTransportByNumber.get(normCargoKey(cargoNum)));
+                if (byCargo) set.add(byCargo);
+            }
+        });
+        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+    }, [items, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, normalizeTransportDisplay]);
+    const uniqueActsTransportVehicles = useMemo(() => {
+        const set = new Set<string>();
+        (actsItems || []).forEach((row: any) => {
+            const direct = normalizeTransportDisplay(
+                row?.АвтомобильCMRНаименование ??
+                row?.AutoReg ??
+                row?.autoReg ??
+                row?.Transport ??
+                row?.transport ??
+                row?.AutoType ??
+                ''
+            );
+            if (direct) set.add(direct);
+            const cargoNum = getFirstCargoNumberFromInvoice(row);
+            if (cargoNum) {
+                const byCargo = normalizeTransportDisplay(cargoTransportByNumber.get(normCargoKey(cargoNum)));
+                if (byCargo) set.add(byCargo);
+            }
+        });
+        return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
+    }, [actsItems, getFirstCargoNumberFromInvoice, cargoTransportByNumber, normCargoKey, normalizeTransportDisplay]);
     const uniqueOrderTransportVehicles = useMemo(() => {
         const set = new Set<string>();
         (ordersItems || []).forEach((item: any) => {
@@ -1639,6 +1680,18 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         });
         return [...set].sort((a, b) => a.localeCompare(b, 'ru'));
     }, [sendingsItems]);
+    const transportOptionsCurrentSection = useMemo(() => {
+        if (docSection === 'Счета') return uniqueInvoiceTransportVehicles;
+        if (docSection === 'УПД') return uniqueActsTransportVehicles;
+        if (docSection === 'Заявки') return uniqueOrderTransportVehicles;
+        if (docSection === 'Отправки') return uniqueSendingTransportVehicles;
+        return uniqueTransportVehicles;
+    }, [docSection, uniqueInvoiceTransportVehicles, uniqueActsTransportVehicles, uniqueOrderTransportVehicles, uniqueSendingTransportVehicles, uniqueTransportVehicles]);
+    useEffect(() => {
+        if (!transportFilter) return;
+        if (transportOptionsCurrentSection.includes(transportFilter)) return;
+        setTransportFilter('');
+    }, [transportFilter, transportOptionsCurrentSection]);
 
     const uniqueTariffsRoutes = useMemo(() => {
         const set = new Set<string>();
@@ -2956,7 +3009,7 @@ useEffect(() => {
                                 />
                             </div>
                             <div className="dropdown-item" onClick={() => { setTransportFilter(''); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>Все</Typography.Body></div>
-                            {(docSection === 'Заявки' ? uniqueOrderTransportVehicles : docSection === 'Отправки' ? uniqueSendingTransportVehicles : uniqueTransportVehicles)
+                            {transportOptionsCurrentSection
                                 .filter(v => !transportSearchQuery.trim() || v.toLowerCase().includes(transportSearchQuery.trim().toLowerCase()))
                                 .map(v => (
                                     <div key={v} className="dropdown-item" onClick={() => { setTransportFilter(v); setIsTransportDropdownOpen(false); setTransportSearchQuery(''); }}><Typography.Body>{v}</Typography.Body></div>
@@ -5943,9 +5996,30 @@ useEffect(() => {
                                                     }}
                                                     style={{ display: 'none' }}
                                                 />
+                                                <input
+                                                    id="claims-manipulation-photos-camera"
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    onChange={(e) => {
+                                                        const files = Array.from(e.target.files || []);
+                                                        if (files.length === 0) return;
+                                                        setClaimsCreateManipulationPhotoFiles((prev) => [...prev, ...files]);
+                                                        if (files.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
+                                                            setClaimsCreateError('Размер одного фото не должен превышать 5MB');
+                                                        } else {
+                                                            setClaimsCreateError(null);
+                                                        }
+                                                        e.currentTarget.value = '';
+                                                    }}
+                                                    style={{ display: 'none' }}
+                                                />
                                                 <Flex align="center" gap="0.45rem" wrap="wrap">
                                                     <label htmlFor="claims-manipulation-photos" style={FILE_PICKER_BUTTON_STYLE}>
                                                         Выбрать фото
+                                                    </label>
+                                                    <label htmlFor="claims-manipulation-photos-camera" style={FILE_PICKER_BUTTON_STYLE}>
+                                                        Сделать фото
                                                     </label>
                                                     <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
                                                         {claimsCreateManipulationPhotoFiles.length > 0
@@ -6031,9 +6105,33 @@ useEffect(() => {
                                     }}
                                     style={{ display: 'none' }}
                                 />
+                                <input
+                                    id="claims-photos-camera"
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    onChange={(e) => {
+                                        const files = Array.from(e.target.files || []);
+                                        if (files.length === 0) return;
+                                        const mergedCount = claimsCreatePhotoFiles.length + files.length;
+                                        setClaimsCreatePhotoFiles((prev) => [...prev, ...files].slice(0, 10));
+                                        if (mergedCount > 10) {
+                                            setClaimsCreateError('Можно прикрепить не более 10 фото');
+                                        } else if (files.some((f) => f.size > MAX_CLAIM_FILE_BYTES)) {
+                                            setClaimsCreateError('Размер одного фото не должен превышать 5MB');
+                                        } else {
+                                            setClaimsCreateError(null);
+                                        }
+                                        e.currentTarget.value = '';
+                                    }}
+                                    style={{ display: 'none' }}
+                                />
                                 <Flex align="center" gap="0.45rem" wrap="wrap">
                                     <label htmlFor="claims-photos" style={FILE_PICKER_BUTTON_STYLE}>
                                         Выбрать фото
+                                    </label>
+                                    <label htmlFor="claims-photos-camera" style={FILE_PICKER_BUTTON_STYLE}>
+                                        Сделать фото
                                     </label>
                                     <Typography.Body style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
                                         {claimsCreatePhotoFiles.length > 0
