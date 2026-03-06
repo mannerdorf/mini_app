@@ -279,12 +279,57 @@ export function CargoPage({
 
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
-    const normalizeTransportOption = useCallback((value: unknown) => String(value ?? '').trim().toUpperCase().replace(/\s+/g, ' '), []);
+    const normalizeTransportOption = useCallback((value: unknown): string => {
+        const s = String(value ?? '').toUpperCase().trim();
+        if (!s) return '';
+        const normalizedSpaces = s.replace(/\s+/g, ' ');
+        const container = normalizedSpaces.match(/([A-ZА-Я]{4})[\s\-]*([0-9]{7})$/u);
+        if (container) return `${container[1]} ${container[2]}`;
+        const vehicle = normalizedSpaces.match(/([A-ZА-Я][0-9]{3}[A-ZА-Я]{2})(\s*\/?\s*([0-9]{2,3}))?$/u);
+        if (vehicle) {
+            const base = vehicle[1];
+            const region = vehicle[3] ?? '';
+            if (!region) return base;
+            const rawTail = vehicle[2] ?? '';
+            return rawTail.includes('/') ? `${base}/${region}` : `${base}${region}`;
+        }
+        const looseVehicle = normalizedSpaces.match(/([A-ZА-Я])[\s\-]*([0-9]{3})[\s\-]*([A-ZА-Я]{2})(?:[\s\-]*\/?[\s\-]*([0-9]{2,3}))?$/u);
+        if (looseVehicle) {
+            const base = `${looseVehicle[1]}${looseVehicle[2]}${looseVehicle[3]}`;
+            const region = looseVehicle[4] ?? '';
+            if (!region) return base;
+            return normalizedSpaces.includes('/') ? `${base}/${region}` : `${base}${region}`;
+        }
+        return normalizedSpaces
+            .replace(/\bнаименование\s*тс\b[:\-]?\s*/giu, '')
+            .replace(/\bконтейнер\b[:\-]?\s*/giu, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+    }, []);
+    const getTransportCandidates = useCallback((item: CargoItem): string[] => {
+        const regex = /(auto|авто|транспорт|машин|cmr)/iu;
+        const explicit = [
+            (item as any)?.AutoReg,
+            (item as any)?.autoReg,
+            (item as any)?.LMAutoReg,
+            (item as any)?.lmAutoReg,
+            (item as any)?.АвтомобильCMRНаименование,
+            (item as any)?.Автомобиль,
+            (item as any)?.Транспорт,
+            (item as any)?.Transport,
+            (item as any)?.transport,
+            (item as any)?.AutoType,
+        ];
+        const dynamic = Object.entries(item as Record<string, unknown>)
+            .filter(([k]) => regex.test(k))
+            .map(([, v]) => v);
+        return [...explicit, ...dynamic].map(normalizeTransportOption).filter(Boolean);
+    }, [normalizeTransportOption]);
     const uniqueTransportVehicles = useMemo(
         () => [...new Set(items
-            .map(i => normalizeTransportOption((i as any).AutoReg ?? (i as any).autoReg ?? (i as any).АвтомобильCMRНаименование ?? (i as any).Transport ?? (i as any).transport ?? (i as any).AutoType))
+            .flatMap((i) => getTransportCandidates(i))
             .filter(Boolean))].sort(),
-        [items, normalizeTransportOption]
+        [items, getTransportCandidates]
     );
 
     // Client-side filtering and sorting

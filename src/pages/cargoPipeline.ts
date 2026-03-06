@@ -97,18 +97,54 @@ const parseDateSafe = (dateString: string | undefined): number | null => {
   return null;
 };
 
-const normalizeTransportKey = (value: unknown): string =>
-  String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+const TRANSPORT_KEY_REGEX = /(auto|авто|транспорт|машин|cmr)/iu;
 
-const getCargoTransport = (item: CargoItem): string =>
-  normalizeTransportKey(
-    (item as any)?.AutoReg ??
-      (item as any)?.autoReg ??
-      (item as any)?.АвтомобильCMRНаименование ??
-      (item as any)?.Transport ??
-      (item as any)?.transport ??
-      (item as any)?.AutoType
-  );
+const normalizeTransportName = (value: unknown): string => {
+  const s = String(value ?? "").toUpperCase().trim();
+  if (!s) return "";
+  const normalizedSpaces = s.replace(/\s+/g, " ");
+  const container = normalizedSpaces.match(/([A-ZА-Я]{4})[\s\-]*([0-9]{7})$/u);
+  if (container) return `${container[1]} ${container[2]}`;
+  const vehicle = normalizedSpaces.match(/([A-ZА-Я][0-9]{3}[A-ZА-Я]{2})(\s*\/?\s*([0-9]{2,3}))?$/u);
+  if (vehicle) {
+    const base = vehicle[1];
+    const region = vehicle[3] ?? "";
+    if (!region) return base;
+    const rawTail = vehicle[2] ?? "";
+    return rawTail.includes("/") ? `${base}/${region}` : `${base}${region}`;
+  }
+  const looseVehicle = normalizedSpaces.match(/([A-ZА-Я])[\s\-]*([0-9]{3})[\s\-]*([A-ZА-Я]{2})(?:[\s\-]*\/?[\s\-]*([0-9]{2,3}))?$/u);
+  if (looseVehicle) {
+    const base = `${looseVehicle[1]}${looseVehicle[2]}${looseVehicle[3]}`;
+    const region = looseVehicle[4] ?? "";
+    if (!region) return base;
+    return normalizedSpaces.includes("/") ? `${base}/${region}` : `${base}${region}`;
+  }
+  return normalizedSpaces
+    .replace(/\bнаименование\s*тс\b[:\-]?\s*/giu, "")
+    .replace(/\bконтейнер\b[:\-]?\s*/giu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+};
+
+const getCargoTransportCandidates = (item: CargoItem): string[] => {
+  const explicit = [
+    (item as any)?.AutoReg,
+    (item as any)?.autoReg,
+    (item as any)?.LMAutoReg,
+    (item as any)?.lmAutoReg,
+    (item as any)?.АвтомобильCMRНаименование,
+    (item as any)?.Автомобиль,
+    (item as any)?.Транспорт,
+    (item as any)?.Transport,
+    (item as any)?.transport,
+    (item as any)?.AutoType,
+  ];
+  const dynamic = Object.entries(item as Record<string, unknown>)
+    .filter(([k]) => TRANSPORT_KEY_REGEX.test(k))
+    .map(([, v]) => v);
+  return [...explicit, ...dynamic].map(normalizeTransportName).filter(Boolean);
+};
 
 export function buildFilteredCargoItems(
   params: CargoFilterPipelineParams
@@ -174,8 +210,10 @@ export function buildFilteredCargoItems(
     );
   }
   if (useServiceRequest && transportFilter) {
-    const selectedTransport = normalizeTransportKey(transportFilter);
-    res = res.filter((i) => getCargoTransport(i) === selectedTransport);
+    const selectedTransport = normalizeTransportName(transportFilter);
+    res = res.filter((i) =>
+      getCargoTransportCandidates(i).some((candidate) => candidate === selectedTransport)
+    );
   }
   if (useServiceRequest && billStatusFilterSet.size > 0) {
     res = res.filter((i) => billStatusFilterSet.has(getPaymentFilterKey(i.StateBill)));
