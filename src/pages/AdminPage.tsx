@@ -32,27 +32,31 @@ const PERMISSION_KEYS = [
   { key: "eor", label: "EOR" },
 ] as const;
 
-/** Первая строка разделов: при активном — красная (для HAULZ — зелёная, для EOR — яркая бирюзовая). Аналитику может включить только суперадмин. По умолчанию при регистрации: Фин. показатели и Руководитель — активны, остальное — пассивно. */
-const PERMISSION_ROW1 = [
-  { key: "__financial__", label: "Фин. показатели" as const },
-  { key: "supervisor", label: "Руководитель" as const },
+/** 1-я строка: доступна к изменению только суперадминистратору, активный цвет — красный. */
+const PERMISSION_ROW1_SUPERADMIN = [
   { key: "cms_access", label: "Доступ в CMS" },
   { key: "service_mode", label: "Служебный режим" },
   { key: "analytics", label: "Аналитика" as const },
   { key: "haulz", label: "HAULZ" as const },
   { key: "eor", label: "EOR" as const },
   { key: "accounting", label: "Бухгалтерия" as const },
+  { key: "doc_sendings", label: "Отправки" as const },
 ] as const;
 
-/** Вторая строка разделов: при активном — синяя */
-const PERMISSION_ROW2 = [
+/** 2-я строка: доступна всем, у кого есть доступ в CMS, активный цвет — оранжевый. */
+const PERMISSION_ROW2_ORANGE = [
+  { key: "__financial__", label: "Фин. показатели" as const },
+  { key: "supervisor", label: "Руководитель" as const },
+] as const;
+
+/** 3-я строка: доступна всем, у кого есть доступ в CMS, активный цвет — синий. */
+const PERMISSION_ROW3_BLUE = [
   { key: "home", label: "Главная" },
   { key: "dashboard", label: "Дашборды" },
   { key: "cargo", label: "Грузы" },
   { key: "doc_invoices", label: "Счета" },
   { key: "doc_acts", label: "УПД" },
   { key: "doc_orders", label: "Заявки" },
-  { key: "doc_sendings", label: "Отправки" },
   { key: "doc_claims", label: "Претензии" },
   { key: "doc_contracts", label: "Договоры" },
   { key: "doc_acts_settlement", label: "Акты сверок" },
@@ -4206,26 +4210,39 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     </Flex>
                     <div className="admin-form-section-header">Разделы</div>
                     <div className="admin-permissions-toolbar">
-                    {PERMISSION_ROW1.map(({ key, label }) => {
-                        if (!isSuperAdmin && (key === "cms_access" || key === "service_mode" || key === "analytics")) return null;
-                        const isActive = key === "__financial__" ? editorFinancial : key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : key === "analytics" ? !!editorPermissions.analytics : !!editorPermissions[key];
-                        const onClick = key === "__financial__" ? () => { setEditorSelectedPresetId(""); setEditorFinancial(!editorFinancial); } : key === "service_mode" ? () => { setEditorSelectedPresetId(""); const v = !(!!editorPermissions.service_mode || editorAccessAllInns); setEditorPermissions((p) => ({ ...p, service_mode: v })); setEditorAccessAllInns(v); } : () => handlePermissionsToggle(key);
-                        const activeClass = isActive
-                          ? (key === "service_mode" || key === "analytics"
-                              ? "active active-warning"
-                              : key === "haulz"
-                                ? "active active-success"
-                                : key === "eor"
-                                  ? "active active-eor"
-                                  : "active active-danger")
-                          : "";
+                    {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
+                        const isActive = key === "service_mode" ? (!!editorPermissions.service_mode || editorAccessAllInns) : !!editorPermissions[key];
+                        const isLocked = !isSuperAdmin;
+                        const onClick = () => {
+                          if (isLocked) return;
+                          setEditorSelectedPresetId("");
+                          if (key === "service_mode") {
+                            const v = !(!!editorPermissions.service_mode || editorAccessAllInns);
+                            setEditorPermissions((p) => ({ ...p, service_mode: v }));
+                            setEditorAccessAllInns(v);
+                            return;
+                          }
+                          handlePermissionsToggle(key);
+                        };
+                        const activeClass = isActive ? "active active-danger" : "";
                         return (
-                          <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>
+                          <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>
                         );
                       })}
                     </div>
                     <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
-                      {PERMISSION_ROW2.map(({ key, label }) => {
+                      {PERMISSION_ROW2_ORANGE.map(({ key, label }) => {
+                        const isActive = key === "__financial__" ? editorFinancial : !!editorPermissions[key];
+                        const onClick = key === "__financial__"
+                          ? () => { setEditorSelectedPresetId(""); setEditorFinancial(!editorFinancial); }
+                          : () => handlePermissionsToggle(key);
+                        return (
+                          <button key={key} type="button" className={`permission-button ${isActive ? "active active-warning" : ""}`} onClick={onClick}>{label}</button>
+                        );
+                      })}
+                    </div>
+                    <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
+                      {PERMISSION_ROW3_BLUE.map(({ key, label }) => {
                         const isActive = !!editorPermissions[key];
                         return (
                           <button key={key} type="button" className={`permission-button ${isActive ? "active" : ""}`} onClick={() => handlePermissionsToggle(key)}>{label}</button>
@@ -4458,24 +4475,37 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   </Flex>
                   <div className="admin-form-section-header" style={{ marginBottom: "0.35rem" }}>Разделы</div>
                   <div className="admin-permissions-toolbar">
-                    {PERMISSION_ROW1.map(({ key, label }) => {
-                      if (!isSuperAdmin && (key === "cms_access" || key === "service_mode" || key === "analytics")) return null;
-                      const isActive = key === "__financial__" ? bulkFinancial : key === "service_mode" ? (!!bulkPermissions.service_mode || bulkAccessAllInns) : !!bulkPermissions[key];
-                      const onClick = key === "__financial__" ? () => { setBulkSelectedPresetId(""); setBulkFinancial(!bulkFinancial); } : key === "service_mode" ? () => { setBulkSelectedPresetId(""); const v = !(!!bulkPermissions.service_mode || bulkAccessAllInns); setBulkPermissions((p) => ({ ...p, service_mode: v })); setBulkAccessAllInns(v); } : () => { setBulkSelectedPresetId(""); setBulkPermissions((p) => ({ ...p, [key]: !p[key] })); };
-                      const activeClass = isActive
-                        ? (key === "service_mode" || key === "analytics"
-                            ? "active active-warning"
-                            : key === "haulz"
-                              ? "active active-success"
-                              : key === "eor"
-                                ? "active active-eor"
-                                : "active active-danger")
-                        : "";
-                      return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>;
+                    {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
+                      const isActive = key === "service_mode" ? (!!bulkPermissions.service_mode || bulkAccessAllInns) : !!bulkPermissions[key];
+                      const isLocked = !isSuperAdmin;
+                      const onClick = () => {
+                        if (isLocked) return;
+                        setBulkSelectedPresetId("");
+                        if (key === "service_mode") {
+                          const v = !(!!bulkPermissions.service_mode || bulkAccessAllInns);
+                          setBulkPermissions((p) => ({ ...p, service_mode: v }));
+                          setBulkAccessAllInns(v);
+                          return;
+                        }
+                        setBulkPermissions((p) => ({ ...p, [key]: !p[key] }));
+                      };
+                      const activeClass = isActive ? "active active-danger" : "";
+                      return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>;
                     })}
                   </div>
                   <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
-                    {PERMISSION_ROW2.map(({ key, label }) => (
+                    {PERMISSION_ROW2_ORANGE.map(({ key, label }) => {
+                      const isActive = key === "__financial__" ? bulkFinancial : !!bulkPermissions[key];
+                      const onClick = key === "__financial__"
+                        ? () => { setBulkSelectedPresetId(""); setBulkFinancial(!bulkFinancial); }
+                        : () => { setBulkSelectedPresetId(""); setBulkPermissions((p) => ({ ...p, [key]: !p[key] })); };
+                      return (
+                        <button key={key} type="button" className={`permission-button ${isActive ? "active active-warning" : ""}`} onClick={onClick}>{label}</button>
+                      );
+                    })}
+                  </div>
+                  <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
+                    {PERMISSION_ROW3_BLUE.map(({ key, label }) => (
                       <button key={key} type="button" className={`permission-button ${!!bulkPermissions[key] ? "active" : ""}`} onClick={() => { setBulkSelectedPresetId(""); setBulkPermissions((p) => ({ ...p, [key]: !p[key] })); }}>{label}</button>
                     ))}
                   </div>
@@ -4851,26 +4881,40 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               </Flex>
               <div className="admin-form-section-header">Разделы</div>
               <div className="admin-permissions-toolbar">
-                {PERMISSION_ROW1.map(({ key, label }) => {
-                  if (!isSuperAdmin && (key === "cms_access" || key === "service_mode" || key === "analytics")) return null;
-                  const isActive = key === "__financial__" ? formFinancial : key === "service_mode" ? (!!formPermissions.service_mode || formAccessAllInns) : !!formPermissions[key];
-                  const onClick = key === "__financial__" ? () => { setFormSelectedPresetId(""); setFormFinancial(!formFinancial); } : key === "service_mode" ? () => { setFormSelectedPresetId(""); const v = !(!!formPermissions.service_mode || formAccessAllInns); setFormPermissions((p) => ({ ...p, service_mode: v })); setFormAccessAllInns(v); if (v) clearCustomerSelection(); } : () => togglePerm(key);
-                  const activeClass = isActive
-                    ? (key === "service_mode" || key === "analytics"
-                        ? "active active-warning"
-                        : key === "haulz"
-                          ? "active active-success"
-                          : key === "eor"
-                            ? "active active-eor"
-                            : "active active-danger")
-                    : "";
+                {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
+                  const isActive = key === "service_mode" ? (!!formPermissions.service_mode || formAccessAllInns) : !!formPermissions[key];
+                  const isLocked = !isSuperAdmin;
+                  const onClick = () => {
+                    if (isLocked) return;
+                    setFormSelectedPresetId("");
+                    if (key === "service_mode") {
+                      const v = !(!!formPermissions.service_mode || formAccessAllInns);
+                      setFormPermissions((p) => ({ ...p, service_mode: v }));
+                      setFormAccessAllInns(v);
+                      if (v) clearCustomerSelection();
+                      return;
+                    }
+                    togglePerm(key);
+                  };
+                  const activeClass = isActive ? "active active-danger" : "";
                   return (
-                    <button type="button" key={key} className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>
+                    <button type="button" key={key} className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>
                   );
                 })}
               </div>
               <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
-                {PERMISSION_ROW2.map(({ key, label }) => {
+                {PERMISSION_ROW2_ORANGE.map(({ key, label }) => {
+                  const isActive = key === "__financial__" ? formFinancial : !!formPermissions[key];
+                  const onClick = key === "__financial__"
+                    ? () => { setFormSelectedPresetId(""); setFormFinancial(!formFinancial); }
+                    : () => togglePerm(key);
+                  return (
+                    <button type="button" key={key} className={`permission-button ${isActive ? "active active-warning" : ""}`} onClick={onClick}>{label}</button>
+                  );
+                })}
+              </div>
+              <div className="admin-permissions-toolbar" style={{ marginTop: "0.5rem" }}>
+                {PERMISSION_ROW3_BLUE.map(({ key, label }) => {
                   const isActive = !!formPermissions[key];
                   return (
                     <button type="button" key={key} className={`permission-button ${isActive ? "active" : ""}`} onClick={() => togglePerm(key)}>{label}</button>
@@ -7914,18 +7958,36 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   </div>
                   <div className="admin-form-section-header">Разделы</div>
                   <div className="admin-permissions-toolbar">
-                    {PERMISSION_ROW1.map(({ key, label }) => {
-                      if (!isSuperAdmin && (key === "cms_access" || key === "service_mode" || key === "analytics")) return null;
-                      const isActive = key === "__financial__" ? presetFormFinancial : key === "service_mode" ? (!!presetFormPermissions.service_mode || presetFormServiceMode) : !!presetFormPermissions[key];
-                      const onClick = key === "__financial__" ? () => setPresetFormFinancial(!presetFormFinancial) : key === "service_mode" ? () => { const v = !(!!presetFormPermissions.service_mode || presetFormServiceMode); setPresetFormPermissions((p) => ({ ...p, service_mode: v })); setPresetFormServiceMode(v); } : () => setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }));
-                      const activeClass = isActive
-                        ? (key === "haulz" ? "active active-success" : key === "eor" ? "active active-eor" : "active active-danger")
-                        : "";
-                      return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick}>{label}</button>;
+                    {PERMISSION_ROW1_SUPERADMIN.map(({ key, label }) => {
+                      const isActive = key === "service_mode" ? (!!presetFormPermissions.service_mode || presetFormServiceMode) : !!presetFormPermissions[key];
+                      const isLocked = !isSuperAdmin;
+                      const onClick = () => {
+                        if (isLocked) return;
+                        if (key === "service_mode") {
+                          const v = !(!!presetFormPermissions.service_mode || presetFormServiceMode);
+                          setPresetFormPermissions((p) => ({ ...p, service_mode: v }));
+                          setPresetFormServiceMode(v);
+                          return;
+                        }
+                        setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }));
+                      };
+                      const activeClass = isActive ? "active active-danger" : "";
+                      return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>;
                     })}
                   </div>
                   <div className="admin-permissions-toolbar" style={{ marginTop: "0.25rem" }}>
-                    {PERMISSION_ROW2.map(({ key, label }) => (
+                    {PERMISSION_ROW2_ORANGE.map(({ key, label }) => {
+                      const isActive = key === "__financial__" ? presetFormFinancial : !!presetFormPermissions[key];
+                      const onClick = key === "__financial__"
+                        ? () => setPresetFormFinancial(!presetFormFinancial)
+                        : () => setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }));
+                      return (
+                        <button key={key} type="button" className={`permission-button ${isActive ? "active active-warning" : ""}`} onClick={onClick}>{label}</button>
+                      );
+                    })}
+                  </div>
+                  <div className="admin-permissions-toolbar" style={{ marginTop: "0.25rem" }}>
+                    {PERMISSION_ROW3_BLUE.map(({ key, label }) => (
                       <button key={key} type="button" className={`permission-button ${!!presetFormPermissions[key] ? "active" : ""}`} onClick={() => setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }))}>{label}</button>
                     ))}
                   </div>
