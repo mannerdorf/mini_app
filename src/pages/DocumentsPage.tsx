@@ -699,9 +699,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         reloadClaims();
     }, [reloadClaims]);
     const openClaimsCreateModal = useCallback((prefillCargoNumber?: string) => {
+        const prefill = String(prefillCargoNumber || '').trim();
         setClaimsCreateError(null);
         setClaimsEditingId(null);
-        setClaimsCreateCargoNumber(String(prefillCargoNumber || '').trim());
+        setClaimsCreateCargoNumber(prefill);
+        setClaimsCreateCargoNumberDebounced(prefill);
         setClaimsCreateType('cargo_damage');
         setClaimsCreateDescription('');
         setClaimsCreateAmount('');
@@ -1518,8 +1520,16 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         const t = setTimeout(() => setClaimsCreateCargoNumberDebounced(q), 400);
         return () => clearTimeout(t);
     }, [claimsCreateCargoNumber]);
+    const normalizeClaimCargoNumber = useCallback((rawValue: string): string => {
+        const raw = String(rawValue || '').trim();
+        if (!raw) return '';
+        // Mobile keyboard/input may inject spaces or separators; keep only likely cargo number.
+        const compact = raw.replace(/\s+/g, '');
+        const digitMatch = compact.match(/\d{5,12}/);
+        return (digitMatch ? digitMatch[0] : compact).trim();
+    }, []);
     useEffect(() => {
-        const number = String(claimsCreateCargoNumberDebounced || '').trim();
+        const number = normalizeClaimCargoNumber(String(claimsCreateCargoNumberDebounced || ''));
         if (!number || !auth?.login || !auth?.password) {
             setClaimsAcceptedNomenclatureRows([]);
             setClaimsAcceptedNomenclatureError(null);
@@ -1559,7 +1569,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         return () => {
             cancelled = true;
         };
-    }, [claimsCreateCargoNumberDebounced, auth?.login, auth?.password, perevozkiItems, normCargoKey, auth]);
+    }, [claimsCreateCargoNumberDebounced, auth?.login, auth?.password, perevozkiItems, normCargoKey, auth, normalizeClaimCargoNumber]);
     const claimNomenclatureOptions = claimsAcceptedNomenclatureRows;
     useEffect(() => {
         const allowed = new Set(claimNomenclatureOptions.map((row) => row.key));
@@ -3151,7 +3161,7 @@ useEffect(() => {
                 </div>
             )}
             {!loading && !error && filteredItems.length > 0 && !tableModeEffective && (
-                <div className="cargo-list">
+                <div className="cargo-list" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
                     {filteredItems.map((row, idx) => {
                         const num = row.Number ?? row.number ?? row.Номер ?? row.N ?? '';
                         const dt = row.DateDoc ?? row.Date ?? row.date ?? row.Дата ?? '';
@@ -3288,7 +3298,7 @@ useEffect(() => {
                 </div>
             )}
             {!actsLoading && !actsError && filteredActs.length > 0 && !tableModeEffective && (
-                <div className="cargo-list">
+                <div className="cargo-list" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
                     {filteredActs.map((act: any, idx: number) => {
                         const num = act.Number ?? act.number ?? '';
                         const dateDoc = act.DateDoc ?? act.Date ?? act.date ?? '';
@@ -4605,7 +4615,7 @@ useEffect(() => {
                 </div>
                 )}
                 {!tableModeEffective && (
-                    <div className="cargo-list">
+                    <div className="cargo-list" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
                         {sendingRowsSorted.map((row: any, idx: number) => {
                             const rawDate = row?.Дата ?? row?.Date ?? row?.date ?? '';
                             const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '');
@@ -4652,11 +4662,11 @@ useEffect(() => {
                                     key={rowKey}
                                     className="cargo-card"
                                     onClick={() => setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey))}
-                                    style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
+                                    style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative', paddingBottom: canEditEor ? '1.5rem' : undefined }}
                                     title={expanded ? 'Свернуть отправку' : 'Показать детали отправки'}
                                 >
                                     {canEditEor && (
-                                        <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
+                                        <div style={{ position: 'absolute', right: 10, bottom: 10, zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
                                             <input
                                                 type="checkbox"
                                                 checked={selectedSendingRowKeys.has(rowKey)}
@@ -4674,7 +4684,7 @@ useEffect(() => {
                                         </div>
                                     )}
                                     <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
-                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)', paddingRight: canEditEor ? '1.25rem' : 0 }}>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>
                                             {number ? formatInvoiceNumber(number) : '—'}
                                         </Typography.Body>
                                         <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem', flexShrink: 0 }}>
@@ -6033,6 +6043,7 @@ useEffect(() => {
                                                     type="button"
                                                     onClick={() => {
                                                         setClaimsCreateCargoNumber(opt);
+                                                        setClaimsCreateCargoNumberDebounced(opt);
                                                         setClaimsCargoDropdownOpen(false);
                                                     }}
                                                     style={{
