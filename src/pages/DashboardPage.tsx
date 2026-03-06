@@ -3453,9 +3453,6 @@ export function DashboardPage({
                         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))', gap: '0.45rem', minWidth: '56rem' }}>
                             {cargoFlowByPlan.upcomingSeries.map((row) => {
-                                const [year, month, day] = row.key.split('-').map((v) => Number(v));
-                                const date = new Date(year, (month || 1) - 1, day || 1);
-                                const weekday = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][date.getDay()] ?? '';
                                 return (
                                     <div
                                         key={`cargo-flow-${row.key}`}
@@ -3471,7 +3468,7 @@ export function DashboardPage({
                                         }}
                                     >
                                         <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600 }}>
-                                            {weekday}, <DateText value={row.key} />
+                                            <DateText value={row.key} />
                                         </Typography.Body>
                                         <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)' }}>
                                             Всего: {row.count}

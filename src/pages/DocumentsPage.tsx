@@ -3258,7 +3258,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             {docSection === 'Заявки' && (
             <>
             {(ordersLoading || !!ordersError) && <DocumentsStateBlocks loading={ordersLoading} error={ordersError} emptyText="" />}
-            {!ordersLoading && !ordersError && orderRowsSorted.length > 0 && (
+            {!ordersLoading && !ordersError && tableModeEffective && orderRowsSorted.length > 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -3478,6 +3478,136 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                             })}
                         </tbody>
                     </table>
+                </div>
+            )}
+            {!ordersLoading && !ordersError && !tableModeEffective && orderRowsSorted.length > 0 && (
+                <div className="cargo-list">
+                    {orderRowsSorted.map((row: any, idx: number) => {
+                        const rawDate = row?.Дата ?? row?.DateZayavki ?? row?.Date ?? row?.date ?? '';
+                        const requestNumber = String(row?.НомерЗаявки ?? row?.Номер ?? row?.Number ?? row?.number ?? row?.N ?? '');
+                        const customerRequestNumber = String(row?.НомерЗаявкиКлиента ?? row?.ClientRequestNumber ?? '');
+                        const pickupDate = String(row?.ДатаЗабораПлан ?? row?.PickupDatePlan ?? '');
+                        const parcels = getRequestParcels(row);
+                        const searchLower = effectiveSearchText.trim().toLowerCase();
+                        const parcelMatches = searchLower ? parcels.filter((parcel: any) => getParcelSearchText(parcel).includes(searchLower)) : [];
+                        const hasParcelSearchMatches = !!searchLower && parcelMatches.length > 0;
+                        const parcelsToRender = hasParcelSearchMatches ? parcelMatches : parcels;
+                        const cargoNumber = String(
+                            row?.НомерПеревозки ??
+                            row?.Перевозка ??
+                            row?.CargoNumber ??
+                            row?.NumberPerevozki ??
+                            parcels?.[0]?.Перевозка ??
+                            ''
+                        );
+                        const customer = String(row?.ЗаказчикНаименование ?? row?.Заказчик ?? row?.Customer ?? row?.customer ?? row?.Контрагент ?? row?.Contractor ?? row?.Organization ?? row?.ПлательщикНаименование ?? row?.PayerName ?? '');
+                        const receiver = String(row?.ПолучательНаименование ?? row?.Получатель ?? row?.ГрузополучательНаименование ?? row?.Грузополучатель ?? row?.Receiver ?? row?.receiver ?? row?.Consignee ?? '');
+                        const sender = String(row?.ОтправительНаименование ?? row?.Отправитель ?? row?.ГрузоотправительНаименование ?? row?.Грузоотправитель ?? row?.Sender ?? row?.sender ?? row?.Shipper ?? row?.Consignor ?? '');
+                        const comment = String(row?.Комментарий ?? row?.Comment ?? row?.Примечание ?? row?.Note ?? '');
+                        const senderPoint = String(row?.ПунктОтправкиНаименование ?? row?.ПунктОтправки ?? row?.ПунктОтправления ?? row?.АдресОтправки ?? row?.SenderPoint ?? '');
+                        const destinationPoint = String(row?.ПунктНазначенияНаименование ?? row?.ПунктНазначения ?? row?.ПунктДоставки ?? row?.ReceiverPoint ?? row?.DestinationPoint ?? '');
+                        const route = [cityToCode(senderPoint) || senderPoint, cityToCode(destinationPoint) || destinationPoint].filter(Boolean).join(' – ') || '—';
+                        const rowKey = `${requestNumber || 'row'}-${cargoNumber || idx}`;
+                        const expanded = expandedOrderRow === rowKey;
+                        return (
+                            <Panel
+                                key={rowKey}
+                                className="cargo-card"
+                                onClick={() => setExpandedOrderRow((prev) => (prev === rowKey ? null : rowKey))}
+                                style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
+                                title={expanded ? 'Свернуть детали заявки' : 'Показать детали заявки'}
+                            >
+                                <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'hidden' }}>
+                                    <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '65%' }}>
+                                        <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>
+                                            {requestNumber ? formatInvoiceNumber(requestNumber) : '—'}
+                                        </Typography.Body>
+                                        {customerRequestNumber && (
+                                            <span className="role-badge" style={{ fontSize: '0.68rem', fontWeight: 600, padding: '0.12rem 0.35rem', borderRadius: '999px', background: 'rgba(99,102,241,0.14)', color: '#4f46e5', border: '1px solid rgba(99,102,241,0.35)', whiteSpace: 'nowrap' }}>
+                                                № клиента {customerRequestNumber}
+                                            </span>
+                                        )}
+                                    </Flex>
+                                    <Typography.Label className="text-theme-secondary" style={{ fontSize: '0.85rem', flexShrink: 0 }}>
+                                        <DateText value={rawDate ? String(rawDate) : undefined} />
+                                    </Typography.Label>
+                                </Flex>
+                                <Flex justify="space-between" align="center" style={{ marginBottom: '0.45rem' }}>
+                                    <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap' }}>
+                                        {route}
+                                    </span>
+                                    <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                                        Забор: <DateText value={pickupDate || undefined} />
+                                    </Typography.Label>
+                                </Flex>
+                                <Flex justify="space-between" align="center" style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                                    <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '48%' }} title={stripOoo(String(sender || ''))}>
+                                        {stripOoo(String(sender || '—'))}
+                                    </Typography.Label>
+                                    <Typography.Label style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '48%', textAlign: 'right' }} title={stripOoo(String(receiver || ''))}>
+                                        {stripOoo(String(receiver || '—'))}
+                                    </Typography.Label>
+                                </Flex>
+                                {effectiveServiceMode && (
+                                    <Typography.Label style={{ marginTop: '0.3rem', fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={stripOoo(customer) || '—'}>
+                                        Заказчик: {stripOoo(customer) || '—'}
+                                    </Typography.Label>
+                                )}
+                                {expanded && (
+                                    <div style={{ marginTop: '0.6rem', borderTop: '1px solid var(--color-border)', paddingTop: '0.55rem' }} onClick={(ev) => ev.stopPropagation()}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 180px) 1fr', gap: '0.3rem 0.7rem', fontSize: '0.82rem', marginBottom: '0.5rem' }}>
+                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Пункт отправки:</Typography.Body>
+                                            <Typography.Body>{senderPoint || '—'}</Typography.Body>
+                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Пункт назначения:</Typography.Body>
+                                            <Typography.Body>{destinationPoint || '—'}</Typography.Body>
+                                            {effectiveServiceMode && (
+                                                <>
+                                                    <Typography.Body style={{ color: 'var(--color-text-secondary)', fontWeight: 600 }}>Комментарий:</Typography.Body>
+                                                    <Typography.Body>{comment || '—'}</Typography.Body>
+                                                </>
+                                            )}
+                                        </div>
+                                        {parcelsToRender.length === 0 ? (
+                                            <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '0.35rem 0.2rem', fontSize: '0.8rem' }}>
+                                                Нет данных по посылкам
+                                            </Typography.Body>
+                                        ) : (
+                                            <div style={{ overflowX: 'auto' }}>
+                                                <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                                    <thead>
+                                                        <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Посылка</th>
+                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Консолидация</th>
+                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Номенклатура</th>
+                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
+                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Стоимость</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {parcelsToRender.map((parcel: any, parcelIdx: number) => {
+                                                            const goodsRaw = parcel?.Товары;
+                                                            const goods = Array.isArray(goodsRaw)
+                                                                ? (goodsRaw[0] ?? {})
+                                                                : (goodsRaw && typeof goodsRaw === 'object' ? goodsRaw : parcel);
+                                                            return (
+                                                                <tr key={`${rowKey}-card-parcel-${parcel?.Посылка ?? parcelIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? parcel?.ИДОтправления ?? '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.Перевозка ?? '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem' }}>{goods?.ТМЦ ?? '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
+                                                                    <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.ОбъявленнаяСтоимостьТовараДляПечати ?? goods?.ОбъявленнаяСтоимостьТовара ?? '—'}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </Panel>
+                        );
+                    })}
                 </div>
             )}
             {!ordersLoading && !ordersError && orderRowsSorted.length === 0 && (
