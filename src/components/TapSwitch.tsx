@@ -3,34 +3,17 @@ import React from "react";
 /** Общий переключатель (как в 2FA) — для Уведомлений и 2FA. */
 export function TapSwitch({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
     const lastToggleAtRef = React.useRef(0);
-    const touchHandledRef = React.useRef(false);
     const toggle = () => {
         const now = Date.now();
-        if (now - lastToggleAtRef.current < 300) return;
+        if (now - lastToggleAtRef.current < 250) return;
         lastToggleAtRef.current = now;
         onToggle();
-    };
-    const handleTouchEnd = () => {
-        touchHandledRef.current = true;
-        toggle();
-        window.setTimeout(() => {
-            touchHandledRef.current = false;
-        }, 400);
-    };
-    const handleClick = (e: React.MouseEvent) => {
-        if (touchHandledRef.current) {
-            e.preventDefault();
-            touchHandledRef.current = false;
-            return;
-        }
-        toggle(e);
     };
     return (
         <button
             type="button"
             aria-pressed={checked}
-            onClick={handleClick}
-            onTouchEnd={handleTouchEnd}
+            onClick={toggle}
             onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
