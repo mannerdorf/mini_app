@@ -80,14 +80,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ok: true, sent: 0, reason: "no active telegram links" });
     }
 
-    const summaryPrefsRes = await pool.query<{ login: string; enabled: boolean }>(
-      `select lower(trim(login)) as login, enabled
-       from notification_preferences
-       where channel = 'telegram' and event_id = 'daily_summary'`
-    );
     const summaryPrefs = new Map<string, boolean>();
-    for (const row of summaryPrefsRes.rows) {
-      if (row.login) summaryPrefs.set(row.login, !!row.enabled);
+    const linkedLogins = [...new Set(linksRes.rows.map((r) => String(r.login || "").trim().toLowerCase()).filter(Boolean))];
+    const loadedFromState = new Set<string>();
+    if (linkedLogins.length > 0) {
+      try {
+        const stateRes = await pool.query<{ login: string; preferences: any }>(
+          `select login, preferences
+           from notification_preferences_state
+           where login = any($1::text[])`,
+          [linkedLogins]
+        );
+        for (const row of stateRes.rows) {
+          const login = String(row.login || "").trim().toLowerCase();
+          if (!login) continue;
+          const raw = row.preferences || {};
+          const telegram = raw?.telegram && typeof raw.telegram === "object" ? raw.telegram : {};
+          summaryPrefs.set(login, !!telegram.daily_summary);
+          loadedFromState.add(login);
+        }
+      } catch {
+        // Fallback to legacy table.
+      }
+    }
+    const missingLogins = linkedLogins.filter((login) => !loadedFromState.has(login));
+    if (missingLogins.length > 0) {
+      const summaryPrefsRes = await pool.query<{ login: string; enabled: boolean }>(
+        `select lower(trim(login)) as login, enabled
+         from notification_preferences
+         where channel = 'telegram' and event_id = 'daily_summary' and lower(trim(login)) = any($1::text[])`,
+        [missingLogins]
+      );
+      for (const row of summaryPrefsRes.rows) {
+        if (row.login) summaryPrefs.set(row.login, !!row.enabled);
+      }
     }
 
     let sent = 0;

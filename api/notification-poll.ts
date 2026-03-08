@@ -99,24 +99,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       "SELECT login, inn FROM account_companies WHERE inn IS NOT NULL AND inn != ''"
     );
     const loginInnPairs = companiesResult.rows;
-
-    const prefsResult = await pool.query<{ login: string; channel: string; event_id: string }>(
-      "SELECT login, channel, event_id FROM notification_preferences WHERE enabled = true"
-    );
     const prefsByLogin = new Map<
       string,
       { telegram: Record<string, boolean>; web: Record<string, boolean> }
     >();
-    for (const r of prefsResult.rows) {
-      const key = r.login.toLowerCase();
-      let p = prefsByLogin.get(key);
-      if (!p) {
-        p = { telegram: {}, web: {} };
+
+    const loginKeys = [...new Set(loginInnPairs.map((r) => String(r.login || "").trim().toLowerCase()).filter(Boolean))];
+    const prefsStateLoaded = new Set<string>();
+    try {
+      const stateRows = await pool.query<{ login: string; preferences: any }>(
+        `SELECT login, preferences
+         FROM notification_preferences_state
+         WHERE login = ANY($1::text[])`,
+        [loginKeys]
+      );
+      for (const row of stateRows.rows) {
+        const key = String(row.login || "").trim().toLowerCase();
+        if (!key) continue;
+        const raw = row.preferences || {};
+        const telegram = raw?.telegram && typeof raw.telegram === "object" ? raw.telegram : {};
+        const webpush = raw?.webpush && typeof raw.webpush === "object" ? raw.webpush : {};
+        const p = { telegram: {} as Record<string, boolean>, web: {} as Record<string, boolean> };
+        for (const ev of NOTIFICATION_EVENTS) {
+          p.telegram[ev] = !!telegram[ev];
+          p.web[ev] = !!webpush[ev];
+        }
         prefsByLogin.set(key, p);
+        prefsStateLoaded.add(key);
       }
-      const ch = r.channel === "telegram" ? "telegram" : "web";
-      if (NOTIFICATION_EVENTS.includes(r.event_id as CargoEvent)) {
-        p[ch][r.event_id] = true;
+    } catch {
+      // Fallback to legacy table below.
+    }
+
+    const missingLogins = loginKeys.filter((k) => !prefsStateLoaded.has(k));
+    if (missingLogins.length > 0) {
+      const prefsResult = await pool.query<{ login: string; channel: string; event_id: string }>(
+        "SELECT login, channel, event_id FROM notification_preferences WHERE enabled = true AND login = ANY($1::text[])",
+        [missingLogins]
+      );
+      for (const r of prefsResult.rows) {
+        const key = String(r.login || "").trim().toLowerCase();
+        let p = prefsByLogin.get(key);
+        if (!p) {
+          p = { telegram: {}, web: {} };
+          prefsByLogin.set(key, p);
+        }
+        const ch = r.channel === "telegram" ? "telegram" : "web";
+        if (NOTIFICATION_EVENTS.includes(r.event_id as CargoEvent)) {
+          p[ch][r.event_id] = true;
+        }
       }
     }
 

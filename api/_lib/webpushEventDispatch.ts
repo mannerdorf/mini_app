@@ -109,27 +109,70 @@ export async function dispatchWebPushCargoEvents(params: {
 
   const inns = Array.from(new Set(prepared.map((x) => x.inn)));
   const cargoNumbers = Array.from(new Set(prepared.map((x) => x.cargoNumber)));
-  const prefsRows = await pool.query<{ login: string; inn: string; event_id: string }>(
-    `select distinct lower(trim(np.login)) as login, ac.inn, np.event_id
-     from notification_preferences np
-     join account_companies ac on lower(trim(ac.login)) = lower(trim(np.login))
-     where np.channel = 'web'
-       and np.enabled = true
-       and np.event_id = any($2::text[])
-       and ac.inn = any($1::text[])`,
-    [inns, Array.from(NOTIFICATION_EVENTS)]
-  );
   const subscriberByInn = new Map<string, Map<string, Set<string>>>();
-  for (const row of prefsRows.rows) {
-    if (!row?.inn || !row?.login || !row?.event_id) continue;
-    let byLogin = subscriberByInn.get(row.inn);
+  const accountRows = await pool.query<{ login: string; inn: string }>(
+    `select distinct lower(trim(login)) as login, inn
+     from account_companies
+     where inn = any($1::text[])`,
+    [inns]
+  );
+  const logins = [...new Set(accountRows.rows.map((r) => String(r.login || "").trim().toLowerCase()).filter(Boolean))];
+  const prefsByLogin = new Map<string, Set<string>>();
+  const loadedFromState = new Set<string>();
+  if (logins.length > 0) {
+    try {
+      const stateRows = await pool.query<{ login: string; preferences: any }>(
+        `select login, preferences
+         from notification_preferences_state
+         where login = any($1::text[])`,
+        [logins]
+      );
+      for (const row of stateRows.rows) {
+        const login = String(row.login || "").trim().toLowerCase();
+        if (!login) continue;
+        const raw = row.preferences || {};
+        const webpush = raw?.webpush && typeof raw.webpush === "object" ? raw.webpush : {};
+        const events = new Set<string>();
+        for (const ev of NOTIFICATION_EVENTS) {
+          if (webpush[ev]) events.add(ev);
+        }
+        prefsByLogin.set(login, events);
+        loadedFromState.add(login);
+      }
+    } catch {
+      // Fallback to legacy rows below.
+    }
+  }
+  const missingLogins = logins.filter((login) => !loadedFromState.has(login));
+  if (missingLogins.length > 0) {
+    const prefsRows = await pool.query<{ login: string; event_id: string }>(
+      `select distinct lower(trim(login)) as login, event_id
+       from notification_preferences
+       where channel = 'web'
+         and enabled = true
+         and event_id = any($2::text[])
+         and lower(trim(login)) = any($1::text[])`,
+      [missingLogins, Array.from(NOTIFICATION_EVENTS)]
+    );
+    for (const row of prefsRows.rows) {
+      const login = String(row.login || "").trim().toLowerCase();
+      if (!login) continue;
+      const set = prefsByLogin.get(login) || new Set<string>();
+      set.add(String(row.event_id || "").trim());
+      prefsByLogin.set(login, set);
+    }
+  }
+  for (const row of accountRows.rows) {
+    const inn = String(row.inn || "").trim();
+    const login = String(row.login || "").trim().toLowerCase();
+    const enabledEvents = prefsByLogin.get(login);
+    if (!inn || !login || !enabledEvents || enabledEvents.size === 0) continue;
+    let byLogin = subscriberByInn.get(inn);
     if (!byLogin) {
       byLogin = new Map<string, Set<string>>();
-      subscriberByInn.set(row.inn, byLogin);
+      subscriberByInn.set(inn, byLogin);
     }
-    const set = byLogin.get(row.login) || new Set<string>();
-    set.add(String(row.event_id).trim());
-    byLogin.set(row.login, set);
+    byLogin.set(login, enabledEvents);
   }
   if (subscriberByInn.size === 0) {
     return {
