@@ -64,6 +64,8 @@ export function NotificationsPage({
     const [maxLinkedFromApi, setMaxLinkedFromApi] = useState<boolean | null>(null);
     const prefsRef = useRef(prefs);
     const prefsDirtyRef = useRef(false);
+    const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+    const pendingSavesRef = useRef(0);
 
     const login = activeAccount?.login?.trim().toLowerCase() || "";
     const telegramLinked = telegramLinkedFromApi ?? activeAccount?.twoFactorTelegramLinked ?? false;
@@ -156,8 +158,7 @@ export function NotificationsPage({
     }, [prefs]);
 
     const persistPrefs = useCallback(async (
-        nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean> },
-        syncStateFromServer: boolean
+        nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean> }
     ) => {
         if (!login) return false;
         const res = await fetch("/api/webpush-preferences", {
@@ -166,14 +167,6 @@ export function NotificationsPage({
             body: JSON.stringify({ login, preferences: nextPrefs }),
         });
         if (!res.ok) return false;
-        if (!syncStateFromServer) return true;
-        const data = await res.json().catch(() => null);
-        if (data?.preferences) {
-            setPrefs({
-                telegram: data.preferences.telegram || {},
-                webpush: data.preferences.webpush || {},
-            });
-        }
         return true;
     }, [login]);
 
@@ -190,18 +183,23 @@ export function NotificationsPage({
             });
             if (!login || !nextPrefs) return;
             prefsDirtyRef.current = true;
+            pendingSavesRef.current += 1;
             setPrefsSaving(true);
-            try {
-                const ok = await persistPrefs(nextPrefs, true);
-                if (!ok) {
-                    throw new Error("Не удалось сохранить настройки уведомлений.");
-                }
-                prefsDirtyRef.current = false;
-            } catch {
-                setTgLinkError("Не удалось сохранить настройки. Проверьте миграции notification_preferences.");
-            } finally {
-                setPrefsSaving(false);
-            }
+            saveQueueRef.current = saveQueueRef.current
+                .catch(() => {})
+                .then(async () => {
+                    const ok = await persistPrefs(nextPrefs);
+                    if (!ok) throw new Error("save_failed");
+                    prefsDirtyRef.current = false;
+                })
+                .catch(() => {
+                    prefsDirtyRef.current = true;
+                    setTgLinkError("Не удалось сохранить настройки. Проверьте миграции notification_preferences.");
+                })
+                .finally(() => {
+                    pendingSavesRef.current = Math.max(0, pendingSavesRef.current - 1);
+                    if (pendingSavesRef.current === 0) setPrefsSaving(false);
+                });
         },
         [login, persistPrefs]
     );
