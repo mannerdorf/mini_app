@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import type { Account } from "../types";
@@ -62,6 +62,8 @@ export function NotificationsPage({
     const [maxLinkError, setMaxLinkError] = useState<string | null>(null);
     const [telegramLinkedFromApi, setTelegramLinkedFromApi] = useState<boolean | null>(null);
     const [maxLinkedFromApi, setMaxLinkedFromApi] = useState<boolean | null>(null);
+    const prefsRef = useRef(prefs);
+    const prefsDirtyRef = useRef(false);
 
     const login = activeAccount?.login?.trim().toLowerCase() || "";
     const telegramLinked = telegramLinkedFromApi ?? activeAccount?.twoFactorTelegramLinked ?? false;
@@ -149,6 +151,32 @@ export function NotificationsPage({
         };
     }, [login]);
 
+    useEffect(() => {
+        prefsRef.current = prefs;
+    }, [prefs]);
+
+    const persistPrefs = useCallback(async (
+        nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean> },
+        syncStateFromServer: boolean
+    ) => {
+        if (!login) return false;
+        const res = await fetch("/api/webpush-preferences", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ login, preferences: nextPrefs }),
+        });
+        if (!res.ok) return false;
+        if (!syncStateFromServer) return true;
+        const data = await res.json().catch(() => null);
+        if (data?.preferences) {
+            setPrefs({
+                telegram: data.preferences.telegram || {},
+                webpush: data.preferences.webpush || {},
+            });
+        }
+        return true;
+    }, [login]);
+
     const savePrefs = useCallback(
         async (channel: "telegram" | "webpush", eventId: string, value: boolean) => {
             let nextPrefs: { telegram: Record<string, boolean>; webpush: Record<string, boolean> } | null = null;
@@ -161,30 +189,21 @@ export function NotificationsPage({
                 return next;
             });
             if (!login || !nextPrefs) return;
+            prefsDirtyRef.current = true;
             setPrefsSaving(true);
             try {
-                const res = await fetch("/api/webpush-preferences", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ login, preferences: nextPrefs }),
-                });
-                if (!res.ok) {
+                const ok = await persistPrefs(nextPrefs, true);
+                if (!ok) {
                     throw new Error("Не удалось сохранить настройки уведомлений.");
                 }
-                const data = await res.json().catch(() => null);
-                if (data?.preferences) {
-                    setPrefs({
-                        telegram: data.preferences.telegram || {},
-                        webpush: data.preferences.webpush || {},
-                    });
-                }
+                prefsDirtyRef.current = false;
             } catch {
                 setTgLinkError("Не удалось сохранить настройки. Проверьте миграции notification_preferences.");
             } finally {
                 setPrefsSaving(false);
             }
         },
-        [login]
+        [login, persistPrefs]
     );
 
     const enableWebPush = useCallback(async () => {
@@ -318,11 +337,41 @@ export function NotificationsPage({
     const webPushSupported =
         typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
     const SHOW_WEB_PUSH_SECTION = true;
+    const flushPrefsOnExit = useCallback(() => {
+        if (!login || !prefsDirtyRef.current) return;
+        const payload = JSON.stringify({ login, preferences: prefsRef.current });
+        try {
+            if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+                const blob = new Blob([payload], { type: "application/json" });
+                const queued = navigator.sendBeacon("/api/webpush-preferences", blob);
+                if (queued) {
+                    prefsDirtyRef.current = false;
+                    return;
+                }
+            }
+        } catch {
+            // fallback below
+        }
+        fetch("/api/webpush-preferences", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: payload,
+            keepalive: true,
+        }).then(() => {
+            prefsDirtyRef.current = false;
+        }).catch(() => {});
+    }, [login]);
+
+    useEffect(() => {
+        return () => {
+            flushPrefsOnExit();
+        };
+    }, [flushPrefsOnExit]);
 
     return (
         <div className="w-full" style={{ paddingBottom: "calc(5rem + env(safe-area-inset-bottom))" }}>
             <Flex align="center" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
-                <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }}>
+                <Button className="filter-button" onClick={() => { flushPrefsOnExit(); onBack(); }} style={{ padding: "0.5rem" }}>
                     <ArrowLeft className="w-4 h-4" />
                 </Button>
                 <Typography.Headline style={{ fontSize: "1.25rem" }}>Уведомления</Typography.Headline>
