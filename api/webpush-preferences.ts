@@ -8,16 +8,6 @@ const DEFAULT_PREFS = {
 
 const EVENTS = ["accepted", "in_transit", "delivered", "bill_created", "bill_paid", "daily_summary"] as const;
 
-async function ensurePreferencesStateTable(pool: Awaited<ReturnType<typeof getPool>>) {
-  await pool.query(
-    `create table if not exists notification_preferences_state (
-      login text primary key,
-      preferences jsonb not null default '{"telegram":{},"webpush":{}}'::jsonb,
-      updated_at timestamptz not null default now()
-    )`
-  );
-}
-
 /** GET ?login= — настройки из БД (notification_preferences). POST { login, preferences } — сохранить в БД. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET" && req.method !== "POST") {
@@ -38,19 +28,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const prefs = { ...DEFAULT_PREFS };
     try {
-      await ensurePreferencesStateTable(pool);
-      const stateRes = await pool.query<{ preferences: any }>(
-        "SELECT preferences FROM notification_preferences_state WHERE login = $1 LIMIT 1",
-        [login]
-      );
-      if (stateRes.rows.length > 0) {
-        const raw = stateRes.rows[0]?.preferences || {};
-        const telegram = raw?.telegram && typeof raw.telegram === "object" ? raw.telegram : {};
-        const webpush = raw?.webpush && typeof raw.webpush === "object" ? raw.webpush : {};
-        return res.status(200).json({
-          telegram: { ...DEFAULT_PREFS.telegram, ...telegram },
-          webpush: { ...DEFAULT_PREFS.webpush, ...webpush },
-        });
+      try {
+        const stateRes = await pool.query<{ preferences: any }>(
+          "SELECT preferences FROM notification_preferences_state WHERE login = $1 LIMIT 1",
+          [login]
+        );
+        if (stateRes.rows.length > 0) {
+          const raw = stateRes.rows[0]?.preferences || {};
+          const telegram = raw?.telegram && typeof raw.telegram === "object" ? raw.telegram : {};
+          const webpush = raw?.webpush && typeof raw.webpush === "object" ? raw.webpush : {};
+          return res.status(200).json({
+            telegram: { ...DEFAULT_PREFS.telegram, ...telegram },
+            webpush: { ...DEFAULT_PREFS.webpush, ...webpush },
+          });
+        }
+      } catch (e: any) {
+        // New state table missing or inaccessible; fallback to legacy rows below.
+        if (e?.code !== "42P01") {
+          console.error("webpush-preferences GET state table error:", e?.message || e);
+        }
       }
       const { rows } = await pool.query<{ channel: string; event_id: string; enabled: boolean }>(
         "SELECT channel, event_id, enabled FROM notification_preferences WHERE login = $1",
@@ -96,14 +92,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   try {
-    await ensurePreferencesStateTable(pool);
-    await pool.query(
-      `INSERT INTO notification_preferences_state (login, preferences, updated_at)
-       VALUES ($1, $2::jsonb, now())
-       ON CONFLICT (login)
-       DO UPDATE SET preferences = excluded.preferences, updated_at = now()`,
-      [login, JSON.stringify(current)]
-    );
+    try {
+      await pool.query(
+        `INSERT INTO notification_preferences_state (login, preferences, updated_at)
+         VALUES ($1, $2::jsonb, now())
+         ON CONFLICT (login)
+         DO UPDATE SET preferences = excluded.preferences, updated_at = now()`,
+        [login, JSON.stringify(current)]
+      );
+    } catch (e: any) {
+      // Continue with legacy sync if new table does not exist in DB yet.
+      if (e?.code !== "42P01") {
+        console.error("webpush-preferences POST state table error:", e?.message || e);
+      }
+    }
 
     // Legacy sync: keep old row-based table in sync if it exists.
     for (const eventId of EVENTS) {
