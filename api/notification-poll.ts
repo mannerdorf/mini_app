@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPool } from "./_db";
+import { getPool } from "./_db.js";
 import { getRedisValue } from "./redis.js";
 import { sendWebPushToLogin } from "./_lib/webpushDelivery.js";
 import {

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPool } from "./_db";
+import { getPool } from "./_db.js";
 import {
   fetchPerevozkiByInn,
   fetchInvoicesByInn,

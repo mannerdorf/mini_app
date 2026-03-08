@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPool } from "./_db";
+import { getPool } from "./_db.js";
 
 const DEFAULT_PREFS = {
   telegram: { daily_summary: true } as Record<string, boolean>,
