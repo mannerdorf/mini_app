@@ -4,6 +4,7 @@ import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { sendLkAddTo1c } from "../lib/sendLkTo1c.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext } from "./_lib/observability.js";
 
 function parseJsonBody(req: VercelRequest): any {
   let body: any = req.body;
@@ -18,13 +19,14 @@ function parseJsonBody(req: VercelRequest): any {
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-sendlk-sync");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
   const token = getAdminTokenFromRequest(req);
-  if (!verifyAdminToken(token)) return res.status(401).json({ error: "Требуется авторизация админа" });
-  if (!getAdminTokenPayload(token)?.superAdmin) return res.status(403).json({ error: "Доступ только для супер-администратора" });
+  if (!verifyAdminToken(token)) return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
+  if (!getAdminTokenPayload(token)?.superAdmin) return res.status(403).json({ error: "Доступ только для супер-администратора", request_id: ctx.requestId });
 
   const body = parseJsonBody(req);
   const limitRaw = Number(body?.limit);
@@ -102,6 +104,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     failed,
     skipped,
     failures: failures.slice(0, 50),
+    request_id: ctx.requestId,
   });
 }
 

@@ -14,20 +14,23 @@
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const MAX_API_BASE = "https://platform-api.max.ru";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "register-max-webhook");
   // Разрешаем GET для удобства (можно открыть в браузере)
   if (req.method !== "POST" && req.method !== "GET") {
     res.setHeader("Allow", "POST, GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const MAX_BOT_TOKEN = process.env.MAX_BOT_TOKEN;
   if (!MAX_BOT_TOKEN) {
     return res.status(500).json({ 
-      error: "MAX_BOT_TOKEN is not configured. Add it in Vercel Environment Variables." 
+      error: "MAX_BOT_TOKEN is not configured. Add it in Vercel Environment Variables.",
+      request_id: ctx.requestId, 
     });
   }
 
@@ -56,6 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ 
       error: "Webhook URL must be HTTPS",
       detected: webhookUrl,
+      request_id: ctx.requestId,
     });
   }
 
@@ -84,6 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         status: response.status,
         details: result,
         webhookUrl: finalWebhookUrl,
+        request_id: ctx.requestId,
       });
     }
 
@@ -94,13 +99,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       message: "Webhook registered successfully in MAX",
       webhookUrl: finalWebhookUrl,
       result,
+      request_id: ctx.requestId,
     });
   } catch (error: any) {
-    console.error("🔥 Webhook registration error:", error);
+    logError(ctx, "register_max_webhook_failed", error);
     return res.status(500).json({
       error: "Failed to register webhook",
       message: error?.message || String(error),
       webhookUrl: finalWebhookUrl,
+      request_id: ctx.requestId,
     });
   }
 }

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { getPool } from "./_db.js";
 import { sendTelegramActivationEmail } from "../lib/sendTelegramActivationEmail.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -256,8 +257,9 @@ async function disableTelegramChatLinkByChatId(chatId: string): Promise<void> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "tg-webhook");
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const debug = req.query?.debug === "1";
@@ -265,9 +267,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!TG_BOT_TOKEN) {
     console.error("TG_BOT_TOKEN not set");
     if (debug) {
-      return res.status(200).json({ ok: true, debug: { tgTokenConfigured: false } });
+      return res.status(200).json({ ok: true, debug: { tgTokenConfigured: false }, request_id: ctx.requestId });
     }
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   try {
@@ -292,7 +294,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       });
     }
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   const chatIdStr = String(chatId);
@@ -342,7 +344,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       chatId,
       "Рассылка отключена. Чтобы подключить ее снова, введите /start и пройдите активацию."
     );
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   // Обработка /start с параметрами и запуск активации.
@@ -363,7 +365,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
 
       await sendTgMessageChunked(chatId, message, keyboard);
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, request_id: ctx.requestId });
     }
 
     await setRedisValue(
@@ -375,7 +377,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       chatId,
       "Добрый день! Для активации бота HAULZ введите логин или ИНН."
     );
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   // Telegram onboarding без диплинка: логин/ИНН -> пин на email -> активация.
@@ -686,8 +688,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (debug) {
     return res.status(200).json({ ok: true, debug: debugInfo });
   }
-  return res.status(200).json({ ok: true });
+  return res.status(200).json({ ok: true, request_id: ctx.requestId });
   } catch (outerErr: any) {
+    logError(ctx, "tg_webhook_failed", outerErr);
     console.error("TG webhook error:", outerErr?.message || outerErr, outerErr?.stack);
     try {
       const body = req?.body || {};
@@ -696,7 +699,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         await sendTgMessageChunked(cid, "Произошла ошибка. Попробуйте позже.");
       }
     } catch (_) {}
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 }
 
