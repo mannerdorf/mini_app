@@ -6,6 +6,7 @@ import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 async function ensureEmployeeDirectoryVisibilityForHaulz(pool: ReturnType<typeof getPool>, userId: number) {
   const { rows } = await pool.query<{ column_name: string }>(
@@ -25,22 +26,23 @@ async function ensureEmployeeDirectoryVisibilityForHaulz(pool: ReturnType<typeof
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-user-update");
   if (req.method !== "PATCH" && req.method !== "POST") {
     res.setHeader("Allow", "PATCH, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   const ip = getClientIp(req);
   if (isRateLimited("admin_api", ip, ADMIN_API_LIMIT)) {
-    return res.status(429).json({ error: "Слишком много запросов. Подождите минуту." });
+    return res.status(429).json({ error: "Слишком много запросов. Подождите минуту.", request_id: ctx.requestId });
   }
 
   const id = typeof req.query.id === "string" ? parseInt(req.query.id, 10) : NaN;
   if (isNaN(id) || id < 1) {
-    return res.status(400).json({ error: "Некорректный id" });
+    return res.status(400).json({ error: "Некорректный id", request_id: ctx.requestId });
   }
 
   let body: {
@@ -60,7 +62,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
+      return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
     }
   }
 
@@ -71,14 +73,14 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       [id]
     );
     if (existing.length === 0) {
-      return res.status(404).json({ error: "Пользователь не найден" });
+      return res.status(404).json({ error: "Пользователь не найден", request_id: ctx.requestId });
     }
     const { login, inn: oldInn } = existing[0]!;
 
     if (body?.delete_profile === true) {
       const payload = getAdminTokenPayload(getAdminTokenFromRequest(req));
       if (payload?.superAdmin !== true) {
-        return res.status(403).json({ error: "Удаление профиля доступно только суперадминистратору" });
+        return res.status(403).json({ error: "Удаление профиля доступно только суперадминистратору", request_id: ctx.requestId });
       }
       // Мягкое удаление: деактивируем профиль, чтобы можно было восстановить.
       const { rowCount } = await pool.query("UPDATE registered_users SET active = false, updated_at = now() WHERE id = $1", [id]);
@@ -89,22 +91,22 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           target_id: id,
           details: { login, was_active: existing[0]?.active === true },
         });
-        return res.status(200).json({ ok: true, archived: true, deleted: false });
+        return res.status(200).json({ ok: true, archived: true, deleted: false, request_id: ctx.requestId });
       }
-      return res.status(404).json({ error: "Пользователь не найден" });
+      return res.status(404).json({ error: "Пользователь не найден", request_id: ctx.requestId });
     }
 
     const newLogin = typeof body?.login === "string" ? body.login.trim().toLowerCase() : undefined;
     if (newLogin !== undefined) {
       if (newLogin.length === 0) {
-        return res.status(400).json({ error: "Укажите новый логин (email)" });
+        return res.status(400).json({ error: "Укажите новый логин (email)", request_id: ctx.requestId });
       }
       const { rows: conflict } = await pool.query<{ id: number }>(
         "SELECT id FROM registered_users WHERE LOWER(TRIM(login)) = $1 AND id != $2",
         [newLogin, id]
       );
       if (conflict.length > 0) {
-        return res.status(400).json({ error: "Пользователь с таким логином уже существует" });
+        return res.status(400).json({ error: "Пользователь с таким логином уже существует", request_id: ctx.requestId });
       }
       await pool.query("UPDATE account_companies SET login = $1 WHERE login = $2", [newLogin, login]);
       await pool.query("UPDATE registered_users SET login = $1, updated_at = now() WHERE id = $2", [newLogin, id]);
@@ -114,7 +116,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         target_id: id,
         details: { login_change: true, old_login: login, new_login: newLogin },
       });
-      return res.status(200).json({ ok: true, login: newLogin });
+      return res.status(200).json({ ok: true, login: newLogin, request_id: ctx.requestId });
     }
 
     const updates: string[] = [];
@@ -238,11 +240,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       ok: true,
       ...(newPassword ? { password: newPassword, emailSent, emailError } : {}),
+      request_id: ctx.requestId,
     });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("admin-user-update error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка обновления" });
+    logError(ctx, "admin_user_update_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка обновления", request_id: ctx.requestId });
   }
 }
 export default withErrorLog(handler);

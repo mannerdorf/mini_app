@@ -2,15 +2,17 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-users");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
 
   try {
@@ -77,7 +79,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       } catch (e: unknown) {
         const pgErr = e as { code?: string; message?: string };
         if (pgErr?.code !== "42P01" && pgErr?.code !== "42703") {
-          console.error("admin-users cache_customers by email query error:", pgErr?.message || e);
+          logError(ctx, "admin_users_customers_by_email_failed", pgErr?.message || e);
         }
       }
     }
@@ -104,11 +106,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         companies: [...unique.values()],
       };
     });
-    return res.status(200).json({ users: usersWithCompanies, last_login_available: lastLoginAvailable });
+    return res.status(200).json({ users: usersWithCompanies, last_login_available: lastLoginAvailable, request_id: ctx.requestId });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("admin-users error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка загрузки" });
+    logError(ctx, "admin_users_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка загрузки", request_id: ctx.requestId });
   }
 }
 export default withErrorLog(handler);
