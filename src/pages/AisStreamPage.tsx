@@ -134,6 +134,7 @@ export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { 
           </div>
         )}
         <Input
+          className="admin-form-input ais-mmsi-input"
           value={mmsi}
           onChange={(e) => setMmsi(e.target.value.replace(/\D/g, "").slice(0, 9))}
           placeholder="Или введите MMSI вручную, например: 259000420"

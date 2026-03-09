@@ -612,6 +612,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [ferriesFetchTrigger, setFerriesFetchTrigger] = useState(0);
   const [ferriesEnrichLoading, setFerriesEnrichLoading] = useState(false);
   const [ferriesEnrichMessage, setFerriesEnrichMessage] = useState<string | null>(null);
+  const [ferryEditMmsi, setFerryEditMmsi] = useState<Record<number, string>>({});
+  const [ferrySaveLoading, setFerrySaveLoading] = useState<number | null>(null);
   const [sverkiRequests, setSverkiRequests] = useState<{
     id: number;
     login: string;
@@ -5956,17 +5958,60 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {ferriesList.map((f) => (
+                  {ferriesList.map((f) => {
+                    const mmsiVal = ferryEditMmsi[f.id] ?? f.mmsi;
+                    const mmsiChanged = mmsiVal !== f.mmsi;
+                    const mmsiValid = mmsiVal.replace(/\D/g, "").length === 9;
+                    return (
                     <tr key={f.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                       <td style={{ padding: "0.5rem 0.75rem" }}>{f.name}</td>
-                      <td style={{ padding: "0.5rem 0.75rem" }}>{f.mmsi}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>
+                        <Flex align="center" gap="0.35rem">
+                          <Input
+                            className="admin-form-input"
+                            value={mmsiVal}
+                            onChange={(e) => setFerryEditMmsi((prev) => ({ ...prev, [f.id]: e.target.value.replace(/\D/g, "").slice(0, 9) }))}
+                            placeholder="9 цифр"
+                            inputMode="numeric"
+                            style={{ width: "7rem", padding: "0.25rem 0.4rem", fontSize: "0.85rem" }}
+                          />
+                          {mmsiChanged && mmsiValid && (
+                            <Button
+                              type="button"
+                              className="button-primary"
+                              disabled={ferrySaveLoading === f.id}
+                              style={{ padding: "0.2rem 0.5rem", minWidth: "auto", fontSize: "0.75rem" }}
+                              onClick={async () => {
+                                setFerrySaveLoading(f.id);
+                                try {
+                                  const res = await fetch("/api/ferries", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                                    body: JSON.stringify({ id: f.id, name: f.name, mmsi: mmsiVal.replace(/\D/g, "") }),
+                                  });
+                                  const data = await res.json().catch(() => ({}));
+                                  if (!res.ok) throw new Error(data?.error || "Ошибка");
+                                  setFerryEditMmsi((prev) => { const next = { ...prev }; delete next[f.id]; return next; });
+                                  setFerriesFetchTrigger((n) => n + 1);
+                                } catch (e) {
+                                  setFerriesEnrichMessage((e as Error)?.message || "Ошибка сохранения");
+                                } finally {
+                                  setFerrySaveLoading(null);
+                                }
+                              }}
+                            >
+                              {ferrySaveLoading === f.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Сохранить"}
+                            </Button>
+                          )}
+                        </Flex>
+                      </td>
                       <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{f.imo || "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{f.vessel_type || "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>{f.teu_capacity ?? "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>{f.trailer_capacity ?? "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{f.operator || "—"}</td>
                     </tr>
-                  ))}
+                  );})}
                 </tbody>
               </table>
             </div>

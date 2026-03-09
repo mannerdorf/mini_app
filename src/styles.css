@@ -1230,6 +1230,22 @@ body {
     color: #9ca3af !important;
 }
 
+/* AIS: поле MMSI — убрать чёрную полоску max-ui Input в светлом режиме */
+.light-mode .ais-mmsi-input,
+.light-mode .ais-mmsi-input [class*="Input__body"],
+.light-mode .ais-mmsi-input label,
+.light-mode .ais-mmsi-input > div {
+    background-color: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    color: #1f2937 !important;
+}
+.light-mode .ais-mmsi-input input,
+.light-mode .ais-mmsi-input [class*="Input__body"] input {
+    background: transparent !important;
+    color: #1f2937 !important;
+    border: none !important;
+}
+
 /* Единая высота и отступы (Apple) в панели фильтров пользователей */
 .admin-users-toolbar {
     gap: var(--inline-gap, 12px);

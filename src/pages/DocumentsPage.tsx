@@ -4114,7 +4114,12 @@ useEffect(() => {
                                                 {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
-                                            <td style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }} onClick={(e) => e.stopPropagation()}>
+                                            <td
+                                                style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onMouseDown={(e) => e.stopPropagation()}
+                                                onTouchStart={(e) => e.stopPropagation()}
+                                            >
                                                 {transportType === 'ferry' ? (
                                                     canEditPlanDate && ferriesList.length > 0 ? (
                                                         <select
@@ -4122,7 +4127,9 @@ useEffect(() => {
                                                             value={getSendingsFerryEntry(rowKey, number)?.ferry_id ?? ''}
                                                             onChange={(e) => handleFerrySelect(rowKey, e.target.value, effectiveActiveInn ?? null)}
                                                             disabled={ferryEtaLoadingByRow[rowKey]}
-                                                            style={{ padding: '0.25rem 0.4rem', fontSize: '0.8rem', minWidth: 140, maxWidth: 200 }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            onMouseDown={(e) => e.stopPropagation()}
+                                                            style={{ padding: '0.25rem 0.4rem', fontSize: '0.8rem', minWidth: 140, maxWidth: 200, cursor: 'pointer' }}
                                                         >
                                                             <option value="">— Выберите паром —</option>
                                                             {ferriesList.map((f) => (
