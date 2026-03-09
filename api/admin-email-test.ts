@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import nodemailer from "nodemailer";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
 import { getEmailSettings } from "../lib/sendRegistrationEmail.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * POST /api/admin-email-test
@@ -11,13 +12,14 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  const ctx = initRequestContext(req, res, "admin-email-test");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
 
   let body: {
@@ -31,7 +33,7 @@ export default async function handler(
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
+      return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
     }
   }
 
@@ -54,7 +56,7 @@ export default async function handler(
       : settings.smtp_password;
 
     if (!host) {
-      return res.status(400).json({ ok: false, error: "Укажите SMTP хост" });
+      return res.status(400).json({ ok: false, error: "Укажите SMTP хост", request_id: ctx.requestId });
     }
 
     const transporter = nodemailer.createTransport({
@@ -65,13 +67,14 @@ export default async function handler(
     });
 
     await transporter.verify();
-    return res.status(200).json({ ok: true, message: "Подключение успешно" });
+    return res.status(200).json({ ok: true, message: "Подключение успешно", request_id: ctx.requestId });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("admin-email-test error:", err);
+    logError(ctx, "admin_email_test_failed", err);
     return res.status(200).json({
       ok: false,
       error: err?.message || "Ошибка подключения",
+      request_id: ctx.requestId,
     });
   }
 }

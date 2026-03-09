@@ -1,19 +1,21 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
+import type { RequestContext } from "./_lib/observability.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * GET /api/admin-work-schedule
  * Список рабочих графиков (ИНН, наименование, дни недели, часы). Только суперадмин.
  */
-async function handleGet(req: VercelRequest, res: VercelResponse) {
+async function handleGet(req: VercelRequest, res: VercelResponse, ctx: RequestContext) {
   const token = getAdminTokenFromRequest(req);
   const payload = getAdminTokenPayload(token);
   if (!payload?.admin) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   if (payload.superAdmin !== true) {
-    return res.status(403).json({ error: "Доступ только для суперадмина" });
+    return res.status(403).json({ error: "Доступ только для суперадмина", request_id: ctx.requestId });
   }
 
   try {
@@ -33,11 +35,11 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
       work_start: String(r.work_start || "09:00").slice(0, 5),
       work_end: String(r.work_end || "18:00").slice(0, 5),
     }));
-    return res.status(200).json({ items });
+    return res.status(200).json({ items, request_id: ctx.requestId });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("admin-work-schedule GET error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка загрузки" });
+    logError(ctx, "admin_work_schedule_get_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка загрузки", request_id: ctx.requestId });
   }
 }
 
@@ -79,14 +81,14 @@ function parseTime(s: unknown): string | null {
  * work_start, work_end: "HH:MM"
  * Только суперадмин.
  */
-async function handlePost(req: VercelRequest, res: VercelResponse) {
+async function handlePost(req: VercelRequest, res: VercelResponse, ctx: RequestContext) {
   const token = getAdminTokenFromRequest(req);
   const payload = getAdminTokenPayload(token);
   if (!payload?.admin) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   if (payload.superAdmin !== true) {
-    return res.status(403).json({ error: "Доступ только для суперадмина" });
+    return res.status(403).json({ error: "Доступ только для суперадмина", request_id: ctx.requestId });
   }
 
   let body: { inns?: string[]; inn?: string; days_of_week?: number[]; work_start?: string; work_end?: string } = req.body;
@@ -94,13 +96,13 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Неверный JSON" });
+      return res.status(400).json({ error: "Неверный JSON", request_id: ctx.requestId });
     }
   }
 
   const inns = normalizeInns(body);
   if (inns.length === 0) {
-    return res.status(400).json({ error: "Укажите inn или inns (ИНН заказчиков)" });
+    return res.status(400).json({ error: "Укажите inn или inns (ИНН заказчиков)", request_id: ctx.requestId });
   }
 
   const daysOfWeek = body.days_of_week !== undefined ? normalizeDaysOfWeek(body.days_of_week) : null;
@@ -108,7 +110,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
   const workEnd = body.work_end !== undefined ? parseTime(body.work_end) : null;
 
   if (daysOfWeek === null && workStart === null && workEnd === null) {
-    return res.status(400).json({ error: "Укажите days_of_week и/или work_start и/или work_end" });
+    return res.status(400).json({ error: "Укажите days_of_week и/или work_start и/или work_end", request_id: ctx.requestId });
   }
 
   try {
@@ -125,17 +127,18 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
         [inn, daysOfWeek, workStart, workEnd]
       );
     }
-    return res.status(200).json({ ok: true, updated: inns.length });
+    return res.status(200).json({ ok: true, updated: inns.length, request_id: ctx.requestId });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("admin-work-schedule POST error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка сохранения" });
+    logError(ctx, "admin_work_schedule_post_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка сохранения", request_id: ctx.requestId });
   }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method === "GET") return handleGet(req, res);
-  if (req.method === "POST") return handlePost(req, res);
+  const ctx = initRequestContext(req, res, "admin-work-schedule");
+  if (req.method === "GET") return handleGet(req, res, ctx);
+  if (req.method === "POST") return handlePost(req, res, ctx);
   res.setHeader("Allow", "GET, POST");
-  return res.status(405).json({ error: "Method not allowed" });
+  return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }

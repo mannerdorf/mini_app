@@ -5,6 +5,7 @@ import {
   fetchInvoicesByInn,
   getPaymentKey,
 } from "../lib/notificationPoll";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
@@ -43,9 +44,10 @@ function invoiceSum(item: any): number {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "notification-daily-summary");
   if (req.method !== "POST" && req.method !== "GET") {
     res.setHeader("Allow", "POST, GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const auth =
@@ -53,21 +55,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     (req.query?.secret as string) ||
     "";
   if (!CRON_SECRET || auth !== CRON_SECRET) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(401).json({ error: "Unauthorized", request_id: ctx.requestId });
   }
 
   if (!POLL_SERVICE_LOGIN || !POLL_SERVICE_PASSWORD) {
-    return res.status(503).json({ error: "POLL_SERVICE_LOGIN and POLL_SERVICE_PASSWORD are required" });
+    return res.status(503).json({ error: "POLL_SERVICE_LOGIN and POLL_SERVICE_PASSWORD are required", request_id: ctx.requestId });
   }
   if (!TG_BOT_TOKEN) {
-    return res.status(503).json({ error: "HAULZ_TELEGRAM_BOT_TOKEN is required" });
+    return res.status(503).json({ error: "HAULZ_TELEGRAM_BOT_TOKEN is required", request_id: ctx.requestId });
   }
 
   let pool: Awaited<ReturnType<typeof getPool>>;
   try {
     pool = getPool();
   } catch {
-    return res.status(503).json({ error: "Database not configured" });
+    return res.status(503).json({ error: "Database not configured", request_id: ctx.requestId });
   }
 
   try {
@@ -77,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        where chat_status = 'active' and telegram_chat_id is not null and telegram_chat_id <> ''`
     );
     if (linksRes.rows.length === 0) {
-      return res.status(200).json({ ok: true, sent: 0, reason: "no active telegram links" });
+      return res.status(200).json({ ok: true, sent: 0, reason: "no active telegram links", request_id: ctx.requestId });
     }
 
     const summaryPrefs = new Map<string, boolean>();
@@ -205,9 +207,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       skipped_by_preferences: skippedByPrefs,
       errors_count: errors.length,
       errors: errors.slice(0, 20),
+      request_id: ctx.requestId,
     });
   } catch (e: any) {
-    return res.status(500).json({ ok: false, error: e?.message || String(e) });
+    logError(ctx, "notification_daily_summary_failed", e);
+    return res.status(500).json({ ok: false, error: e?.message || String(e), request_id: ctx.requestId });
   }
 }
 

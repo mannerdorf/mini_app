@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
+import type { RequestContext } from "./_lib/observability.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export type PaymentCalendarRow = { inn: string; customer_name: string | null; days_to_pay: number; payment_weekdays: number[] };
 
@@ -8,14 +10,14 @@ export type PaymentCalendarRow = { inn: string; customer_name: string | null; da
  * GET /api/admin-payment-calendar
  * Список условий оплаты (ИНН, наименование, дней на оплату, платежные дни недели). Только суперадмин.
  */
-async function handleGet(req: VercelRequest, res: VercelResponse) {
+async function handleGet(req: VercelRequest, res: VercelResponse, ctx: RequestContext) {
   const token = getAdminTokenFromRequest(req);
   const payload = getAdminTokenPayload(token);
   if (!payload?.admin) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   if (payload.superAdmin !== true) {
-    return res.status(403).json({ error: "Доступ только для суперадмина" });
+    return res.status(403).json({ error: "Доступ только для суперадмина", request_id: ctx.requestId });
   }
 
   try {
@@ -48,11 +50,11 @@ async function handleGet(req: VercelRequest, res: VercelResponse) {
       days_to_pay: r.days_to_pay,
       payment_weekdays: Array.isArray(r.payment_weekdays) ? r.payment_weekdays.filter((d) => d >= 1 && d <= 5) : [],
     }));
-    return res.status(200).json({ items });
+    return res.status(200).json({ items, request_id: ctx.requestId });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("admin-payment-calendar GET error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка загрузки" });
+    logError(ctx, "admin_payment_calendar_get_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка загрузки", request_id: ctx.requestId });
   }
 }
 
@@ -70,14 +72,14 @@ function normalizePaymentWeekdays(arr: unknown): number[] {
     .filter((d) => !Number.isNaN(d) && d >= 1 && d <= 5);
 }
 
-async function handlePost(req: VercelRequest, res: VercelResponse) {
+async function handlePost(req: VercelRequest, res: VercelResponse, ctx: RequestContext) {
   const token = getAdminTokenFromRequest(req);
   const payload = getAdminTokenPayload(token);
   if (!payload?.admin) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   if (payload.superAdmin !== true) {
-    return res.status(403).json({ error: "Доступ только для суперадмина" });
+    return res.status(403).json({ error: "Доступ только для суперадмина", request_id: ctx.requestId });
   }
 
   let body: { inns?: string[]; inn?: string; days_to_pay?: number; payment_weekdays?: number[] } = req.body;
@@ -85,7 +87,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Неверный JSON" });
+      return res.status(400).json({ error: "Неверный JSON", request_id: ctx.requestId });
     }
   }
 
@@ -98,7 +100,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     if ((one.length === 10 || one.length === 12) && !inns.includes(one)) inns.push(one);
   }
   if (inns.length === 0) {
-    return res.status(400).json({ error: "Укажите inn или inns (ИНН заказчиков)" });
+    return res.status(400).json({ error: "Укажите inn или inns (ИНН заказчиков)", request_id: ctx.requestId });
   }
 
   const daysToPay = typeof body?.days_to_pay === "number" ? Math.max(0, Math.floor(body.days_to_pay)) : null;
@@ -107,7 +109,7 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
     paymentWeekdaysRaw === undefined ? null : normalizePaymentWeekdays(Array.isArray(paymentWeekdaysRaw) ? paymentWeekdaysRaw : [paymentWeekdaysRaw]);
 
   if (daysToPay === null && paymentWeekdays === null) {
-    return res.status(400).json({ error: "Укажите days_to_pay и/или payment_weekdays" });
+    return res.status(400).json({ error: "Укажите days_to_pay и/или payment_weekdays", request_id: ctx.requestId });
   }
 
   try {
@@ -132,17 +134,18 @@ async function handlePost(req: VercelRequest, res: VercelResponse) {
         );
       }
     }
-    return res.status(200).json({ ok: true, updated: inns.length });
+    return res.status(200).json({ ok: true, updated: inns.length, request_id: ctx.requestId });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("admin-payment-calendar POST error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка сохранения" });
+    logError(ctx, "admin_payment_calendar_post_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка сохранения", request_id: ctx.requestId });
   }
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method === "GET") return handleGet(req, res);
-  if (req.method === "POST") return handlePost(req, res);
+  const ctx = initRequestContext(req, res, "admin-payment-calendar");
+  if (req.method === "GET") return handleGet(req, res, ctx);
+  if (req.method === "POST") return handlePost(req, res, ctx);
   res.setHeader("Allow", "GET, POST");
-  return res.status(405).json({ error: "Method not allowed" });
+  return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }

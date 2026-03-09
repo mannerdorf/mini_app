@@ -1,11 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { sendWebPushToLogin } from "./_lib/webpushDelivery.js";
+import { initRequestContext } from "./_lib/observability.js";
 
 /** POST: отправить Web Push одному или нескольким пользователям. Body: { logins: string[], title, body?, url? } */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "webpush-send");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -13,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
@@ -23,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const url = String(body?.url || "/").trim() || "/";
 
   if (logins.length === 0) {
-    return res.status(400).json({ error: "logins or login is required" });
+    return res.status(400).json({ error: "logins or login is required", request_id: ctx.requestId });
   }
 
   const results: { login: string; sent: number; failed: number }[] = [];
@@ -39,5 +41,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     results.push({ login: String(login), sent, failed });
   }
 
-  return res.status(200).json({ ok: true, results });
+  return res.status(200).json({ ok: true, results, request_id: ctx.requestId });
 }

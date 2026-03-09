@@ -1,13 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getRedisValue, setRedisValue } from "./redis.js";
+import { initRequestContext } from "./_lib/observability.js";
 
 const REDIS_TTL = 60 * 60 * 24 * 365; // 1 year
 
 /** POST: сохранить подписку Web Push для login. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "webpush-subscribe");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -15,19 +17,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
   const login = String(body?.login || "").trim().toLowerCase();
   const subscription = body?.subscription;
   if (!login || !subscription || typeof subscription !== "object") {
-    return res.status(400).json({ error: "login and subscription are required" });
+    return res.status(400).json({ error: "login and subscription are required", request_id: ctx.requestId });
   }
 
   const endpoint = subscription?.endpoint;
   if (!endpoint || typeof endpoint !== "string") {
-    return res.status(400).json({ error: "subscription.endpoint is required" });
+    return res.status(400).json({ error: "subscription.endpoint is required", request_id: ctx.requestId });
   }
 
   const key = `webpush:subs:${login}`;
@@ -50,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   else list.push(subRecord);
 
   const saved = await setRedisValue(key, JSON.stringify(list), REDIS_TTL);
-  if (!saved) return res.status(500).json({ error: "Failed to save subscription" });
+  if (!saved) return res.status(500).json({ error: "Failed to save subscription", request_id: ctx.requestId });
 
-  return res.status(200).json({ ok: true });
+  return res.status(200).json({ ok: true, request_id: ctx.requestId });
 }

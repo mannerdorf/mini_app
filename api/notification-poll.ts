@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { getRedisValue } from "./redis.js";
 import { sendWebPushToLogin } from "./_lib/webpushDelivery.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 import {
   type CargoEvent,
   getCargoStatusKey,
@@ -52,9 +53,10 @@ async function sendTelegramMessage(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "notification-poll");
   if (req.method !== "POST" && req.method !== "GET") {
     res.setHeader("Allow", "POST, GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const auth =
@@ -62,19 +64,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     (req.query?.secret as string) ||
     "";
   if (!CRON_SECRET || auth !== CRON_SECRET) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(401).json({ error: "Unauthorized", request_id: ctx.requestId });
   }
 
   let pool: Awaited<ReturnType<typeof getPool>>;
   try {
     pool = getPool();
   } catch {
-    return res.status(503).json({ error: "Database not configured" });
+    return res.status(503).json({ error: "Database not configured", request_id: ctx.requestId });
   }
 
   if (!POLL_SERVICE_LOGIN || !POLL_SERVICE_PASSWORD) {
     return res.status(503).json({
       error: "POLL_SERVICE_LOGIN and POLL_SERVICE_PASSWORD required for notification poll",
+      request_id: ctx.requestId,
     });
   }
 
@@ -83,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
   const runId = runResult.rows[0]?.id;
   if (!runId) {
-    return res.status(500).json({ error: "Failed to create poll run" });
+    return res.status(500).json({ error: "Failed to create poll run", request_id: ctx.requestId });
   }
 
   let status: "ok" | "partial" | "error" = "ok";
@@ -168,7 +171,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } catch (e: any) {
       if (e?.code !== "42P01") {
-        console.error("notification-poll telegram_chat_links query failed:", e?.message || e);
+        logError(ctx, "notification_poll_tg_links_query_failed", e);
       }
     }
     for (const login of uniqueLogins) {
@@ -217,7 +220,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
         items = list || [];
       } catch (e: any) {
-        console.error("notification-poll fetch perevozki by inn failed:", inn, e?.message || e);
+        logError(ctx, "notification_poll_fetch_perevozki_failed", e, { inn });
         status = "partial";
         if (!errorMessage) errorMessage = `Fetch INN ${inn}: ${e?.message || e}`;
         continue;
@@ -324,6 +327,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       innsPolled,
       notificationsSent,
       error: errorMessage || undefined,
+      request_id: ctx.requestId,
     });
   } catch (e: any) {
     errorMessage = e?.message || String(e);
@@ -333,11 +337,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [errorMessage, runId]
       )
       .catch(() => {});
-    console.error("notification-poll error:", e);
+    logError(ctx, "notification_poll_failed", e);
     return res.status(500).json({
       ok: false,
       runId,
       error: errorMessage,
+      request_id: ctx.requestId,
     });
   }
 }

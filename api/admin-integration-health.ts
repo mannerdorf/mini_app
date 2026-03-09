@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 type RedisCommand = [string, ...string[]];
 
@@ -27,12 +28,13 @@ async function redisPipeline(commands: RedisCommand[]): Promise<any[] | null> {
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-integration-health");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
 
   const daysRaw = Number.parseInt(String(req.query.days ?? "30"), 10);
@@ -204,6 +206,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.status(200).json({
       ok: true,
+      request_id: ctx.requestId,
       days,
       telegram: {
         linked_total:
@@ -257,8 +260,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("admin-integration-health error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка загрузки дашборда интеграций" });
+    logError(ctx, "admin_integration_health_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка загрузки дашборда интеграций", request_id: ctx.requestId });
   }
 }
 
