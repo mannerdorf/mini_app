@@ -22,11 +22,11 @@
 ## Использование
 
 ```
-GET /api/ais-stream?bbox=[[[55,19.5],[55.2,20]],[[54.6,20],[54.9,20.6]]]&messageTypes=PositionReport,ShipStaticData
+GET /api/ais-stream?mmsi=273257140&messageTypes=PositionReport,ShipStaticData
 ```
 
-- **bbox** (опционально) — JSON-массив bounding box'ов `[[[lat1,lon1],[lat2,lon2]], ...]`. По умолчанию — район Балтики/Калининграда.
-- **messageTypes** (опционально) — типы сообщений через запятую. По умолчанию: `PositionReport,ShipStaticData`.
+- **mmsi** (обязательно) — 9-значный номер судна. Поиск только в зоне Балтики (для укладывания в лимит 60 сек).
+- **messageTypes** (опционально) — типы сообщений через запятую. По умолчанию: `PositionReport` (широта, долгота, курс).
 
 Ответ — Server-Sent Events:
 

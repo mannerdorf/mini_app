@@ -6,18 +6,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { ArrowLeft, Ship, Play, Square, Loader2, MapPin } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 
-const DEFAULT_BBOX = "[[[55.0, 19.5], [55.2, 20.0]], [[54.6, 20.0], [54.9, 20.6]]]";
-const DEFAULT_MESSAGE_TYPES = "PositionReport,ShipStaticData";
-
-function tryParseBbox(s: string): unknown {
-  try {
-    const parsed = JSON.parse(s) as unknown;
-    if (!Array.isArray(parsed)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
+const DEFAULT_MESSAGE_TYPES = "PositionReport";
 
 /** Извлекает координаты и название из AIS-сообщения */
 function extractVesselInfo(msg: unknown): { mmsi: string; name: string; lat: number; lon: number; sog?: number; cog?: number; timeUtc?: string } | null {
@@ -38,7 +27,6 @@ function extractVesselInfo(msg: unknown): { mmsi: string; name: string; lat: num
 
 export function AisStreamPage({ onBack }: { onBack: () => void }) {
   const [mmsi, setMmsi] = useState("");
-  const [bbox, setBbox] = useState(DEFAULT_BBOX);
   const [messageTypes, setMessageTypes] = useState(DEFAULT_MESSAGE_TYPES);
   const [streaming, setStreaming] = useState(false);
   const [streamMode, setStreamMode] = useState<"mmsi" | "bbox">("bbox");
@@ -62,11 +50,8 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
     const useMmsi = mmsiTrimmed.length === 9;
 
     if (!useMmsi) {
-      const bboxParsed = tryParseBbox(bbox.trim());
-      if (!bboxParsed) {
-        setError("Введите MMSI (9 цифр) или исправьте bbox (JSON)");
-        return;
-      }
+      setError("Введите MMSI (9 цифр)");
+      return;
     }
 
     setError(null);
@@ -76,11 +61,10 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
     stopStream();
 
     const params = new URLSearchParams();
-    if (useMmsi) params.set("mmsi", mmsiTrimmed);
-    else params.set("bbox", bbox.trim());
+    params.set("mmsi", mmsiTrimmed);
     params.set("messageTypes", messageTypes.trim() || DEFAULT_MESSAGE_TYPES);
 
-    setStreamMode(useMmsi ? "mmsi" : "bbox");
+    setStreamMode("mmsi");
 
     const url = `/api/ais-stream?${params.toString()}`;
     const es = new EventSource(url);
@@ -143,13 +127,12 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
       }
       stopStream();
     };
-  }, [mmsi, bbox, messageTypes, stopStream]);
+  }, [mmsi, messageTypes, stopStream]);
 
   useEffect(() => () => stopStream(), [stopStream]);
 
   const mmsiValid = mmsi.trim().replace(/\D/g, "").length === 9;
-  const bboxValid = tryParseBbox(bbox.trim()) !== null;
-  const canStart = mmsiValid || (!mmsi.trim() && bboxValid);
+  const canStart = mmsiValid;
 
   return (
     <div className="w-full">
@@ -206,21 +189,12 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
         {showAdvanced && (
           <>
             <Typography.Body style={{ marginTop: "0.75rem", marginBottom: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-              bbox (если MMSI не указан)
-            </Typography.Body>
-            <Input
-              value={bbox}
-              onChange={(e) => setBbox(e.target.value)}
-              placeholder={DEFAULT_BBOX}
-              style={{ marginBottom: "0.5rem", fontFamily: "monospace", fontSize: "0.8rem" }}
-            />
-            <Typography.Body style={{ marginBottom: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-              messageTypes
+              messageTypes (широта, долгота, курс)
             </Typography.Body>
             <Input
               value={messageTypes}
               onChange={(e) => setMessageTypes(e.target.value)}
-              placeholder="PositionReport,ShipStaticData"
+              placeholder="PositionReport"
               style={{ marginBottom: "0.5rem" }}
             />
           </>
@@ -267,7 +241,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
           <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-primary)" }} />
           <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
             Стрим активен
-            {streamMode === "mmsi" ? " — поиск по MMSI (весь мир)" : " — по зоне"}
+            {streamMode === "mmsi" ? " — поиск по MMSI (зона Балтика)" : ""}
           </Typography.Body>
         </Flex>
       )}
