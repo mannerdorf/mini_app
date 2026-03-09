@@ -2,11 +2,13 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyPassword } from "../lib/passwordUtils.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "auth-registered-login");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: { email?: string; login?: string; password?: string } = req.body;
@@ -14,7 +16,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
+      return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
     }
   }
 
@@ -23,7 +25,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   const password = typeof body?.password === "string" ? body.password : "";
 
   if (!email || !password) {
-    return res.status(400).json({ error: "Введите email и пароль" });
+    return res.status(400).json({ error: "Введите email и пароль", request_id: ctx.requestId });
   }
 
   const adminLogin = process.env.ADMIN_LOGIN?.trim()?.toLowerCase() ?? "";
@@ -57,11 +59,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(401).json({
           error:
             "Этот логин и пароль подходят только для входа в админку. Для входа в приложение зарегистрируйте этот email в разделе «Пользователи» в админке.",
+          request_id: ctx.requestId,
         });
       }
       // Вход по ADMIN_LOGIN/ADMIN_PASSWORD: используем пользователя из БД без проверки password_hash
     } else if (!user || !verifyPassword(password, user.password_hash)) {
-      return res.status(401).json({ error: "Неверный email или пароль" });
+      return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
     }
 
     try {
@@ -117,6 +120,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return res.status(200).json({
       ok: true,
+      request_id: ctx.requestId,
       user: {
         login: user.login,
         inn: accessAllInns ? null : (user.inn?.trim() || null),
@@ -128,8 +132,8 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
   } catch (e) {
-    console.error("auth-registered-login error:", e);
-    return res.status(500).json({ error: "Ошибка входа" });
+    logError(ctx, "auth_registered_login_failed", e);
+    return res.status(500).json({ error: "Ошибка входа", request_id: ctx.requestId });
   }
 }
 export default withErrorLog(handler);

@@ -1,27 +1,29 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "verify-inn-code");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
   let body: { inn?: string; login?: string; code?: string } = req.body;
   if (typeof body === "string") {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
+      return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
     }
   }
   const inn = typeof body?.inn === "string" ? body.inn.replace(/\D/g, "").trim() : "";
   const login = typeof body?.login === "string" ? body.login.trim().toLowerCase() : "";
   const code = typeof body?.code === "string" ? body.code.replace(/\D/g, "").slice(0, 6) : "";
   if (inn.length !== 10 && inn.length !== 12) {
-    return res.status(400).json({ error: "Некорректный ИНН" });
+    return res.status(400).json({ error: "Некорректный ИНН", request_id: ctx.requestId });
   }
   if (!login || code.length !== 6) {
-    return res.status(400).json({ error: "Укажите логин и код из 6 цифр" });
+    return res.status(400).json({ error: "Укажите логин и код из 6 цифр", request_id: ctx.requestId });
   }
   try {
     const pool = getPool();
@@ -31,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const reqRow = requestRow.rows[0];
     if (!reqRow) {
-      return res.status(400).json({ error: "Неверный код или срок действия истёк" });
+      return res.status(400).json({ error: "Неверный код или срок действия истёк", request_id: ctx.requestId });
     }
     const requester = await pool.query<{ id: number; login: string }>(
       "SELECT id, login FROM registered_users WHERE LOWER(TRIM(login)) = $1 AND active = true",
@@ -39,7 +41,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const requesterRow = requester.rows[0];
     if (!requesterRow) {
-      return res.status(400).json({ error: "Добавление компании по ИНН доступно только зарегистрированным пользователям (вход по email и паролю)" });
+      return res.status(400).json({
+        error: "Добавление компании по ИНН доступно только зарегистрированным пользователям (вход по email и паролю)",
+        request_id: ctx.requestId,
+      });
     }
     const customerName = await pool.query<{ customer_name: string }>("SELECT customer_name FROM cache_customers WHERE inn = $1", [inn]);
     const name = customerName.rows[0]?.customer_name || inn;
@@ -61,9 +66,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
     await pool.query("DELETE FROM inn_access_requests WHERE id = $1", [reqRow.id]);
-    return res.status(200).json({ ok: true, message: "Компания добавлена" });
+    return res.status(200).json({ ok: true, message: "Компания добавлена", request_id: ctx.requestId });
   } catch (e: unknown) {
-    console.error("verify-inn-code error:", e);
-    return res.status(500).json({ error: (e as Error)?.message || "Ошибка подтверждения" });
+    logError(ctx, "verify_inn_code_failed", e);
+    return res.status(500).json({ error: (e as Error)?.message || "Ошибка подтверждения", request_id: ctx.requestId });
   }
 }

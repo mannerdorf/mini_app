@@ -4,6 +4,7 @@ import { getClientIp, isRateLimited } from "../lib/rateLimit.js";
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /** Лимит запросов сброса пароля с одного IP в минуту */
 const FORGOT_PASSWORD_LIMIT = 5;
@@ -14,14 +15,15 @@ const FORGOT_PASSWORD_LIMIT = 5;
  * Тело: { login: "email@example.com" }
  */
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "forgot-password");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const ip = getClientIp(req);
   if (isRateLimited("forgot_password", ip, FORGOT_PASSWORD_LIMIT)) {
-    return res.status(429).json({ error: "Слишком много попыток. Подождите минуту." });
+    return res.status(429).json({ error: "Слишком много попыток. Подождите минуту.", request_id: ctx.requestId });
   }
 
   let body: { login?: string } = req.body;
@@ -29,13 +31,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
+      return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
     }
   }
 
   const login = typeof body?.login === "string" ? body.login.trim().toLowerCase() : "";
   if (!login) {
-    return res.status(400).json({ error: "Введите логин (email)" });
+    return res.status(400).json({ error: "Введите логин (email)", request_id: ctx.requestId });
   }
 
   try {
@@ -45,7 +47,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       [login]
     );
     if (rows.length === 0) {
-      return res.status(200).json({ ok: false, error: "Пользователь с таким логином не найден или деактивирован" });
+      return res.status(200).json({ ok: false, error: "Пользователь с таким логином не найден или деактивирован", request_id: ctx.requestId });
     }
 
     const newPassword = generatePassword(8);
@@ -65,13 +67,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     if (sendResult.ok) {
-      return res.status(200).json({ ok: true, emailSent: true });
+      return res.status(200).json({ ok: true, emailSent: true, request_id: ctx.requestId });
     }
-    return res.status(200).json({ ok: false, error: sendResult.error || "Не удалось отправить пароль на почту" });
+    return res.status(200).json({ ok: false, error: sendResult.error || "Не удалось отправить пароль на почту", request_id: ctx.requestId });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("forgot-password error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка сервера" });
+    logError(ctx, "forgot_password_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка сервера", request_id: ctx.requestId });
   }
 }
 export default withErrorLog(handler);

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyPassword, hashPassword } from "../lib/passwordUtils.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * POST /api/change-password
@@ -8,9 +9,10 @@ import { verifyPassword, hashPassword } from "../lib/passwordUtils.js";
  * Меняет пароль зарегистрированного пользователя (registered_users). Требует текущий пароль.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "change-password");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: { login?: string; currentPassword?: string; newPassword?: string } = req.body;
@@ -18,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
+      return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
     }
   }
 
@@ -27,11 +29,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const newPassword = typeof body?.newPassword === "string" ? body.newPassword : "";
 
   if (!login || !currentPassword || !newPassword) {
-    return res.status(400).json({ error: "Введите текущий и новый пароль" });
+    return res.status(400).json({ error: "Введите текущий и новый пароль", request_id: ctx.requestId });
   }
 
   if (newPassword.length < 8) {
-    return res.status(400).json({ error: "Новый пароль не менее 8 символов" });
+    return res.status(400).json({ error: "Новый пароль не менее 8 символов", request_id: ctx.requestId });
   }
 
   try {
@@ -42,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const user = rows[0];
     if (!user || !verifyPassword(currentPassword, user.password_hash)) {
-      return res.status(401).json({ error: "Неверный текущий пароль" });
+      return res.status(401).json({ error: "Неверный текущий пароль", request_id: ctx.requestId });
     }
 
     const newHash = hashPassword(newPassword);
@@ -50,10 +52,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       newHash,
       user.id,
     ]);
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("change-password error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка смены пароля" });
+    logError(ctx, "change_password_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка смены пароля", request_id: ctx.requestId });
   }
 }
