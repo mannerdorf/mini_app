@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import OpenAI from "openai";
 import { getPool } from "./_db.js";
 import { searchSimilar, upsertDocument } from "../lib/rag.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 type ChatRole = "system" | "user" | "assistant";
 
@@ -225,9 +226,10 @@ async function makeDocShortUrl(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "chat_jan29");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   try {
@@ -243,16 +245,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       pool = getPool();
     } catch (dbErr: any) {
-      console.error("chat getPool failed:", dbErr?.message ?? dbErr);
+      logError(ctx, "chat_get_pool_failed", dbErr);
       return res.status(200).json({
         sessionId: sid,
         reply: "Сервис временно недоступен. Попробуйте позже.",
+        request_id: ctx.requestId,
       });
     }
 
     if (action === "history") {
       if (!sessionId || typeof sessionId !== "string") {
-        return res.status(400).json({ error: "sessionId is required" });
+        return res.status(400).json({ error: "sessionId is required", request_id: ctx.requestId });
       }
       const history = await pool.query<{
         role: ChatRole;
@@ -274,7 +277,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const userMessage = message || (Array.isArray(messages) && messages.length > 0 ? messages[messages.length - 1]?.content : null);
     
     if (!userMessage || typeof userMessage !== "string") {
-      return res.status(400).json({ error: "message or messages array is required" });
+      return res.status(400).json({ error: "message or messages array is required", request_id: ctx.requestId });
     }
 
     const apiKey = process.env.OPENAI_API_KEY;
@@ -282,6 +285,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({
         sessionId: sid,
         reply: "Сервис чата временно недоступен. Попробуйте позже.",
+        request_id: ctx.requestId,
       });
     }
     await pool.query(
@@ -628,12 +632,13 @@ ${ragContext || "Нет дополнительных данных."}
 
     return res.status(200).json({ sessionId: sid, reply });
   } catch (err: any) {
-    console.error("chat error:", err?.message || err);
+    logError(ctx, "chat_handler_failed", err);
     const catchBody = coerceBody(req);
     const sidFallback = typeof catchBody?.sessionId === "string" ? catchBody.sessionId : null;
     return res.status(200).json({
       sessionId: sidFallback,
       reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже.",
+      request_id: ctx.requestId,
     });
   }
 }

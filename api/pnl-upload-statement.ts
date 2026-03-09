@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { parseMultipart } from "./_pnl-multipart.js";
 import * as XLSX from "xlsx";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -35,33 +36,35 @@ function findHeaderRow(data: unknown[][]): number {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const ctx = initRequestContext(req, res, "pnl_upload_statement");
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 
-  const { fields, files } = await parseMultipart(req);
-  const file = files.find((f) => f.fieldName === "file");
-  const month = Number(fields.month);
-  const year = Number(fields.year);
-  if (!file) return res.status(400).json({ error: "Нужен файл" });
-  if (!month || !year) return res.status(400).json({ error: "Нужен период" });
+  try {
+    const { fields, files } = await parseMultipart(req);
+    const file = files.find((f) => f.fieldName === "file");
+    const month = Number(fields.month);
+    const year = Number(fields.year);
+    if (!file) return res.status(400).json({ error: "Нужен файл", request_id: ctx.requestId });
+    if (!month || !year) return res.status(400).json({ error: "Нужен период", request_id: ctx.requestId });
 
-  const wb = XLSX.read(file.buffer, { type: "buffer" });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as unknown[][];
-  if (!data.length) return res.status(400).json({ error: "Файл пустой" });
+    const wb = XLSX.read(file.buffer, { type: "buffer" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as unknown[][];
+    if (!data.length) return res.status(400).json({ error: "Файл пустой", request_id: ctx.requestId });
 
-  const hIdx = findHeaderRow(data);
-  const header = data[hIdx] as unknown[];
-  const typeCol = findCol(header, ["тип операции", "тип"]);
-  const amountCol = findCol(header, ["сумма в валюте счёта", "сумма", "amount"]);
-  const purposeCol = findCol(header, ["назначение платежа", "назначение", "описание операции"]);
-  const recipientCol = findCol(header, ["наименование получателя", "получатель"]);
-  const counterpartyNameCol = findCol(header, ["наименование контрагента"]);
+    const hIdx = findHeaderRow(data);
+    const header = data[hIdx] as unknown[];
+    const typeCol = findCol(header, ["тип операции", "тип"]);
+    const amountCol = findCol(header, ["сумма в валюте счёта", "сумма", "amount"]);
+    const purposeCol = findCol(header, ["назначение платежа", "назначение", "описание операции"]);
+    const recipientCol = findCol(header, ["наименование получателя", "получатель"]);
+    const counterpartyNameCol = findCol(header, ["наименование контрагента"]);
 
-  if (amountCol < 0) return res.status(400).json({ error: "Не найдена колонка суммы" });
+    if (amountCol < 0) return res.status(400).json({ error: "Не найдена колонка суммы", request_id: ctx.requestId });
 
-  const byCounterparty = new Map<string, { totalAmount: number; count: number }>();
+    const byCounterparty = new Map<string, { totalAmount: number; count: number }>();
 
-  for (let i = hIdx + 1; i < data.length; i++) {
+    for (let i = hIdx + 1; i < data.length; i++) {
     const row = data[i] as unknown[];
     if (!row || row.length < 2) continue;
     const typeStr = String(row[typeCol ?? 0] ?? "").trim().toLowerCase();
@@ -82,24 +85,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     byCounterparty.set(key, { totalAmount: cur.totalAmount + amountAbs, count: cur.count + 1 });
   }
 
-  const period = `${year}-${String(month).padStart(2, "0")}-01`;
-  const pool = getPool();
+    const period = `${year}-${String(month).padStart(2, "0")}-01`;
+    const pool = getPool();
 
-  await pool.query("DELETE FROM pnl_statement_expenses WHERE period = $1", [period]);
+    await pool.query("DELETE FROM pnl_statement_expenses WHERE period = $1", [period]);
 
-  for (const [counterparty, v] of byCounterparty.entries()) {
-    await pool.query(
-      `INSERT INTO pnl_statement_expenses (period, counterparty, total_amount, operations_count, accounted)
-       VALUES ($1, $2, $3, $4, false)`,
-      [period, counterparty, v.totalAmount, v.count]
+    for (const [counterparty, v] of byCounterparty.entries()) {
+      await pool.query(
+        `INSERT INTO pnl_statement_expenses (period, counterparty, total_amount, operations_count, accounted)
+         VALUES ($1, $2, $3, $4, false)`,
+        [period, counterparty, v.totalAmount, v.count]
+      );
+    }
+
+    const { rows: saved } = await pool.query(
+      `SELECT counterparty, total_amount AS "totalAmount", operations_count AS count, accounted
+       FROM pnl_statement_expenses WHERE period = $1 ORDER BY total_amount DESC`,
+      [period]
     );
+
+    return res.json({ byCounterparty: saved });
+  } catch (error) {
+    logError(ctx, "pnl_upload_statement_failed", error);
+    const message = error instanceof Error ? error.message : "Ошибка загрузки выписки";
+    return res.status(500).json({ error: message, request_id: ctx.requestId });
   }
-
-  const { rows: saved } = await pool.query(
-    `SELECT counterparty, total_amount AS "totalAmount", operations_count AS count, accounted
-     FROM pnl_statement_expenses WHERE period = $1 ORDER BY total_amount DESC`,
-    [period]
-  );
-
-  return res.json({ byCounterparty: saved });
 }

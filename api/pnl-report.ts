@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { ensurePnlTransportColumns } from "./_pnl-ensure.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 import {
   getPnL,
   getCogsByStage,
@@ -10,9 +11,10 @@ import {
 } from "./_pnl-calc.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "pnl_report");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   try {
@@ -34,8 +36,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.json({ pnl, cogsByStage, opexByDept, revenueByDir });
   } catch (e) {
-    console.error("pnl-report:", e);
+    logError(ctx, "pnl_report_failed", e);
     const msg = e instanceof Error ? e.message : String(e);
-    return res.status(500).json({ error: msg || "Ошибка загрузки P&L" });
+    return res.status(500).json({ error: msg || "Ошибка загрузки P&L", request_id: ctx.requestId });
   }
 }

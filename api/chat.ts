@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import OpenAI from "openai";
 import { getPool } from "./_db.js";
 import { searchSimilar, upsertDocument } from "../lib/rag.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 type ChatRole = "system" | "user" | "assistant";
 
@@ -221,9 +222,10 @@ async function makeDocShortUrl(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "chat");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   try {
@@ -239,7 +241,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === "history") {
       if (!sessionId || typeof sessionId !== "string") {
-        return res.status(400).json({ error: "sessionId is required" });
+        return res.status(400).json({ error: "sessionId is required", request_id: ctx.requestId });
       }
       const history = await pool.query<{
         role: ChatRole;
@@ -261,12 +263,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const userMessage = message || (Array.isArray(messages) && messages.length > 0 ? messages[messages.length - 1]?.content : null);
     
     if (!userMessage || typeof userMessage !== "string") {
-      return res.status(400).json({ error: "message or messages array is required" });
+      return res.status(400).json({ error: "message or messages array is required", request_id: ctx.requestId });
     }
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ error: "OPENAI_API_KEY is not configured" });
+      return res.status(500).json({ error: "OPENAI_API_KEY is not configured", request_id: ctx.requestId });
     }
     await pool.query(
       `insert into chat_sessions (id, user_id)
@@ -608,11 +610,12 @@ ${ragContext || "Нет дополнительных данных."}
 
     return res.status(200).json({ sessionId: sid, reply });
   } catch (err: any) {
-    console.error("chat error:", err?.message || err);
-    return res.status(500).json({ 
+    logError(ctx, "chat_handler_failed", err);
+    return res.status(500).json({
       error: "chat failed",
-      reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже."
-      image.png    });
+      reply: "Извините, у меня возникли технические сложности. Попробуйте написать позже.",
+      request_id: ctx.requestId,
+    });
   }
 }
 

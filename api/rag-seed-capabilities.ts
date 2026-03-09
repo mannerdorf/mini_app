@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * Заполнение таблицы chat_capabilities («что умеет Грузик» и «примеры запросов»).
@@ -115,9 +116,10 @@ const PERIOD_QUERIES_DOC = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "rag_seed_capabilities");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   try {
@@ -138,9 +140,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       message: "chat_capabilities seeded",
       slugs: [CAPABILITIES_DOC.slug, EXAMPLES_DOC.slug, FILTERS_REF_DOC.slug, PERIOD_QUERIES_DOC.slug],
       link: `${baseUrl}/api/rag-seed-capabilities`,
+      request_id: ctx.requestId,
     });
   } catch (err: any) {
-    console.error("rag-seed-capabilities error:", err?.message || err);
-    return res.status(500).json({ error: err?.message || "Seed failed" });
+    logError(ctx, "rag_seed_capabilities_failed", err);
+    return res.status(500).json({ error: err?.message || "Seed failed", request_id: ctx.requestId });
   }
 }

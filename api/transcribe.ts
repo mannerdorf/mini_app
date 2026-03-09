@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import OpenAI from "openai";
 import formidable from "formidable";
 import fs from "node:fs";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export const config = {
   api: { bodyParser: false },
@@ -42,13 +43,14 @@ function pickFirstFile(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "transcribe");
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "OPENAI_API_KEY is not configured" });
+    return res.status(500).json({ error: "OPENAI_API_KEY is not configured", request_id: ctx.requestId });
   }
 
   let file: UploadedFile | undefined;
@@ -56,10 +58,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const parsed = await parseForm(req);
     file = pickFirstFile(parsed.files);
     if (!file?.filepath) {
-      return res.status(400).json({ error: "audio file is required" });
+      return res.status(400).json({ error: "audio file is required", request_id: ctx.requestId });
     }
     if (file.size !== undefined && file.size <= 0) {
-      return res.status(400).json({ error: "audio file is empty" });
+      return res.status(400).json({ error: "audio file is empty", request_id: ctx.requestId });
     }
 
     const client = new OpenAI({ apiKey });
@@ -68,14 +70,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       file: fs.createReadStream(file.filepath),
     });
 
-    return res.status(200).json({ text: response.text || "" });
+    return res.status(200).json({ text: response.text || "", request_id: ctx.requestId });
   } catch (err: any) {
     const message =
       err?.response?.data?.error?.message ||
       err?.message ||
       "transcription failed";
-    console.error("transcribe error:", message);
-    return res.status(500).json({ error: message });
+    logError(ctx, "transcribe_failed", err, { message });
+    return res.status(500).json({ error: message, request_id: ctx.requestId });
   } finally {
     if (file?.filepath) {
       fs.promises.unlink(file.filepath).catch(() => {});

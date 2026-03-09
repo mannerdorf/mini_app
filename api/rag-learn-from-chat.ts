@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * Автообучение: перебор диалогов из chat_messages, извлечение пар (запрос → ответ)
@@ -26,9 +27,10 @@ function truncate(s: string, max: number): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "rag_learn_from_chat");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   try {
@@ -107,9 +109,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       pairsScanned: pairs.length,
       uniqueCandidates: toAdd.length,
       samples: added.slice(0, 5),
+      request_id: ctx.requestId,
     });
   } catch (err: any) {
-    console.error("rag-learn-from-chat error:", err?.message || err);
-    return res.status(500).json({ error: err?.message || "Learn failed" });
+    logError(ctx, "rag_learn_from_chat_failed", err);
+    return res.status(500).json({ error: err?.message || "Learn failed", request_id: ctx.requestId });
   }
 }

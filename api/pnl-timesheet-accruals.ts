@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 function mapDepartmentToPnl(raw?: string | null): { department: string; logisticsStage: string | null } {
   const source = String(raw ?? "").trim();
@@ -64,9 +65,10 @@ function parseHoursValue(rawValue: string): number {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "pnl_timesheet_accruals");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const month = req.query.month as string;
@@ -75,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const logisticsStage = (req.query.logisticsStage as string) || "";
 
   if (!month || !year || !department) {
-    return res.status(400).json({ error: "month, year, department required" });
+    return res.status(400).json({ error: "month, year, department required", request_id: ctx.requestId });
   }
 
   const period = `${year}-${String(Number(month)).padStart(2, "0")}-01`;
@@ -170,7 +172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.json({ accruals });
   } catch (e) {
-    console.error("pnl-timesheet-accruals:", e);
-    return res.status(500).json({ error: "Ошибка загрузки начислений" });
+    logError(ctx, "pnl_timesheet_accruals_failed", e);
+    return res.status(500).json({ error: "Ошибка загрузки начислений", request_id: ctx.requestId });
   }
 }

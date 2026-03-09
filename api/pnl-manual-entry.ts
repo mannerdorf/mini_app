@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 function normalizeName(raw?: string | null): string {
   return String(raw ?? "").trim().toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ");
@@ -74,6 +75,7 @@ function parseHoursValue(rawValue: string): number {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "pnl_manual_entry");
   const pool = getPool();
 
   if (req.method === "GET") {
@@ -82,7 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const department = req.query.department as string | undefined;
     const logisticsStage = req.query.logisticsStage as string | undefined;
 
-    if (!month || !year) return res.status(400).json({ error: "month, year required" });
+    if (!month || !year) return res.status(400).json({ error: "month, year required", request_id: ctx.requestId });
     const period = `${year}-${String(Number(month)).padStart(2, "0")}-01`;
     const periodKey = `${year}-${String(Number(month)).padStart(2, "0")}`;
     const nextPeriod = (() => {
@@ -158,7 +160,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       requestExpensesRaw = result.rows;
     } catch (e) {
-      console.error("pnl-manual-entry expense_requests read failed:", e);
+      logError(ctx, "pnl_manual_entry_expense_requests_read_failed", e);
       requestExpensesRaw = [];
     }
 
@@ -200,7 +202,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ])
         );
       } catch (e) {
-        console.error("pnl-manual-entry pnl_expense_categories type map read failed:", e);
+        logError(ctx, "pnl_manual_entry_type_map_read_failed", e);
       }
     }
 
@@ -326,7 +328,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
         accrualRows = result.rows;
       } catch (e) {
-        console.error("pnl-manual-entry employee_timesheet_entries read failed:", e);
+        logError(ctx, "pnl_manual_entry_timesheet_entries_read_failed", e);
         accrualRows = [];
       }
 
@@ -392,7 +394,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         requestStatus: null,
       }));
     } catch (e) {
-      console.error("pnl-manual-entry timesheet salary read failed:", e);
+      logError(ctx, "pnl_manual_entry_timesheet_salary_failed", e);
       salaryExpenses = [];
     }
 
@@ -418,7 +420,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return mapped.department === department;
         });
       } catch (e) {
-        console.error("pnl-manual-entry fallback pnl_operations read failed:", e);
+        logError(ctx, "pnl_manual_entry_fallback_ops_read_failed", e);
         requestOpsRows = [];
       }
       requestExpenses = requestOpsRows.map((r: any) => {
@@ -478,7 +480,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "POST") {
     const { period, revenues, expenses } = req.body;
-    if (!period) return res.status(400).json({ error: "period required" });
+    if (!period) return res.status(400).json({ error: "period required", request_id: ctx.requestId });
 
     const periodDate = new Date(period).toISOString();
     const client = await pool.connect();
@@ -561,5 +563,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   res.setHeader("Allow", "GET, POST");
-  return res.status(405).json({ error: "Method not allowed" });
+  return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }

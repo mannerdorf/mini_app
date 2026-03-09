@@ -1,13 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "pnl_sales_manual");
   const pool = getPool();
 
   if (req.method === "GET") {
     const month = req.query.month as string;
     const year = req.query.year as string;
-    if (!month || !year) return res.status(400).json({ error: "month, year required" });
+    if (!month || !year) return res.status(400).json({ error: "month, year required", request_id: ctx.requestId });
 
     const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, 1).toISOString();
 
@@ -57,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "POST") {
     const { month, year, rows } = req.body;
-    if (!month || !year || !Array.isArray(rows)) return res.status(400).json({ error: "month, year, rows required" });
+    if (!month || !year || !Array.isArray(rows)) return res.status(400).json({ error: "month, year, rows required", request_id: ctx.requestId });
 
     const date = new Date(Number(year), Number(month) - 1, 1).toISOString();
     const client = await pool.connect();
@@ -98,8 +100,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await client.query("COMMIT");
     } catch (err) {
       await client.query("ROLLBACK");
+      logError(ctx, "pnl_sales_manual_save_failed", err);
       const msg = err instanceof Error ? err.message : "Ошибка сохранения";
-      return res.status(500).json({ error: msg });
+      return res.status(500).json({ error: msg, request_id: ctx.requestId });
     } finally {
       client.release();
     }
@@ -108,5 +111,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   res.setHeader("Allow", "GET, POST");
-  return res.status(405).json({ error: "Method not allowed" });
+  return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }

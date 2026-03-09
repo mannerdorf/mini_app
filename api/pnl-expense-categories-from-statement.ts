@@ -1,23 +1,25 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "pnl_expense_categories_from_statement");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const pool = getPool();
   const { counterparty, name, subdivisionId, type, month, year, saveExpense, amount, comment } = req.body;
 
-  if (!counterparty?.trim()) return res.status(400).json({ error: "Укажите контрагента" });
+  if (!counterparty?.trim()) return res.status(400).json({ error: "Укажите контрагента", request_id: ctx.requestId });
 
   const { rows: subs } = await pool.query(
     `SELECT id, department, logistics_stage FROM pnl_subdivisions WHERE id = $1 OR code = $1`,
     [subdivisionId]
   );
   const sub = subs[0];
-  if (!sub) return res.status(400).json({ error: "Укажите подразделение" });
+  if (!sub) return res.status(400).json({ error: "Укажите подразделение", request_id: ctx.requestId });
 
   const nameStr = (name?.trim() || counterparty.trim());
   const expenseType = type === "COGS" || type === "OPEX" || type === "CAPEX" ? type : "OPEX";
@@ -65,7 +67,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     return res.json({ category, ok: true });
   } catch (e) {
+    logError(ctx, "pnl_expense_categories_from_statement_failed", e);
     const msg = e instanceof Error ? e.message : "Ошибка сохранения";
-    return res.status(500).json({ error: msg });
+    return res.status(500).json({ error: msg, request_id: ctx.requestId });
   }
 }

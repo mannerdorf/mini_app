@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const APP_DOMAIN =
   process.env.NEXT_PUBLIC_APP_URL ||
@@ -258,9 +259,10 @@ function aliceResponse(text: string, session_state?: any) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "alice");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const body = req.body;
@@ -675,7 +677,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json(aliceResponse(String(data.reply)));
       }
     }
-  } catch {
+  } catch (error) {
+    logError(ctx, "alice_handler_branch_failed", error);
     // ignore and fall through to default
   }
 

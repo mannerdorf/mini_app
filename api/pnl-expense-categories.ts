@@ -1,7 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "pnl_expense_categories");
   try {
     const pool = getPool();
     await pool.query("ALTER TABLE pnl_expense_categories ADD COLUMN IF NOT EXISTS expense_category_id text");
@@ -18,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (req.method === "POST") {
       const b = req.body;
-      if (!b.department) return res.status(400).json({ error: "Укажите подразделение" });
+      if (!b.department) return res.status(400).json({ error: "Укажите подразделение", request_id: ctx.requestId });
 
       let name: string;
       let expenseCategoryId: string | null = null;
@@ -28,18 +30,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           `SELECT name FROM expense_categories WHERE id = $1`,
           [b.expenseCategoryId]
         );
-        if (!ec?.length) return res.status(400).json({ error: "Статья расхода не найдена" });
+        if (!ec?.length) return res.status(400).json({ error: "Статья расхода не найдена", request_id: ctx.requestId });
         name = ec[0].name;
         expenseCategoryId = b.expenseCategoryId;
         const { rows: exist } = await pool.query(
           `SELECT 1 FROM pnl_expense_categories WHERE expense_category_id = $1 AND department = $2 AND (logistics_stage IS NOT DISTINCT FROM $3)`,
           [b.expenseCategoryId, b.department, b.logisticsStage ?? null]
         );
-        if (exist?.length) return res.status(400).json({ error: "Такая статья уже есть в этом подразделении" });
+        if (exist?.length) return res.status(400).json({ error: "Такая статья уже есть в этом подразделении", request_id: ctx.requestId });
       } else if (b.name?.trim()) {
         name = b.name.trim();
       } else {
-        return res.status(400).json({ error: "Укажите статью расхода (expenseCategoryId или name)" });
+        return res.status(400).json({ error: "Укажите статью расхода (expenseCategoryId или name)", request_id: ctx.requestId });
       }
 
       const { rows } = await pool.query(
@@ -79,10 +81,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     res.setHeader("Allow", "GET, POST, PATCH, DELETE");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   } catch (e) {
-    console.error("pnl-expense-categories:", e);
+    logError(ctx, "pnl_expense_categories_failed", e);
     const msg = e instanceof Error ? e.message : String(e);
-    return res.status(500).json({ error: msg || "Ошибка работы со справочником расходов" });
+    return res.status(500).json({ error: msg || "Ошибка работы со справочником расходов", request_id: ctx.requestId });
   }
 }
