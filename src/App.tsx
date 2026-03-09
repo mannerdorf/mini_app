@@ -1,6 +1,6 @@
 import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect, Suspense, lazy } from "react";
 import {
-    LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Users, Scale, RussianRuble, List, Download, Maximize,
+    LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Users, Scale, RussianRuble, List, Download, Maximize, Minimize2,
     Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw, Lock
 } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -128,6 +128,10 @@ export default function App() {
         if (typeof window === 'undefined') return 'dark';
         const saved = window.localStorage.getItem('haulz.theme');
         return (saved === 'dark' || saved === 'light') ? saved : 'dark';
+    });
+    const [desktopExpanded, setDesktopExpanded] = useState<boolean>(() => {
+        if (typeof window === "undefined") return false;
+        return window.localStorage.getItem("haulz.desktop.expanded") === "true";
     });
 
     // --- Telegram Init ---
@@ -521,6 +525,14 @@ export default function App() {
             }
         }
     }, [theme]);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            window.localStorage.setItem("haulz.desktop.expanded", String(desktopExpanded));
+        } catch {
+            // ignore
+        }
+    }, [desktopExpanded]);
 
     useEffect(() => {
         if (!debugMenuOpen) return;
@@ -1887,7 +1899,7 @@ export default function App() {
     return (
         <>
             <Container className={`app-container`}>
-            <header className="app-header">
+            <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
                     <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
                         {!useServiceRequest && activeAccountId && activeAccount && (
@@ -1931,6 +1943,14 @@ export default function App() {
                         )}
                     </Flex>
                     <Flex align="center" className="space-x-3">
+                        <Button
+                            className="search-toggle-button desktop-expand-toggle"
+                            onClick={() => setDesktopExpanded((prev) => !prev)}
+                            title={desktopExpanded ? "Обычная ширина" : "Расширить окно"}
+                            aria-label={desktopExpanded ? "Обычная ширина" : "Расширить окно"}
+                        >
+                            {desktopExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                        </Button>
                         {typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug") && (
                             <div ref={debugMenuRef} style={{ position: "relative" }}>
                                 <Button
@@ -2021,8 +2041,8 @@ export default function App() {
                     {searchText && <Button className="search-toggle-button" onClick={() => { setSearchText(''); handleSearch(''); }} aria-label="Очистить поиск"><X className="w-4 h-4" /></Button>}
                 </div>
             </header>
-            <div className="app-main">
-                <div className="w-full max-w-4xl">
+            <div className={`app-main${desktopExpanded ? " app-main-wide" : ""}`}>
+                <div className="w-full">
                     <AppRuntimeProvider
                         value={{
                             useServiceRequest,

@@ -272,6 +272,14 @@ body {
     display: flex;
     justify-content: center;
 }
+.desktop-expand-toggle { display: none; }
+@media (min-width: 1024px) {
+    .desktop-expand-toggle { display: inline-flex; }
+    .app-header.app-header-wide,
+    .app-main.app-main-wide {
+        max-width: min(96vw, 1400px);
+    }
+}
 
 /* --- HEADER --- */
 .app-header {
