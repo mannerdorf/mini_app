@@ -3,6 +3,7 @@ import { getPool } from "../_db.js";
 import { buildSendingsMetrics, extractArrayFromAnyPayload, upsertSendingsMetrics } from "../../lib/sendingsMetrics.js";
 import { dispatchWebPushCargoEvents } from "../_lib/webpushEventDispatch.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
+import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
 
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 const INVOICES_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetIinvoices";
@@ -62,19 +63,22 @@ function normalizeCacheCustomers(raw: unknown): { inn: string; customer_name: st
 const CACHE_FRESH_MINUTES = 15;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "cron/refresh-cache");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const cronAuthError = requireCronAuth(req);
   if (cronAuthError) {
-    return res.status(cronAuthError.status).json({ error: cronAuthError.error });
+    logInfo(ctx, "cron_auth_failed", { status: cronAuthError.status });
+    return res.status(cronAuthError.status).json({ error: cronAuthError.error, request_id: ctx.requestId });
   }
 
   const login = process.env.PEREVOZKI_SERVICE_LOGIN;
   const password = process.env.PEREVOZKI_SERVICE_PASSWORD;
   if (!login || !password) {
+    logInfo(ctx, "cron_env_missing", { missing: "PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD" });
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(503).send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ошибка конфигурации</title></head><body style="font-family:sans-serif;padding:2rem;"><h1 style="color:#c00;">Ошибка конфигурации</h1><p>В Vercel не заданы PEREVOZKI_SERVICE_LOGIN и PEREVOZKI_SERVICE_PASSWORD.</p></body></html>');
   }
@@ -90,6 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     pool = getPool();
   } catch (e: any) {
     const msg = e?.message || "Database unavailable";
+    logError(ctx, "refresh_cache_db_unavailable", e);
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(500).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>БД недоступна</title></head><body style="font-family:sans-serif;padding:2rem;"><h1 style="color:#c00;">БД недоступна</h1><p>${String(msg).replace(/</g, "&lt;")}</p><p>Проверьте DATABASE_URL в Vercel.</p></body></html>`);
   }
@@ -158,7 +163,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await pool.query("update cache_perevozki set data = $1, fetched_at = now() where id = 1", [JSON.stringify(perevozkiList)]);
     markStep("perevozki", true, perevozkiList.length);
   } catch (e: any) {
-    console.error("refresh-cache perevozki error:", e?.message || e);
+    logError(ctx, "refresh_cache_perevozki_failed", e);
     markStep("perevozki", false, 0, e?.message || String(e));
   }
 
@@ -176,7 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       markStep("webpush_events", true, 0, "no cargo items");
     }
   } catch (e: any) {
-    console.error("refresh-cache webpush dispatch error:", e?.message || e);
+    logError(ctx, "refresh_cache_webpush_failed", e);
     markStep("webpush_events", false, 0, e?.message || String(e));
   }
 
@@ -186,7 +191,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await pool.query("update cache_sendings set data = $1, fetched_at = now() where id = 1", [JSON.stringify(sendingsList)]);
     markStep("sendings", true, sendingsList.length);
   } catch (e: any) {
-    console.error("refresh-cache sendings error:", e?.message || e);
+    logError(ctx, "refresh_cache_sendings_failed", e);
     markStep("sendings", false, 0, e?.message || String(e));
   }
 
@@ -195,7 +200,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const upsertResult = await upsertSendingsMetrics(pool, metricsRows);
     markStep("sendings_metrics", true, upsertResult.updated);
   } catch (e: any) {
-    console.error("refresh-cache sendings_metrics error:", e?.message || e);
+    logError(ctx, "refresh_cache_sendings_metrics_failed", e);
     markStep("sendings_metrics", false, 0, e?.message || String(e));
   }
 
@@ -205,7 +210,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await pool.query("update cache_invoices set data = $1, fetched_at = now() where id = 1", [JSON.stringify(invoicesList)]);
     markStep("invoices", true, invoicesList.length);
   } catch (e: any) {
-    console.error("refresh-cache invoices error:", e?.message || e);
+    logError(ctx, "refresh_cache_invoices_failed", e);
     markStep("invoices", false, 0, e?.message || String(e));
   }
 
@@ -215,7 +220,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await pool.query("update cache_acts set data = $1, fetched_at = now() where id = 1", [JSON.stringify(actsList)]);
     markStep("acts", true, actsList.length);
   } catch (e: any) {
-    console.error("refresh-cache acts error:", e?.message || e);
+    logError(ctx, "refresh_cache_acts_failed", e);
     markStep("acts", false, 0, e?.message || String(e));
   }
 
@@ -238,7 +243,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     customersCount = rows.length;
     markStep("customers", true, customersCount);
   } catch (e: any) {
-    console.error("refresh-cache customers error:", e?.message || e);
+    logError(ctx, "refresh_cache_customers_failed", e);
     markStep("customers", false, 0, e?.message || String(e));
   }
 
@@ -253,5 +258,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:48rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш обновлён</h1><p>Перевозок: <strong>${perevozkiList.length}</strong></p><p>Отправок: <strong>${sendingsList.length}</strong></p><p>Счетов: <strong>${invoicesList.length}</strong></p><p>УПД: <strong>${actsList.length}</strong></p><p>Заказчиков (Getcustomers): <strong>${customersCount}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo}. Данные в БД, мини-апп отдаёт из кэша 15 мин.</p><p style="color:#666;font-size:0.9rem;">Заявки обновляются отдельным кроном <code>/api/cron/refresh-orders-cache</code>.</p><h3 style="margin-top:1.5rem;">Диагностика шагов</h3><ul style="line-height:1.55;">${stepsHtml}</ul></body></html>`;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  logInfo(ctx, "refresh_cache_done", {
+    perevozki_count: perevozkiList.length,
+    sendings_count: sendingsList.length,
+    invoices_count: invoicesList.length,
+    acts_count: actsList.length,
+    customers_count: customersCount,
+  });
   return res.status(200).send(html);
 }

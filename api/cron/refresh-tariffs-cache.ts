@@ -2,20 +2,23 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { normalizeTariffs } from "../../lib/tariffsParser.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
+import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
 
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const TARIFS_AUTH_HEADER = "Basic Info@haulz.pro:Y2ME42XyI_";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "cron/refresh-tariffs-cache");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const cronAuthError = requireCronAuth(req);
   if (cronAuthError) {
-    return res.status(cronAuthError.status).json({ error: cronAuthError.error });
+    logInfo(ctx, "cron_auth_failed", { status: cronAuthError.status });
+    return res.status(cronAuthError.status).json({ error: cronAuthError.error, request_id: ctx.requestId });
   }
 
   try {
@@ -33,6 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: `HTTP ${upstream.status}`,
         details: text.slice(0, 200),
         upstream_url: upstreamUrl,
+        request_id: ctx.requestId,
       });
     }
 
@@ -44,11 +48,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: "Ответ не JSON",
         details: text.slice(0, 200),
         upstream_url: upstreamUrl,
+        request_id: ctx.requestId,
       });
     }
     if (json && typeof json === "object" && json.Success === false) {
       const err = String(json.Error ?? json.error ?? json.message ?? "Success=false");
-      return res.status(502).json({ error: err, upstream_url: upstreamUrl });
+      return res.status(502).json({ error: err, upstream_url: upstreamUrl, request_id: ctx.requestId });
     }
 
     const rows = normalizeTariffs(json);
@@ -81,15 +86,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    return res.status(200).json({
+    const payload = {
       ok: true,
       tariffs_count: rows.length,
       refreshed_at: new Date().toISOString(),
       upstream_url: upstreamUrl,
-    });
+      request_id: ctx.requestId,
+    };
+    logInfo(ctx, "cron_refresh_tariffs_done", { tariffs_count: rows.length });
+    return res.status(200).json(payload);
   } catch (e: any) {
     const message = e?.message || String(e);
-    console.error("refresh-tariffs-cache error:", message);
-    return res.status(500).json({ error: "Ошибка обновления кэша тарифов", details: message });
+    logError(ctx, "cron_refresh_tariffs_failed", e);
+    return res.status(500).json({ error: "Ошибка обновления кэша тарифов", details: message, request_id: ctx.requestId });
   }
 }

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
+import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
 
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
@@ -74,20 +75,24 @@ function normalizeSuppliers(raw: unknown): { inn: string; supplier_name: string;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "cron/refresh-suppliers-cache");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const cronAuthError = requireCronAuth(req);
   if (cronAuthError) {
-    return res.status(cronAuthError.status).json({ error: cronAuthError.error });
+    logInfo(ctx, "cron_auth_failed", { status: cronAuthError.status });
+    return res.status(cronAuthError.status).json({ error: cronAuthError.error, request_id: ctx.requestId });
   }
 
   const login = process.env.SUPPLIERS_1C_LOGIN || process.env.PEREVOZKI_SERVICE_LOGIN;
   const password = process.env.SUPPLIERS_1C_PASSWORD || process.env.PEREVOZKI_SERVICE_PASSWORD;
   if (!login || !password) {
-    return res.status(503).json({ error: "Не заданы SUPPLIERS_1C_LOGIN/PASSWORD или PEREVOZKI_SERVICE_LOGIN/PASSWORD" });
+    return res
+      .status(503)
+      .json({ error: "Не заданы SUPPLIERS_1C_LOGIN/PASSWORD или PEREVOZKI_SERVICE_LOGIN/PASSWORD", request_id: ctx.requestId });
   }
 
   try {
@@ -101,13 +106,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
     const text = await upstream.text();
     if (!upstream.ok) {
-      return res.status(upstream.status).json({ error: `HTTP ${upstream.status}`, details: text.slice(0, 200) });
+      return res.status(upstream.status).json({ error: `HTTP ${upstream.status}`, details: text.slice(0, 200), request_id: ctx.requestId });
     }
 
     const json = JSON.parse(text);
     if (json && typeof json === "object" && (json as any).Success === false) {
       const err = String((json as any).Error ?? (json as any).error ?? (json as any).message ?? "Success=false");
-      return res.status(502).json({ error: err });
+      return res.status(502).json({ error: err, request_id: ctx.requestId });
     }
 
     const rows = normalizeSuppliers(json);
@@ -115,6 +120,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({
         error: "1С вернул пустой список поставщиков — кэш не перезаписан",
         upstream_url: upstreamUrl,
+        request_id: ctx.requestId,
       });
     }
     const pool = getPool();
@@ -133,10 +139,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [inns, names, emails]
     );
 
-    return res.status(200).json({ ok: true, suppliers_count: rows.length, refreshed_at: new Date().toISOString() });
+    logInfo(ctx, "cron_refresh_suppliers_done", { suppliers_count: rows.length });
+    return res.status(200).json({ ok: true, suppliers_count: rows.length, refreshed_at: new Date().toISOString(), request_id: ctx.requestId });
   } catch (e: any) {
     const message = e?.message || String(e);
-    console.error("refresh-suppliers-cache error:", message);
-    return res.status(500).json({ error: "Ошибка обновления кэша поставщиков", details: message });
+    logError(ctx, "cron_refresh_suppliers_failed", e);
+    return res.status(500).json({ error: "Ошибка обновления кэша поставщиков", details: message, request_id: ctx.requestId });
   }
 }

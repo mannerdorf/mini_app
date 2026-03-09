@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
+import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
 
 const ZAYAVKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetZayavki";
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -41,20 +42,23 @@ function escapeHtml(input: string): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "cron/refresh-orders-cache");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const cronAuthError = requireCronAuth(req);
   if (cronAuthError) {
-    return res.status(cronAuthError.status).json({ error: cronAuthError.error });
+    logInfo(ctx, "cron_auth_failed", { status: cronAuthError.status });
+    return res.status(cronAuthError.status).json({ error: cronAuthError.error, request_id: ctx.requestId });
   }
 
   const login = process.env.PEREVOZKI_SERVICE_LOGIN;
   const password = process.env.PEREVOZKI_SERVICE_PASSWORD;
   if (!login || !password) {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    logInfo(ctx, "cron_env_missing", { missing: "PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD" });
     return res
       .status(503)
       .send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ошибка конфигурации</title></head><body style="font-family:sans-serif;padding:2rem;"><h1 style="color:#c00;">Ошибка конфигурации</h1><p>В Vercel не заданы PEREVOZKI_SERVICE_LOGIN и PEREVOZKI_SERVICE_PASSWORD.</p></body></html>');
@@ -150,8 +154,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Кэш заявок обновлён</title></head><body style="font-family:sans-serif;padding:2rem;max-width:48rem;margin:0 auto;background:#fff;color:#111;"><h1>Кэш заявок обновлён</h1><p>Заявок: <strong>${ordersList.length}</strong></p><p style="color:#666;font-size:0.9rem;">Период: ${dateFrom} — ${dateTo} (10 дней). Обновление отдельным кроном.</p><h3 style="margin-top:1.5rem;">Диагностика шагов</h3><ul style="line-height:1.55;">${stepsHtml}</ul></body></html>`;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
+    logInfo(ctx, "cron_refresh_orders_done", { orders_count: ordersList.length });
     return res.status(200).send(html);
   } catch (e: any) {
+    logError(ctx, "cron_refresh_orders_failed", e);
     const msg = e?.message || String(e);
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(500).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ошибка</title></head><body style="font-family:sans-serif;padding:2rem;"><h1 style="color:#c00;">Ошибка обновления кэша заявок</h1><p>${escapeHtml(msg)}</p></body></html>`);

@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { buildSendingsMetrics, extractArrayFromAnyPayload, upsertSendingsMetrics } from "../../lib/sendingsMetrics.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
+import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
 
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
@@ -182,26 +183,27 @@ async function fetchServiceJson(url: string, login: string, password: string) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const startedAt = Date.now();
+  const ctx = initRequestContext(req, res, "cron/backfill-sendings-metrics");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const cronAuthError = requireCronAuth(req);
   if (cronAuthError) {
-    return res.status(cronAuthError.status).json({ error: cronAuthError.error });
+    logInfo(ctx, "cron_auth_failed", { status: cronAuthError.status });
+    return res.status(cronAuthError.status).json({ error: cronAuthError.error, request_id: ctx.requestId });
   }
 
   const enabled = String(process.env.SENDINGS_BACKFILL_ENABLED || "").trim().toLowerCase();
   if (!(enabled === "1" || enabled === "true" || enabled === "yes")) {
-    return res.status(200).json({ ok: true, skipped: true, reason: "SENDINGS_BACKFILL_ENABLED is off" });
+    return res.status(200).json({ ok: true, skipped: true, reason: "SENDINGS_BACKFILL_ENABLED is off", request_id: ctx.requestId });
   }
 
   const serviceLogin = String(process.env.PEREVOZKI_SERVICE_LOGIN || "").trim();
   const servicePassword = String(process.env.PEREVOZKI_SERVICE_PASSWORD || "").trim();
   if (!serviceLogin || !servicePassword) {
-    return res.status(503).json({ error: "Не заданы PEREVOZKI_SERVICE_LOGIN / PEREVOZKI_SERVICE_PASSWORD" });
+    return res.status(503).json({ error: "Не заданы PEREVOZKI_SERVICE_LOGIN / PEREVOZKI_SERVICE_PASSWORD", request_id: ctx.requestId });
   }
 
   const today = new Date().toISOString().split("T")[0];
@@ -214,7 +216,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     Math.min(500, Number(process.env.SENDINGS_BACKFILL_CARGO_BATCH_SIZE) || DEFAULT_CARGO_BATCH_SIZE)
   );
   if (cfgFrom > cfgTo) {
-    return res.status(400).json({ error: "SENDINGS_BACKFILL_FROM > SENDINGS_BACKFILL_TO" });
+    return res.status(400).json({ error: "SENDINGS_BACKFILL_FROM > SENDINGS_BACKFILL_TO", request_id: ctx.requestId });
   }
 
   const pool = getPool();
@@ -230,7 +232,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     `select current_from::text, date_to::text, done from sendings_backfill_state where id = 1`
   );
   if (!stateRes.rows.length) {
-    return res.status(500).json({ error: "Не удалось загрузить sendings_backfill_state" });
+    return res.status(500).json({ error: "Не удалось загрузить sendings_backfill_state", request_id: ctx.requestId });
   }
 
   let currentFrom = toIsoDate(stateRes.rows[0].current_from) || cfgFrom;
@@ -238,7 +240,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const alreadyDone = Boolean(stateRes.rows[0].done);
   if (alreadyDone || currentFrom > dateTo) {
     await pool.query(`update sendings_backfill_state set done = true, updated_at = now() where id = 1`);
-    return res.status(200).json({ ok: true, done: true, currentFrom, dateTo, processedChunks: 0 });
+    return res.status(200).json({ ok: true, done: true, currentFrom, dateTo, processedChunks: 0, request_id: ctx.requestId });
   }
 
   let chunksProcessed = 0;
@@ -264,7 +266,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const allSeedRows = buildSendingsMetrics(cacheSendings as any[], cachePerevozki as any[]);
 
   while (currentFrom <= dateTo && chunksProcessed < maxChunks) {
-    if (Date.now() - startedAt >= RUNTIME_BUDGET_MS) {
+    if (Date.now() - ctx.startedAt >= RUNTIME_BUDGET_MS) {
       break;
     }
     const currentTo = minIso(addDays(currentFrom, chunkDays - 1), dateTo);
@@ -565,6 +567,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         queueLeft,
       });
     } catch (e: any) {
+      logError(ctx, "backfill_chunk_failed", e, { chunk_from: currentFrom, chunk_to: currentTo });
       chunks.push({
         from: currentFrom,
         to: currentTo,
@@ -592,6 +595,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     [done ? dateTo : currentFrom, dateTo, done]
   );
 
+  logInfo(ctx, "backfill_sendings_metrics_done", {
+    done,
+    processed_chunks: chunksProcessed,
+    metrics_upserted: metricsUpserted,
+  });
   return res.status(200).json({
     ok: true,
     done,
@@ -605,5 +613,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     cargoBatchSize,
     metricsUpserted,
     chunks,
+    request_id: ctx.requestId,
   });
 }

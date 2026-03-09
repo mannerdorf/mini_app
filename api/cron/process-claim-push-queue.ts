@@ -3,6 +3,7 @@ import webpush from "web-push";
 import { getPool } from "../_db.js";
 import { getRedisValue } from "../redis.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
+import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
 
 type QueueRow = {
   id: number;
@@ -23,19 +24,22 @@ function escapeHtml(input: string): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "cron/process-claim-push-queue");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const cronAuthError = requireCronAuth(req);
   if (cronAuthError) {
-    return res.status(cronAuthError.status).json({ error: cronAuthError.error });
+    logInfo(ctx, "cron_auth_failed", { status: cronAuthError.status });
+    return res.status(cronAuthError.status).json({ error: cronAuthError.error, request_id: ctx.requestId });
   }
 
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
   if (!publicKey || !privateKey) {
+    logInfo(ctx, "cron_env_missing", { missing: "VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY" });
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res
       .status(503)
@@ -65,6 +69,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (e: any) {
     await client.query("ROLLBACK");
     client.release();
+    logError(ctx, "claim_push_queue_pick_failed", e);
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res
       .status(500)
@@ -138,6 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  logInfo(ctx, "claim_push_queue_processed", { picked: picked.length, sent, failed });
   return res.status(200).send(
     `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Push queue processed</title></head><body style="font-family:sans-serif;padding:2rem;max-width:48rem;margin:0 auto;background:#fff;color:#111;"><h1>Очередь push обработана</h1><ul><li>Взято задач: <strong>${picked.length}</strong></li><li>Отправлено: <strong>${sent}</strong></li><li>Ошибок: <strong>${failed}</strong></li></ul></body></html>`
   );

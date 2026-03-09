@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError, logInfo } from "./_lib/observability.js";
 
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
@@ -79,18 +80,19 @@ function normalizeSuppliers(raw: unknown): { inn: string; supplier_name: string;
  * Доступно только суперадмину.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-refresh-suppliers-cache");
   if (req.method !== "POST" && req.method !== "GET") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const token = getAdminTokenFromRequest(req);
   const payload = getAdminTokenPayload(token);
   if (!payload?.admin) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   if (payload.superAdmin !== true) {
-    return res.status(403).json({ error: "Доступ только для суперадмина" });
+    return res.status(403).json({ error: "Доступ только для суперадмина", request_id: ctx.requestId });
   }
 
   const login = process.env.SUPPLIERS_1C_LOGIN || process.env.PEREVOZKI_SERVICE_LOGIN;
@@ -98,6 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!login || !password) {
     return res.status(503).json({
       error: "Не заданы SUPPLIERS_1C_LOGIN/PASSWORD или PEREVOZKI_SERVICE_LOGIN/PASSWORD",
+      request_id: ctx.requestId,
     });
   }
   const upstreamUrl = `${GETAPI_URL}?metod=GETALLKontragents`;
@@ -116,6 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: `Ошибка 1С: HTTP ${upstreamRes.status}`,
         details: upstreamText.slice(0, 500),
         upstream_url: upstreamUrl,
+        request_id: ctx.requestId,
       });
     }
 
@@ -127,6 +131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: "Ответ 1С не JSON",
         details: upstreamText.slice(0, 500),
         upstream_url: upstreamUrl,
+        request_id: ctx.requestId,
       });
     }
 
@@ -135,6 +140,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({
         error: err,
         upstream_url: upstreamUrl,
+        request_id: ctx.requestId,
       });
     }
 
@@ -143,6 +149,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({
         error: "1С вернул пустой список поставщиков — кэш не перезаписан",
         upstream_url: upstreamUrl,
+        request_id: ctx.requestId,
       });
     }
 
@@ -162,20 +169,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [inns, names, emails]
     );
 
+    logInfo(ctx, "admin_refresh_suppliers_done", { suppliers_count: rows.length });
     return res.status(200).json({
       ok: true,
       suppliers_count: rows.length,
       refreshed_at: new Date().toISOString(),
       message: "Справочник поставщиков обновлён",
       upstream_url: upstreamUrl,
+      request_id: ctx.requestId,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("admin-refresh-suppliers-cache:", msg);
+    logError(ctx, "admin_refresh_suppliers_failed", e);
     return res.status(500).json({
       error: "Ошибка при вызове обновления кэша",
       details: msg,
       upstream_url: upstreamUrl,
+      request_id: ctx.requestId,
     });
   }
 }
