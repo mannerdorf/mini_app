@@ -2,7 +2,6 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { SWRConfig } from "swr";
 import { MaxUI } from "@maxhub/max-ui";
-import { Capacitor } from "@capacitor/core";
 import "@maxhub/max-ui/dist/styles.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import App from "./App";
@@ -22,6 +21,9 @@ const shouldShowDebug = () => {
 declare global {
   interface Window {
     __debugLog?: (label: string, data?: unknown) => void;
+    Capacitor?: {
+      isNativePlatform?: () => boolean;
+    };
   }
 }
 
@@ -122,7 +124,13 @@ const rewriteNativeApiUrl = (url: string, apiOrigin: string): string => {
 };
 
 const installNativeApiFetchRewrite = () => {
-  if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return;
+  if (typeof window === "undefined") return;
+  const protocol = String(window.location?.protocol || "").toLowerCase();
+  const nativeByProtocol = protocol === "capacitor:" || protocol === "ionic:";
+  const nativeByBridge = typeof window.Capacitor?.isNativePlatform === "function"
+    ? !!window.Capacitor.isNativePlatform()
+    : false;
+  if (!nativeByProtocol && !nativeByBridge) return;
   const apiOrigin = resolveApiOrigin();
   const originalFetch = window.fetch.bind(window);
 
