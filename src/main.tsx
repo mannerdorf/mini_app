@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { SWRConfig } from "swr";
 import { MaxUI } from "@maxhub/max-ui";
+import { Capacitor } from "@capacitor/core";
 import "@maxhub/max-ui/dist/styles.css";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import App from "./App";
@@ -98,6 +99,45 @@ const setupDebugOverlay = () => {
 };
 
 setupDebugOverlay();
+
+const FALLBACK_API_ORIGIN = "https://mini-app-lake-phi.vercel.app";
+
+const normalizeOrigin = (value: string): string => value.trim().replace(/\/+$/, "");
+
+const resolveApiOrigin = (): string => {
+  const envOrigin = normalizeOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
+  return envOrigin || FALLBACK_API_ORIGIN;
+};
+
+const rewriteNativeApiUrl = (url: string, apiOrigin: string): string => {
+  if (!url) return url;
+  if (url.startsWith(`${apiOrigin}/api`)) return url;
+  if (url.startsWith("/api/") || url === "/api") return `${apiOrigin}${url}`;
+
+  const localhostApiMatch = url.match(
+    /^(?:capacitor:\/\/localhost|https?:\/\/localhost(?::\d+)?)(\/api(?:\/.*)?$)/i
+  );
+  if (localhostApiMatch?.[1]) return `${apiOrigin}${localhostApiMatch[1]}`;
+  return url;
+};
+
+const installNativeApiFetchRewrite = () => {
+  if (typeof window === "undefined" || !Capacitor.isNativePlatform()) return;
+  const apiOrigin = resolveApiOrigin();
+  const originalFetch = window.fetch.bind(window);
+
+  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    if (typeof input === "string") return originalFetch(rewriteNativeApiUrl(input, apiOrigin), init);
+    if (input instanceof URL) return originalFetch(rewriteNativeApiUrl(input.toString(), apiOrigin), init);
+    if (input instanceof Request) {
+      const rewrittenUrl = rewriteNativeApiUrl(input.url, apiOrigin);
+      if (rewrittenUrl !== input.url) return originalFetch(new Request(rewrittenUrl, input), init);
+    }
+    return originalFetch(input, init);
+  };
+};
+
+installNativeApiFetchRewrite();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

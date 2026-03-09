@@ -382,6 +382,8 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     /** Столбец EOR виден всем с правом haulz; менять значение могут только с правом eor или суперадмин */
     const showEorColumn = (permissions?.haulz === true) || isSuperAdmin;
     const canEditEor = (permissions?.eor === true) || isSuperAdmin;
+    /** Плановую дату могут менять руководители подразделений, eor-редакторы и суперадмин */
+    const canEditPlanDate = canEditEor || (permissions?.supervisor === true);
     const [eorStatusMap, setEorStatusMap] = useState<Record<string, EorStatus[]>>({});
     const [selectedSendingRowKeys, setSelectedSendingRowKeys] = useState<Set<string>>(() => new Set());
     const [bulkEorMenuOpen, setBulkEorMenuOpen] = useState(false);
@@ -2540,7 +2542,7 @@ useEffect(() => {
         }
     }, [canEditEor, selectedSendingRowsMeta, auth?.login, auth?.password, effectiveActiveInn]);
     const applyBulkPlanDate = useCallback(async () => {
-        if (!canEditEor || selectedSendingRowsMeta.length === 0) return;
+        if (!canEditPlanDate || selectedSendingRowsMeta.length === 0) return;
         if (!bulkPlanDateValue) {
             setBulkSendingActionError('Укажите плановую дату доставки.');
             return;
@@ -2592,7 +2594,7 @@ useEffect(() => {
         } finally {
             setBulkSendingActionLoading(false);
         }
-    }, [canEditEor, selectedSendingRowsMeta, bulkPlanDateValue, auth?.login, auth?.password]);
+    }, [canEditPlanDate, selectedSendingRowsMeta, bulkPlanDateValue, auth?.login, auth?.password]);
     const getParcelSearchText = useCallback((parcel: any): string => {
         const parts: string[] = [];
         const seen = new WeakSet<object>();
@@ -3789,44 +3791,96 @@ useEffect(() => {
                     </div>
                     </div>
                 </div>
-                {canEditEor && (
+                {canEditPlanDate && (
                     <div className="cargo-card sendings-bulk-actions-sticky" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem', overflow: 'visible' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
                             <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
                                 Выбрано отправок: {selectedVisibleSendingCount}
                             </Typography.Body>
+                            {canEditEor && (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
+                                    <Button
+                                        type="button"
+                                        className="filter-button"
+                                        disabled={bulkSendingActionLoading || selectedVisibleSendingCount === 0}
+                                        onClick={() => {
+                                            setBulkPlanDateOpen(false);
+                                            setBulkEorMenuOpen((prev) => !prev);
+                                        }}
+                                        style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
+                                    >
+                                        {bulkSendingActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
+                                        EOR
+                                    </Button>
+                                    {bulkEorMenuOpen && (
+                                        <div
+                                            style={{
+                                                position: 'absolute',
+                                                top: 'calc(100% + 6px)',
+                                                left: 0,
+                                                zIndex: 12000,
+                                                minWidth: 190,
+                                                border: '1px solid var(--color-border)',
+                                                borderRadius: 8,
+                                                background: 'var(--color-bg-card)',
+                                                boxShadow: '0 6px 18px rgba(0, 0, 0, 0.16)',
+                                                padding: '0.35rem',
+                                            }}
+                                        >
+                                            <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: '0.25rem' }} onClick={() => applyBulkEorStatus('entry_allowed')}>Въезд разрешен</button>
+                                            <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: '0.25rem' }} onClick={() => applyBulkEorStatus('full_inspection')}>Полный досмотр</button>
+                                            <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => applyBulkEorStatus('turnaround')}>Разворот</button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
                                 <Button
                                     type="button"
                                     className="filter-button"
                                     disabled={bulkSendingActionLoading || selectedVisibleSendingCount === 0}
                                     onClick={() => {
-                                        setBulkPlanDateOpen(false);
-                                        setBulkEorMenuOpen((prev) => !prev);
+                                        setBulkEorMenuOpen(false);
+                                        setBulkPlanDateOpen((prev) => !prev);
                                     }}
                                     style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
                                 >
                                     {bulkSendingActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
-                                    EOR
+                                    Плановая дата
                                 </Button>
-                                {bulkEorMenuOpen && (
+                                {bulkPlanDateOpen && (
                                     <div
                                         style={{
                                             position: 'absolute',
                                             top: 'calc(100% + 6px)',
                                             left: 0,
                                             zIndex: 12000,
-                                            minWidth: 190,
+                                            minWidth: 220,
                                             border: '1px solid var(--color-border)',
                                             borderRadius: 8,
                                             background: 'var(--color-bg-card)',
                                             boxShadow: '0 6px 18px rgba(0, 0, 0, 0.16)',
-                                            padding: '0.35rem',
+                                            padding: '0.5rem',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '0.4rem',
                                         }}
                                     >
-                                        <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: '0.25rem' }} onClick={() => applyBulkEorStatus('entry_allowed')}>Въезд разрешен</button>
-                                        <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: '0.25rem' }} onClick={() => applyBulkEorStatus('full_inspection')}>Полный досмотр</button>
-                                        <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => applyBulkEorStatus('turnaround')}>Разворот</button>
+                                        <input
+                                            type="date"
+                                            value={bulkPlanDateValue}
+                                            onChange={(e) => setBulkPlanDateValue(e.target.value)}
+                                            className="admin-form-input"
+                                        />
+                                        <Button
+                                            type="button"
+                                            className="button-primary"
+                                            style={{ minWidth: 'auto', padding: '0.35rem 0.55rem' }}
+                                            disabled={bulkSendingActionLoading || !bulkPlanDateValue}
+                                            onClick={applyBulkPlanDate}
+                                        >
+                                            Записать
+                                        </Button>
                                     </div>
                                 )}
                             </div>
@@ -3843,7 +3897,7 @@ useEffect(() => {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                {canEditEor && (
+                                {canEditPlanDate && (
                                     <th style={{ padding: '0.5rem 0.35rem', textAlign: 'center', width: 34 }}>
                                         <input
                                             type="checkbox"
@@ -3917,7 +3971,7 @@ useEffect(() => {
                                             onClick={() => setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey))}
                                             title={expanded ? 'Свернуть посылки' : 'Показать посылки'}
                                         >
-                                            {canEditEor && (
+                                            {canEditPlanDate && (
                                                 <td style={{ padding: '0.5rem 0.35rem', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                                                     <input
                                                         type="checkbox"
@@ -3996,7 +4050,7 @@ useEffect(() => {
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={(showEorColumn ? 9 : 8) + (canEditEor ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={(showEorColumn ? 9 : 8) + (canEditPlanDate ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button
@@ -4261,7 +4315,7 @@ useEffect(() => {
                                                                 const selectedByCustomerCount = selectedSummaryRows.length;
                                                                 return (
                                                                     <>
-                                                                        {canEditEor && (
+                                                                        {canEditPlanDate && (
                                                                             <div className="cargo-card" style={{ padding: '0.45rem 0.6rem', marginBottom: '0.5rem', overflow: 'visible', position: 'sticky', top: 0, zIndex: 10, background: 'var(--color-bg-primary)' }}>
                                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
                                                                                     <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
@@ -4375,7 +4429,7 @@ useEffect(() => {
                                                             <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                                 <thead>
                                                                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                                        {canEditEor && (
+                                                                        {canEditPlanDate && (
                                                                             <th style={{ padding: '0.35rem 0.25rem', textAlign: 'center', width: 30 }}>
                                                                                 <input
                                                                                     type="checkbox"
@@ -4547,7 +4601,7 @@ useEffect(() => {
                                                                                             background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
                                                                                         }}
                                                                                     >
-                                                                                        {canEditEor && (
+                                                                                        {canEditPlanDate && (
                                                                                             <td style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
                                                                                                 <input
                                                                                                     type="checkbox"
@@ -4575,7 +4629,7 @@ useEffect(() => {
                                                                                     </tr>
                                                                                 ))}
                                                                                 <tr>
-                                                                                    {canEditEor && <td style={stickyTotalsCellBase} />}
+                                                                                    {canEditPlanDate && <td style={stickyTotalsCellBase} />}
                                                                                     <td style={{ ...stickyTotalsCellBase, textAlign: 'right' }} colSpan={2}>Итого</td>
                                                                                     <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap' }}>{totals.count}</td>
                                                                                     <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(totals.volume)}</td>
@@ -4662,10 +4716,10 @@ useEffect(() => {
                                     key={rowKey}
                                     className="cargo-card"
                                     onClick={() => setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey))}
-                                    style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative', paddingBottom: canEditEor ? '1.5rem' : undefined }}
+                                    style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative', paddingBottom: canEditPlanDate ? '1.5rem' : undefined }}
                                     title={expanded ? 'Свернуть отправку' : 'Показать детали отправки'}
                                 >
-                                    {canEditEor && (
+                                    {canEditPlanDate && (
                                         <div style={{ position: 'absolute', right: 10, bottom: 10, zIndex: 2 }} onClick={(e) => e.stopPropagation()}>
                                             <input
                                                 type="checkbox"
