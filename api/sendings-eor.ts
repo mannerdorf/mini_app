@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 type EorStatus = "entry_allowed" | "full_inspection" | "turnaround";
 const ALLOWED_STATUSES = new Set<EorStatus>(["entry_allowed", "full_inspection", "turnaround"]);
@@ -55,9 +56,10 @@ function pickCredentials(req: VercelRequest, body?: any) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "sendings-eor");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -65,19 +67,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
   const { login, password } = pickCredentials(req, body);
   if (!login || !password) {
-    return res.status(400).json({ error: "login and password are required" });
+    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
 
   const pool = getPool();
   const verified = await verifyRegisteredUser(pool, login, password);
   if (!verified) {
-    return res.status(401).json({ error: "Неверный email или пароль" });
+    return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
   }
 
   if (req.method === "GET") {
@@ -99,13 +101,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
       }
-      return res.status(200).json({ ok: true, map });
+      return res.status(200).json({ ok: true, map, request_id: ctx.requestId });
     } catch (e: any) {
       const message = String(e?.message || "");
+      logError(ctx, "sendings_eor_get_failed", e);
       if (message.toLowerCase().includes("relation") && message.toLowerCase().includes("sendings_eor")) {
-        return res.status(500).json({ error: "Таблица sendings_eor не найдена. Примените миграцию 032_sendings_eor.sql" });
+        return res.status(500).json({ error: "Таблица sendings_eor не найдена. Примените миграцию 032_sendings_eor.sql", request_id: ctx.requestId });
       }
-      return res.status(500).json({ error: "Failed to load EOR map", details: message });
+      return res.status(500).json({ error: "Failed to load EOR map", details: message, request_id: ctx.requestId });
     }
   }
 
@@ -116,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const sendingDate = normalizeDateOnly(body?.sendingDate);
 
   if (!rowKey) {
-    return res.status(400).json({ error: "rowKey is required" });
+    return res.status(400).json({ error: "rowKey is required", request_id: ctx.requestId });
   }
 
   try {
@@ -127,7 +130,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             and row_key = $2`,
         [login, rowKey]
       );
-      return res.status(200).json({ ok: true, rowKey, statuses: [] });
+      return res.status(200).json({ ok: true, rowKey, statuses: [], request_id: ctx.requestId });
     }
 
     const updated = await pool.query(
@@ -150,13 +153,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
     }
 
-    return res.status(200).json({ ok: true, rowKey, statuses });
+    return res.status(200).json({ ok: true, rowKey, statuses, request_id: ctx.requestId });
   } catch (e: any) {
     const message = String(e?.message || "");
+    logError(ctx, "sendings_eor_post_failed", e);
     if (message.toLowerCase().includes("relation") && message.toLowerCase().includes("sendings_eor")) {
-      return res.status(500).json({ error: "Таблица sendings_eor не найдена. Примените миграцию 032_sendings_eor.sql" });
+      return res.status(500).json({ error: "Таблица sendings_eor не найдена. Примените миграцию 032_sendings_eor.sql", request_id: ctx.requestId });
     }
-    return res.status(500).json({ error: "Failed to save EOR status", details: message });
+    return res.status(500).json({ error: "Failed to save EOR status", details: message, request_id: ctx.requestId });
   }
 }
 

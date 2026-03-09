@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { initRequestContext } from "./_lib/observability.js";
 
 const CODE_TTL_SECONDS = 60 * 10; // 10 minutes
 
@@ -29,9 +30,10 @@ async function setRedisValue(key: string, value: string, ttlSeconds: number): Pr
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "alice-link");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -39,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
@@ -48,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const customer = body?.customer ? String(body.customer) : null;
   const inn = body?.inn != null ? String(body.inn).trim() : undefined;
   if (!login || !password) {
-    return res.status(400).json({ error: "login and password are required" });
+    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
 
   let code = "";
@@ -60,9 +62,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       CODE_TTL_SECONDS
     );
     if (saved) {
-      return res.status(200).json({ ok: true, code, ttl: CODE_TTL_SECONDS });
+      return res.status(200).json({ ok: true, code, ttl: CODE_TTL_SECONDS, request_id: ctx.requestId });
     }
   }
 
-  return res.status(500).json({ error: "Failed to generate code" });
+  return res.status(500).json({ error: "Failed to generate code", request_id: ctx.requestId });
 }

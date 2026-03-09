@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { initRequestContext } from "./_lib/observability.js";
 const BASE_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
@@ -86,9 +87,10 @@ async function callSetPlanDate(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "sendings-plan-date");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -96,18 +98,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
   const date = normalizeDateOnly(body?.date);
   if (!date) {
-    return res.status(400).json({ error: "date is required (YYYY-MM-DD)" });
+    return res.status(400).json({ error: "date is required (YYYY-MM-DD)", request_id: ctx.requestId });
   }
 
   const cargoNumbers = parseCargoNumbers(body?.cargoNumbers);
   if (cargoNumbers.length === 0) {
-    return res.status(400).json({ error: "cargoNumbers is required" });
+    return res.status(400).json({ error: "cargoNumbers is required", request_id: ctx.requestId });
   }
 
   const serviceLogin = String(
@@ -126,6 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({
       error:
         "Set PLAN_DATE_SERVICE_LOGIN/PASSWORD or HAULZ_1C_SERVICE_LOGIN/PASSWORD or PEREVOZKI_SERVICE_LOGIN/PASSWORD in Vercel.",
+      request_id: ctx.requestId,
     });
   }
 
@@ -163,5 +166,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     updated: okCount,
     failed: errorItems.length,
     errors: errorItems,
+    request_id: ctx.requestId,
   });
 }

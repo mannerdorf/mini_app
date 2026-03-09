@@ -1,11 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db";
 import { deleteRedisValue } from "./redis.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "telegram-unlink");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -13,13 +15,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
   const loginRaw = String(body?.login || "").trim();
   const login = loginRaw.toLowerCase();
-  if (!login) return res.status(400).json({ error: "login is required" });
+  if (!login) return res.status(400).json({ error: "login is required", request_id: ctx.requestId });
 
   await Promise.allSettled([
     deleteRedisValue(`tg:by_login:${login}`),
@@ -55,12 +57,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [login]
     );
 
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   } catch (e: any) {
+    logError(ctx, "telegram_unlink_failed", e);
     if (e?.code === "42P01") {
       // Compatibility: if table is not created yet, redis unlink is already done.
-      return res.status(200).json({ ok: true, warning: "telegram_chat_links table is missing" });
+      return res.status(200).json({ ok: true, warning: "telegram_chat_links table is missing", request_id: ctx.requestId });
     }
-    return res.status(500).json({ error: e?.message || "Failed to unlink Telegram" });
+    return res.status(500).json({ error: e?.message || "Failed to unlink Telegram", request_id: ctx.requestId });
   }
 }

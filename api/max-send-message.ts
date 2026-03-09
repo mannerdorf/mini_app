@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import https from "https";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 // Встраиваем логику прямо в файл, чтобы исключить проблемы с импортом в Vercel
 const MAX_API_BASE = "platform-api.max.ru";
@@ -78,6 +79,7 @@ async function maxSendMessage(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "max-send-message");
   // Добавляем CORS заголовки на всякий случай
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -88,7 +90,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const MAX_BOT_TOKEN = process.env.MAX_BOT_TOKEN;
@@ -98,7 +100,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ 
       ok: false, 
       error: "TOKEN_MISSING",
-      message: "Ошибка: MAX_BOT_TOKEN не найден в переменных окружения Vercel. Пожалуйста, добавьте его и сделайте Redeploy." 
+      message: "Ошибка: MAX_BOT_TOKEN не найден в переменных окружения Vercel. Пожалуйста, добавьте его и сделайте Redeploy.",
+      request_id: ctx.requestId, 
     });
   }
 
@@ -119,13 +122,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: "Missing fields", 
         message: "chatId and text are required",
         received: { chatId: !!chatId, text: !!text },
-        bodyType: typeof body
+        bodyType: typeof body,
+        request_id: ctx.requestId,
       });
     }
 
     const numericChatId = Number(chatId);
     if (isNaN(numericChatId)) {
-      return res.status(400).json({ error: "chatId must be a number" });
+      return res.status(400).json({ error: "chatId must be a number", request_id: ctx.requestId });
     }
 
     const numericUserId = userId !== undefined ? Number(userId) : undefined;
@@ -142,13 +146,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     console.log("[max-send-message] Success!");
 
-    return res.status(200).json({ ok: true, result });
+    return res.status(200).json({ ok: true, result, request_id: ctx.requestId });
   } catch (error: any) {
-    console.error("[max-send-message] Handler error:", error);
+    logError(ctx, "max_send_message_failed", error);
     return res.status(500).json({ 
       error: "Failed to send message", 
       message: error?.message || String(error),
-      type: "server_crash_caught"
+      type: "server_crash_caught",
+      request_id: ctx.requestId,
     });
   }
 }

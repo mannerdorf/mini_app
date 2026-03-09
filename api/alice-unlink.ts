@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { initRequestContext } from "./_lib/observability.js";
 
 async function getRedisValue(key: string): Promise<string | null> {
   const url = process.env.UPSTASH_REDIS_REST_URL;
@@ -41,9 +42,10 @@ async function delRedisKeys(keys: string[]): Promise<boolean> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "alice-unlink");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -51,20 +53,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
   const login = typeof body?.login === "string" ? body.login.trim().toLowerCase() : "";
   if (!login) {
-    return res.status(400).json({ error: "login is required" });
+    return res.status(400).json({ error: "login is required", request_id: ctx.requestId });
   }
 
   const userId = await getRedisValue(`alice:login:${login}`);
   if (!userId) {
-    return res.status(200).json({ ok: true, message: "Привязка к Алисе не найдена или уже отключена." });
+    return res.status(200).json({ ok: true, message: "Привязка к Алисе не найдена или уже отключена.", request_id: ctx.requestId });
   }
 
   const deleted = await delRedisKeys([`alice:bind:${userId}`, `alice:login:${login}`]);
-  return res.status(200).json({ ok: true, unlinked: deleted });
+  return res.status(200).json({ ok: true, unlinked: deleted, request_id: ctx.requestId });
 }

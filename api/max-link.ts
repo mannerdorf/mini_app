@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 24; // 24 hours
 
@@ -41,9 +42,10 @@ async function setRedis(key: string, value: string, ttl: number) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "max-link");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   try {
@@ -52,13 +54,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON body" });
+        return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
       }
     }
 
     const { login, password, customer, inn, accountId } = body || {};
     if (!login || !password) {
-      return res.status(400).json({ error: "login and password are required" });
+      return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
     }
 
     const token = crypto.randomBytes(16).toString("hex");
@@ -74,12 +76,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const saved = await setRedis(redisKey, payload, TOKEN_TTL_SECONDS);
     if (!saved) {
-      return res.status(500).json({ error: "Failed to store token" });
+      return res.status(500).json({ error: "Failed to store token", request_id: ctx.requestId });
     }
 
-    return res.status(200).json({ token, ttl: TOKEN_TTL_SECONDS });
+    return res.status(200).json({ token, ttl: TOKEN_TTL_SECONDS, request_id: ctx.requestId });
   } catch (error: any) {
-    console.error("[max-link] error:", error);
-    return res.status(500).json({ error: "Failed to create token", message: error?.message || String(error) });
+    logError(ctx, "max_link_failed", error);
+    return res.status(500).json({ error: "Failed to create token", message: error?.message || String(error), request_id: ctx.requestId });
   }
 }

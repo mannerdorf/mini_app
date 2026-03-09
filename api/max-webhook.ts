@@ -4,6 +4,7 @@ import {
   getMaxWebhookSecret,
   maxSendMessage,
 } from "../lib/maxBot.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 // MAX bot token must be stored in Vercel Environment Variables (server-side only)
 const MAX_BOT_TOKEN = process.env.MAX_BOT_TOKEN;
@@ -53,33 +54,34 @@ async function setRedisValue(key: string, value: string, ttl?: number): Promise<
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "max-webhook");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const debug = String((req.query as any)?.debug ?? "") === "1";
   if (!MAX_BOT_TOKEN) {
-    return res.status(500).json({ error: "MAX_BOT_TOKEN is not configured" });
+    return res.status(500).json({ error: "MAX_BOT_TOKEN is not configured", request_id: ctx.requestId });
   }
 
   // Optional shared-secret guard (recommended)
   if (MAX_WEBHOOK_SECRET) {
     const incoming = getMaxWebhookSecret(req);
     if (incoming !== MAX_WEBHOOK_SECRET) {
-      return res.status(401).json({ error: "Unauthorized" });
+      return res.status(401).json({ error: "Unauthorized", request_id: ctx.requestId });
     }
   }
 
   const update: any = typeof req.body === "string" ? safeJson(req.body) : req.body;
-  if (!update) return res.status(400).json({ error: "Invalid JSON" });
+  if (!update) return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
 
   // Логируем весь update для диагностики
   console.log("MAX webhook received full update:", JSON.stringify(update, null, 2));
 
   // Игнорируем сообщения от бота (не отвечаем сами себе)
   if (update?.message?.sender?.is_bot === true) {
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   // MAX Update (message_created): update_type, timestamp, message (Message), user_locale.
@@ -111,7 +113,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!chatId) {
     console.warn("MAX webhook: No chatId found in update:", JSON.stringify(update));
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   // Текст: message_created — из message.body; bot_started — из update.payload (диплинк ?start=...)
@@ -186,6 +188,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         recipient: recipientFromUpdate,
         replyRecipient,
       },
+      request_id: ctx.requestId,
     });
   }
 
@@ -201,7 +204,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
         text: "Ссылка устарела. Откройте бота из мини‑приложения ещё раз.",
       });
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, request_id: ctx.requestId });
     }
     let parsed: any = null;
     try {
@@ -223,7 +226,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
         text: "Не удалось сохранить привязку. Попробуйте позже.",
       });
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, request_id: ctx.requestId });
     }
     if (parsed?.login) {
       const loginKey = String(parsed.login).trim().toLowerCase();
@@ -243,7 +246,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       recipientUserId: replyRecipient ? undefined : senderId ?? undefined,
       text: `Готово! Аккаунт привязан.\nЗаказчик: ${customerLabel}\nТеперь можно писать в чат.`,
     });
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   const cargoNumber = extractCargoNumberFromPayload(rawText);
@@ -287,8 +290,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         text: `Добрый день!\n\nВижу, что у вас вопрос по перевозке ${cargoNumber}.\n\nВы можете скачать документы прямо здесь:`,
         attachments,
       });
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, request_id: ctx.requestId });
     } catch (error: any) {
+      logError(ctx, "max_webhook_doc_reply_failed", error);
       console.error("Failed to send message:", error);
     }
   }
@@ -375,6 +379,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
     } catch (error: any) {
+      logError(ctx, "max_webhook_ai_or_send_failed", error);
       console.error("MAX webhook: AI or send failed:", error?.message || error);
       try {
         await maxSendMessage({
@@ -385,6 +390,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           text: "Добрый день! Напишите, пожалуйста, ваш вопрос — мы поможем.",
         });
       } catch (e2: any) {
+        logError(ctx, "max_webhook_fallback_send_failed", e2);
         console.error("MAX webhook: fallback send failed:", e2?.message || e2);
       }
     }
@@ -401,7 +407,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (e) {}
   }
 
-  return res.status(200).json({ ok: true });
+  return res.status(200).json({ ok: true, request_id: ctx.requestId });
 }
 
 function safeJson(s: string) {

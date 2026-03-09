@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
 const ADMIN_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
@@ -33,20 +34,21 @@ async function telegramApi<T = any>(method: string, payload?: Record<string, unk
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "tg-webhook-admin");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const authHeader = String(req.headers.authorization || "");
   const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
   const secret = String(req.query.secret || (req.body && req.body.secret) || bearer || "");
   if (!ADMIN_SECRET || secret !== ADMIN_SECRET) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(401).json({ error: "Unauthorized", request_id: ctx.requestId });
   }
 
   if (!TG_BOT_TOKEN) {
-    return res.status(503).json({ error: "HAULZ_TELEGRAM_BOT_TOKEN is not configured" });
+    return res.status(503).json({ error: "HAULZ_TELEGRAM_BOT_TOKEN is not configured", request_id: ctx.requestId });
   }
 
   const action = String(req.query.action || (req.body && req.body.action) || "info").toLowerCase();
@@ -63,6 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         webhook_url: webhookUrl,
         telegram: result.data ?? result.raw,
         info: info.data ?? info.raw,
+        request_id: ctx.requestId,
       });
     }
 
@@ -74,6 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         action: "delete",
         telegram: result.data ?? result.raw,
         info: info.data ?? info.raw,
+        request_id: ctx.requestId,
       });
     }
 
@@ -83,9 +87,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       action: "info",
       expected_webhook_url: webhookUrl,
       info: info.data ?? info.raw,
+      request_id: ctx.requestId,
     });
   } catch (e: any) {
-    return res.status(500).json({ error: e?.message || "Webhook admin error" });
+    logError(ctx, "tg_webhook_admin_failed", e);
+    return res.status(500).json({ error: e?.message || "Webhook admin error", request_id: ctx.requestId });
   }
 }
 

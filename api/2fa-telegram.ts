@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getRedisValue, setRedisValue, deleteRedisValue } from "./redis.js";
+import { initRequestContext } from "./_lib/observability.js";
 
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
 const CODE_TTL_SECONDS = 60 * 5; // 5 minutes
@@ -22,13 +23,14 @@ async function sendTelegramMessage(chatId: string, text: string): Promise<boolea
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "2fa-telegram");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   if (!TG_BOT_TOKEN) {
-    return res.status(500).json({ error: "TG_BOT_TOKEN not configured" });
+    return res.status(500).json({ error: "TG_BOT_TOKEN not configured", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -36,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
@@ -44,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const login = loginRaw.toLowerCase();
   const action = String(body?.action || "").trim();
   if (!login) {
-    return res.status(400).json({ error: "login is required" });
+    return res.status(400).json({ error: "login is required", request_id: ctx.requestId });
   }
 
   if (action === "send") {
@@ -52,31 +54,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       (await getRedisValue(`tg:by_login:${login}`)) ||
       (loginRaw && loginRaw !== login ? await getRedisValue(`tg:by_login:${loginRaw}`) : null);
     if (!chatId) {
-      return res.status(400).json({ error: "Telegram is not linked for this login" });
+      return res.status(400).json({ error: "Telegram is not linked for this login", request_id: ctx.requestId });
     }
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const saved = await setRedisValue(`2fa:code:${login}`, code, CODE_TTL_SECONDS);
     if (!saved) {
-      return res.status(500).json({ error: "Failed to store code" });
+      return res.status(500).json({ error: "Failed to store code", request_id: ctx.requestId });
     }
     const sent = await sendTelegramMessage(chatId, `Код подтверждения: ${code}`);
     if (!sent) {
-      return res.status(500).json({ error: "Failed to send Telegram message" });
+      return res.status(500).json({ error: "Failed to send Telegram message", request_id: ctx.requestId });
     }
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   if (action === "verify") {
     const code = String(body?.code || "").trim();
     if (!code) {
-      return res.status(400).json({ error: "code is required" });
+      return res.status(400).json({ error: "code is required", request_id: ctx.requestId });
     }
     const stored = await getRedisValue(`2fa:code:${login}`);
     if (!stored || stored !== code) {
-      return res.status(400).json({ error: "invalid code" });
+      return res.status(400).json({ error: "invalid code", request_id: ctx.requestId });
     }
     await deleteRedisValue(`2fa:code:${login}`);
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   if (action === "unlink") {
@@ -98,8 +100,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       telegramLinked: false,
     });
     await setRedisValue(`2fa:login:${login}`, payload);
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
-  return res.status(400).json({ error: "invalid action" });
+  return res.status(400).json({ error: "invalid action", request_id: ctx.requestId });
 }

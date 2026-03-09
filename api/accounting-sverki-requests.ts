@@ -5,6 +5,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 function pickCredentials(req: VercelRequest): { login: string; password: string } {
   const login = String(req.headers["x-login"] ?? req.query?.login ?? "").trim();
@@ -21,20 +22,21 @@ function pickCredentials(req: VercelRequest): { login: string; password: string 
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "accounting-sverki-requests");
   if (req.method !== "GET" && req.method !== "POST" && req.method !== "DELETE") {
     res.setHeader("Allow", "GET, POST, DELETE");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const { login, password } = pickCredentials(req);
   if (!login || !password) {
-    return res.status(400).json({ error: "login и password обязательны (x-login, x-password)" });
+    return res.status(400).json({ error: "login и password обязательны (x-login, x-password)", request_id: ctx.requestId });
   }
 
   const pool = getPool();
   const verified = await verifyRegisteredUser(pool, login, password);
   if (!verified) {
-    return res.status(401).json({ error: "Неверный логин или пароль" });
+    return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
   }
 
   const { rows: userRows } = await pool.query<{ permissions: Record<string, boolean> }>(
@@ -44,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const permissions = userRows[0]?.permissions;
   const hasAccounting = permissions && typeof permissions === "object" && permissions.accounting === true;
   if (!hasAccounting) {
-    return res.status(403).json({ error: "Нет доступа к разделу Бухгалтерия" });
+    return res.status(403).json({ error: "Нет доступа к разделу Бухгалтерия", request_id: ctx.requestId });
   }
 
   if (req.method === "GET") {
@@ -64,9 +66,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          ORDER BY created_at DESC, id DESC
          LIMIT 500`
       );
-      return res.json({ requests: rows });
+      return res.json({ requests: rows, request_id: ctx.requestId });
     } catch (e: any) {
-      return res.status(500).json({ error: e?.message || "Ошибка загрузки заявок актов сверки" });
+      logError(ctx, "accounting_sverki_requests_get_failed", e);
+      return res.status(500).json({ error: e?.message || "Ошибка загрузки заявок актов сверки", request_id: ctx.requestId });
     }
   }
 
@@ -78,7 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const id = Number(body?.id ?? 0);
     const status = String(body?.status ?? "").trim();
     if (!Number.isFinite(id) || id <= 0 || status !== "edo_sent") {
-      return res.status(400).json({ error: "Укажите id и status: edo_sent" });
+      return res.status(400).json({ error: "Укажите id и status: edo_sent", request_id: ctx.requestId });
     }
     try {
       const { rows } = await pool.query(
@@ -88,26 +91,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          RETURNING id`,
         [id, login]
       );
-      if (!rows[0]) return res.status(404).json({ error: "Заявка не найдена" });
-      return res.json({ ok: true });
+      if (!rows[0]) return res.status(404).json({ error: "Заявка не найдена", request_id: ctx.requestId });
+      return res.json({ ok: true, request_id: ctx.requestId });
     } catch (e: any) {
-      return res.status(500).json({ error: e?.message || "Ошибка обновления" });
+      logError(ctx, "accounting_sverki_requests_post_failed", e);
+      return res.status(500).json({ error: e?.message || "Ошибка обновления", request_id: ctx.requestId });
     }
   }
 
   if (req.method === "DELETE") {
     const id = Number((req.body as any)?.id ?? (req.query as any)?.id ?? 0);
     if (!Number.isFinite(id) || id <= 0) {
-      return res.status(400).json({ error: "Укажите id" });
+      return res.status(400).json({ error: "Укажите id", request_id: ctx.requestId });
     }
     try {
       const result = await pool.query("DELETE FROM sverki_requests WHERE id = $1", [id]);
-      if ((result.rowCount || 0) <= 0) return res.status(404).json({ error: "Заявка не найдена" });
-      return res.json({ ok: true, deleted: true });
+      if ((result.rowCount || 0) <= 0) return res.status(404).json({ error: "Заявка не найдена", request_id: ctx.requestId });
+      return res.json({ ok: true, deleted: true, request_id: ctx.requestId });
     } catch (e: any) {
-      return res.status(500).json({ error: e?.message || "Ошибка удаления" });
+      logError(ctx, "accounting_sverki_requests_delete_failed", e);
+      return res.status(500).json({ error: e?.message || "Ошибка удаления", request_id: ctx.requestId });
     }
   }
 
-  return res.status(405).json({ error: "Method not allowed" });
+  return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }
