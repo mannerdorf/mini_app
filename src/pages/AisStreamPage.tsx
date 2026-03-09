@@ -47,6 +47,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const timeoutReceivedRef = useRef(false);
 
   const stopStream = useCallback(() => {
     if (eventSourceRef.current) {
@@ -71,6 +72,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
     setError(null);
     setEvents([]);
     setVesselInfo(null);
+    timeoutReceivedRef.current = false;
     stopStream();
 
     const params = new URLSearchParams();
@@ -119,6 +121,11 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
     es.addEventListener("info", (e) => {
       try {
         const data = e.data ? JSON.parse(e.data) : {};
+        const msg = String(data?.message ?? "").toLowerCase();
+        if (msg.includes("timeout") || msg.includes("60s")) {
+          timeoutReceivedRef.current = true;
+          setError("Ограничение 60 сек. Нажмите «Найти судно» для переподключения.");
+        }
         setEvents((prev) => [...prev.slice(-99), { type: "info", data, ts: Date.now() }]);
       } catch {
         setEvents((prev) => [...prev.slice(-99), { type: "info", data: e.data, ts: Date.now() }]);
@@ -126,7 +133,9 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
     });
 
     es.onerror = () => {
-      setError("Соединение прервано");
+      if (!timeoutReceivedRef.current) {
+        setError("Соединение прервано");
+      }
       stopStream();
     };
   }, [mmsi, bbox, messageTypes, stopStream]);
@@ -149,7 +158,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
       <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "0.75rem" }}>
         <Typography.Body style={{ marginBottom: "0.5rem", fontWeight: 600 }}>Номер судна (MMSI)</Typography.Body>
         <Typography.Body style={{ marginBottom: "0.5rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-          Введите 9-значный MMSI судна, чтобы узнать, где оно находится
+          Введите 9-значный MMSI судна, чтобы узнать, где оно находится. Стрим ограничен 60 сек — при обрыве нажмите «Найти судно» снова.
         </Typography.Body>
         <Input
           value={mmsi}
