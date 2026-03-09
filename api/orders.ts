@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * Прокси для GetZayavki в разделе "Заявки".
@@ -86,9 +87,10 @@ function orderDate(item: any): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "orders");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -96,7 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
@@ -111,12 +113,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } = body || {};
 
   if (!login || !password) {
-    return res.status(400).json({ error: "login and password are required" });
+    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
 
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
-    return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)" });
+    return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
   }
 
   if (isRegisteredUser) {
@@ -124,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const pool = getPool();
       const verified = await verifyRegisteredUser(pool, login, password);
       if (!verified) {
-        return res.status(401).json({ error: "Неверный email или пароль" });
+        return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
       }
       let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
         "SELECT data, fetched_at FROM cache_orders WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
@@ -170,7 +172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       return res.status(200).json([]);
     } catch (e) {
-      console.error("orders registered user error:", e);
+      logError(ctx, "orders_registered_user_failed", e);
       return res.status(200).json([]);
     }
   }
@@ -256,7 +258,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const errJson = JSON.parse(text) as Record<string, unknown>;
           const message = (errJson?.Error ?? errJson?.error ?? errJson?.message) as string | undefined;
           const errorText = typeof message === "string" && message.trim() ? message.trim() : text || upstream.statusText;
-          lastError = { status: upstream.status, payload: { error: errorText } };
+          lastError = { status: upstream.status, payload: { error: errorText, request_id: ctx.requestId } };
         } catch {
           lastError = { status: upstream.status, payload: text || upstream.statusText };
         }
@@ -268,7 +270,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (json && typeof json === "object" && json.Success === false) {
           const message = (json.Error ?? json.error ?? json.message) as string | undefined;
           const errorText = typeof message === "string" && message.trim() ? message.trim() : "Ошибка авторизации";
-          lastError = { status: 401, payload: { error: errorText } };
+          lastError = { status: 401, payload: { error: errorText, request_id: ctx.requestId } };
           continue;
         }
         const list = extractItems(json);
@@ -286,7 +288,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return res.status(200).json([]);
   } catch (e: any) {
-    console.error("Orders proxy error:", e);
-    return res.status(500).json({ error: "Proxy error", details: e?.message || String(e) });
+    logError(ctx, "orders_proxy_failed", e);
+    return res.status(500).json({ error: "Proxy error", details: e?.message || String(e), request_id: ctx.requestId });
   }
 }

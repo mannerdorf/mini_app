@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -184,9 +185,10 @@ function extractItems(raw: any): any[] {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "sendings");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -194,7 +196,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
@@ -209,12 +211,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } = body || {};
 
   if (!login || !password) {
-    return res.status(400).json({ error: "login and password are required" });
+    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
 
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
   if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
-    return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)" });
+    return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
   }
 
   const filterCachedItems = (list: any[], finalInns: Set<string> | null) =>
@@ -232,7 +234,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const pool = getPool();
       const verified = await verifyRegisteredUser(pool, login, password);
       if (!verified) {
-        return res.status(401).json({ error: "Неверный email или пароль" });
+        return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
       }
       let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
         "SELECT data, fetched_at FROM cache_sendings WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
@@ -270,7 +272,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       return res.status(200).json([]);
     } catch (e) {
-      console.error("sendings registered user error:", e);
+      logError(ctx, "sendings_registered_user_failed", e);
       return res.status(200).json([]);
     }
   }
@@ -333,7 +335,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const errJson = JSON.parse(text) as Record<string, unknown>;
         const message = (errJson?.Error ?? errJson?.error ?? errJson?.message) as string | undefined;
         const errorText = typeof message === "string" && message.trim() ? message.trim() : text || upstream.statusText;
-        return res.status(upstream.status).json({ error: errorText });
+        return res.status(upstream.status).json({ error: errorText, request_id: ctx.requestId });
       } catch {
         return res.status(upstream.status).send(text || upstream.statusText);
       }
@@ -343,14 +345,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (json && typeof json === "object" && json.Success === false) {
         const message = (json.Error ?? json.error ?? json.message) as string | undefined;
         const errorText = typeof message === "string" && message.trim() ? message.trim() : "Ошибка авторизации";
-        return res.status(401).json({ error: errorText });
+        return res.status(401).json({ error: errorText, request_id: ctx.requestId });
       }
       return res.status(200).json(extractItems(json));
     } catch {
       return res.status(200).send(text);
     }
   } catch (e: any) {
-    console.error("Sendings proxy error:", e);
-    return res.status(500).json({ error: "Proxy error", details: e?.message || String(e) });
+    logError(ctx, "sendings_proxy_failed", e);
+    return res.status(500).json({ error: "Proxy error", details: e?.message || String(e), request_id: ctx.requestId });
   }
 }
