@@ -119,18 +119,18 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
           {typeof vesselInfo.sog === "number" && (
             <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
               Скорость: {vesselInfo.sog} узлов
-              {typeof vesselInfo.cog === "number" && ` • Курс (COG): ${vesselInfo.cog}°`}
-              {typeof vesselInfo.hdt === "number" && ` • Heading (HDT): ${vesselInfo.hdt}°`}
+              {typeof vesselInfo.cog === "number" && ` • Курс относительно земли: ${vesselInfo.cog}°`}
+              {typeof vesselInfo.hdt === "number" && ` • Истинный курс (нос судна): ${vesselInfo.hdt}°`}
             </Typography.Body>
           )}
           {vesselInfo.dest && (
             <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-              dest: {vesselInfo.dest}
+              Порт назначения: {vesselInfo.dest}
             </Typography.Body>
           )}
           {vesselInfo.eta && (
             <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-              eta: {vesselInfo.eta} (UTC)
+              Расчётное время прибытия: {vesselInfo.eta} (UTC)
             </Typography.Body>
           )}
           {typeof vesselInfo.status === "number" && (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator, ClipboardList, FileText } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator, ClipboardList, FileText, Ship } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import type { ExpenseRequestItem } from "./ExpenseRequestsPage";
@@ -410,7 +410,7 @@ function UserRow({
 
 const ADMIN_THEME_KEY = "admin-theme";
 const ADMIN_TAB_KEY = "haulz.admin.tab";
-const ADMIN_TABS = ["users", "templates", "customers", "suppliers", "tariffs", "sverki", "dogovors", "audit", "logs", "integrations", "employee_directory", "subdivisions", "presets", "payment_calendar", "work_schedule", "timesheet", "expense_requests", "accounting", "claims", "pnl"] as const;
+const ADMIN_TABS = ["users", "templates", "customers", "suppliers", "tariffs", "sverki", "dogovors", "ferries", "audit", "logs", "integrations", "employee_directory", "subdivisions", "presets", "payment_calendar", "work_schedule", "timesheet", "expense_requests", "accounting", "claims", "pnl"] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
 
 function getInitialAdminTab(): AdminTab {
@@ -607,6 +607,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [dogovorsSyncDebugResponse, setDogovorsSyncDebugResponse] = useState<string>("");
   const [dogovorsDownloadingId, setDogovorsDownloadingId] = useState<number | null>(null);
   const [dogovorsDownloadError, setDogovorsDownloadError] = useState<string | null>(null);
+  const [ferriesList, setFerriesList] = useState<{ id: number; name: string; mmsi: string; imo: string | null; vessel_type: string | null; teu_capacity: number | null; trailer_capacity: number | null; operator: string | null }[]>([]);
+  const [ferriesLoading, setFerriesLoading] = useState(false);
+  const [ferriesFetchTrigger, setFerriesFetchTrigger] = useState(0);
+  const [ferriesEnrichLoading, setFerriesEnrichLoading] = useState(false);
+  const [ferriesEnrichMessage, setFerriesEnrichMessage] = useState<string | null>(null);
   const [sverkiRequests, setSverkiRequests] = useState<{
     id: number;
     login: string;
@@ -1807,6 +1812,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       .catch(() => setDogovorsList([]))
       .finally(() => setDogovorsLoading(false));
   }, [tab, dogovorsFetchTrigger]);
+
+  useEffect(() => {
+    if (tab !== "ferries") return;
+    setFerriesLoading(true);
+    fetch("/api/ferries", { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((res) => res.json())
+      .then((data: { ferries?: { id: number; name: string; mmsi: string; imo: string | null; vessel_type: string | null; teu_capacity: number | null; trailer_capacity: number | null; operator: string | null }[] }) => {
+        setFerriesList(data.ferries || []);
+      })
+      .catch(() => setFerriesList([]))
+      .finally(() => setFerriesLoading(false));
+  }, [tab, adminToken, ferriesFetchTrigger]);
 
   const downloadDogovorFile = useCallback(async (row: { id: number; docNumber: string; docDate: string | null; customerInn: string }) => {
     const number = String(row.docNumber || "").trim();
@@ -3350,7 +3367,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     }
     return items;
   }, [selectedUser, editorPermissions, editorFinancial, editorAccessAllInns, editorCustomers]);
-  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "tariffs" || tab === "sverki" || tab === "dogovors" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
+  const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "tariffs" || tab === "sverki" || tab === "dogovors" || tab === "ferries" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
 
   return (
     <div className={theme === "light" ? "light-mode w-full" : "w-full"}>
@@ -3539,6 +3556,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           >
             <ClipboardList className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Справочник Договоры
+          </Button>
+          <Button
+            className="filter-button"
+            style={{ background: tab === "ferries" ? "var(--color-primary-blue)" : undefined, color: tab === "ferries" ? "white" : undefined }}
+            onClick={() => setTab("ferries")}
+          >
+            <Ship className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Справочник паромов
           </Button>
           {isSuperAdmin && (
             <Button
@@ -5855,6 +5880,100 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           {!dogovorsLoading && dogovorsList.length > 0 && (
             <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
               Записей: {dogovorsList.length}
+            </Typography.Body>
+          )}
+        </Panel>
+      )}
+
+      {tab === "ferries" && (
+        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+          <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Справочник паромов</Typography.Body>
+          <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
+            Наименование, MMSI. Кнопка «Запросить у Marinesia» обновит IMO и тип судна для паромов в зоне Балтики.
+          </Typography.Body>
+          <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+            <Button
+              type="button"
+              className="filter-button"
+              disabled={ferriesLoading}
+              onClick={() => setFerriesFetchTrigger((n) => n + 1)}
+            >
+              {ferriesLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} /> : null}
+              Обновить
+            </Button>
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={ferriesEnrichLoading || ferriesList.length === 0}
+              onClick={async () => {
+                setFerriesEnrichLoading(true);
+                setFerriesEnrichMessage(null);
+                try {
+                  const res = await fetch("/api/ferries-enrich-marinesia", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                    body: JSON.stringify({}),
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(data?.error || "Ошибка");
+                  setFerriesEnrichMessage(`Обновлено: ${data?.updated ?? 0} из ${data?.total ?? 0} паромов`);
+                  setFerriesFetchTrigger((n) => n + 1);
+                } catch (e) {
+                  setFerriesEnrichMessage((e as Error)?.message || "Ошибка обогащения");
+                } finally {
+                  setFerriesEnrichLoading(false);
+                }
+              }}
+            >
+              {ferriesEnrichLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} /> : null}
+              Запросить у Marinesia
+            </Button>
+          </Flex>
+          {ferriesEnrichMessage && (
+            <Typography.Body style={{ marginBottom: "0.5rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
+              {ferriesEnrichMessage}
+            </Typography.Body>
+          )}
+          {ferriesLoading ? (
+            <Flex align="center" gap="0.5rem">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <Typography.Body>Загрузка...</Typography.Body>
+            </Flex>
+          ) : ferriesList.length === 0 ? (
+            <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Справочник пуст</Typography.Body>
+          ) : (
+            <div style={{ overflowX: "auto", maxHeight: "60vh", overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                <thead>
+                  <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>MMSI</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>IMO</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Тип судна</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}>TEU</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}>Трейлеров</th>
+                    <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Оператор</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ferriesList.map((f) => (
+                    <tr key={f.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{f.name}</td>
+                      <td style={{ padding: "0.5rem 0.75rem" }}>{f.mmsi}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{f.imo || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{f.vessel_type || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>{f.teu_capacity ?? "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>{f.trailer_capacity ?? "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{f.operator || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!ferriesLoading && ferriesList.length > 0 && (
+            <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", marginTop: "0.5rem" }}>
+              Записей: {ferriesList.length}
             </Typography.Body>
           )}
         </Panel>
