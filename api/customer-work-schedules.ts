@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * POST /api/customer-work-schedules
@@ -10,9 +11,10 @@ import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
  * Иначе — только ИНН из account_companies.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "customer-work-schedules");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: { login?: string; password?: string; inns?: string[] } = req.body;
@@ -20,7 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Неверный JSON" });
+      return res.status(400).json({ error: "Неверный JSON", request_id: ctx.requestId });
     }
   }
 
@@ -29,14 +31,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let inns: string[] = Array.isArray(body?.inns) ? body.inns.map((i) => String(i).trim()).filter(Boolean) : [];
 
   if (!login || !password) {
-    return res.status(400).json({ error: "Укажите login и password" });
+    return res.status(400).json({ error: "Укажите login и password", request_id: ctx.requestId });
   }
 
   try {
     const pool = getPool();
     const verified = await verifyRegisteredUser(pool, String(login), String(password));
     if (!verified) {
-      return res.status(401).json({ error: "Неверный email или пароль" });
+      return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
     }
 
     const allowedInns = new Set<string>();
@@ -57,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : inns.filter((i) => allowedInns.has(i));
 
     if (toFetch.length === 0) {
-      return res.status(200).json({ items: [] });
+      return res.status(200).json({ items: [], request_id: ctx.requestId });
     }
 
     const { rows } = await pool.query<{ inn: string; days_of_week: number[]; work_start: string; work_end: string }>(
@@ -76,12 +78,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
     });
 
-    return res.status(200).json({ items });
+    return res.status(200).json({ items, request_id: ctx.requestId });
   } catch (e: unknown) {
     if (String((e as Error)?.message || "").includes("customer_work_schedule")) {
-      return res.status(200).json({ items: [] });
+      return res.status(200).json({ items: [], request_id: ctx.requestId });
     }
-    console.error("customer-work-schedules error:", e);
-    return res.status(500).json({ error: (e as Error)?.message || "Ошибка загрузки" });
+    logError(ctx, "customer_work_schedules_failed", e);
+    return res.status(500).json({ error: (e as Error)?.message || "Ошибка загрузки", request_id: ctx.requestId });
   }
 }

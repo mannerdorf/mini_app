@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyPassword, hashPassword, generatePassword } from "../lib/passwordUtils.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 type Body = {
   login?: string;
@@ -128,16 +129,17 @@ async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "my-department-timesheet");
   if (req.method !== "POST" && req.method !== "PATCH" && req.method !== "PUT" && req.method !== "DELETE") {
     res.setHeader("Allow", "POST, PATCH, PUT, DELETE");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const body = parseBody(req);
   const login = typeof body.login === "string" ? body.login.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
   if (!login || !password) {
-    return res.status(400).json({ error: "Укажите логин и пароль" });
+    return res.status(400).json({ error: "Укажите логин и пароль", request_id: ctx.requestId });
   }
 
   try {
@@ -155,20 +157,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const me = meRes.rows[0];
     if (!me || !me.active || !verifyPassword(password, me.password_hash)) {
-      return res.status(401).json({ error: "Неверный логин или пароль" });
+      return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
     }
 
     const perms = me.permissions && typeof me.permissions === "object" ? me.permissions : {};
     const canViewAllDepartments = perms.analytics === true;
     const canUseSupervisorScope = perms.supervisor === true && perms.haulz === true;
     if (!canViewAllDepartments && !canUseSupervisorScope) {
-      return res.status(403).json({ error: "Доступ только для руководителей подразделений HAULZ" });
+      return res.status(403).json({ error: "Доступ только для руководителей подразделений HAULZ", request_id: ctx.requestId });
     }
 
     const department = normalizePrimaryDepartment(me.department);
     const departmentList = parseDepartmentList(me.department);
     const monthInfo = parseMonth(body.month || "");
-    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
+    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM", request_id: ctx.requestId });
     if (req.method === "DELETE") {
       const employeeId = Number(body.employeeId);
       if (departmentList.length === 0 && !canViewAllDepartments) return res.status(400).json({ error: "У пользователя не задано подразделение" });
@@ -576,10 +578,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       payoutsByEmployee,
       paidDatesByEmployee,
       shiftRateOverrides,
+      request_id: ctx.requestId,
     });
   } catch (e) {
-    console.error("my-department-timesheet error:", e);
-    return res.status(500).json({ error: "Ошибка загрузки табеля подразделения" });
+    logError(ctx, "my_department_timesheet_failed", e);
+    return res.status(500).json({ error: "Ошибка загрузки табеля подразделения", request_id: ctx.requestId });
   }
 }
 

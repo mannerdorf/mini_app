@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyPassword } from "../lib/passwordUtils.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 type Body = {
   login?: string;
@@ -114,9 +115,10 @@ async function ensureTimesheetTable(pool: ReturnType<typeof getPool>) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "my-timesheet-analytics");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const body = parseBody(req);
@@ -125,9 +127,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const dateFrom = normalizeDate(body.dateFrom);
   const dateTo = normalizeDate(body.dateTo);
 
-  if (!login || !password) return res.status(400).json({ error: "Укажите логин и пароль" });
-  if (!dateFrom || !dateTo) return res.status(400).json({ error: "Укажите период dateFrom/dateTo в формате YYYY-MM-DD" });
-  if (dateFrom > dateTo) return res.status(400).json({ error: "dateFrom не может быть больше dateTo" });
+  if (!login || !password) return res.status(400).json({ error: "Укажите логин и пароль", request_id: ctx.requestId });
+  if (!dateFrom || !dateTo) return res.status(400).json({ error: "Укажите период dateFrom/dateTo в формате YYYY-MM-DD", request_id: ctx.requestId });
+  if (dateFrom > dateTo) return res.status(400).json({ error: "dateFrom не может быть больше dateTo", request_id: ctx.requestId });
   const monthRange = getMonthBounds(dateFrom);
 
   try {
@@ -147,11 +149,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const me = meRes.rows[0];
     if (!me || !me.active || !verifyPassword(password, me.password_hash)) {
-      return res.status(401).json({ error: "Неверный логин или пароль" });
+      return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
     }
     const permissions = me.permissions && typeof me.permissions === "object" ? me.permissions : {};
     if (permissions.analytics !== true && permissions.supervisor !== true) {
-      return res.status(403).json({ error: "Недостаточно прав для просмотра аналитики" });
+      return res.status(403).json({ error: "Недостаточно прав для просмотра аналитики", request_id: ctx.requestId });
     }
 
     const meDepartmentRaw = String(me.department || "").trim();
@@ -200,6 +202,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         totalShifts: 0,
         totalCost: 0,
         employees: [],
+        request_id: ctx.requestId,
       });
     }
 
@@ -267,10 +270,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       totalShifts,
       totalCost: Number(totalCost.toFixed(2)),
       employees: employeeStats,
+      request_id: ctx.requestId,
     });
   } catch (e) {
-    console.error("my-timesheet-analytics:", e);
-    return res.status(500).json({ error: "Ошибка загрузки аналитики по табелю" });
+    logError(ctx, "my_timesheet_analytics_failed", e);
+    return res.status(500).json({ error: "Ошибка загрузки аналитики по табелю", request_id: ctx.requestId });
   }
 }
 

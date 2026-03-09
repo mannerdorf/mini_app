@@ -1,14 +1,16 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * GET /api/dogovors
  * Список договоров из кэша (для вкладки «Договоры» в Документах и справочника в админке).
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "dogovors");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   try {
@@ -33,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     return res.json({ dogovors: rows });
   } catch (e: any) {
-    console.error("dogovors error:", e?.message || e);
-    return res.status(500).json({ error: "Ошибка загрузки договоров" });
+    logError(ctx, "dogovors_failed", e);
+    return res.status(500).json({ error: "Ошибка загрузки договоров", request_id: ctx.requestId });
   }
 }

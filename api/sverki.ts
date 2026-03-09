@@ -1,14 +1,16 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * GET /api/sverki
  * Список актов сверок из кэша (для вкладки «Акты сверок» в Документах и справочника в админке).
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "sverki");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   try {
@@ -34,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     return res.json({ sverki: rows });
   } catch (e: any) {
-    console.error("sverki error:", e?.message || e);
-    return res.status(500).json({ error: "Ошибка загрузки актов сверок" });
+    logError(ctx, "sverki_failed", e);
+    return res.status(500).json({ error: "Ошибка загрузки актов сверок", request_id: ctx.requestId });
   }
 }

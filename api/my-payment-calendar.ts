@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * GET /api/my-payment-calendar
@@ -9,9 +10,10 @@ import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
  * Используется дашбордом планового поступления денег (у кого включена аналитика).
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "my-payment-calendar");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: { login?: string; password?: string } = req.body;
@@ -19,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Неверный JSON" });
+      return res.status(400).json({ error: "Неверный JSON", request_id: ctx.requestId });
     }
   }
 
@@ -27,14 +29,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const password = body?.password;
 
   if (!login || !password) {
-    return res.status(400).json({ error: "Укажите login и password" });
+    return res.status(400).json({ error: "Укажите login и password", request_id: ctx.requestId });
   }
 
   try {
     const pool = getPool();
     const verified = await verifyRegisteredUser(pool, String(login), String(password));
     if (!verified) {
-      return res.status(401).json({ error: "Неверный email или пароль" });
+      return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
     }
 
     const inns: string[] = [];
@@ -48,7 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (v && !inns.includes(v)) inns.push(v);
     });
     if (inns.length === 0) {
-      return res.status(200).json({ items: [] });
+      return res.status(200).json({ items: [], request_id: ctx.requestId });
     }
 
     let rows: { inn: string; days_to_pay: number; payment_weekdays?: number[] | null }[];
@@ -94,10 +96,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch {
       // customer_work_schedule может отсутствовать до миграции 024
     }
-    return res.status(200).json({ items, work_schedules: workSchedules });
+    return res.status(200).json({ items, work_schedules: workSchedules, request_id: ctx.requestId });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("my-payment-calendar error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка загрузки" });
+    logError(ctx, "my_payment_calendar_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка загрузки", request_id: ctx.requestId });
   }
 }

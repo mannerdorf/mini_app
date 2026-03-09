@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { decodeBase64File, isClaimType, parseMoney } from "../lib/claims.js";
+import { initRequestContext } from "./_lib/observability.js";
 
 type ClaimCreatePhoto = {
   fileName?: string;
@@ -56,9 +57,10 @@ function toPositiveInt(raw: unknown, fallback: number): number {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "claims");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const pool = getPool();
@@ -66,10 +68,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { login, password } = pickCredentials(req, body);
   const selectedInn = pickInn(req, body);
   const selectedInnNorm = normalizeInn(selectedInn);
-  if (!login || !password) return res.status(400).json({ error: "login and password are required" });
+  if (!login || !password) return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
 
   const verified = await verifyRegisteredUser(pool, login, password);
-  if (!verified) return res.status(401).json({ error: "Неверный логин или пароль" });
+  if (!verified) return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
   const verifiedInnNorm = normalizeInn(verified.inn);
 
   const loginKey = login.trim().toLowerCase();
@@ -95,7 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (selectedInnNorm) {
       if (!verified.accessAllInns && verifiedInnNorm && selectedInnNorm !== verifiedInnNorm) {
-        return res.status(403).json({ error: "Нет доступа к выбранной компании" });
+        return res.status(403).json({ error: "Нет доступа к выбранной компании", request_id: ctx.requestId });
       }
       params.push(selectedInnNorm);
       where.push(`regexp_replace(customer_inn::text, '\\D', '', 'g') = $${params.length}`);
@@ -154,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        LIMIT $${params.length}`,
       params
     );
-    return res.json({ claims: rows });
+    return res.json({ claims: rows, request_id: ctx.requestId });
   }
 
   const payload = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
@@ -177,11 +179,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .map((v: unknown) => String(v || "").trim())
     .filter(Boolean);
 
-  if (!cargoNumber) return res.status(400).json({ error: "Укажите номер перевозки" });
-  if (!isClaimType(claimTypeRaw)) return res.status(400).json({ error: "Неверный тип претензии" });
-  if (!description) return res.status(400).json({ error: "Укажите описание претензии" });
-  if (requestedAmount == null || requestedAmount < 0) return res.status(400).json({ error: "Некорректная сумма требования" });
-  if (photos.length > 10) return res.status(400).json({ error: "Можно прикрепить не более 10 фото" });
+  if (!cargoNumber) return res.status(400).json({ error: "Укажите номер перевозки", request_id: ctx.requestId });
+  if (!isClaimType(claimTypeRaw)) return res.status(400).json({ error: "Неверный тип претензии", request_id: ctx.requestId });
+  if (!description) return res.status(400).json({ error: "Укажите описание претензии", request_id: ctx.requestId });
+  if (requestedAmount == null || requestedAmount < 0) return res.status(400).json({ error: "Некорректная сумма требования", request_id: ctx.requestId });
+  if (photos.length > 10) return res.status(400).json({ error: "Можно прикрепить не более 10 фото", request_id: ctx.requestId });
 
   const userMeta = await pool.query<{
     inn: string;
@@ -195,11 +197,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     [loginKey]
   );
   const user = userMeta.rows[0];
-  if (!user) return res.status(401).json({ error: "Пользователь не найден" });
+  if (!user) return res.status(401).json({ error: "Пользователь не найден", request_id: ctx.requestId });
 
   const customerCompanyName = String(payload?.customerCompanyName || user.company_name || "").trim();
   const customerInn = String(payload?.customerInn || user.inn || "").trim();
-  if (!customerInn) return res.status(400).json({ error: "Не удалось определить ИНН заказчика" });
+  if (!customerInn) return res.status(400).json({ error: "Не удалось определить ИНН заказчика", request_id: ctx.requestId });
 
   const client = await pool.connect();
   try {
@@ -276,10 +278,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
 
     await client.query("COMMIT");
-    return res.status(201).json({ ok: true, id: claim.id, claimNumber: claim.claimNumber });
+    return res.status(201).json({ ok: true, id: claim.id, claimNumber: claim.claimNumber, request_id: ctx.requestId });
   } catch (e: any) {
     await client.query("ROLLBACK");
-    return res.status(400).json({ error: e?.message || "Ошибка создания претензии" });
+    return res.status(400).json({ error: e?.message || "Ошибка создания претензии", request_id: ctx.requestId });
   } finally {
     client.release();
   }

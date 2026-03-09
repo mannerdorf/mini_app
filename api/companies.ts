@@ -1,13 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  const ctx = initRequestContext(req, res, "companies");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const loginParam = req.query.login;
@@ -21,7 +23,7 @@ export default async function handler(
       .filter(Boolean)
   );
   if (logins.length === 0) {
-    return res.status(400).json({ error: "query login (or multiple login) is required" });
+    return res.status(400).json({ error: "query login (or multiple login) is required", request_id: ctx.requestId });
   }
 
   try {
@@ -29,7 +31,7 @@ export default async function handler(
     try {
       pool = getPool();
     } catch {
-      return res.status(200).json({ companies: [] });
+      return res.status(200).json({ companies: [], request_id: ctx.requestId });
     }
     const all: { login: string; inn: string; name: string }[] = [];
 
@@ -61,11 +63,11 @@ export default async function handler(
         }
       }
     }
-    return res.status(200).json({ companies: all });
+    return res.status(200).json({ companies: all, request_id: ctx.requestId });
   } catch (e: any) {
-    console.error("companies list error:", e);
+    logError(ctx, "companies_list_failed", e);
     return res
       .status(500)
-      .json({ error: "Database error", details: e?.message || String(e) });
+      .json({ error: "Database error", details: e?.message || String(e), request_id: ctx.requestId });
   }
 }
