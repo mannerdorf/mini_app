@@ -35,6 +35,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [openShipDataLoading, setOpenShipDataLoading] = useState(false);
   const [vesselApiLoading, setVesselApiLoading] = useState(false);
+  const [marinesiaLoading, setMarinesiaLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const timeoutReceivedRef = useRef(false);
@@ -153,7 +154,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
         setVesselInfo(data.vessel);
         setEvents((prev) => [...prev.slice(-19), { type: "openshipdata", data: data.vessel, ts: Date.now() }]);
       } else {
-        setError("Судно не найдено в зоне Балтики");
+        setError("OpenShipData: судно не найдено в зоне Балтики. Попробуйте VesselAPI или AISstream.");
       }
     } catch (e) {
       setError((e as Error)?.message || "Ошибка запроса");
@@ -182,12 +183,41 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
         setVesselInfo(data.vessel);
         setEvents((prev) => [...prev.slice(-19), { type: "vesselapi", data: data.vessel, ts: Date.now() }]);
       } else {
-        setError("Судно не найдено");
+        setError("VesselAPI: судно не найдено. Попробуйте OpenShipData или AISstream.");
       }
     } catch (e) {
       setError((e as Error)?.message || "Ошибка запроса");
     } finally {
       setVesselApiLoading(false);
+    }
+  }, [mmsi]);
+
+  const fetchMarinesia = useCallback(async () => {
+    const mmsiTrimmed = mmsi.trim().replace(/\D/g, "");
+    if (mmsiTrimmed.length !== 9) {
+      setError("Введите MMSI (9 цифр)");
+      return;
+    }
+    setError(null);
+    setVesselInfo(null);
+    setMarinesiaLoading(true);
+    try {
+      const res = await fetch(`/api/marinesia-ship?mmsi=${mmsiTrimmed}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "Ошибка Marinesia");
+        return;
+      }
+      if (data?.vessel) {
+        setVesselInfo(data.vessel);
+        setEvents((prev) => [...prev.slice(-19), { type: "marinesia", data: data.vessel, ts: Date.now() }]);
+      } else {
+        setError("Marinesia: судно не найдено. Попробуйте другой источник.");
+      }
+    } catch (e) {
+      setError((e as Error)?.message || "Ошибка запроса");
+    } finally {
+      setMarinesiaLoading(false);
     }
   }, [mmsi]);
 
@@ -206,7 +236,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
       <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "0.75rem" }}>
         <Typography.Body style={{ marginBottom: "0.5rem", fontWeight: 600 }}>Номер судна (MMSI)</Typography.Body>
         <Typography.Body style={{ marginBottom: "0.5rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-          Введите 9-значный MMSI судна, чтобы узнать, где оно находится. Стрим ограничен 60 сек — при обрыве нажмите «Найти судно» снова.
+          Введите 9-значный MMSI судна. Если один источник не нашёл — попробуйте другой (AISstream, OpenShipData, VesselAPI, Marinesia).
         </Typography.Body>
         <Input
           value={mmsi}
@@ -257,6 +287,19 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
                   <Zap className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
                 )}
                 Быстрый поиск (VesselAPI)
+              </Button>
+              <Button
+                type="button"
+                className="filter-button"
+                onClick={fetchMarinesia}
+                disabled={!canStart || marinesiaLoading}
+              >
+                {marinesiaLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} />
+                ) : (
+                  <Zap className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+                )}
+                Быстрый поиск (Marinesia)
               </Button>
             </>
           )}
