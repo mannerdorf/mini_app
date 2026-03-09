@@ -1919,6 +1919,17 @@ export default function App() {
                                         onToggle={() => setUseServiceRequest(v => !v)}
                                     />
                                 </span>
+                                <Button
+                                    className="search-toggle-button desktop-expand-toggle"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDesktopExpanded((prev) => !prev);
+                                    }}
+                                    title={desktopExpanded ? "Обычная ширина" : "Расширить окно"}
+                                    aria-label={desktopExpanded ? "Обычная ширина" : "Расширить окно"}
+                                >
+                                    {desktopExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                                </Button>
                                 {useServiceRequest && (
                                     <Button
                                         className="search-toggle-button"
@@ -1943,14 +1954,6 @@ export default function App() {
                         )}
                     </Flex>
                     <Flex align="center" className="space-x-3">
-                        <Button
-                            className="search-toggle-button desktop-expand-toggle"
-                            onClick={() => setDesktopExpanded((prev) => !prev)}
-                            title={desktopExpanded ? "Обычная ширина" : "Расширить окно"}
-                            aria-label={desktopExpanded ? "Обычная ширина" : "Расширить окно"}
-                        >
-                            {desktopExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-                        </Button>
                         {typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug") && (
                             <div ref={debugMenuRef} style={{ position: "relative" }}>
                                 <Button

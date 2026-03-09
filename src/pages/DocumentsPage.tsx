@@ -3791,7 +3791,7 @@ useEffect(() => {
                     </div>
                     </div>
                 </div>
-                {canEditPlanDate && (
+                {canEditPlanDate && tableModeEffective && (
                     <div className="cargo-card sendings-bulk-actions-sticky" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem', overflow: 'visible' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
                             <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
@@ -4670,6 +4670,107 @@ useEffect(() => {
                 )}
                 {!tableModeEffective && (
                     <div className="cargo-list" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
+                        {canEditPlanDate && (
+                            <div className="cargo-card" style={{ padding: '0.6rem 0.75rem', marginBottom: '0.5rem', overflow: 'visible' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
+                                    <Typography.Body style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)' }}>
+                                        Выбрано отправок: {selectedVisibleSendingCount}
+                                    </Typography.Body>
+                                    {canEditEor && (
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
+                                            <Button
+                                                type="button"
+                                                className="filter-button"
+                                                disabled={bulkSendingActionLoading || selectedVisibleSendingCount === 0}
+                                                onClick={() => {
+                                                    setBulkPlanDateOpen(false);
+                                                    setBulkEorMenuOpen((prev) => !prev);
+                                                }}
+                                                style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
+                                            >
+                                                {bulkSendingActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
+                                                EOR
+                                            </Button>
+                                            {bulkEorMenuOpen && (
+                                                <div
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: 'calc(100% + 6px)',
+                                                        left: 0,
+                                                        zIndex: 12000,
+                                                        minWidth: 190,
+                                                        border: '1px solid var(--color-border)',
+                                                        borderRadius: 8,
+                                                        background: 'var(--color-bg-card)',
+                                                        boxShadow: '0 6px 18px rgba(0, 0, 0, 0.16)',
+                                                        padding: '0.35rem',
+                                                    }}
+                                                >
+                                                    <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: '0.25rem' }} onClick={() => applyBulkEorStatus('entry_allowed')}>Въезд разрешен</button>
+                                                    <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start', marginBottom: '0.25rem' }} onClick={() => applyBulkEorStatus('full_inspection')}>Полный досмотр</button>
+                                                    <button type="button" className="filter-button" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => applyBulkEorStatus('turnaround')}>Разворот</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', position: 'relative' }}>
+                                        <Button
+                                            type="button"
+                                            className="filter-button"
+                                            disabled={bulkSendingActionLoading || selectedVisibleSendingCount === 0}
+                                            onClick={() => {
+                                                setBulkEorMenuOpen(false);
+                                                setBulkPlanDateOpen((prev) => !prev);
+                                            }}
+                                            style={{ minWidth: 'auto', padding: '0.35rem 0.6rem' }}
+                                        >
+                                            {bulkSendingActionLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: 4 }} /> : null}
+                                            Плановая дата
+                                        </Button>
+                                        {bulkPlanDateOpen && (
+                                            <div
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: 'calc(100% + 6px)',
+                                                    left: 0,
+                                                    zIndex: 12000,
+                                                    minWidth: 220,
+                                                    border: '1px solid var(--color-border)',
+                                                    borderRadius: 8,
+                                                    background: 'var(--color-bg-card)',
+                                                    boxShadow: '0 6px 18px rgba(0, 0, 0, 0.16)',
+                                                    padding: '0.5rem',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: '0.4rem',
+                                                }}
+                                            >
+                                                <input
+                                                    type="date"
+                                                    value={bulkPlanDateValue}
+                                                    onChange={(e) => setBulkPlanDateValue(e.target.value)}
+                                                    className="admin-form-input"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    className="button-primary"
+                                                    style={{ minWidth: 'auto', padding: '0.35rem 0.55rem' }}
+                                                    disabled={bulkSendingActionLoading || !bulkPlanDateValue}
+                                                    onClick={applyBulkPlanDate}
+                                                >
+                                                    Записать
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                {(bulkSendingActionError || bulkSendingActionInfo) && (
+                                    <Typography.Body style={{ marginTop: '0.35rem', fontSize: '0.78rem', color: bulkSendingActionError ? 'var(--color-error)' : 'var(--color-text-secondary)' }}>
+                                        {bulkSendingActionError || bulkSendingActionInfo}
+                                    </Typography.Body>
+                                )}
+                            </div>
+                        )}
                         {sendingRowsSorted.map((row: any, idx: number) => {
                             const rawDate = row?.Дата ?? row?.Date ?? row?.date ?? '';
                             const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '');
