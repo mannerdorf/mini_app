@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { sendInnAccessEmail } from "../lib/sendInnAccessEmail.js";
+import { getClientIp, isRateLimited, REQUEST_INN_ACCESS_LIMIT } from "../lib/rateLimit.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 function random6(): string {
@@ -15,6 +16,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
+
+  const ip = getClientIp(req);
+  if (isRateLimited("request_inn_access", ip, REQUEST_INN_ACCESS_LIMIT)) {
+    return res.status(429).json({ error: "Слишком много запросов. Подождите минуту.", request_id: ctx.requestId });
+  }
+
   let body: { inn?: string; login?: string } = req.body;
   if (typeof body === "string") {
     try {

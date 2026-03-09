@@ -48,3 +48,11 @@ export function isRateLimited(prefix: string, key: string, limit: number): boole
 /** Limits for admin: login strict, API more permissive */
 export const ADMIN_LOGIN_LIMIT = 10;   // 10 попыток входа в минуту с одного IP
 export const ADMIN_API_LIMIT = 120;    // 120 запросов в минуту на критичные API с одного IP
+
+/** Limits for auth endpoints (brute-force protection) */
+export const AUTH_LOGIN_LIMIT = 15;        // 15 попыток входа в минуту с одного IP
+export const AUTH_CHANGE_PASSWORD_LIMIT = 5; // 5 попыток смены пароля в минуту с одного IP
+export const AUTH_2FA_VERIFY_LIMIT = 10;    // 10 попыток проверки 2FA-кода в минуту с одного IP
+export const AUTH_2FA_SEND_LIMIT = 5;       // 5 запросов на отправку 2FA-кода в Telegram в минуту с одного IP
+export const AUTH_VERIFY_INN_CODE_LIMIT = 10; // 10 попыток проверки кода доступа по ИНН в минуту с одного IP
+export const REQUEST_INN_ACCESS_LIMIT = 5;    // 5 запросов на отправку кода доступа по ИНН в минуту (email)

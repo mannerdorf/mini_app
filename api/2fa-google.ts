@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { generateSecret, verify, generateURI } from "otplib";
 import { getRedisValue, setRedisValue, deleteRedisValue } from "./redis.js";
+import { getClientIp, isRateLimited, AUTH_2FA_VERIFY_LIMIT } from "../lib/rateLimit.js";
 import { initRequestContext } from "./_lib/observability.js";
 
 const ISSUER = "HAULZ";
@@ -52,6 +53,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (action === "verify") {
+    const ip = getClientIp(req);
+    if (isRateLimited("2fa_google_verify", ip, AUTH_2FA_VERIFY_LIMIT)) {
+      return res.status(429).json({ error: "Слишком много попыток. Подождите минуту.", request_id: ctx.requestId });
+    }
     const code = String(body?.code || "").trim();
     if (!code) {
       return res.status(400).json({ error: "code is required", request_id: ctx.requestId });

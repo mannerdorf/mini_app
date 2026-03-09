@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyPassword } from "../lib/passwordUtils.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { getClientIp, isRateLimited, AUTH_LOGIN_LIMIT } from "../lib/rateLimit.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 async function handler(req: VercelRequest, res: VercelResponse) {
@@ -9,6 +10,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
+  }
+
+  const ip = getClientIp(req);
+  if (isRateLimited("auth_login", ip, AUTH_LOGIN_LIMIT)) {
+    return res.status(429).json({ error: "Слишком много попыток входа. Подождите минуту.", request_id: ctx.requestId });
   }
 
   let body: { email?: string; login?: string; password?: string } = req.body;

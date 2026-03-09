@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { getClientIp, isRateLimited, AUTH_VERIFY_INN_CODE_LIMIT } from "../lib/rateLimit.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -8,6 +9,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
+
+  const ip = getClientIp(req);
+  if (isRateLimited("verify_inn_code", ip, AUTH_VERIFY_INN_CODE_LIMIT)) {
+    return res.status(429).json({ error: "Слишком много попыток. Подождите минуту.", request_id: ctx.requestId });
+  }
+
   let body: { inn?: string; login?: string; code?: string } = req.body;
   if (typeof body === "string") {
     try {

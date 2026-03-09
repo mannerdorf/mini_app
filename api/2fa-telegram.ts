@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getRedisValue, setRedisValue, deleteRedisValue } from "./redis.js";
+import { getClientIp, isRateLimited, AUTH_2FA_VERIFY_LIMIT, AUTH_2FA_SEND_LIMIT } from "../lib/rateLimit.js";
 import { initRequestContext } from "./_lib/observability.js";
 
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
@@ -50,6 +51,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (action === "send") {
+    const ip = getClientIp(req);
+    if (isRateLimited("2fa_telegram_send", ip, AUTH_2FA_SEND_LIMIT)) {
+      return res.status(429).json({ error: "Слишком много запросов. Подождите минуту.", request_id: ctx.requestId });
+    }
     const chatId =
       (await getRedisValue(`tg:by_login:${login}`)) ||
       (loginRaw && loginRaw !== login ? await getRedisValue(`tg:by_login:${loginRaw}`) : null);
@@ -69,6 +74,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (action === "verify") {
+    const ip = getClientIp(req);
+    if (isRateLimited("2fa_telegram_verify", ip, AUTH_2FA_VERIFY_LIMIT)) {
+      return res.status(429).json({ error: "Слишком много попыток. Подождите минуту.", request_id: ctx.requestId });
+    }
     const code = String(body?.code || "").trim();
     if (!code) {
       return res.status(400).json({ error: "code is required", request_id: ctx.requestId });
