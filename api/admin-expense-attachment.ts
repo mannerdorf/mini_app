@@ -6,25 +6,27 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-expense-attachment");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const token = getAdminTokenFromRequest(req);
   if (!verifyAdminToken(token) || !token) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   if (!getAdminTokenPayload(token)?.superAdmin) {
-    return res.status(403).json({ error: "Доступ только для супер-администратора" });
+    return res.status(403).json({ error: "Доступ только для супер-администратора", request_id: ctx.requestId });
   }
 
   const requestUid = String(req.query?.requestUid ?? "").trim();
   const attachmentId = Number(req.query?.attachmentId);
   if (!requestUid || !Number.isFinite(attachmentId)) {
-    return res.status(400).json({ error: "Укажите requestUid и attachmentId" });
+    return res.status(400).json({ error: "Укажите requestUid и attachmentId", request_id: ctx.requestId });
   }
 
   try {
@@ -38,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     const row = rows[0];
     if (!row || !row.file_data) {
-      return res.status(404).json({ error: "Вложение не найдено" });
+      return res.status(404).json({ error: "Вложение не найдено", request_id: ctx.requestId });
     }
     const mime = row.mime_type?.trim() || "application/octet-stream";
     const fileName = row.file_name?.trim() || "attachment";
@@ -46,7 +48,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fileName)}"`);
     return res.send(row.file_data);
   } catch (e) {
-    console.error("admin-expense-attachment:", e);
-    return res.status(500).json({ error: "Ошибка загрузки вложения" });
+    logError(ctx, "admin_expense_attachment_failed", e);
+    return res.status(500).json({ error: "Ошибка загрузки вложения", request_id: ctx.requestId });
   }
 }

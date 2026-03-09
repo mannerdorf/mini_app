@@ -5,20 +5,22 @@
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const STATUSES = new Set(["draft", "pending_approval", "sent", "approved", "rejected", "paid"]);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "expense-requests-webhook");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
   let body: unknown = req.body;
   if (typeof body === "string") {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
+      return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
     }
   }
   const b = body as {
@@ -45,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const uid = String(b?.id ?? "").trim();
   const login = String(b?.login ?? "").trim();
   if (!uid || !login) {
-    return res.status(400).json({ error: "id и login обязательны" });
+    return res.status(400).json({ error: "id и login обязательны", request_id: ctx.requestId });
   }
   const department = String(b?.department ?? "").trim() || "—";
   const docNumber = String(b?.docNumber ?? "").trim();
@@ -63,7 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const status = STATUSES.has(String(b?.status ?? "")) ? String(b.status) : "draft";
 
   if (!Number.isFinite(amount) || amount <= 0) {
-    return res.status(400).json({ error: "Некорректная сумма" });
+    return res.status(400).json({ error: "Некорректная сумма", request_id: ctx.requestId });
   }
 
   try {
@@ -77,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const has = (name: string) => cols.has(name);
 
     if (!has("uid")) {
-      return res.status(500).json({ error: "В таблице expense_requests отсутствует колонка uid. Выполните миграции." });
+      return res.status(500).json({ error: "В таблице expense_requests отсутствует колонка uid. Выполните миграции.", request_id: ctx.requestId });
     }
 
     const valuesByColumn: Record<string, unknown> = {
@@ -158,9 +160,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
     }
-    return res.json({ ok: true });
+    return res.json({ ok: true, request_id: ctx.requestId });
   } catch (e) {
-    console.error("expense-requests-webhook:", e);
-    return res.status(500).json({ error: "Ошибка сохранения заявки" });
+    logError(ctx, "expense_requests_webhook_failed", e);
+    return res.status(500).json({ error: "Ошибка сохранения заявки", request_id: ctx.requestId });
   }
 }

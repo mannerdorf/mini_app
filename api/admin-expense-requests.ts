@@ -7,6 +7,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { ensurePnlTransportColumns } from "./_pnl-ensure.js";
 import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 type DbRow = {
   id: number;
@@ -103,12 +104,13 @@ function toFrontendFormat(r: DbRow, login: string) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-expense-requests");
   const token = getAdminTokenFromRequest(req);
   if (!verifyAdminToken(token)) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   if (!getAdminTokenPayload(token)?.superAdmin) {
-    return res.status(403).json({ error: "Доступ только для супер-администратора" });
+    return res.status(403).json({ error: "Доступ только для супер-администратора", request_id: ctx.requestId });
   }
 
   const pool = getPool();
@@ -173,23 +175,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const attachments = row.id != null ? (attachmentsByRequest[row.id] || []) : [];
         return { ...base, categoryName: catMap[base.categoryId] || base.categoryId, attachments };
       });
-      return res.json({ items });
+      return res.json({ items, request_id: ctx.requestId });
     } catch (e) {
-      console.error("admin-expense-requests GET:", e);
-      return res.status(500).json({ error: "Ошибка загрузки заявок" });
+      logError(ctx, "admin_expense_requests_get_failed", e);
+      return res.status(500).json({ error: "Ошибка загрузки заявок", request_id: ctx.requestId });
     }
   }
 
   if (req.method === "DELETE") {
     const uid = String(req.query?.uid ?? req.body?.uid ?? "").trim();
-    if (!uid) return res.status(400).json({ error: "Укажите uid" });
+    if (!uid) return res.status(400).json({ error: "Укажите uid", request_id: ctx.requestId });
     try {
       const { rowCount } = await pool.query("DELETE FROM expense_requests WHERE uid = $1", [uid]);
-      if (rowCount === 0) return res.status(404).json({ error: "Заявка не найдена" });
-      return res.json({ ok: true });
+      if (rowCount === 0) return res.status(404).json({ error: "Заявка не найдена", request_id: ctx.requestId });
+      return res.json({ ok: true, request_id: ctx.requestId });
     } catch (e) {
-      console.error("admin-expense-requests DELETE:", e);
-      return res.status(500).json({ error: "Ошибка удаления" });
+      logError(ctx, "admin_expense_requests_delete_failed", e);
+      return res.status(500).json({ error: "Ошибка удаления", request_id: ctx.requestId });
     }
   }
 
@@ -198,7 +200,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const newStatus = String(req.body?.status ?? req.query?.status ?? "").trim();
     const rejectionReason = typeof req.body?.rejection_reason === "string" ? req.body.rejection_reason.trim() : null;
     if (!uid || !STATUSES.has(newStatus)) {
-      return res.status(400).json({ error: "Укажите uid и корректный status" });
+      return res.status(400).json({ error: "Укажите uid и корректный status", request_id: ctx.requestId });
     }
     try {
       const colsRes = await pool.query<{ column_name: string }>(
@@ -225,7 +227,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const requestRow = rows[0];
         if (!requestRow) {
           await client.query("ROLLBACK");
-          return res.status(404).json({ error: "Заявка не найдена" });
+          return res.status(404).json({ error: "Заявка не найдена", request_id: ctx.requestId });
         }
 
         const previousStatus = requestRow.status;
@@ -271,20 +273,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         try {
           await client.query("ROLLBACK");
         } catch (rollbackErr) {
-          console.error("admin-expense-requests PATCH rollback failed:", rollbackErr);
+          logError(ctx, "admin_expense_requests_patch_rollback_failed", rollbackErr);
         }
         throw txErr;
       } finally {
         client.release();
       }
-      return res.json({ ok: true });
+      return res.json({ ok: true, request_id: ctx.requestId });
     } catch (e) {
       const err = e as Error & { code?: string };
-      console.error("admin-expense-requests PATCH:", err);
+      logError(ctx, "admin_expense_requests_patch_failed", err);
       const msg = err?.message || String(e);
       return res.status(500).json({
         error: "Ошибка обновления статуса",
         details: msg.length > 200 ? msg.slice(0, 200) + "..." : msg,
+        request_id: ctx.requestId,
       });
     }
   }
@@ -295,12 +298,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON" });
+        return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
       }
     }
     const b = body as Record<string, unknown>;
     const uid = String(b?.uid ?? "").trim();
-    if (!uid) return res.status(400).json({ error: "Укажите uid" });
+    if (!uid) return res.status(400).json({ error: "Укажите uid", request_id: ctx.requestId });
     try {
       const colsRes = await pool.query<{ column_name: string }>(
         `SELECT column_name FROM information_schema.columns
@@ -335,25 +338,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (has("updated_at")) {
         sets.push("updated_at = now()");
       }
-      if (sets.length === 0) return res.status(400).json({ error: "Нет полей для обновления" });
+      if (sets.length === 0) return res.status(400).json({ error: "Нет полей для обновления", request_id: ctx.requestId });
       values.push(uid);
       const { rowCount } = await pool.query(
         `UPDATE expense_requests SET ${sets.join(", ")} WHERE uid = $${i + 1}`,
         values
       );
-      if (rowCount === 0) return res.status(404).json({ error: "Заявка не найдена" });
-      return res.json({ ok: true });
+      if (rowCount === 0) return res.status(404).json({ error: "Заявка не найдена", request_id: ctx.requestId });
+      return res.json({ ok: true, request_id: ctx.requestId });
     } catch (e) {
       const err = e as Error & { code?: string };
-      console.error("admin-expense-requests PUT:", err);
+      logError(ctx, "admin_expense_requests_put_failed", err);
       const msg = err?.message ?? String(e);
       return res.status(500).json({
         error: "Ошибка обновления заявки",
         details: msg.length > 200 ? msg.slice(0, 200) + "..." : msg,
+        request_id: ctx.requestId,
       });
     }
   }
 
   res.setHeader("Allow", "GET, PATCH, PUT, DELETE");
-  return res.status(405).json({ error: "Method not allowed" });
+  return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }

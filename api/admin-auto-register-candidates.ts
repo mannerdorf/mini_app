@@ -6,6 +6,7 @@ import { generatePassword, hashPassword } from "../lib/passwordUtils.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { sendLkAddTo1c } from "../lib/sendLkTo1c.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const DEFAULT_PERMISSIONS = {
   cms_access: false,
@@ -113,12 +114,13 @@ async function collectCandidates(q?: string): Promise<{
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-auto-register-candidates");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
 
   const autoModeEnabled = String(process.env.AUTO_REGISTER_FROM_CUSTOMERS || "").toLowerCase() === "true";
@@ -132,19 +134,21 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         auto_mode_enabled: autoModeEnabled,
         candidates,
         stats,
+        request_id: ctx.requestId,
       });
     } catch (e: unknown) {
       const err = e as Error;
-      return res.status(500).json({ error: err?.message || "Ошибка dry-run кандидатов" });
+      logError(ctx, "admin_auto_register_candidates_get_failed", err);
+      return res.status(500).json({ error: err?.message || "Ошибка dry-run кандидатов", request_id: ctx.requestId });
     }
   }
 
   if (!autoModeEnabled) {
-    return res.status(400).json({ error: "AUTO_REGISTER_FROM_CUSTOMERS=false. Включите переменную окружения для авто-режима." });
+    return res.status(400).json({ error: "AUTO_REGISTER_FROM_CUSTOMERS=false. Включите переменную окружения для авто-режима.", request_id: ctx.requestId });
   }
   const payload = getAdminTokenPayload(getAdminTokenFromRequest(req));
   if (!payload?.superAdmin) {
-    return res.status(403).json({ error: "Запуск авто-регистрации доступен только суперадминистратору" });
+    return res.status(403).json({ error: "Запуск авто-регистрации доступен только суперадминистратору", request_id: ctx.requestId });
   }
 
   let body: { inns?: string[]; limit?: number } = req.body as any;
@@ -152,7 +156,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
+      return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
     }
   }
 
@@ -295,10 +299,12 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       email_delay_ms: emailDelayMs,
       email_jitter_ms: emailJitterMs,
       errors: errors.slice(0, 20),
+      request_id: ctx.requestId,
     });
   } catch (e: unknown) {
     const err = e as Error;
-    return res.status(500).json({ error: err?.message || "Ошибка авто-регистрации" });
+    logError(ctx, "admin_auto_register_candidates_post_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка авто-регистрации", request_id: ctx.requestId });
   }
 }
 

@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const DEFAULT_PREFS = {
   telegram: { daily_summary: true } as Record<string, boolean>,
@@ -10,21 +11,22 @@ const EVENTS = ["accepted", "in_transit", "delivered", "bill_created", "bill_pai
 
 /** GET ?login= — настройки из БД (notification_preferences). POST { login, preferences } — сохранить в БД. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "webpush-preferences");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let pool: Awaited<ReturnType<typeof getPool>>;
   try {
     pool = getPool();
   } catch {
-    return res.status(503).json({ error: "Database not configured" });
+    return res.status(503).json({ error: "Database not configured", request_id: ctx.requestId });
   }
 
   if (req.method === "GET") {
     const login = String(req.query?.login || "").trim().toLowerCase();
-    if (!login) return res.status(400).json({ error: "login is required" });
+    if (!login) return res.status(400).json({ error: "login is required", request_id: ctx.requestId });
 
     const prefs = { ...DEFAULT_PREFS };
     try {
@@ -40,12 +42,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({
             telegram: { ...DEFAULT_PREFS.telegram, ...telegram },
             webpush: { ...DEFAULT_PREFS.webpush, ...webpush },
+            request_id: ctx.requestId,
           });
         }
       } catch (e: any) {
         // New state table missing or inaccessible; fallback to legacy rows below.
         if (e?.code !== "42P01") {
-          console.error("webpush-preferences GET state table error:", e?.message || e);
+          logError(ctx, "webpush_preferences_get_state_failed", e);
         }
       }
       const { rows } = await pool.query<{ channel: string; event_id: string; enabled: boolean }>(
@@ -58,13 +61,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           prefs[ch][r.event_id] = r.enabled;
         }
       }
-      return res.status(200).json(prefs);
+      return res.status(200).json({ ...prefs, request_id: ctx.requestId });
     } catch (e: any) {
       if (e?.code === "42P01") {
-        return res.status(200).json(prefs);
+        return res.status(200).json({ ...prefs, request_id: ctx.requestId });
       }
-      console.error("webpush-preferences GET error:", e?.message || e);
-      return res.status(500).json({ error: "Failed to load preferences" });
+      logError(ctx, "webpush_preferences_get_failed", e);
+      return res.status(500).json({ error: "Failed to load preferences", request_id: ctx.requestId });
     }
   }
 
@@ -73,15 +76,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
   const login = String(body?.login || "").trim().toLowerCase();
   const preferences = body?.preferences;
-  if (!login) return res.status(400).json({ error: "login is required" });
+  if (!login) return res.status(400).json({ error: "login is required", request_id: ctx.requestId });
   if (!preferences || typeof preferences !== "object") {
-    return res.status(400).json({ error: "preferences object is required" });
+    return res.status(400).json({ error: "preferences object is required", request_id: ctx.requestId });
   }
 
   const telegram = preferences.telegram && typeof preferences.telegram === "object" ? preferences.telegram : {};
@@ -103,7 +106,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     } catch (e: any) {
       // Continue with legacy sync if new table does not exist in DB yet.
       if (e?.code !== "42P01") {
-        console.error("webpush-preferences POST state table error:", e?.message || e);
+        logError(ctx, "webpush_preferences_post_state_failed", e);
       }
     }
 
@@ -128,9 +131,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         throw e;
       }
     }
-    return res.status(200).json({ ok: true, preferences: current });
+    return res.status(200).json({ ok: true, preferences: current, request_id: ctx.requestId });
   } catch (e: any) {
-    console.error("webpush-preferences POST error:", e?.message || e);
-    return res.status(500).json({ error: "Failed to save preferences" });
+    logError(ctx, "webpush_preferences_post_failed", e);
+    return res.status(500).json({ error: "Failed to save preferences", request_id: ctx.requestId });
   }
 }

@@ -6,6 +6,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 type DbRow = {
   uid: string;
@@ -34,20 +35,21 @@ function pickCredentials(req: VercelRequest): { login: string; password: string 
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "my-expense-requests");
   if (req.method !== "GET" && req.method !== "PATCH" && req.method !== "DELETE") {
     res.setHeader("Allow", "GET, PATCH, DELETE");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const { login, password } = pickCredentials(req);
   if (!login || !password) {
-    return res.status(400).json({ error: "login and password required (x-login, x-password)" });
+    return res.status(400).json({ error: "login and password required (x-login, x-password)", request_id: ctx.requestId });
   }
 
   const pool = getPool();
   const verified = await verifyRegisteredUser(pool, login, password);
   if (!verified) {
-    return res.status(401).json({ error: "Неверный логин или пароль" });
+    return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
   }
 
   const loginKey = login.trim().toLowerCase();
@@ -58,12 +60,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON" });
+        return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
       }
     }
     const b = body as { uid?: string; employeeName?: string; docDate?: string; status?: string };
     const uid = String(b?.uid ?? "").trim();
-    if (!uid) return res.status(400).json({ error: "Укажите uid заявки" });
+    if (!uid) return res.status(400).json({ error: "Укажите uid заявки", request_id: ctx.requestId });
     try {
       const colsRes = await pool.query<{ column_name: string }>(
         `SELECT column_name FROM information_schema.columns
@@ -88,7 +90,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const statusVal = typeof b?.status === "string" ? b.status.trim() : undefined;
       if (statusVal && ["draft", "pending_approval"].includes(statusVal)) add("status", statusVal);
       if (has("updated_at")) sets.push("updated_at = now()");
-      if (sets.length === 0) return res.status(400).json({ error: "Нет полей для обновления" });
+      if (sets.length === 0) return res.status(400).json({ error: "Нет полей для обновления", request_id: ctx.requestId });
       values.push(uid, loginKey);
       const { rowCount } = await pool.query<{ login: string }>(
         `UPDATE expense_requests SET ${sets.join(", ")} WHERE uid = $${i + 1} AND LOWER(TRIM(login)) = $${i + 2} RETURNING login`,
@@ -96,19 +98,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       if (rowCount === 0) {
         const exists = await pool.query("SELECT 1 FROM expense_requests WHERE uid = $1", [uid]);
-        if (exists.rows.length === 0) return res.status(404).json({ error: "Заявка не найдена" });
-        return res.status(403).json({ error: "Нет доступа к этой заявке" });
+        if (exists.rows.length === 0) return res.status(404).json({ error: "Заявка не найдена", request_id: ctx.requestId });
+        return res.status(403).json({ error: "Нет доступа к этой заявке", request_id: ctx.requestId });
       }
-      return res.json({ ok: true });
+      return res.json({ ok: true, request_id: ctx.requestId });
     } catch (e) {
-      console.error("my-expense-requests PATCH:", e);
-      return res.status(500).json({ error: "Ошибка обновления заявки" });
+      logError(ctx, "my_expense_requests_patch_failed", e);
+      return res.status(500).json({ error: "Ошибка обновления заявки", request_id: ctx.requestId });
     }
   }
 
   if (req.method === "DELETE") {
     const uid = String(req.query?.uid ?? (req.body && typeof req.body === "object" && "uid" in req.body ? req.body.uid : "") ?? "").trim();
-    if (!uid) return res.status(400).json({ error: "Укажите uid заявки" });
+    if (!uid) return res.status(400).json({ error: "Укажите uid заявки", request_id: ctx.requestId });
     try {
       const { rowCount } = await pool.query(
         `DELETE FROM expense_requests WHERE uid = $1 AND LOWER(TRIM(login)) = $2`,
@@ -116,13 +118,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       if (rowCount === 0) {
         const exists = await pool.query("SELECT 1 FROM expense_requests WHERE uid = $1", [uid]);
-        if (exists.rows.length === 0) return res.status(404).json({ error: "Заявка не найдена" });
-        return res.status(403).json({ error: "Нет доступа к этой заявке" });
+        if (exists.rows.length === 0) return res.status(404).json({ error: "Заявка не найдена", request_id: ctx.requestId });
+        return res.status(403).json({ error: "Нет доступа к этой заявке", request_id: ctx.requestId });
       }
-      return res.json({ ok: true });
+      return res.json({ ok: true, request_id: ctx.requestId });
     } catch (e) {
-      console.error("my-expense-requests DELETE:", e);
-      return res.status(500).json({ error: "Ошибка удаления заявки" });
+      logError(ctx, "my_expense_requests_delete_failed", e);
+      return res.status(500).json({ error: "Ошибка удаления заявки", request_id: ctx.requestId });
     }
   }
 
@@ -183,9 +185,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rejectionReason: r.rejection_reason || undefined,
     }));
 
-    return res.json({ items });
+    return res.json({ items, request_id: ctx.requestId });
   } catch (e) {
-    console.error("my-expense-requests:", e);
-    return res.status(500).json({ error: "Ошибка загрузки заявок" });
+    logError(ctx, "my_expense_requests_get_failed", e);
+    return res.status(500).json({ error: "Ошибка загрузки заявок", request_id: ctx.requestId });
   }
 }

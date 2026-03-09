@@ -4,6 +4,7 @@ import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from
 import { getClientIp, isRateLimited, ADMIN_API_LIMIT } from "../lib/rateLimit.js";
 import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 type PresetRow = {
   id: number;
@@ -33,9 +34,10 @@ function normalizePermissions(permissions: unknown): Record<string, boolean> {
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-presets");
   const token = getAdminTokenFromRequest(req);
   if (!verifyAdminToken(token)) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
 
   if (req.method === "GET") {
@@ -51,21 +53,21 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         financial: r.financial_access,
         serviceMode: r.service_mode,
       }));
-      return res.status(200).json({ presets });
+      return res.status(200).json({ presets, request_id: ctx.requestId });
     } catch (e: unknown) {
-      console.error("admin-presets GET error:", e);
-      return res.status(500).json({ error: "Ошибка загрузки пресетов" });
+      logError(ctx, "admin_presets_get_failed", e);
+      return res.status(500).json({ error: "Ошибка загрузки пресетов", request_id: ctx.requestId });
     }
   }
 
   if (req.method === "POST" || req.method === "DELETE") {
     const payload = getAdminTokenPayload(token);
     if (payload?.superAdmin !== true) {
-      return res.status(403).json({ error: "Создавать и удалять пресеты может только суперадминистратор" });
+      return res.status(403).json({ error: "Создавать и удалять пресеты может только суперадминистратор", request_id: ctx.requestId });
     }
     const ip = getClientIp(req);
     if (isRateLimited("admin_api", ip, ADMIN_API_LIMIT)) {
-      return res.status(429).json({ error: "Слишком много запросов. Подождите минуту." });
+      return res.status(429).json({ error: "Слишком много запросов. Подождите минуту.", request_id: ctx.requestId });
     }
   }
 
@@ -75,11 +77,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON" });
+        return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
       }
     }
     const label = typeof body?.label === "string" ? body.label.trim() : "";
-    if (!label) return res.status(400).json({ error: "Укажите название пресета" });
+    if (!label) return res.status(400).json({ error: "Укажите название пресета", request_id: ctx.requestId });
     const permissions = normalizePermissions(body?.permissions);
     const financial = !!body?.financial;
     const serviceMode = !!body?.serviceMode;
@@ -89,13 +91,13 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       const pool = getPool();
       if (idParam) {
         const id = parseInt(idParam, 10);
-        if (isNaN(id) || id < 1) return res.status(400).json({ error: "Некорректный id" });
+        if (isNaN(id) || id < 1) return res.status(400).json({ error: "Некорректный id", request_id: ctx.requestId });
         await pool.query(
           `UPDATE admin_role_presets SET label = $1, permissions = $2, financial_access = $3, service_mode = $4, sort_order = COALESCE(sort_order, 0) WHERE id = $5`,
           [label, JSON.stringify(permissions), financial, serviceMode, id]
         );
         await writeAuditLog(pool, { action: "preset_updated", target_type: "preset", target_id: id, details: { label } });
-        return res.status(200).json({ ok: true, id: String(id), label, permissions, financial, serviceMode });
+        return res.status(200).json({ ok: true, id: String(id), label, permissions, financial, serviceMode, request_id: ctx.requestId });
       }
       const { rows } = await pool.query<{ id: number }>(
         `INSERT INTO admin_role_presets (label, permissions, financial_access, service_mode, sort_order)
@@ -104,14 +106,14 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         [label, JSON.stringify(permissions), financial, serviceMode]
       );
       const newId = rows[0]?.id;
-      if (newId == null) return res.status(500).json({ error: "Ошибка создания пресета" });
+      if (newId == null) return res.status(500).json({ error: "Ошибка создания пресета", request_id: ctx.requestId });
       await writeAuditLog(pool, { action: "preset_created", target_type: "preset", target_id: newId, details: { label } });
-      return res.status(200).json({ ok: true, id: String(newId), label, permissions, financial, serviceMode });
+      return res.status(200).json({ ok: true, id: String(newId), label, permissions, financial, serviceMode, request_id: ctx.requestId });
     } catch (e: unknown) {
-      console.error("admin-presets POST error:", e);
+      logError(ctx, "admin_presets_post_failed", e);
       const err = e as { code?: string };
-      if (err?.code === "23505") return res.status(400).json({ error: "Пресет с таким названием уже существует" });
-      return res.status(500).json({ error: "Ошибка сохранения пресета" });
+      if (err?.code === "23505") return res.status(400).json({ error: "Пресет с таким названием уже существует", request_id: ctx.requestId });
+      return res.status(500).json({ error: "Ошибка сохранения пресета", request_id: ctx.requestId });
     }
   }
 
@@ -119,7 +121,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     const rawId = req.query.id;
     const idParam = typeof rawId === "string" ? rawId.trim() : Array.isArray(rawId) && rawId.length > 0 ? String(rawId[0]).trim() : "";
     const id = parseInt(idParam, 10);
-    if (!idParam || isNaN(id) || id < 1) return res.status(400).json({ error: "Некорректный id" });
+    if (!idParam || isNaN(id) || id < 1) return res.status(400).json({ error: "Некорректный id", request_id: ctx.requestId });
     try {
       const pool = getPool();
       const { rows: presetRows } = await pool.query<{ label: string }>("SELECT label FROM admin_role_presets WHERE id = $1", [id]);
@@ -127,16 +129,16 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       const { rowCount } = await pool.query("DELETE FROM admin_role_presets WHERE id = $1", [id]);
       if ((rowCount ?? 0) > 0) {
         await writeAuditLog(pool, { action: "preset_deleted", target_type: "preset", target_id: id, details: { label } });
-        return res.status(200).json({ ok: true, deleted: true });
+        return res.status(200).json({ ok: true, deleted: true, request_id: ctx.requestId });
       }
-      return res.status(404).json({ error: "Пресет не найден", deleted: false });
+      return res.status(404).json({ error: "Пресет не найден", deleted: false, request_id: ctx.requestId });
     } catch (e: unknown) {
-      console.error("admin-presets DELETE error:", e);
-      return res.status(500).json({ error: "Ошибка удаления пресета" });
+      logError(ctx, "admin_presets_delete_failed", e);
+      return res.status(500).json({ error: "Ошибка удаления пресета", request_id: ctx.requestId });
     }
   }
 
   res.setHeader("Allow", "GET, POST, DELETE");
-  return res.status(405).json({ error: "Method not allowed" });
+  return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }
 export default withErrorLog(handler);

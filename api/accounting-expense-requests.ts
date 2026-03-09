@@ -6,6 +6,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 type DbRow = {
   uid: string;
@@ -40,20 +41,21 @@ function pickCredentials(req: VercelRequest): { login: string; password: string 
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "accounting-expense-requests");
   if (req.method !== "GET" && req.method !== "PATCH") {
     res.setHeader("Allow", "GET, PATCH");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const { login, password } = pickCredentials(req);
   if (!login || !password) {
-    return res.status(400).json({ error: "login и password обязательны (x-login, x-password)" });
+    return res.status(400).json({ error: "login и password обязательны (x-login, x-password)", request_id: ctx.requestId });
   }
 
   const pool = getPool();
   const verified = await verifyRegisteredUser(pool, login, password);
   if (!verified) {
-    return res.status(401).json({ error: "Неверный логин или пароль" });
+    return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
   }
 
   const { rows: userRows } = await pool.query<{ permissions: Record<string, boolean> }>(
@@ -63,7 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const permissions = userRows[0]?.permissions;
   const hasAccounting = permissions && typeof permissions === "object" && permissions.accounting === true;
   if (!hasAccounting) {
-    return res.status(403).json({ error: "Нет доступа к разделу Бухгалтерия" });
+    return res.status(403).json({ error: "Нет доступа к разделу Бухгалтерия", request_id: ctx.requestId });
   }
 
   if (req.method === "GET") {
@@ -141,10 +143,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
       });
 
-      return res.json({ items });
+      return res.json({ items, request_id: ctx.requestId });
     } catch (e) {
-      console.error("accounting-expense-requests GET:", e);
-      return res.status(500).json({ error: "Ошибка загрузки заявок" });
+      logError(ctx, "accounting_expense_requests_get_failed", e);
+      return res.status(500).json({ error: "Ошибка загрузки заявок", request_id: ctx.requestId });
     }
   }
 
@@ -154,13 +156,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON" });
+        return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
       }
     }
     const uid = String(body?.uid ?? "").trim();
     const newStatus = String(body?.status ?? "").trim();
     if (!uid || !STATUSES.has(newStatus)) {
-      return res.status(400).json({ error: "Укажите uid и status (approved, sent, paid)" });
+      return res.status(400).json({ error: "Укажите uid и status (approved, sent, paid)", request_id: ctx.requestId });
     }
     try {
       const { rowCount } = await pool.query(
@@ -168,14 +170,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [newStatus, uid, ["approved", "sent", "paid"]]
       );
       if (rowCount === 0) {
-        return res.status(404).json({ error: "Заявка не найдена или нельзя изменить статус" });
+        return res.status(404).json({ error: "Заявка не найдена или нельзя изменить статус", request_id: ctx.requestId });
       }
-      return res.json({ ok: true });
+      return res.json({ ok: true, request_id: ctx.requestId });
     } catch (e) {
-      console.error("accounting-expense-requests PATCH:", e);
-      return res.status(500).json({ error: "Ошибка обновления статуса" });
+      logError(ctx, "accounting_expense_requests_patch_failed", e);
+      return res.status(500).json({ error: "Ошибка обновления статуса", request_id: ctx.requestId });
     }
   }
 
-  return res.status(405).json({ error: "Method not allowed" });
+  return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }

@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
 import { buildSendingsMetrics, extractArrayFromAnyPayload, upsertSendingsMetrics } from "../lib/sendingsMetrics.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -51,13 +52,14 @@ async function fetchServiceJson(url: string, login: string, password: string) {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-backfill-sendings-metrics");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -65,14 +67,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
   const serviceLogin = String(process.env.PEREVOZKI_SERVICE_LOGIN || "").trim();
   const servicePassword = String(process.env.PEREVOZKI_SERVICE_PASSWORD || "").trim();
   if (!serviceLogin || !servicePassword) {
-    return res.status(503).json({ error: "Не заданы PEREVOZKI_SERVICE_LOGIN / PEREVOZKI_SERVICE_PASSWORD" });
+    return res.status(503).json({ error: "Не заданы PEREVOZKI_SERVICE_LOGIN / PEREVOZKI_SERVICE_PASSWORD", request_id: ctx.requestId });
   }
 
   const today = new Date().toISOString().split("T")[0];
@@ -80,7 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const dateFrom = toIsoDate(body?.dateFrom) || defaultFrom;
   const dateTo = toIsoDate(body?.dateTo) || today;
   if (dateFrom > dateTo) {
-    return res.status(400).json({ error: "dateFrom не может быть больше dateTo" });
+    return res.status(400).json({ error: "dateFrom не может быть больше dateTo", request_id: ctx.requestId });
   }
 
   const chunkDays = Math.max(1, Math.min(90, Number(body?.chunkDays) || 30));
@@ -136,6 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         updated,
       });
     } catch (e: any) {
+      logError(ctx, "admin_backfill_sendings_metrics_chunk_failed", e, { from: currentFrom, to: currentTo });
       chunks.push({
         from: currentFrom,
         to: currentTo,
@@ -164,5 +167,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     nextDateFrom: currentFrom <= dateTo ? currentFrom : null,
     done: currentFrom > dateTo,
     chunks,
+    request_id: ctx.requestId,
   });
 }

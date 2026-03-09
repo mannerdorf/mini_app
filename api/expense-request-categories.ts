@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * Справочник статей расходов для заявок на расходы.
@@ -7,9 +8,10 @@ import { getPool } from "./_db.js";
  * Включаем также expense_categories без записей в pnl (обратная совместимость).
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "expense-request-categories");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
   try {
     const pool = getPool();
@@ -33,8 +35,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     );
     return res.json(rows);
   } catch (e) {
-    console.error("expense-request-categories:", e);
+    logError(ctx, "expense_request_categories_failed", e);
     const msg = e instanceof Error ? e.message : String(e);
-    return res.status(500).json({ error: msg || "Ошибка загрузки статей расходов" });
+    return res.status(500).json({ error: msg || "Ошибка загрузки статей расходов", request_id: ctx.requestId });
   }
 }

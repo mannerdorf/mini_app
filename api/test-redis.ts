@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "test-redis");
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
@@ -8,7 +10,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ 
       error: "Redis config missing", 
       url: !!url, 
-      token: !!token 
+      token: !!token,
+      request_id: ctx.requestId,
     });
   }
 
@@ -31,9 +34,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ 
       ok: setRes.ok, 
       status: setRes.status,
-      data 
+      data,
+      request_id: ctx.requestId,
     });
   } catch (e: any) {
-    return res.status(500).json({ error: e.message });
+    logError(ctx, "test_redis_failed", e);
+    return res.status(500).json({ error: e.message, request_id: ctx.requestId });
   }
 }

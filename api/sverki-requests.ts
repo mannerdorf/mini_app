@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { initRequestContext } from "./_lib/observability.js";
 
 function pickCredentials(req: VercelRequest, body: any): { login: string; password: string } {
   const loginFromHeader = typeof req.headers["x-login"] === "string" ? req.headers["x-login"] : "";
@@ -15,27 +16,28 @@ function isIsoDate(value: string): boolean {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "sverki-requests");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const pool = getPool();
   const body = req.method === "POST" ? req.body : req.query;
   const { login, password } = pickCredentials(req, body);
   if (!login || !password) {
-    return res.status(400).json({ error: "login and password are required" });
+    return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
 
   const verified = await verifyRegisteredUser(pool, login, password);
-  if (!verified) return res.status(401).json({ error: "Неверный логин или пароль" });
+  if (!verified) return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
 
   if (req.method === "GET") {
     const inn = String(req.query?.inn || "").trim();
     const targetInn = inn || (verified.inn || "");
-    if (!targetInn) return res.json({ requests: [] });
+    if (!targetInn) return res.json({ requests: [], request_id: ctx.requestId });
     if (!verified.accessAllInns && verified.inn && targetInn !== verified.inn) {
-      return res.status(403).json({ error: "Нет доступа к этому ИНН" });
+      return res.status(403).json({ error: "Нет доступа к этому ИНН", request_id: ctx.requestId });
     }
 
     const { rows } = await pool.query(
@@ -55,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        LIMIT 50`,
       [targetInn]
     );
-    return res.json({ requests: rows });
+    return res.json({ requests: rows, request_id: ctx.requestId });
   }
 
   const customerInn = String(body?.customerInn || body?.inn || "").trim();
@@ -64,16 +66,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const periodTo = String(body?.periodTo || "").trim();
 
   if (!customerInn || !contract || !periodFrom || !periodTo) {
-    return res.status(400).json({ error: "customerInn, contract, periodFrom, periodTo are required" });
+    return res.status(400).json({ error: "customerInn, contract, periodFrom, periodTo are required", request_id: ctx.requestId });
   }
   if (!isIsoDate(periodFrom) || !isIsoDate(periodTo)) {
-    return res.status(400).json({ error: "Период должен быть в формате YYYY-MM-DD" });
+    return res.status(400).json({ error: "Период должен быть в формате YYYY-MM-DD", request_id: ctx.requestId });
   }
   if (periodFrom > periodTo) {
-    return res.status(400).json({ error: "Дата начала больше даты окончания" });
+    return res.status(400).json({ error: "Дата начала больше даты окончания", request_id: ctx.requestId });
   }
   if (!verified.accessAllInns && verified.inn && customerInn !== verified.inn) {
-    return res.status(403).json({ error: "Нет доступа к этому ИНН" });
+    return res.status(403).json({ error: "Нет доступа к этому ИНН", request_id: ctx.requestId });
   }
 
   const { rows } = await pool.query(
@@ -92,5 +94,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     [login, customerInn, contract, periodFrom, periodTo]
   );
 
-  return res.status(201).json({ ok: true, request: rows[0] });
+  return res.status(201).json({ ok: true, request: rows[0], request_id: ctx.requestId });
 }
