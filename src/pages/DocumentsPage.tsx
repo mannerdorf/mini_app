@@ -4151,6 +4151,7 @@ useEffect(() => {
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('paidWeight')} title="Сортировка">Платный вес {sendingsSummarySortColumn === 'paidWeight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('customer')} title="Сортировка">Заказчик {sendingsSummarySortColumn === 'customer' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -4261,6 +4262,7 @@ useEffect(() => {
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem' }}>{stripOoo(summary.customer) || '—'}</td>
+                                                                                            <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
                                                                                         </tr>
                                                                                     );
                                                                                 })}
@@ -4271,6 +4273,7 @@ useEffect(() => {
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.weight)}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.paidWeight)}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', fontWeight: 700 }}>—</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap', fontWeight: 700 }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
                                                                                 </tr>
                                                                             </>
                                                                         );
@@ -4490,6 +4493,7 @@ useEffect(() => {
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('weight')} title="Сортировка">Вес {sendingsSummarySortColumn === 'weight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('paidWeight')} title="Сортировка">Платный вес {sendingsSummarySortColumn === 'paidWeight' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                                                         <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSummarySort('density')} title="Сортировка">Плотность {sendingsSummarySortColumn === 'density' && (sendingsSummarySortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                                        <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата</th>
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
@@ -4626,6 +4630,7 @@ useEffect(() => {
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
                                                                                         <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', color: densityColor(summary.weight, summary.volume), fontWeight: 600 }}>{densityOf(summary.weight, summary.volume)}</td>
+                                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
                                                                                     </tr>
                                                                                 ))}
                                                                                 <tr>
@@ -4636,6 +4641,7 @@ useEffect(() => {
                                                                                     <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(totals.weight)}</td>
                                                                                     <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(totals.paidWeight)}</td>
                                                                                     <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap', color: densityColor(totals.weight, totals.volume) }}>{densityOf(totals.weight, totals.volume)}</td>
+                                                                                    <td style={{ ...stickyTotalsCellBase, whiteSpace: 'nowrap' }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
                                                                                 </tr>
                                                                             </>
                                                                         );

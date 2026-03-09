@@ -1,196 +1,39 @@
 /**
- * HAULZ — AIS стрим судов (AISstream.io).
- * Поиск по номеру судна (MMSI), формирование запроса: bbox, messageTypes.
+ * HAULZ — AIS. Поиск судна по MMSI через Marinesia API.
  */
-import React, { useState, useCallback, useRef, useEffect } from "react";
-import { ArrowLeft, Ship, Play, Square, Loader2, MapPin, Zap } from "lucide-react";
+import React, { useState, useCallback } from "react";
+
+const NAV_STATUS_LABELS: Record<number, string> = {
+  0: "В движении (двигатель)",
+  1: "На якоре",
+  2: "Не под управлением",
+  3: "Ограниченная манёвренность",
+  4: "Ограничена осадкой",
+  5: "На причале",
+  6: "На мели",
+  7: "Рыболовство",
+  8: "В движении (парус)",
+  9: "Резерв HSC",
+  10: "Резерв WIG",
+  11: "Буксировка",
+  12: "Резерв",
+  13: "Резерв",
+  14: "AIS-SART",
+  15: "Не определено",
+};
+import { ArrowLeft, Ship, Loader2, MapPin } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
-
-const DEFAULT_MESSAGE_TYPES = "PositionReport";
-
-/** Извлекает координаты и название из AIS-сообщения */
-function extractVesselInfo(msg: unknown): { mmsi: string; name: string; lat: number; lon: number; sog?: number; cog?: number; timeUtc?: string } | null {
-  if (!msg || typeof msg !== "object") return null;
-  const m = msg as Record<string, unknown>;
-  const meta = m.MetaData || m.Metadata as Record<string, unknown> | undefined;
-  const pr = (m.Message as Record<string, unknown>)?.["PositionReport"] as Record<string, unknown> | undefined;
-  const lat = meta?.latitude ?? meta?.Latitude ?? pr?.Latitude;
-  const lon = meta?.longitude ?? meta?.Longitude ?? pr?.Longitude;
-  const mmsi = String(meta?.MMSI ?? pr?.UserID ?? "").trim();
-  if (typeof lat !== "number" || typeof lon !== "number" || !mmsi) return null;
-  const name = String(meta?.ShipName ?? "").trim() || `Судно ${mmsi}`;
-  const sog = typeof pr?.Sog === "number" ? pr.Sog : undefined;
-  const cog = typeof pr?.Cog === "number" ? pr.Cog : undefined;
-  const timeUtc = typeof meta?.time_utc === "string" ? meta.time_utc : undefined;
-  return { mmsi, name, lat, lon, sog, cog, timeUtc };
-}
 
 export function AisStreamPage({ onBack }: { onBack: () => void }) {
   const [mmsi, setMmsi] = useState("");
-  const [messageTypes, setMessageTypes] = useState(DEFAULT_MESSAGE_TYPES);
-  const [streaming, setStreaming] = useState(false);
-  const [streamMode, setStreamMode] = useState<"mmsi" | "bbox">("bbox");
-  const [vesselInfo, setVesselInfo] = useState<{ mmsi: string; name: string; lat: number; lon: number; sog?: number; cog?: number; timeUtc?: string } | null>(null);
+  const [vesselInfo, setVesselInfo] = useState<{
+    mmsi: string; name: string; lat: number; lon: number;
+    sog?: number; cog?: number; timeUtc?: string;
+    dest?: string; eta?: string; status?: number; hdt?: number; draught?: number;
+  } | null>(null);
   const [events, setEvents] = useState<{ type: string; data: unknown; ts: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [openShipDataLoading, setOpenShipDataLoading] = useState(false);
-  const [vesselApiLoading, setVesselApiLoading] = useState(false);
-  const [marinesiaLoading, setMarinesiaLoading] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const timeoutReceivedRef = useRef(false);
-
-  const stopStream = useCallback(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-    setStreaming(false);
-  }, []);
-
-  const startStream = useCallback(() => {
-    const mmsiTrimmed = mmsi.trim().replace(/\D/g, "");
-    const useMmsi = mmsiTrimmed.length === 9;
-
-    if (!useMmsi) {
-      setError("Введите MMSI (9 цифр)");
-      return;
-    }
-
-    setError(null);
-    setEvents([]);
-    setVesselInfo(null);
-    timeoutReceivedRef.current = false;
-    stopStream();
-
-    const params = new URLSearchParams();
-    params.set("mmsi", mmsiTrimmed);
-    params.set("messageTypes", messageTypes.trim() || DEFAULT_MESSAGE_TYPES);
-
-    setStreamMode("mmsi");
-
-    const url = `/api/ais-stream?${params.toString()}`;
-    const es = new EventSource(url);
-    eventSourceRef.current = es;
-    setStreaming(true);
-
-    es.addEventListener("meta", (e) => {
-      try {
-        const data = e.data ? JSON.parse(e.data) : {};
-        setEvents((prev) => [...prev.slice(-99), { type: "meta", data, ts: Date.now() }]);
-      } catch {
-        setEvents((prev) => [...prev.slice(-99), { type: "meta", data: e.data, ts: Date.now() }]);
-      }
-    });
-
-    es.addEventListener("ais", (e) => {
-      try {
-        const data = e.data ? JSON.parse(e.data) : {};
-        const info = extractVesselInfo(data);
-        if (info) setVesselInfo(info);
-        setEvents((prev) => [...prev.slice(-99), { type: "ais", data, ts: Date.now() }]);
-      } catch {
-        setEvents((prev) => [...prev.slice(-99), { type: "ais", data: e.data, ts: Date.now() }]);
-      }
-    });
-
-    es.addEventListener("info", (e) => {
-      try {
-        const data = e.data ? JSON.parse(e.data) : {};
-        const msg = String(data?.message ?? "").toLowerCase();
-        if (msg.includes("timeout") || msg.includes("60s")) {
-          timeoutReceivedRef.current = true;
-          setError("Ограничение 60 сек. Нажмите «Найти судно» для переподключения.");
-        }
-        setEvents((prev) => [...prev.slice(-99), { type: "info", data, ts: Date.now() }]);
-      } catch {
-        setEvents((prev) => [...prev.slice(-99), { type: "info", data: e.data, ts: Date.now() }]);
-      }
-    });
-
-    es.addEventListener("error", (e) => {
-      try {
-        const data = (e as MessageEvent).data ? JSON.parse((e as MessageEvent).data) : { error: "Connection error" };
-        if (!timeoutReceivedRef.current) {
-          setError(String(data?.error ?? data));
-        }
-        setEvents((prev) => [...prev.slice(-99), { type: "error", data, ts: Date.now() }]);
-      } catch {
-        if (!timeoutReceivedRef.current) {
-          setError("Соединение прервано");
-        }
-        setEvents((prev) => [...prev.slice(-99), { type: "error", data: (e as MessageEvent).data, ts: Date.now() }]);
-      }
-      stopStream();
-    });
-
-    es.onerror = () => {
-      if (!timeoutReceivedRef.current) {
-        setError("Соединение прервано");
-      }
-      stopStream();
-    };
-  }, [mmsi, messageTypes, stopStream]);
-
-  useEffect(() => () => stopStream(), [stopStream]);
-
-  const fetchOpenShipData = useCallback(async () => {
-    const mmsiTrimmed = mmsi.trim().replace(/\D/g, "");
-    if (mmsiTrimmed.length !== 9) {
-      setError("Введите MMSI (9 цифр)");
-      return;
-    }
-    setError(null);
-    setVesselInfo(null);
-    setOpenShipDataLoading(true);
-    try {
-      const res = await fetch(`/api/openshipdata-ship?mmsi=${mmsiTrimmed}`);
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data?.error || "Ошибка OpenShipData");
-        return;
-      }
-      if (data?.vessel) {
-        setVesselInfo(data.vessel);
-        setEvents((prev) => [...prev.slice(-19), { type: "openshipdata", data: data.vessel, ts: Date.now() }]);
-      } else {
-        setError("OpenShipData: судно не найдено в зоне Балтики. Попробуйте VesselAPI или AISstream.");
-      }
-    } catch (e) {
-      setError((e as Error)?.message || "Ошибка запроса");
-    } finally {
-      setOpenShipDataLoading(false);
-    }
-  }, [mmsi]);
-
-  const fetchVesselApi = useCallback(async () => {
-    const mmsiTrimmed = mmsi.trim().replace(/\D/g, "");
-    if (mmsiTrimmed.length !== 9) {
-      setError("Введите MMSI (9 цифр)");
-      return;
-    }
-    setError(null);
-    setVesselInfo(null);
-    setVesselApiLoading(true);
-    try {
-      const res = await fetch(`/api/vesselapi-ship?mmsi=${mmsiTrimmed}`);
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data?.error || "Ошибка VesselAPI");
-        return;
-      }
-      if (data?.vessel) {
-        setVesselInfo(data.vessel);
-        setEvents((prev) => [...prev.slice(-19), { type: "vesselapi", data: data.vessel, ts: Date.now() }]);
-      } else {
-        setError("VesselAPI: судно не найдено. Попробуйте OpenShipData или AISstream.");
-      }
-    } catch (e) {
-      setError((e as Error)?.message || "Ошибка запроса");
-    } finally {
-      setVesselApiLoading(false);
-    }
-  }, [mmsi]);
+  const [loading, setLoading] = useState(false);
 
   const fetchMarinesia = useCallback(async () => {
     const mmsiTrimmed = mmsi.trim().replace(/\D/g, "");
@@ -200,7 +43,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
     }
     setError(null);
     setVesselInfo(null);
-    setMarinesiaLoading(true);
+    setLoading(true);
     try {
       const res = await fetch(`/api/marinesia-ship?mmsi=${mmsiTrimmed}`);
       const data = await res.json();
@@ -212,17 +55,16 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
         setVesselInfo(data.vessel);
         setEvents((prev) => [...prev.slice(-19), { type: "marinesia", data: data.vessel, ts: Date.now() }]);
       } else {
-        setError("Marinesia: судно не найдено. Попробуйте другой источник.");
+        setError("Судно не найдено");
       }
     } catch (e) {
       setError((e as Error)?.message || "Ошибка запроса");
     } finally {
-      setMarinesiaLoading(false);
+      setLoading(false);
     }
   }, [mmsi]);
 
   const mmsiValid = mmsi.trim().replace(/\D/g, "").length === 9;
-  const canStart = mmsiValid;
 
   return (
     <div className="w-full">
@@ -236,7 +78,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
       <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "0.75rem" }}>
         <Typography.Body style={{ marginBottom: "0.5rem", fontWeight: 600 }}>Номер судна (MMSI)</Typography.Body>
         <Typography.Body style={{ marginBottom: "0.5rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-          Введите 9-значный MMSI судна. Если один источник не нашёл — попробуйте другой (AISstream, OpenShipData, VesselAPI, Marinesia).
+          Введите 9-значный MMSI судна. Данные через Marinesia.
         </Typography.Body>
         <Input
           value={mmsi}
@@ -245,90 +87,19 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
           inputMode="numeric"
           style={{ marginBottom: "0.75rem", fontSize: "1.1rem" }}
         />
-        <Flex align="center" gap="0.5rem" wrap="wrap">
-          {streaming ? (
-            <Button type="button" className="filter-button" onClick={stopStream}>
-              <Square className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-              Остановить
-            </Button>
-          ) : (
-            <>
-              <Button
-                type="button"
-                className="button-primary"
-                onClick={startStream}
-                disabled={!canStart}
-              >
-                <Play className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-                Найти судно (AISstream)
-              </Button>
-              <Button
-                type="button"
-                className="filter-button"
-                onClick={fetchOpenShipData}
-                disabled={!canStart || openShipDataLoading}
-              >
-                {openShipDataLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} />
-                ) : (
-                  <Zap className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-                )}
-                Быстрый поиск (OpenShipData)
-              </Button>
-              <Button
-                type="button"
-                className="filter-button"
-                onClick={fetchVesselApi}
-                disabled={!canStart || vesselApiLoading}
-              >
-                {vesselApiLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} />
-                ) : (
-                  <Zap className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-                )}
-                Быстрый поиск (VesselAPI)
-              </Button>
-              <Button
-                type="button"
-                className="filter-button"
-                onClick={fetchMarinesia}
-                disabled={!canStart || marinesiaLoading}
-              >
-                {marinesiaLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} />
-                ) : (
-                  <Zap className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-                )}
-                Быстрый поиск (Marinesia)
-              </Button>
-            </>
-          )}
-        </Flex>
+        <Button
+          type="button"
+          className="button-primary"
+          onClick={fetchMarinesia}
+          disabled={!mmsiValid || loading}
+        >
+          {loading && <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} />}
+          Найти судно
+        </Button>
         {error && (
           <Typography.Body style={{ marginTop: "0.5rem", color: "var(--color-error)", fontSize: "0.85rem" }}>
             {error}
           </Typography.Body>
-        )}
-        <Button
-          type="button"
-          className="filter-button"
-          style={{ marginTop: "0.75rem", fontSize: "0.85rem" }}
-          onClick={() => setShowAdvanced((p) => !p)}
-        >
-          {showAdvanced ? "Скрыть" : "Расширенные параметры"}
-        </Button>
-        {showAdvanced && (
-          <>
-            <Typography.Body style={{ marginTop: "0.75rem", marginBottom: "0.35rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-              messageTypes (широта, долгота, курс)
-            </Typography.Body>
-            <Input
-              value={messageTypes}
-              onChange={(e) => setMessageTypes(e.target.value)}
-              placeholder="PositionReport"
-              style={{ marginBottom: "0.5rem" }}
-            />
-          </>
         )}
       </Panel>
 
@@ -348,7 +119,28 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
           {typeof vesselInfo.sog === "number" && (
             <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
               Скорость: {vesselInfo.sog} узлов
-              {typeof vesselInfo.cog === "number" && ` • Курс: ${vesselInfo.cog}°`}
+              {typeof vesselInfo.cog === "number" && ` • Курс (COG): ${vesselInfo.cog}°`}
+              {typeof vesselInfo.hdt === "number" && ` • Heading (HDT): ${vesselInfo.hdt}°`}
+            </Typography.Body>
+          )}
+          {vesselInfo.dest && (
+            <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+              dest: {vesselInfo.dest}
+            </Typography.Body>
+          )}
+          {vesselInfo.eta && (
+            <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+              eta: {vesselInfo.eta} (UTC)
+            </Typography.Body>
+          )}
+          {typeof vesselInfo.status === "number" && (
+            <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+              Статус навигации: {vesselInfo.status} ({NAV_STATUS_LABELS[vesselInfo.status] ?? `код ${vesselInfo.status}`})
+            </Typography.Body>
+          )}
+          {typeof vesselInfo.draught === "number" && (
+            <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+              Осадка: {vesselInfo.draught} м
             </Typography.Body>
           )}
           {vesselInfo.timeUtc && (
@@ -367,16 +159,6 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
         </Panel>
       )}
 
-      {streaming && (
-        <Flex align="center" gap="0.35rem" style={{ marginBottom: "0.5rem" }}>
-          <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-primary)" }} />
-          <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-            Стрим активен
-            {streamMode === "mmsi" ? " — поиск по MMSI (зона Балтика)" : ""}
-          </Typography.Body>
-        </Flex>
-      )}
-
       <Panel className="cargo-card" style={{ padding: "1rem", maxHeight: "50vh", overflowY: "auto" }}>
         <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
           <Ship className="w-5 h-5" style={{ color: "var(--color-primary)" }} />
@@ -384,7 +166,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
         </Flex>
         {events.length === 0 ? (
           <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-            Нажмите «Подключиться» и сюда появятся события AIS.
+            Результаты поиска появятся здесь.
           </Typography.Body>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>

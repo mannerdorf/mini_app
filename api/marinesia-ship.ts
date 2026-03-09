@@ -85,13 +85,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const cog = typeof payload?.cog === "number" ? payload.cog : undefined;
     const ts = payload?.ts;
     const timeUtc = typeof ts === "string" ? ts : undefined;
+    const dest = typeof payload?.dest === "string" ? payload.dest : undefined;
+    const eta = typeof payload?.eta === "string" ? payload.eta : undefined;
+    const status = typeof payload?.status === "number" ? payload.status : undefined;
+    const hdt = typeof payload?.hdt === "number" ? payload.hdt : undefined;
+    const draught = typeof payload?.draught === "number" ? payload.draught : undefined;
 
     return res.status(200).json({
       request_id: ctx.requestId,
       source: "Marinesia",
       vessel:
         lat != null && lon != null
-          ? { mmsi: mmsiVal, name, lat: Number(lat), lon: Number(lon), sog, cog, timeUtc }
+          ? { mmsi: mmsiVal, name, lat: Number(lat), lon: Number(lon), sog, cog, timeUtc, dest, eta, status, hdt, draught }
           : null,
       raw: data,
     });
