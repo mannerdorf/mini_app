@@ -3,7 +3,7 @@
  * Поиск по номеру судна (MMSI), формирование запроса: bbox, messageTypes.
  */
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { ArrowLeft, Ship, Play, Square, Loader2, MapPin } from "lucide-react";
+import { ArrowLeft, Ship, Play, Square, Loader2, MapPin, Zap } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 
 const DEFAULT_MESSAGE_TYPES = "PositionReport";
@@ -33,6 +33,8 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
   const [vesselInfo, setVesselInfo] = useState<{ mmsi: string; name: string; lat: number; lon: number; sog?: number; cog?: number; timeUtc?: string } | null>(null);
   const [events, setEvents] = useState<{ type: string; data: unknown; ts: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [openShipDataLoading, setOpenShipDataLoading] = useState(false);
+  const [vesselApiLoading, setVesselApiLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const timeoutReceivedRef = useRef(false);
@@ -131,6 +133,64 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
 
   useEffect(() => () => stopStream(), [stopStream]);
 
+  const fetchOpenShipData = useCallback(async () => {
+    const mmsiTrimmed = mmsi.trim().replace(/\D/g, "");
+    if (mmsiTrimmed.length !== 9) {
+      setError("Введите MMSI (9 цифр)");
+      return;
+    }
+    setError(null);
+    setVesselInfo(null);
+    setOpenShipDataLoading(true);
+    try {
+      const res = await fetch(`/api/openshipdata-ship?mmsi=${mmsiTrimmed}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "Ошибка OpenShipData");
+        return;
+      }
+      if (data?.vessel) {
+        setVesselInfo(data.vessel);
+        setEvents((prev) => [...prev.slice(-19), { type: "openshipdata", data: data.vessel, ts: Date.now() }]);
+      } else {
+        setError("Судно не найдено в зоне Балтики");
+      }
+    } catch (e) {
+      setError((e as Error)?.message || "Ошибка запроса");
+    } finally {
+      setOpenShipDataLoading(false);
+    }
+  }, [mmsi]);
+
+  const fetchVesselApi = useCallback(async () => {
+    const mmsiTrimmed = mmsi.trim().replace(/\D/g, "");
+    if (mmsiTrimmed.length !== 9) {
+      setError("Введите MMSI (9 цифр)");
+      return;
+    }
+    setError(null);
+    setVesselInfo(null);
+    setVesselApiLoading(true);
+    try {
+      const res = await fetch(`/api/vesselapi-ship?mmsi=${mmsiTrimmed}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "Ошибка VesselAPI");
+        return;
+      }
+      if (data?.vessel) {
+        setVesselInfo(data.vessel);
+        setEvents((prev) => [...prev.slice(-19), { type: "vesselapi", data: data.vessel, ts: Date.now() }]);
+      } else {
+        setError("Судно не найдено");
+      }
+    } catch (e) {
+      setError((e as Error)?.message || "Ошибка запроса");
+    } finally {
+      setVesselApiLoading(false);
+    }
+  }, [mmsi]);
+
   const mmsiValid = mmsi.trim().replace(/\D/g, "").length === 9;
   const canStart = mmsiValid;
 
@@ -162,15 +222,43 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
               Остановить
             </Button>
           ) : (
-            <Button
-              type="button"
-              className="button-primary"
-              onClick={startStream}
-              disabled={!canStart}
-            >
-              <Play className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
-              {mmsiValid ? "Найти судно" : "Подключиться"}
-            </Button>
+            <>
+              <Button
+                type="button"
+                className="button-primary"
+                onClick={startStream}
+                disabled={!canStart}
+              >
+                <Play className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+                Найти судно (AISstream)
+              </Button>
+              <Button
+                type="button"
+                className="filter-button"
+                onClick={fetchOpenShipData}
+                disabled={!canStart || openShipDataLoading}
+              >
+                {openShipDataLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} />
+                ) : (
+                  <Zap className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+                )}
+                Быстрый поиск (OpenShipData)
+              </Button>
+              <Button
+                type="button"
+                className="filter-button"
+                onClick={fetchVesselApi}
+                disabled={!canStart || vesselApiLoading}
+              >
+                {vesselApiLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} />
+                ) : (
+                  <Zap className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+                )}
+                Быстрый поиск (VesselAPI)
+              </Button>
+            </>
           )}
         </Flex>
         {error && (
