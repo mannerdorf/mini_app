@@ -2,16 +2,18 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
 import { getEmailSettings } from "../lib/sendRegistrationEmail.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /** GET — текущие шаблоны (из БД или env). POST — сохранить шаблоны в БД. */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-email-templates");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
 
   try {
@@ -22,6 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({
         email_template_registration: settings.email_template_registration ?? "",
         email_template_password_reset: settings.email_template_password_reset ?? "",
+        request_id: ctx.requestId,
       });
     }
 
@@ -30,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON" });
+        return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
       }
     }
 
@@ -51,10 +54,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       [regValue || null, resValue || null]
     );
 
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("admin-email-templates error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка" });
+    logError(ctx, "admin_email_templates_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка", request_id: ctx.requestId });
   }
 }

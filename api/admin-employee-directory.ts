@@ -3,6 +3,7 @@ import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext } from "./_lib/observability.js";
 
 const EMPLOYEE_ROLES = new Set(["employee", "department_head"]);
 const ACCRUAL_TYPES = new Set(["hour", "shift", "month"]);
@@ -83,18 +84,19 @@ async function ensureEmployeeColumns(pool: ReturnType<typeof getPool>) {
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-employee-directory");
   const token = getAdminTokenFromRequest(req);
   if (!verifyAdminToken(token)) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   if (!getAdminTokenPayload(token)?.superAdmin) {
-    return res.status(403).json({ error: "Доступ только для супер-администратора" });
+    return res.status(403).json({ error: "Доступ только для супер-администратора", request_id: ctx.requestId });
   }
 
   const pool = getPool();
   const columnsInfo = await ensureEmployeeColumns(pool);
   if (!columnsInfo.has) {
-    return res.status(400).json({ error: "Нужна миграция 027_registered_users_employee_directory.sql" });
+    return res.status(400).json({ error: "Нужна миграция 027_registered_users_employee_directory.sql", request_id: ctx.requestId });
   }
 
   if (req.method === "GET") {
@@ -139,6 +141,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         accrual_type: normalizeAccrualType(r.accrual_type),
         cooperation_type: normalizeCooperationType(r.cooperation_type || "staff"),
       })),
+      request_id: ctx.requestId,
     });
   }
 
@@ -208,7 +211,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           params
         );
 
-        return res.status(200).json({ ok: true, id: user.id, mode: "assign_existing" });
+        return res.status(200).json({ ok: true, id: user.id, mode: "assign_existing", request_id: ctx.requestId });
       }
 
       // If email is empty, create an internal employee record without mail login.
@@ -290,9 +293,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
          RETURNING id`,
         params
       );
-      return res.status(200).json({ ok: true, id: rows[0]?.id, mode: "create_internal" });
+      return res.status(200).json({ ok: true, id: rows[0]?.id, mode: "create_internal", request_id: ctx.requestId });
     } catch (e: any) {
-      return res.status(500).json({ error: e?.message || "Ошибка сохранения атрибутов сотрудника" });
+      return res.status(500).json({ error: e?.message || "Ошибка сохранения атрибутов сотрудника", request_id: ctx.requestId });
     }
   }
 
@@ -324,7 +327,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
          WHERE id = $2`,
         [body.active, id]
       );
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, request_id: ctx.requestId });
     }
 
     const existing = await pool.query<{
@@ -410,7 +413,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
        WHERE id = ${addParam(id)}`,
       params
     );
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   if (req.method === "DELETE") {
@@ -461,11 +464,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       params
     );
 
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   res.setHeader("Allow", "GET, POST, PATCH, DELETE");
-  return res.status(405).json({ error: "Method not allowed" });
+  return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }
 
 export default withErrorLog(handler);

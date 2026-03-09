@@ -2,15 +2,17 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-request-error-log");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
 
   const limit = Math.min(500, Math.max(10, parseInt(String(req.query.limit || 100), 10) || 100));
@@ -70,11 +72,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
        LIMIT $${idx}`,
       params
     );
-    return res.status(200).json({ entries: rows });
+    return res.status(200).json({ entries: rows, request_id: ctx.requestId });
   } catch (e: unknown) {
     const err = e as Error;
-    console.error("admin-request-error-log error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка загрузки журнала" });
+    logError(ctx, "admin_request_error_log_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка загрузки журнала", request_id: ctx.requestId });
   }
 }
 

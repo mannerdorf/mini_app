@@ -3,6 +3,7 @@ import { getPool } from "./_db.js";
 import { ensurePnlTransportColumns } from "./_pnl-ensure.js";
 import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext } from "./_lib/observability.js";
 
 function parseMonth(value: unknown): { month: string; start: string; next: string } | null {
   const month = String(value ?? "").trim();
@@ -176,16 +177,17 @@ async function deleteTimesheetPayoutFromPnl(db: DbQuery, payoutId: number) {
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-timesheet");
   const token = getAdminTokenFromRequest(req);
-  if (!verifyAdminToken(token)) return res.status(401).json({ error: "Требуется авторизация админа" });
-  if (!getAdminTokenPayload(token)?.superAdmin) return res.status(403).json({ error: "Доступ только для супер-администратора" });
+  if (!verifyAdminToken(token)) return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
+  if (!getAdminTokenPayload(token)?.superAdmin) return res.status(403).json({ error: "Доступ только для супер-администратора", request_id: ctx.requestId });
 
   const pool = getPool();
   await ensureTimesheetTable(pool);
 
   if (req.method === "GET") {
     const monthInfo = parseMonth(req.query?.month);
-    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
+    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM", request_id: ctx.requestId });
 
     const { rows } = await pool.query<{ employee_id: number; work_date: string; value_text: string }>(
       `SELECT employee_id, work_date::text as work_date, value_text
@@ -255,7 +257,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         createdAt: row.created_at,
       });
     }
-    return res.status(200).json({ ok: true, month: monthInfo.month, entries, paymentMarks, shiftRateOverrides, payoutsByEmployee });
+    return res.status(200).json({ ok: true, month: monthInfo.month, entries, paymentMarks, shiftRateOverrides, payoutsByEmployee, request_id: ctx.requestId });
   }
 
   if (req.method === "PUT") {
@@ -264,11 +266,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON" });
+        return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
       }
     }
     const monthInfo = parseMonth(body?.month);
-    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
+    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM", request_id: ctx.requestId });
     const employeeId = Number(body?.employeeId);
     const date = String(body?.date || "").trim();
     const value = String(body?.value || "").trim();
@@ -292,7 +294,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (value === "") {
       await pool.query("DELETE FROM employee_timesheet_entries WHERE employee_id = $1 AND work_date = $2::date", [employeeId, date]);
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, request_id: ctx.requestId });
     }
 
     await pool.query(
@@ -302,7 +304,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
        DO UPDATE SET value_text = EXCLUDED.value_text, updated_at = now()`,
       [employeeId, date, value]
     );
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   if (req.method === "PATCH") {
@@ -311,11 +313,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON" });
+        return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
       }
     }
     const monthInfo = parseMonth(body?.month);
-    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
+    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM", request_id: ctx.requestId });
     const payoutIdRaw = body?.payoutId;
     if (payoutIdRaw !== undefined && payoutIdRaw !== null && String(payoutIdRaw).trim() !== "") {
       const payoutId = Number(payoutIdRaw);
@@ -663,6 +665,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         createdAt: insertedRow?.created_at,
       },
       clearedMarks: markedDates.map((d) => `${employeeId}__${d}`),
+      request_id: ctx.requestId,
     });
   }
 
@@ -672,11 +675,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON" });
+        return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
       }
     }
     const monthInfo = parseMonth(body?.month);
-    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM" });
+    if (!monthInfo) return res.status(400).json({ error: "Укажите месяц в формате YYYY-MM", request_id: ctx.requestId });
     const payoutId = Number(body?.payoutId);
     const employeeId = Number(body?.employeeId);
     if (!Number.isFinite(payoutId) || payoutId <= 0) return res.status(400).json({ error: "payoutId обязателен" });
@@ -707,11 +710,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     } finally {
       db.release();
     }
-    return res.status(200).json({ ok: true });
+    return res.status(200).json({ ok: true, request_id: ctx.requestId });
   }
 
   res.setHeader("Allow", "GET, PUT, PATCH, POST, DELETE");
-  return res.status(405).json({ error: "Method not allowed" });
+  return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }
 
 export default withErrorLog(handler);

@@ -4,6 +4,7 @@ import { getClientIp, isRateLimited, ADMIN_LOGIN_LIMIT } from "../lib/rateLimit.
 import { getPool } from "./_db.js";
 import { verifyPassword } from "../lib/passwordUtils.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 /**
  * POST /api/verify-admin-access
@@ -14,14 +15,15 @@ import { withErrorLog } from "../lib/requestErrorLog.js";
  * 2) пользователь из БД с permissions.cms_access=true и верным паролем -> обычный admin token
  */
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "verify-admin-access");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const ip = getClientIp(req);
   if (isRateLimited("admin_login", ip, ADMIN_LOGIN_LIMIT)) {
-    return res.status(429).json({ error: "Слишком много попыток входа. Попробуйте через минуту." });
+    return res.status(429).json({ error: "Слишком много попыток входа. Попробуйте через минуту.", request_id: ctx.requestId });
   }
 
   let body: { login?: string; password?: string } = req.body;
@@ -29,7 +31,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
+      return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
     }
   }
 
@@ -38,7 +40,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   const password = typeof body?.password === "string" ? body.password : "";
 
   if (!login || !password) {
-    return res.status(400).json({ error: "Войдите в аккаунт для доступа в админку" });
+    return res.status(400).json({ error: "Войдите в аккаунт для доступа в админку", request_id: ctx.requestId });
   }
 
   const adminLogin = process.env.ADMIN_LOGIN?.trim() ?? "";
@@ -56,10 +58,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       const pool = getPool();
       await writeAuditLog(pool, { action: "admin_login", target_type: "session", details: { role: "super_admin" } });
     } catch (e) {
-      console.error("verify-admin-access: audit log error", e);
+      logError(ctx, "verify_admin_access_audit_failed", e);
     }
     const adminToken = createAdminToken(true);
-    return res.status(200).json({ ok: true, adminToken });
+    return res.status(200).json({ ok: true, adminToken, request_id: ctx.requestId });
   }
 
   try {
@@ -86,16 +88,16 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         const { writeAuditLog } = await import("../lib/adminAuditLog.js");
         await writeAuditLog(pool, { action: "admin_login", target_type: "session", details: { role: "cms_user", login: user.login } });
       } catch (e) {
-        console.error("verify-admin-access: audit log error", e);
+        logError(ctx, "verify_admin_access_audit_failed", e);
       }
       const adminToken = createAdminToken(false);
-      return res.status(200).json({ ok: true, adminToken });
+      return res.status(200).json({ ok: true, adminToken, request_id: ctx.requestId });
     }
   } catch (e) {
-    console.error("verify-admin-access: db check error", e);
-    return res.status(500).json({ error: "Ошибка проверки доступа" });
+    logError(ctx, "verify_admin_access_db_check_failed", e);
+    return res.status(500).json({ error: "Ошибка проверки доступа", request_id: ctx.requestId });
   }
 
-  return res.status(403).json({ error: "Доступ запрещён" });
+  return res.status(403).json({ error: "Доступ запрещён", request_id: ctx.requestId });
 }
 export default withErrorLog(handler);
