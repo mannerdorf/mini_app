@@ -2,20 +2,22 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { decodeBase64File, isClaimStatus, parseMoney } from "../lib/claims.js";
 import { getPool } from "./_db.js";
+import { initRequestContext } from "./_lib/observability.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-claim-update");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const token = getAdminTokenFromRequest(req);
   const payload = getAdminTokenPayload(token);
-  if (!(payload as any)?.admin) return res.status(401).json({ error: "Требуется авторизация админа" });
+  if (!(payload as any)?.admin) return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
 
   const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
   const claimId = Number(body?.claimId);
-  if (!Number.isFinite(claimId) || claimId <= 0) return res.status(400).json({ error: "Некорректный claimId" });
+  if (!Number.isFinite(claimId) || claimId <= 0) return res.status(400).json({ error: "Некорректный claimId", request_id: ctx.requestId });
   const action = String(body?.action || "").trim();
 
   const nextStatusRaw = String(body?.status || "").trim();
@@ -30,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const approvedAmount = parseMoney(body?.approvedAmount);
   const enqueuePush = body?.enqueuePush !== false;
 
-  if (nextStatusRaw && !isClaimStatus(nextStatusRaw)) return res.status(400).json({ error: "Некорректный статус" });
+  if (nextStatusRaw && !isClaimStatus(nextStatusRaw)) return res.status(400).json({ error: "Некорректный статус", request_id: ctx.requestId });
 
   const pool = getPool();
   const client = await pool.connect();
@@ -58,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       await client.query("DELETE FROM claims WHERE id = $1", [claimId]);
       await client.query("COMMIT");
-      return res.json({ ok: true, deleted: true });
+      return res.json({ ok: true, deleted: true, request_id: ctx.requestId });
     }
 
     if (action === "upload_documents") {
@@ -134,7 +136,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       await client.query("COMMIT");
-      return res.json({ ok: true });
+      return res.json({ ok: true, request_id: ctx.requestId });
     }
 
     const sets: string[] = [];
@@ -232,10 +234,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     await client.query("COMMIT");
-    return res.json({ ok: true });
+    return res.json({ ok: true, request_id: ctx.requestId });
   } catch (e: any) {
     await client.query("ROLLBACK");
-    return res.status(400).json({ error: e?.message || "Ошибка обновления претензии" });
+    return res.status(400).json({ error: e?.message || "Ошибка обновления претензии", request_id: ctx.requestId });
   } finally {
     client.release();
   }

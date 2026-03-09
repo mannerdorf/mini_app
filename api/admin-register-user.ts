@@ -7,6 +7,7 @@ import { writeAuditLog } from "../lib/adminAuditLog.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 import { sendLkAddTo1c } from "../lib/sendLkTo1c.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const DEFAULT_PERMISSIONS = {
   cms_access: false,
@@ -47,17 +48,18 @@ async function ensureEmployeeDirectoryVisibilityForHaulz(pool: ReturnType<typeof
 }
 
 async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-register-user");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
-    return res.status(401).json({ error: "Требуется авторизация админа" });
+    return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   const ip = getClientIp(req);
   if (isRateLimited("admin_api", ip, ADMIN_API_LIMIT)) {
-    return res.status(429).json({ error: "Слишком много запросов. Подождите минуту." });
+    return res.status(429).json({ error: "Слишком много запросов. Подождите минуту.", request_id: ctx.requestId });
   }
 
   const WEAK_PASSWORDS = new Set(["123", "1234", "12345", "123456", "1234567", "12345678", "password", "qwerty", "admin", "letmein"]);
@@ -83,7 +85,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
+      return res.status(400).json({ error: "Invalid JSON", request_id: ctx.requestId });
     }
   }
 
@@ -109,10 +111,10 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   const financialAccess = body?.financial_access !== false;
 
   if (!accessAllInns && (!inn || inn.length < 10)) {
-    return res.status(400).json({ error: "ИНН обязателен (10 или 12 цифр) или включите «Доступ ко всем заказчикам»" });
+    return res.status(400).json({ error: "ИНН обязателен (10 или 12 цифр) или включите «Доступ ко всем заказчикам»", request_id: ctx.requestId });
   }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: "Некорректный email" });
+    return res.status(400).json({ error: "Некорректный email", request_id: ctx.requestId });
   }
 
   const login = email;
@@ -122,7 +124,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   if (!sendEmail && manualPassword) {
     const strong = isPasswordStrongEnough(manualPassword);
     if (!strong.ok) {
-      return res.status(400).json({ error: strong.error || "Пароль слишком простой" });
+      return res.status(400).json({ error: strong.error || "Пароль слишком простой", request_id: ctx.requestId });
     }
     password = manualPassword;
   } else {
@@ -205,6 +207,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
           password,
           emailSent: false,
           emailError: sendResult.error,
+          request_id: ctx.requestId,
         });
       }
       await writeAuditLog(pool, {
@@ -222,14 +225,15 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       login,
       ...(sendEmail ? {} : { password }),
       emailSent: sendEmail,
+      request_id: ctx.requestId,
     });
   } catch (e: unknown) {
     const err = e as Error & { code?: string };
     if (err?.code === "23505") {
-      return res.status(400).json({ error: "Пользователь с таким email уже зарегистрирован" });
+      return res.status(400).json({ error: "Пользователь с таким email уже зарегистрирован", request_id: ctx.requestId });
     }
-    console.error("admin-register-user error:", err);
-    return res.status(500).json({ error: err?.message || "Ошибка создания пользователя" });
+    logError(ctx, "admin_register_user_failed", err);
+    return res.status(500).json({ error: err?.message || "Ошибка создания пользователя", request_id: ctx.requestId });
   }
 }
 export default withErrorLog(handler);

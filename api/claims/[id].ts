@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { verifyRegisteredUser } from "../../lib/verifyRegisteredUser.js";
 import { decodeBase64File, isClaimType, parseMoney } from "../../lib/claims.js";
+import { initRequestContext } from "../_lib/observability.js";
 
 type ClaimCreatePhoto = {
   fileName?: string;
@@ -40,23 +41,24 @@ function normalizeInn(value: unknown): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "claims/[id]");
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const claimId = Number(req.query.id);
-  if (!Number.isFinite(claimId) || claimId <= 0) return res.status(400).json({ error: "Некорректный id претензии" });
+  if (!Number.isFinite(claimId) || claimId <= 0) return res.status(400).json({ error: "Некорректный id претензии", request_id: ctx.requestId });
 
   const pool = getPool();
   const body = req.method === "POST" ? req.body : req.query;
   const { login, password } = pickCredentials(req, body);
   const selectedInn = pickInn(req, body);
   const selectedInnNorm = normalizeInn(selectedInn);
-  if (!login || !password) return res.status(400).json({ error: "login and password are required" });
+  if (!login || !password) return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
 
   const verified = await verifyRegisteredUser(pool, login, password);
-  if (!verified) return res.status(401).json({ error: "Неверный логин или пароль" });
+  if (!verified) return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
   const loginKey = login.trim().toLowerCase();
 
   const claimRes = await pool.query<{
@@ -77,15 +79,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     [claimId]
   );
   const claim = claimRes.rows[0];
-  if (!claim) return res.status(404).json({ error: "Претензия не найдена" });
+  if (!claim) return res.status(404).json({ error: "Претензия не найдена", request_id: ctx.requestId });
 
   if (selectedInnNorm && normalizeInn(claim.customerInn) !== selectedInnNorm) {
-    return res.status(403).json({ error: "Нет доступа к этой претензии по выбранной компании" });
+    return res.status(403).json({ error: "Нет доступа к этой претензии по выбранной компании", request_id: ctx.requestId });
   }
 
   const hasInnAccess = verified.accessAllInns || (!!verified.inn && normalizeInn(claim.customerInn) === normalizeInn(verified.inn));
   const hasAccess = claim.customerLogin === loginKey || hasInnAccess;
-  if (!hasAccess) return res.status(403).json({ error: "Нет доступа к этой претензии" });
+  if (!hasAccess) return res.status(403).json({ error: "Нет доступа к этой претензии", request_id: ctx.requestId });
 
   if (req.method === "GET") {
     const fullRes = await pool.query(
@@ -172,12 +174,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       videoLinks: videoLinks.rows,
       comments: comments.rows,
       events: events.rows,
+      request_id: ctx.requestId,
     });
   }
 
   const payload = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
   const action = String(payload?.action || "").trim();
-  if (!action) return res.status(400).json({ error: "action is required" });
+  if (!action) return res.status(400).json({ error: "action is required", request_id: ctx.requestId });
 
   const client = await pool.connect();
   try {
@@ -394,10 +397,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     await client.query("COMMIT");
-    return res.json({ ok: true });
+    return res.json({ ok: true, request_id: ctx.requestId });
   } catch (e: any) {
     await client.query("ROLLBACK");
-    return res.status(400).json({ error: e?.message || "Ошибка обновления претензии" });
+    return res.status(400).json({ error: e?.message || "Ошибка обновления претензии", request_id: ctx.requestId });
   } finally {
     client.release();
   }

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { getPool } from "./_db.js";
+import { initRequestContext } from "./_lib/observability.js";
 
 function normalizeCargoNumber(value: unknown): string {
   const raw = String(value ?? "").trim().replace(/^0000-/, "");
@@ -51,17 +52,18 @@ const CLAIM_TYPE_LABELS_RU: Record<string, string> = {
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-claim-detail");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const token = getAdminTokenFromRequest(req);
   const payload = getAdminTokenPayload(token);
-  if (!(payload as any)?.admin) return res.status(401).json({ error: "Требуется авторизация админа" });
+  if (!(payload as any)?.admin) return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
 
   const claimId = Number(req.query.id);
-  if (!Number.isFinite(claimId) || claimId <= 0) return res.status(400).json({ error: "Некорректный id претензии" });
+  if (!Number.isFinite(claimId) || claimId <= 0) return res.status(400).json({ error: "Некорректный id претензии", request_id: ctx.requestId });
 
   const pool = getPool();
 
@@ -97,7 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     [claimId]
   );
   const claim = claimRes.rows[0];
-  if (!claim) return res.status(404).json({ error: "Претензия не найдена" });
+  if (!claim) return res.status(404).json({ error: "Претензия не найдена", request_id: ctx.requestId });
 
   const [photos, documents, videoLinks, comments, events] = await Promise.all([
     pool.query(
@@ -229,5 +231,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ttnFound,
       damageMarksFound,
     },
+    request_id: ctx.requestId,
   });
 }

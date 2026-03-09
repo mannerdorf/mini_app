@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { getPool } from "./_db.js";
+import { initRequestContext } from "./_lib/observability.js";
 
 function toPositiveInt(raw: unknown, fallback: number): number {
   const n = Number(raw);
@@ -9,14 +10,15 @@ function toPositiveInt(raw: unknown, fallback: number): number {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "admin-claims");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const token = getAdminTokenFromRequest(req);
   const payload = getAdminTokenPayload(token);
-  if (!(payload as any)?.admin) return res.status(401).json({ error: "Требуется авторизация админа" });
+  if (!(payload as any)?.admin) return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
 
   const pool = getPool();
   const status = String(req.query.status || "").trim();
@@ -103,5 +105,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     claims: claimsRes.rows,
     kpi: kpiRes.rows[0] || { activeCount: 0, overdueCount: 0, requestedSum: 0, approvedSum: 0 },
     chart: chartRes.rows,
+    request_id: ctx.requestId,
   });
 }
