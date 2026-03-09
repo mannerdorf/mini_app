@@ -614,6 +614,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [ferriesEnrichMessage, setFerriesEnrichMessage] = useState<string | null>(null);
   const [ferryEditMmsi, setFerryEditMmsi] = useState<Record<number, string>>({});
   const [ferrySaveLoading, setFerrySaveLoading] = useState<number | null>(null);
+  const [ferryDeleteLoading, setFerryDeleteLoading] = useState<number | null>(null);
   const [sverkiRequests, setSverkiRequests] = useState<{
     id: number;
     login: string;
@@ -5955,6 +5956,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}>TEU</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}>Трейлеров</th>
                     <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Оператор</th>
+                    <th style={{ padding: "0.5rem 0.75rem", width: 44, textAlign: "center", fontWeight: 600 }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -6010,6 +6012,34 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>{f.teu_capacity ?? "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>{f.trailer_capacity ?? "—"}</td>
                       <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{f.operator || "—"}</td>
+                      <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
+                        <Button
+                          type="button"
+                          className="filter-button"
+                          disabled={ferryDeleteLoading === f.id}
+                          style={{ padding: "0.25rem", minWidth: "auto", color: "var(--color-error)" }}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!window.confirm(`Удалить паром «${f.name}» (${f.mmsi})?`)) return;
+                            setFerryDeleteLoading(f.id);
+                            try {
+                              const res = await fetch(`/api/ferries?id=${f.id}`, { method: "DELETE", headers: { Authorization: `Bearer ${adminToken}` } });
+                              const data = await res.json().catch(() => ({}));
+                              if (!res.ok) throw new Error(data?.error || "Ошибка");
+                              setFerryEditMmsi((prev) => { const next = { ...prev }; delete next[f.id]; return next; });
+                              setFerriesFetchTrigger((n) => n + 1);
+                            } catch (err) {
+                              setFerriesEnrichMessage((err as Error)?.message || "Ошибка удаления");
+                            } finally {
+                              setFerryDeleteLoading(null);
+                            }
+                          }}
+                          title="Удалить"
+                          aria-label={`Удалить паром ${f.name}`}
+                        >
+                          {ferryDeleteLoading === f.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        </Button>
+                      </td>
                     </tr>
                   );})}
                 </tbody>

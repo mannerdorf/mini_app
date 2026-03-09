@@ -19,12 +19,29 @@ export type Ferry = {
 /**
  * GET /api/ferries — список паромов (admin)
  * POST /api/ferries — создать или обновить паром (admin)
+ * DELETE /api/ferries — удалить паром по id (admin)
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "ferries");
 
   if (!verifyAdminToken(getAdminTokenFromRequest(req))) {
     return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
+  }
+
+  if (req.method === "DELETE") {
+    const idRaw = req.query?.id ?? (req.body as Record<string, unknown>)?.id;
+    const id = typeof idRaw === "number" ? idRaw : typeof idRaw === "string" ? parseInt(idRaw, 10) : undefined;
+    if (id == null || !Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: "id обязателен (число)", request_id: ctx.requestId });
+    }
+    try {
+      const pool = getPool();
+      const { rowCount } = await pool.query("DELETE FROM ferries WHERE id = $1", [id]);
+      return res.status(200).json({ ok: true, deleted: (rowCount ?? 0) > 0, request_id: ctx.requestId });
+    } catch (e) {
+      logError(ctx, "ferries_delete_failed", e);
+      return res.status(500).json({ error: (e as Error)?.message || "Ошибка удаления", request_id: ctx.requestId });
+    }
   }
 
   if (req.method === "GET") {
@@ -81,6 +98,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  res.setHeader("Allow", "GET, POST");
+  res.setHeader("Allow", "GET, POST, DELETE");
   return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }
