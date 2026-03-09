@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
+import { requireCronAuth } from "../_lib/cronAuth.js";
 
 const ZAYAVKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetZayavki";
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -45,16 +46,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const secret = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
-  const authHeader = req.headers.authorization;
-  const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  const querySecret = typeof req.query.secret === "string" ? req.query.secret : "";
-  const provided = bearer || querySecret;
-  if (secret && provided !== secret) {
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res
-      .status(401)
-      .send('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Нет доступа</title></head><body style="font-family:sans-serif;padding:2rem;"><h1 style="color:#c00;">Нет доступа</h1><p>Неверный или отсутствующий секрет (<code>?secret=...</code>).</p></body></html>');
+  const cronAuthError = requireCronAuth(req);
+  if (cronAuthError) {
+    return res.status(cronAuthError.status).json({ error: cronAuthError.error });
   }
 
   const login = process.env.PEREVOZKI_SERVICE_LOGIN;

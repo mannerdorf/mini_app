@@ -25,7 +25,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const upstreamUrl = `${GETAPI_URL}?metod=GETTarifs`;
-  const upstreamCurl = `curl --location '${upstreamUrl}' --header 'Auth: ${TARIFS_AUTH_HEADER}' --header 'Authorization: ${SERVICE_AUTH}'`;
 
   try {
     const upstreamRes = await fetch(upstreamUrl, {
@@ -40,9 +39,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({
         error: `Ошибка 1С: HTTP ${upstreamRes.status}`,
         details: upstreamText.slice(0, 500),
-        upstream_response: upstreamText.slice(0, 4000),
         upstream_url: upstreamUrl,
-        upstream_curl: upstreamCurl,
       });
     }
 
@@ -53,9 +50,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({
         error: "Ответ 1С не JSON",
         details: upstreamText.slice(0, 500),
-        upstream_response: upstreamText.slice(0, 4000),
         upstream_url: upstreamUrl,
-        upstream_curl: upstreamCurl,
       });
     }
 
@@ -63,9 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const err = String((upstreamJson as any).Error ?? (upstreamJson as any).error ?? (upstreamJson as any).message ?? "Success=false");
       return res.status(502).json({
         error: err,
-        upstream_response: upstreamJson,
         upstream_url: upstreamUrl,
-        upstream_curl: upstreamCurl,
       });
     }
 
@@ -73,9 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (rows.length === 0) {
       return res.status(502).json({
         error: "1С вернул пустой список тарифов — кэш не перезаписан",
-        upstream_response: upstreamJson,
         upstream_url: upstreamUrl,
-        upstream_curl: upstreamCurl,
       });
     }
 
@@ -111,12 +102,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       tariffs_count: rows.length,
       refreshed_at: new Date().toISOString(),
       message: "Справочник тарифов обновлён",
-      upstream_response: upstreamJson,
       upstream_url: upstreamUrl,
-      upstream_curl: upstreamCurl,
     });
   } catch (e: any) {
     const msg = e?.message || "Ошибка вызова обновления тарифов";
-    return res.status(500).json({ error: msg, upstream_url: upstreamUrl, upstream_curl: upstreamCurl });
+    return res.status(500).json({ error: msg, upstream_url: upstreamUrl });
   }
 }

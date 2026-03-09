@@ -93,10 +93,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: "Доступ только для суперадмина" });
   }
 
-  const login = process.env.SUPPLIERS_1C_LOGIN || process.env.PEREVOZKI_SERVICE_LOGIN || "Info@haulz.pro";
-  const password = process.env.SUPPLIERS_1C_PASSWORD || process.env.PEREVOZKI_SERVICE_PASSWORD || "Y2ME42XyI_";
+  const login = process.env.SUPPLIERS_1C_LOGIN || process.env.PEREVOZKI_SERVICE_LOGIN;
+  const password = process.env.SUPPLIERS_1C_PASSWORD || process.env.PEREVOZKI_SERVICE_PASSWORD;
+  if (!login || !password) {
+    return res.status(503).json({
+      error: "Не заданы SUPPLIERS_1C_LOGIN/PASSWORD или PEREVOZKI_SERVICE_LOGIN/PASSWORD",
+    });
+  }
   const upstreamUrl = `${GETAPI_URL}?metod=GETALLKontragents`;
-  const upstreamCurl = `curl --location '${upstreamUrl}' --header 'Auth: Basic ${login}:${password}' --header 'Authorization: ${SERVICE_AUTH}'`;
 
   try {
     const upstreamRes = await fetch(upstreamUrl, {
@@ -112,7 +116,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: `Ошибка 1С: HTTP ${upstreamRes.status}`,
         details: upstreamText.slice(0, 500),
         upstream_url: upstreamUrl,
-        upstream_curl: upstreamCurl,
       });
     }
 
@@ -124,7 +127,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error: "Ответ 1С не JSON",
         details: upstreamText.slice(0, 500),
         upstream_url: upstreamUrl,
-        upstream_curl: upstreamCurl,
       });
     }
 
@@ -133,7 +135,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({
         error: err,
         upstream_url: upstreamUrl,
-        upstream_curl: upstreamCurl,
       });
     }
 
@@ -142,7 +143,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({
         error: "1С вернул пустой список поставщиков — кэш не перезаписан",
         upstream_url: upstreamUrl,
-        upstream_curl: upstreamCurl,
       });
     }
 
@@ -168,7 +168,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       refreshed_at: new Date().toISOString(),
       message: "Справочник поставщиков обновлён",
       upstream_url: upstreamUrl,
-      upstream_curl: upstreamCurl,
     });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -177,7 +176,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       error: "Ошибка при вызове обновления кэша",
       details: msg,
       upstream_url: upstreamUrl,
-      upstream_curl: upstreamCurl,
     });
   }
 }

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { normalizeSverki } from "../../lib/sverkiParser.js";
+import { requireCronAuth } from "../_lib/cronAuth.js";
 
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const AUTH_HEADER = "Basic Info@haulz.pro:Y2ME42XyI_";
@@ -12,18 +13,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const secret = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
-  const authHeader = req.headers.authorization;
-  const bearer = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  const querySecret = typeof req.query.secret === "string" ? req.query.secret : "";
-  const provided = bearer || querySecret;
-  if (secret && provided !== secret) {
-    return res.status(401).json({ error: "Нет доступа" });
+  const cronAuthError = requireCronAuth(req);
+  if (cronAuthError) {
+    return res.status(cronAuthError.status).json({ error: cronAuthError.error });
   }
 
   try {
     const upstreamUrl = `${GETAPI_URL}?metod=GETsverki`;
-    const upstreamCurl = `curl --location '${upstreamUrl}' --header 'Auth: ${AUTH_HEADER}' --header 'Authorization: ${SERVICE_AUTH}'`;
     const upstream = await fetch(upstreamUrl, {
       method: "GET",
       headers: {
@@ -36,9 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(upstream.status).json({
         error: `HTTP ${upstream.status}`,
         details: text.slice(0, 300),
-        upstream_response: text.slice(0, 4000),
         upstream_url: upstreamUrl,
-        upstream_curl: upstreamCurl,
       });
     }
 
@@ -49,14 +43,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(502).json({
         error: "Ответ не JSON",
         details: text.slice(0, 300),
-        upstream_response: text.slice(0, 4000),
         upstream_url: upstreamUrl,
-        upstream_curl: upstreamCurl,
       });
     }
     if (json && typeof json === "object" && json.Success === false) {
       const err = String(json.Error ?? json.error ?? json.message ?? "Success=false");
-      return res.status(502).json({ error: err, upstream_response: json, upstream_url: upstreamUrl, upstream_curl: upstreamCurl });
+      return res.status(502).json({ error: err, upstream_url: upstreamUrl });
     }
 
     const rows = normalizeSverki(json);
@@ -86,9 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ok: true,
       sverki_count: rows.length,
       refreshed_at: new Date().toISOString(),
-      upstream_response: json,
       upstream_url: upstreamUrl,
-      upstream_curl: upstreamCurl,
     });
   } catch (e: any) {
     const message = e?.message || String(e);
