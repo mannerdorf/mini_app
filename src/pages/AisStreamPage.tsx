@@ -41,6 +41,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
   const [bbox, setBbox] = useState(DEFAULT_BBOX);
   const [messageTypes, setMessageTypes] = useState(DEFAULT_MESSAGE_TYPES);
   const [streaming, setStreaming] = useState(false);
+  const [streamMode, setStreamMode] = useState<"mmsi" | "bbox">("bbox");
   const [vesselInfo, setVesselInfo] = useState<{ mmsi: string; name: string; lat: number; lon: number; sog?: number; cog?: number; timeUtc?: string } | null>(null);
   const [events, setEvents] = useState<{ type: string; data: unknown; ts: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +77,8 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
     if (useMmsi) params.set("mmsi", mmsiTrimmed);
     else params.set("bbox", bbox.trim());
     params.set("messageTypes", messageTypes.trim() || DEFAULT_MESSAGE_TYPES);
+
+    setStreamMode(useMmsi ? "mmsi" : "bbox");
 
     const url = `/api/ais-stream?${params.toString()}`;
     const es = new EventSource(url);
@@ -126,7 +129,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
       setError("Соединение прервано");
       stopStream();
     };
-  }, [bbox, messageTypes, stopStream]);
+  }, [mmsi, bbox, messageTypes, stopStream]);
 
   useEffect(() => () => stopStream(), [stopStream]);
 
@@ -250,6 +253,7 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
           <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-primary)" }} />
           <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
             Стрим активен
+            {streamMode === "mmsi" ? " — поиск по MMSI (весь мир)" : " — по зоне"}
           </Typography.Body>
         </Flex>
       )}
