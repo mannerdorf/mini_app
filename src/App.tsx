@@ -2110,6 +2110,7 @@ export default function App() {
                 // вход в секретный режим теперь через "Уведомления" в профиле
                 showAllTabs={true}
                 permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions ?? undefined : undefined}
+                expanded={desktopExpanded}
             />
 
             <LegalModal isOpen={!!isOfferOpen} onClose={() => setIsOfferOpen(false)} title="Публичная оферта">

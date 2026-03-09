@@ -26,6 +26,7 @@ type TabBarProps = {
   onCargoPressEnd?: () => void;
   showAllTabs?: boolean;
   permissions?: TabBarPermissions | null;
+  expanded?: boolean;
 };
 
 const TabBtn = ({
@@ -74,6 +75,7 @@ export function TabBar({
   onCargoPressEnd,
   showAllTabs,
   permissions,
+  expanded,
 }: TabBarProps) {
   const showHome = true;
   const showCargo = true;
@@ -83,7 +85,7 @@ export function TabBar({
 
   if (showAllTabs) {
     return (
-      <div className="tabbar-container">
+      <div className={`tabbar-container${expanded ? " tabbar-wide" : ""}`}>
         {showHome && <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />}
         {showCargo && <TabBtn label="Грузы" icon={<Truck />} active={active === "cargo"} onClick={() => onChange("cargo")} />}
         {hasDocAccess && <TabBtn label="Документы" icon={<FileText />} active={active === "docs"} onClick={() => onChange("docs")} />}
@@ -93,7 +95,7 @@ export function TabBar({
   }
 
   return (
-    <div className="tabbar-container">
+    <div className={`tabbar-container${expanded ? " tabbar-wide" : ""}`}>
       {showHome && <TabBtn label="Главная" icon={<Home />} active={active === "home" || active === "dashboard"} onClick={() => onChange("home")} />}
       {showCargo && (
         <TabBtn

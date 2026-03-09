@@ -987,6 +987,11 @@ body {
     padding: var(--space-2, 8px) var(--space-2, 8px) max(var(--space-2, 8px), env(safe-area-inset-bottom));
     box-shadow: 0 -1px 0 var(--color-border);
 }
+@media (min-width: 1024px) {
+    .tabbar-container.tabbar-wide {
+        max-width: min(96vw, 1400px);
+    }
+}
 .light-mode .tabbar-container { background-color: rgba(255, 255, 255, 0.92); backdrop-filter: saturate(180%) blur(20px); }
 .tab-button {
     display: flex;
