@@ -121,6 +121,7 @@ export type ProfileView =
     | "2fa"
     | "notifications"
     | "accounting"
+    | "ais"
     | "admin"
     | "tinyurl-test"
     | "chat";

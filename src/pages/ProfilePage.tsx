@@ -16,6 +16,7 @@ import { TinyUrlTestPage } from "./TinyUrlTestPage";
 import { ExpenseRequestsPage } from "./ExpenseRequestsPage";
 import { AboutCompanyPage } from "./AboutCompanyPage";
 import { NotificationsPage } from "./NotificationsPage";
+import { AisStreamPage } from "./AisStreamPage";
 export function ProfilePage({
     accounts,
     activeAccountId,
@@ -1362,6 +1363,11 @@ export function ProfilePage({
                             Заявки на расходы
                         </Button>
                     )}
+                    {activeAccount?.permissions?.haulz === true && (
+                        <Button type="button" className="button-primary" onClick={() => setCurrentView('ais')}>
+                            AIS
+                        </Button>
+                    )}
                     {activeAccount?.permissions?.doc_claims === true && onOpenDocumentsWithSection && (
                         <Button type="button" className="button-primary" onClick={() => onOpenDocumentsWithSection('Претензии')}>
                             Претензии
@@ -1374,6 +1380,12 @@ export function ProfilePage({
                     )}
                 </Flex>
             </div>
+        );
+    }
+
+    if (currentView === 'ais') {
+        return (
+            <AisStreamPage onBack={() => setCurrentView('haulz')} />
         );
     }
 
