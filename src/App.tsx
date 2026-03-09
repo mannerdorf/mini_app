@@ -1018,6 +1018,13 @@ export default function App() {
         setActiveTab("docs");
     };
 
+    const [aisOpenWithMmsi, setAisOpenWithMmsi] = useState<string | null>(null);
+    const openAisWithMmsi = (mmsi: string) => {
+        if (!mmsi || mmsi.replace(/\D/g, "").length !== 9) return;
+        setAisOpenWithMmsi(mmsi);
+        setActiveTab("profile");
+    };
+
     const [overlayCargoInn, setOverlayCargoInn] = useState<string | null>(null);
 
     const openCargoInPlace = (cargoNumber: string, inn?: string) => {
@@ -2073,6 +2080,9 @@ export default function App() {
                             openCargoFromDocuments={openCargoFromDocuments}
                             openClaimFromCargo={openClaimFromCargo}
                             openDocumentsWithSection={openDocumentsWithSection}
+                            openAisWithMmsi={openAisWithMmsi}
+                            aisOpenWithMmsi={aisOpenWithMmsi}
+                            setAisOpenWithMmsi={setAisOpenWithMmsi}
                             openTelegramBotWithAccount={openTelegramBotWithAccount}
                             handleSwitchAccount={handleSwitchAccount}
                             handleAddAccount={handleAddAccount}

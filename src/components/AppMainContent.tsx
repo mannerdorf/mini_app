@@ -26,6 +26,9 @@ type Props = {
   openCargoFromDocuments: (cargoNumber: string) => void;
   openClaimFromCargo: (cargoNumber: string) => void;
   openDocumentsWithSection: (section: string) => void;
+  openAisWithMmsi: (mmsi: string) => void;
+  aisOpenWithMmsi: string | null;
+  setAisOpenWithMmsi: (value: string | null) => void;
   openTelegramBotWithAccount: () => Promise<void>;
   handleSwitchAccount: (accountId: string) => void;
   handleAddAccount: (account: Account) => Promise<void>;
@@ -127,6 +130,9 @@ export function AppMainContent({
   openCargoFromDocuments,
   openClaimFromCargo,
   openDocumentsWithSection,
+  openAisWithMmsi,
+  aisOpenWithMmsi,
+  setAisOpenWithMmsi,
   openTelegramBotWithAccount,
   handleSwitchAccount,
   handleAddAccount,
@@ -177,6 +183,7 @@ export function AppMainContent({
           <DocumentsPage
             auth={auth}
             onOpenCargo={openCargoFromDocuments}
+            onOpenAisWithMmsi={openAisWithMmsi}
             onOpenChat={undefined}
             permissions={activeAccount?.isRegisteredUser ? activeAccount.permissions : undefined}
             showSums={activeAccount?.financialAccess ?? true}
@@ -234,6 +241,8 @@ export function AppMainContent({
             onOpenNotifications={openSecretPinModal}
             onOpenCargo={openCargoFromChat}
             onOpenDocumentsWithSection={openDocumentsWithSection}
+            aisOpenWithMmsi={aisOpenWithMmsi}
+            setAisOpenWithMmsi={setAisOpenWithMmsi}
             onOpenTelegramBot={openTelegramBotWithAccount}
             onOpenMaxBot={undefined}
             onUpdateAccount={handleUpdateAccount}
@@ -272,6 +281,8 @@ export function AppMainContent({
             onOpenNotifications={openSecretPinModal}
             onOpenCargo={openCargoFromChat}
             onOpenDocumentsWithSection={openDocumentsWithSection}
+            aisOpenWithMmsi={aisOpenWithMmsi}
+            setAisOpenWithMmsi={setAisOpenWithMmsi}
             onOpenTelegramBot={openTelegramBotWithAccount}
             onOpenMaxBot={undefined}
             onUpdateAccount={handleUpdateAccount}

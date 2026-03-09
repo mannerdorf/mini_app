@@ -311,6 +311,7 @@ type DocumentsPageProps = {
     activeInn?: string;
     searchText?: string;
     onOpenCargo?: (cargoNumber: string) => void;
+    onOpenAisWithMmsi?: (mmsi: string) => void;
     onOpenChat?: (context?: string) => void | Promise<void>;
     /** Права доступа (для зарегистрированных пользователей) */
     permissions?: AccountPermissions | null;
@@ -322,7 +323,7 @@ type DocumentsPageProps = {
 
 export type EorStatus = 'entry_allowed' | 'full_inspection' | 'turnaround';
 
-export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, onOpenCargo, onOpenChat, permissions, showSums = true, isSuperAdmin = false }: DocumentsPageProps) {
+export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, onOpenCargo, onOpenAisWithMmsi, onOpenChat, permissions, showSums = true, isSuperAdmin = false }: DocumentsPageProps) {
     const runtime = useAppRuntime();
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
     const effectiveActiveInn = activeInn ?? runtime.activeInn;
@@ -398,6 +399,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [byCustomerActionLoading, setByCustomerActionLoading] = useState(false);
     const [byCustomerActionError, setByCustomerActionError] = useState<string | null>(null);
     const [byCustomerActionInfo, setByCustomerActionInfo] = useState<string | null>(null);
+    const [ferriesList, setFerriesList] = useState<{ id: number; name: string; mmsi: string }[]>([]);
+    const [sendingsFerryMap, setSendingsFerryMap] = useState<Record<string, { ferry_id: number; ferry_name: string; eta: string | null }>>({});
+    const [ferryEtaLoadingByRow, setFerryEtaLoadingByRow] = useState<Record<string, boolean>>({});
     const [tariffsList, setTariffsList] = useState<{
         id: number;
         docDate: string | null;
@@ -955,6 +959,30 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         })();
         return () => { cancelled = true; };
     }, [showEorColumn, auth?.login, auth?.password]);
+    useEffect(() => {
+        if (docSection !== 'Отправки') return;
+        fetch('/api/ferries-list')
+            .then((res) => res.json())
+            .then((data: { ferries?: { id: number; name: string; mmsi: string }[] }) => setFerriesList(data.ferries || []))
+            .catch(() => setFerriesList([]));
+    }, [docSection]);
+    useEffect(() => {
+        if (docSection !== 'Отправки' || !auth?.login || !auth?.password) {
+            setSendingsFerryMap({});
+            return;
+        }
+        let cancelled = false;
+        fetch('/api/sendings-ferry', {
+            method: 'GET',
+            headers: { 'x-login': auth.login, 'x-password': auth.password },
+        })
+            .then((res) => res.json())
+            .then((data: { map?: Record<string, { ferry_id: number; ferry_name: string; eta: string | null }> }) => {
+                if (!cancelled && data?.map) setSendingsFerryMap(data.map);
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [docSection, auth?.login, auth?.password]);
     useEffect(() => {
         if (docSection !== 'Отправки') {
             setSelectedSendingRowKeys(new Set());
@@ -2625,6 +2653,68 @@ useEffect(() => {
         const hasPlate = /[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(s);
         return hasPlate ? 'auto' : 'ferry';
     }, []);
+    const getSendingsFerryEntry = useCallback((rowKey: string, number: string) => {
+        const withNormalized = (raw: string) => {
+            const base = String(raw ?? '').trim();
+            if (!base) return [] as string[];
+            const compact = base.replace(/\D+/g, '');
+            return compact && compact !== base ? [base, compact] : [base];
+        };
+        const candidates = [...withNormalized(rowKey), ...withNormalized(number)];
+        for (const candidate of Array.from(new Set(candidates))) {
+            const entry = sendingsFerryMap[candidate];
+            if (entry) return entry;
+        }
+        return null;
+    }, [sendingsFerryMap]);
+    const handleFerrySelect = useCallback(async (rowKey: string, ferryIdStr: string, effectiveInn: string | null) => {
+        const ferryId = ferryIdStr ? parseInt(ferryIdStr, 10) : null;
+        const ferry = ferriesList.find((f) => f.id === ferryId);
+        if (!ferry && ferryId != null) return;
+        setFerryEtaLoadingByRow((prev) => ({ ...prev, [rowKey]: true }));
+        try {
+            let eta: string | null = null;
+            if (ferry) {
+                const res = await fetch(`/api/marinesia-ship?mmsi=${encodeURIComponent(ferry.mmsi)}`);
+                const data = await res.json().catch(() => ({}));
+                if (data?.vessel?.eta) eta = String(data.vessel.eta);
+            }
+            const resp = await fetch('/api/sendings-ferry', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    login: auth?.login,
+                    password: auth?.password,
+                    rowKey,
+                    ferryId: ferryId ?? undefined,
+                    eta,
+                    inn: effectiveInn ?? undefined,
+                }),
+            });
+            const result = await resp.json().catch(() => ({}));
+            if (!resp.ok) throw new Error(result?.error || `HTTP ${resp.status}`);
+            setSendingsFerryMap((prev) => {
+                const next = { ...prev };
+                const keys = [rowKey, rowKey.replace(/\D/g, '')].filter(Boolean);
+                const entry = ferryId && ferry
+                    ? { ferry_id: ferryId, ferry_name: ferry.name, eta }
+                    : null;
+                keys.forEach((k) => {
+                    if (entry) next[k] = entry;
+                    else delete next[k];
+                });
+                return next;
+            });
+        } catch {
+            // ignore
+        } finally {
+            setFerryEtaLoadingByRow((prev) => {
+                const next = { ...prev };
+                delete next[rowKey];
+                return next;
+            });
+        }
+    }, [auth?.login, auth?.password, ferriesList]);
 
     return (
         <div className="w-full">
@@ -3918,6 +4008,8 @@ useEffect(() => {
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус доставки</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата прибытия</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Паром</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>ETA</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('comment')} title="Сортировка">Комментарий {sendingsSortColumn === 'comment' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 {showEorColumn && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }} title="Exit of Records (Запись о выходе)">EOR</th>}
                             </tr>
@@ -4022,6 +4114,49 @@ useEffect(() => {
                                                 {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }} onClick={(e) => e.stopPropagation()}>
+                                                {transportType === 'ferry' ? (
+                                                    canEditPlanDate && ferriesList.length > 0 ? (
+                                                        <select
+                                                            className="admin-form-input"
+                                                            value={getSendingsFerryEntry(rowKey, number)?.ferry_id ?? ''}
+                                                            onChange={(e) => handleFerrySelect(rowKey, e.target.value, effectiveActiveInn ?? null)}
+                                                            disabled={ferryEtaLoadingByRow[rowKey]}
+                                                            style={{ padding: '0.25rem 0.4rem', fontSize: '0.8rem', minWidth: 140, maxWidth: 200 }}
+                                                        >
+                                                            <option value="">— Выберите паром —</option>
+                                                            {ferriesList.map((f) => (
+                                                                <option key={f.id} value={f.id}>{f.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    ) : getSendingsFerryEntry(rowKey, number)?.ferry_name ?? '—'
+                                                ) : '—'}
+                                            </td>
+                                            <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>
+                                                {transportType === 'ferry' ? (
+                                                    ferryEtaLoadingByRow[rowKey] ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin" style={{ display: 'inline-block' }} />
+                                                    ) : (() => {
+                                                        const entry = getSendingsFerryEntry(rowKey, number);
+                                                        const etaVal = entry?.eta;
+                                                        const mmsiForLink = entry ? ferriesList.find((f) => f.id === entry.ferry_id)?.mmsi : undefined;
+                                                        const canOpenAis = mmsiForLink && onOpenAisWithMmsi;
+                                                        const content = etaVal ? <DateText value={etaVal} /> : (entry ? '—' : '—');
+                                                        return canOpenAis ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => { e.stopPropagation(); onOpenAisWithMmsi(mmsiForLink!); }}
+                                                                style={{ border: 'none', background: 'transparent', padding: 0, color: 'var(--color-primary-blue)', cursor: 'pointer', textDecoration: etaVal ? 'underline' : 'none', fontSize: 'inherit' }}
+                                                                title="Открыть в AIS"
+                                                            >
+                                                                {content}
+                                                            </button>
+                                                        ) : (
+                                                            content
+                                                        );
+                                                    })()
+                                                ) : '—'}
+                                            </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{comment || '—'}</td>
                                             {showEorColumn && (
                                                 <td style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }} title="Exit of Records (Запись о выходе)">
@@ -4050,7 +4185,7 @@ useEffect(() => {
                                         </tr>
                                         {expanded && (
                                             <tr>
-                                                <td colSpan={(showEorColumn ? 9 : 8) + (canEditPlanDate ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                <td colSpan={(showEorColumn ? 11 : 10) + (canEditPlanDate ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
                                                     <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
                                                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
                                                             <Button

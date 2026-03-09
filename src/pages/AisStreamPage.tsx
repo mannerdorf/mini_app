@@ -1,7 +1,7 @@
 /**
  * HAULZ — AIS. Поиск судна по MMSI через Marinesia API.
  */
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 
 const NAV_STATUS_LABELS: Record<number, string> = {
   0: "В движении (двигатель)",
@@ -24,8 +24,9 @@ const NAV_STATUS_LABELS: Record<number, string> = {
 import { ArrowLeft, Ship, Loader2, MapPin } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 
-export function AisStreamPage({ onBack }: { onBack: () => void }) {
-  const [mmsi, setMmsi] = useState("");
+export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { onBack: () => void; initialMmsi?: string; onConsumedInitialMmsi?: () => void }) {
+  const [ferries, setFerries] = useState<{ id: number; name: string; mmsi: string }[]>([]);
+  const [mmsi, setMmsi] = useState(initialMmsi ?? "");
   const [vesselInfo, setVesselInfo] = useState<{
     mmsi: string; name: string; lat: number; lon: number;
     sog?: number; cog?: number; timeUtc?: string;
@@ -64,6 +65,39 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
     }
   }, [mmsi]);
 
+  useEffect(() => {
+    fetch("/api/ferries-list")
+      .then((res) => res.json())
+      .then((data: { ferries?: { id: number; name: string; mmsi: string }[] }) => setFerries(data.ferries || []))
+      .catch(() => setFerries([]));
+  }, []);
+
+  useEffect(() => {
+    const trimmed = (initialMmsi ?? "").trim().replace(/\D/g, "");
+    if (trimmed.length !== 9) {
+      if (initialMmsi) onConsumedInitialMmsi?.();
+      return;
+    }
+    setMmsi(trimmed);
+    setError(null);
+    setLoading(true);
+    fetch(`/api/marinesia-ship?mmsi=${encodeURIComponent(trimmed)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.vessel) {
+          setVesselInfo(data.vessel);
+          setEvents((prev) => [...prev.slice(-19), { type: "marinesia", data: data.vessel, ts: Date.now() }]);
+        } else {
+          setError("Судно не найдено");
+        }
+      })
+      .catch((e) => setError((e as Error)?.message || "Ошибка запроса"))
+      .finally(() => {
+        setLoading(false);
+        onConsumedInitialMmsi?.();
+      });
+  }, []); // run once on mount when opened via ETA link
+
   const mmsiValid = mmsi.trim().replace(/\D/g, "").length === 9;
 
   return (
@@ -78,12 +112,31 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
       <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "0.75rem" }}>
         <Typography.Body style={{ marginBottom: "0.5rem", fontWeight: 600 }}>Номер судна (MMSI)</Typography.Body>
         <Typography.Body style={{ marginBottom: "0.5rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-          Введите 9-значный MMSI судна. Данные через Marinesia.
+          Выберите паром из справочника или введите 9-значный MMSI вручную. Данные через Marinesia.
         </Typography.Body>
+        {ferries.length > 0 && (
+          <div style={{ marginBottom: "0.75rem" }}>
+            <label htmlFor="ferry-select" className="visually-hidden">Выберите паром</label>
+            <select
+              id="ferry-select"
+              value={mmsi}
+              onChange={(e) => setMmsi(e.target.value)}
+              className="admin-form-input"
+              style={{ width: "100%", maxWidth: "24rem", padding: "0.5rem 0.75rem", fontSize: "1rem", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-bg-primary)" }}
+            >
+              <option value="">— Выберите паром из справочника —</option>
+              {ferries.map((f) => (
+                <option key={f.id} value={f.mmsi}>
+                  {f.name} ({f.mmsi})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <Input
           value={mmsi}
           onChange={(e) => setMmsi(e.target.value.replace(/\D/g, "").slice(0, 9))}
-          placeholder="Например: 259000420"
+          placeholder="Или введите MMSI вручную, например: 259000420"
           inputMode="numeric"
           style={{ marginBottom: "0.75rem", fontSize: "1.1rem" }}
         />

@@ -28,6 +28,8 @@ export function ProfilePage({
     onOpenNotifications,
     onOpenCargo,
     onOpenDocumentsWithSection,
+    aisOpenWithMmsi,
+    setAisOpenWithMmsi,
     onOpenTelegramBot,
     onOpenMaxBot,
     onUpdateAccount
@@ -42,12 +44,19 @@ export function ProfilePage({
     onOpenNotifications: () => void;
     onOpenCargo: (cargoNumber: string) => void;
     onOpenDocumentsWithSection?: (section: string) => void;
+    aisOpenWithMmsi?: string | null;
+    setAisOpenWithMmsi?: (value: string | null) => void;
     onOpenTelegramBot?: () => Promise<void>;
     onOpenMaxBot?: () => Promise<void>;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
+    useEffect(() => {
+        if (aisOpenWithMmsi) {
+            setCurrentView('ais');
+        }
+    }, [aisOpenWithMmsi]);
     const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
     const [twoFactorMethod, setTwoFactorMethod] = useState<"google" | "telegram">("google");
     const [twoFactorTelegramLinked, setTwoFactorTelegramLinked] = useState(false);
@@ -1385,7 +1394,11 @@ export function ProfilePage({
 
     if (currentView === 'ais') {
         return (
-            <AisStreamPage onBack={() => setCurrentView('haulz')} />
+            <AisStreamPage
+                onBack={() => setCurrentView('haulz')}
+                initialMmsi={aisOpenWithMmsi ?? undefined}
+                onConsumedInitialMmsi={() => setAisOpenWithMmsi?.(null)}
+            />
         );
     }
 
