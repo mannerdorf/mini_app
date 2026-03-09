@@ -107,17 +107,6 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
       }
     });
 
-    es.addEventListener("error", (e) => {
-      try {
-        const data = (e as MessageEvent).data ? JSON.parse((e as MessageEvent).data) : { error: "Connection error" };
-        setError(String(data?.error ?? data));
-        setEvents((prev) => [...prev.slice(-99), { type: "error", data, ts: Date.now() }]);
-      } catch {
-        setEvents((prev) => [...prev.slice(-99), { type: "error", data: (e as MessageEvent).data, ts: Date.now() }]);
-      }
-      stopStream();
-    });
-
     es.addEventListener("info", (e) => {
       try {
         const data = e.data ? JSON.parse(e.data) : {};
@@ -130,6 +119,22 @@ export function AisStreamPage({ onBack }: { onBack: () => void }) {
       } catch {
         setEvents((prev) => [...prev.slice(-99), { type: "info", data: e.data, ts: Date.now() }]);
       }
+    });
+
+    es.addEventListener("error", (e) => {
+      try {
+        const data = (e as MessageEvent).data ? JSON.parse((e as MessageEvent).data) : { error: "Connection error" };
+        if (!timeoutReceivedRef.current) {
+          setError(String(data?.error ?? data));
+        }
+        setEvents((prev) => [...prev.slice(-99), { type: "error", data, ts: Date.now() }]);
+      } catch {
+        if (!timeoutReceivedRef.current) {
+          setError("Соединение прервано");
+        }
+        setEvents((prev) => [...prev.slice(-99), { type: "error", data: (e as MessageEvent).data, ts: Date.now() }]);
+      }
+      stopStream();
     });
 
     es.onerror = () => {
