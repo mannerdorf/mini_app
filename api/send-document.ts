@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import https from "https";
 import { URL } from "url";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const EXTERNAL_API_BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
@@ -153,13 +154,14 @@ async function getFileFromExternalAPI(
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "send-document");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   if (!BOT_TOKEN) {
-    return res.status(500).json({ error: "Bot token not configured" });
+    return res.status(500).json({ error: "Bot token not configured", request_id: ctx.requestId });
   }
 
   try {
@@ -168,7 +170,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON body" });
+        return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
       }
     }
 
@@ -177,6 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!login || !password || !metod || !number || !chatId) {
       return res.status(400).json({
         error: "Required fields: login, password, metod, number, chatId",
+        request_id: ctx.requestId,
       });
     }
 
@@ -187,7 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     if ("error" in fileResult) {
       console.error("❌ File error:", fileResult.error);
-      return res.status(404).json({ error: fileResult.error });
+      return res.status(404).json({ error: fileResult.error, request_id: ctx.requestId });
     }
 
     console.log("✅ Got file:", fileResult.name, "size:", fileResult.buffer.length);
@@ -205,17 +208,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({
         error: "Failed to send document",
         message: telegramResult.description,
+        request_id: ctx.requestId,
       });
     }
 
     console.log("✅ Document sent to chat:", chatId);
-    return res.status(200).json({ success: true, message: "Документ отправлен в чат" });
+    return res.status(200).json({ success: true, message: "Документ отправлен в чат", request_id: ctx.requestId });
     
   } catch (err: any) {
-    console.error("🔥 Handler error:", err?.message || err);
+    logError(ctx, "send_document_failed", err);
     return res.status(500).json({
       error: "Failed to send document",
       message: err?.message,
+      request_id: ctx.requestId,
     });
   }
 }

@@ -4,6 +4,7 @@ import { verifyPassword } from "../lib/passwordUtils.js";
 import { hashPassword, generatePassword } from "../lib/passwordUtils.js";
 import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 import { sendLkAddTo1c } from "../lib/sendLkTo1c.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 type Body = {
   login?: string;
@@ -40,6 +41,7 @@ async function getInviterId(login: string, password: string): Promise<number | n
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "my-employees");
   if (req.method === "GET" || req.method === "POST") {
     const body = parseBody(req);
     const login = typeof body.login === "string" ? body.login.trim() : "";
@@ -51,11 +53,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const presetId = typeof body.presetId === "string" ? body.presetId.trim() : "";
 
     if (!login || !password) {
-      return res.status(400).json({ error: "Укажите логин и пароль" });
+      return res.status(400).json({ error: "Укажите логин и пароль", request_id: ctx.requestId });
     }
     const inviterId = await getInviterId(login, password);
     if (inviterId == null) {
-      return res.status(401).json({ error: "Неверный логин или пароль" });
+      return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
     }
 
     if (req.method === "GET" || (req.method === "POST" && !email && !presetId)) {
@@ -101,22 +103,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             department: r.department || "",
             employeeRole: r.employee_role || "employee",
           })),
+          request_id: ctx.requestId,
         });
       } catch (e: unknown) {
-        console.error("my-employees list:", e);
-        return res.status(500).json({ error: "Ошибка загрузки списка" });
+        logError(ctx, "my_employees_list_failed", e);
+        return res.status(500).json({ error: "Ошибка загрузки списка", request_id: ctx.requestId });
       }
     }
 
     if (req.method === "POST" && email && presetId) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return res.status(400).json({ error: "Укажите корректный email" });
+        return res.status(400).json({ error: "Укажите корректный email", request_id: ctx.requestId });
       }
       if (!fullName) {
-        return res.status(400).json({ error: "Укажите ФИО" });
+        return res.status(400).json({ error: "Укажите ФИО", request_id: ctx.requestId });
       }
       if (!department) {
-        return res.status(400).json({ error: "Укажите структурное подразделение" });
+        return res.status(400).json({ error: "Укажите структурное подразделение", request_id: ctx.requestId });
       }
       try {
       const pool = getPool();
@@ -132,7 +135,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       const preset = presetRow.rows[0];
       if (!preset) {
-        return res.status(400).json({ error: "Роль не найдена" });
+        return res.status(400).json({ error: "Роль не найдена", request_id: ctx.requestId });
       }
       const permissions = preset.permissions && typeof preset.permissions === "object" ? preset.permissions as Record<string, boolean> : {};
       const inviterRow = await pool.query<{ login: string; inn: string; company_name: string }>(
@@ -140,7 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [inviterId]
       );
       const inviter = inviterRow.rows[0];
-      if (!inviter) return res.status(500).json({ error: "Ошибка" });
+      if (!inviter) return res.status(500).json({ error: "Ошибка", request_id: ctx.requestId });
       const companies = await pool.query<{ inn: string; name: string }>("SELECT inn, name FROM account_companies WHERE login = $1", [inviter.login]);
       const inviterInns = [inviter.inn?.trim(), ...companies.rows.map((c) => c.inn?.trim())].filter((x): x is string => !!x);
       if (inviterInns.length > 0) {
@@ -150,10 +153,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           inviterInns
         );
         if (dirCheck.rows.length === 0) {
-          return res.status(403).json({ error: "Приглашать сотрудников могут только пользователи, чья компания есть в справочнике заказчиков." });
+          return res.status(403).json({ error: "Приглашать сотрудников могут только пользователи, чья компания есть в справочнике заказчиков.", request_id: ctx.requestId });
         }
       } else {
-        return res.status(403).json({ error: "Приглашать сотрудников могут только пользователи из справочника заказчиков. Укажите компанию (ИНН) в профиле." });
+        return res.status(403).json({ error: "Приглашать сотрудников могут только пользователи из справочника заказчиков. Укажите компанию (ИНН) в профиле.", request_id: ctx.requestId });
       }
       const newLogin = email;
       const newPassword = generatePassword(8);
@@ -227,14 +230,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         emailSent: sendResult.ok,
         emailError: sendResult.error,
         message: sendResult.ok ? "Пароль отправлен на email" : "Пользователь создан, но письмо не отправлено",
+        request_id: ctx.requestId,
       });
     } catch (e: unknown) {
       const err = e as Error & { code?: string };
       if (err?.code === "23505") {
-        return res.status(400).json({ error: "Пользователь с таким email уже зарегистрирован" });
+        return res.status(400).json({ error: "Пользователь с таким email уже зарегистрирован", request_id: ctx.requestId });
       }
-      console.error("my-employees POST invite:", e);
-      return res.status(500).json({ error: (err as Error)?.message || "Ошибка приглашения" });
+      logError(ctx, "my_employees_invite_failed", e);
+      return res.status(500).json({ error: (err as Error)?.message || "Ошибка приглашения", request_id: ctx.requestId });
     }
     }
   }
@@ -248,17 +252,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const idParam = typeof req.query.id === "string" ? req.query.id.trim() : "";
     const id = parseInt(idParam, 10);
     if (!login || !password) {
-      return res.status(400).json({ error: "Укажите логин и пароль" });
+      return res.status(400).json({ error: "Укажите логин и пароль", request_id: ctx.requestId });
     }
     if (isNaN(id) || id < 1) {
-      return res.status(400).json({ error: "Укажите id сотрудника" });
+      return res.status(400).json({ error: "Укажите id сотрудника", request_id: ctx.requestId });
     }
     if (active === undefined && !presetIdParam) {
-      return res.status(400).json({ error: "Укажите active: true/false или presetId для смены роли" });
+      return res.status(400).json({ error: "Укажите active: true/false или presetId для смены роли", request_id: ctx.requestId });
     }
     const inviterId = await getInviterId(login, password);
     if (inviterId == null) {
-      return res.status(401).json({ error: "Неверный логин или пароль" });
+      return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
     }
     try {
       const pool = getPool();
@@ -286,12 +290,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
         const preset = presetRow.rows[0];
         if (!preset) {
-          return res.status(400).json({ error: "Роль не найдена" });
+          return res.status(400).json({ error: "Роль не найдена", request_id: ctx.requestId });
         }
         const permissions = preset.permissions && typeof preset.permissions === "object" ? (preset.permissions as Record<string, boolean>) : {};
         const accessAllInns = !!preset.service_mode;
         if (!columns.has("permissions")) {
-          return res.status(500).json({ error: "Конфигурация БД: отсутствует колонка permissions" });
+          return res.status(500).json({ error: "Конфигурация БД: отсутствует колонка permissions", request_id: ctx.requestId });
         }
         setParts.push(`permissions = ${addParam(JSON.stringify(permissions))}`);
         if (columns.has("financial_access")) {
@@ -316,13 +320,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (active !== undefined) {
         if (!columns.has("active")) {
-          return res.status(500).json({ error: "Конфигурация БД: отсутствует колонка active" });
+          return res.status(500).json({ error: "Конфигурация БД: отсутствует колонка active", request_id: ctx.requestId });
         }
         setParts.push(`active = ${addParam(active)}`);
       }
 
       if (setParts.length === 0) {
-        return res.status(500).json({ error: "Нет доступных полей для обновления" });
+        return res.status(500).json({ error: "Нет доступных полей для обновления", request_id: ctx.requestId });
       }
 
       const whereId = addParam(id);
@@ -333,12 +337,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       const rowCount = result.rowCount ?? 0;
       if (rowCount === 0) {
-        return res.status(404).json({ error: "Сотрудник не найден или доступ запрещён" });
+        return res.status(404).json({ error: "Сотрудник не найден или доступ запрещён", request_id: ctx.requestId });
       }
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, request_id: ctx.requestId });
     } catch (e: unknown) {
-      console.error("my-employees PATCH:", e);
-      return res.status(500).json({ error: "Ошибка обновления" });
+      logError(ctx, "my_employees_patch_failed", e);
+      return res.status(500).json({ error: "Ошибка обновления", request_id: ctx.requestId });
     }
   }
 
@@ -349,14 +353,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const idParam = typeof req.query.id === "string" ? req.query.id.trim() : "";
     const id = parseInt(idParam, 10);
     if (!login || !password) {
-      return res.status(400).json({ error: "Укажите логин и пароль" });
+      return res.status(400).json({ error: "Укажите логин и пароль", request_id: ctx.requestId });
     }
     if (isNaN(id) || id < 1) {
-      return res.status(400).json({ error: "Укажите id сотрудника" });
+      return res.status(400).json({ error: "Укажите id сотрудника", request_id: ctx.requestId });
     }
     const inviterId = await getInviterId(login, password);
     if (inviterId == null) {
-      return res.status(401).json({ error: "Неверный логин или пароль" });
+      return res.status(401).json({ error: "Неверный логин или пароль", request_id: ctx.requestId });
     }
     try {
       const pool = getPool();
@@ -365,15 +369,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         [id, inviterId]
       );
       if (rowCount === 0) {
-        return res.status(404).json({ error: "Сотрудник не найден или доступ запрещён" });
+        return res.status(404).json({ error: "Сотрудник не найден или доступ запрещён", request_id: ctx.requestId });
       }
-      return res.status(200).json({ ok: true, deleted: true });
+      return res.status(200).json({ ok: true, deleted: true, request_id: ctx.requestId });
     } catch (e: unknown) {
-      console.error("my-employees DELETE:", e);
-      return res.status(500).json({ error: "Ошибка удаления" });
+      logError(ctx, "my_employees_delete_failed", e);
+      return res.status(500).json({ error: "Ошибка удаления", request_id: ctx.requestId });
     }
   }
 
   res.setHeader("Allow", "GET, POST, PATCH, DELETE");
-  return res.status(405).json({ error: "Method not allowed" });
+  return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }

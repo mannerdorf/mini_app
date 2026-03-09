@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const GETAPI_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -44,9 +45,10 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  const ctx = initRequestContext(req, res, "getcustomers");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -54,7 +56,7 @@ export default async function handler(
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
@@ -62,7 +64,7 @@ export default async function handler(
   if (!login || !password) {
     return res
       .status(400)
-      .json({ error: "login and password are required" });
+      .json({ error: "login and password are required", request_id: ctx.requestId });
   }
 
   const url = new URL(GETAPI_BASE);
@@ -84,7 +86,7 @@ export default async function handler(
         const errJson = JSON.parse(text) as Record<string, unknown>;
         const message = (errJson?.Error ?? errJson?.error ?? errJson?.message) as string | undefined;
         const errorText = typeof message === "string" && message.trim() ? message.trim() : text || upstream.statusText;
-        return res.status(upstream.status).json({ error: errorText });
+        return res.status(upstream.status).json({ error: errorText, request_id: ctx.requestId });
       } catch {
         return res.status(upstream.status).send(text || upstream.statusText);
       }
@@ -94,7 +96,7 @@ export default async function handler(
     try {
       data = JSON.parse(text);
     } catch {
-      return res.status(200).json({ customers: [] });
+      return res.status(200).json({ customers: [], request_id: ctx.requestId });
     }
 
     // Формат 1С: { Success, Error, Key }. Если Success === false — только текст ошибки (например "Не найден пользователь", "Неверный пароль").
@@ -103,7 +105,7 @@ export default async function handler(
       if (o.Success === false) {
         const message = (o.Error ?? o.error ?? o.message) as string | undefined;
         const errorText = typeof message === "string" && message.trim() ? message.trim() : "Ошибка авторизации";
-        return res.status(401).json({ error: errorText });
+        return res.status(401).json({ error: errorText, request_id: ctx.requestId });
       }
     }
     let payload: unknown = data;
@@ -113,11 +115,11 @@ export default async function handler(
     }
     const customers = normalizeCustomers(payload);
 
-    return res.status(200).json({ customers });
+    return res.status(200).json({ customers, request_id: ctx.requestId });
   } catch (e: any) {
-    console.error("Getcustomers proxy error:", e);
+    logError(ctx, "getcustomers_proxy_failed", e);
     return res
       .status(500)
-      .json({ error: "Proxy error", details: e?.message || String(e) });
+      .json({ error: "Proxy error", details: e?.message || String(e), request_id: ctx.requestId });
   }
 }

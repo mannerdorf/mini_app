@@ -3,6 +3,7 @@ import https from "https";
 import { URL } from "url";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const EXTERNAL_API_BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
@@ -69,9 +70,10 @@ function clean1cPlaceholders(html: string): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "download");
   if (req.method !== "POST" && req.method !== "GET") {
     res.setHeader("Allow", "POST, GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   try {
@@ -102,7 +104,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         try {
           body = JSON.parse(body);
         } catch {
-          return res.status(400).json({ error: "Invalid JSON body" });
+          return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
         }
       }
 
@@ -124,41 +126,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!metod || !number) {
       return res.status(400).json({
         error: "Required fields: metod, number",
+        request_id: ctx.requestId,
       });
     }
     // АктСверки требует dateDoc
     if ((metod === "АктСверки" || metod === "AktSverki") && !dateDoc) {
       return res.status(400).json({
         error: "Required fields for АктСверки: metod, number, dateDoc",
+        request_id: ctx.requestId,
       });
     }
     // Договор требует dateDog и inn
     if ((metod === "Договор" || metod === "Dogovor") && (!dateDog || !inn)) {
       return res.status(400).json({
         error: "Required fields for Договор: metod, number, dateDog, inn",
+        request_id: ctx.requestId,
       });
     }
     if (isRegisteredUser && (!login || !password)) {
       return res.status(400).json({
         error: "Required fields for registered user: login, password, metod, number",
+        request_id: ctx.requestId,
       });
     }
 
     // basic validation to reduce abuse
     if (!/^[\p{L}\d _.-]{1,24}$/u.test(metod)) {
-      return res.status(400).json({ error: "Invalid metod" });
+      return res.status(400).json({ error: "Invalid metod", request_id: ctx.requestId });
     }
     if (!/^[0-9A-Za-zА-Яа-я._-]{1,64}$/u.test(number)) {
-      return res.status(400).json({ error: "Invalid number" });
+      return res.status(400).json({ error: "Invalid number", request_id: ctx.requestId });
     }
     if (dateDoc && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(dateDoc)) {
-      return res.status(400).json({ error: "Invalid dateDoc format (expected YYYY-MM-DDTHH:MM:SS)" });
+      return res.status(400).json({ error: "Invalid dateDoc format (expected YYYY-MM-DDTHH:MM:SS)", request_id: ctx.requestId });
     }
     if (dateDog && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(dateDog)) {
-      return res.status(400).json({ error: "Invalid dateDog format (expected YYYY-MM-DDTHH:MM:SS)" });
+      return res.status(400).json({ error: "Invalid dateDog format (expected YYYY-MM-DDTHH:MM:SS)", request_id: ctx.requestId });
     }
     if (inn && !/^\d{10,12}$/.test(String(inn).trim())) {
-      return res.status(400).json({ error: "Invalid inn (expected 10-12 digits)" });
+      return res.status(400).json({ error: "Invalid inn (expected 10-12 digits)", request_id: ctx.requestId });
     }
 
     // Зарегистрированные (CMS) пользователи: проверяем доступ к перевозке, затем запрашиваем файл сервисным аккаунтом
@@ -167,7 +173,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const pool = getPool();
         const verified = await verifyRegisteredUser(pool, login, password);
         if (!verified) {
-          return res.status(401).json({ error: "Неверный email или пароль" });
+          return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
         }
         const cacheRow = await pool.query<{ data: unknown[] }>(
           "SELECT data FROM cache_perevozki WHERE id = 1"
@@ -184,7 +190,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return itemInn === (verified.inn ?? "");
           });
           if (!item) {
-            return res.status(404).json({ error: "Перевозка не найдена или нет доступа" });
+            return res.status(404).json({ error: "Перевозка не найдена или нет доступа", request_id: ctx.requestId });
           }
         }
         const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN;
@@ -194,8 +200,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           password = servicePassword;
         }
       } catch (e: any) {
-        console.error("download registered user error:", e?.message || e);
-        return res.status(500).json({ error: "Ошибка запроса", message: e?.message });
+        logError(ctx, "download_registered_user_failed", e);
+        return res.status(500).json({ error: "Ошибка запроса", message: e?.message, request_id: ctx.requestId });
       }
     }
 
@@ -213,6 +219,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           error: "Service credentials are not configured",
           message:
             "Set PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD in Vercel.",
+          request_id: ctx.requestId,
         });
       }
       login = serviceLogin;
@@ -379,6 +386,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({
               error: "Server returned error",
               message: jsonResponse.Error,
+              request_id: ctx.requestId,
             });
           }
           
@@ -421,6 +429,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(500).json({
               error: "Invalid response format",
               message: "Сервер вернул данные в неожиданном формате",
+              request_id: ctx.requestId,
             });
           }
           
@@ -430,6 +439,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(404).json({
             error: "File not found",
             message: `Документ ${metod} для перевозки ${number} не найден`,
+            request_id: ctx.requestId,
           });
           
         } catch (e) {
@@ -440,6 +450,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             error: "Invalid response format",
             message: "Server returned neither PDF nor valid JSON",
             raw: textResponse.substring(0, 200),
+            request_id: ctx.requestId,
           });
         }
       });
@@ -449,7 +460,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!res.headersSent) {
           res
             .status(500)
-            .json({ error: "Upstream stream error", message: err.message });
+            .json({ error: "Upstream stream error", message: err.message, request_id: ctx.requestId });
         } else {
           res.end();
         }
@@ -461,7 +472,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!res.headersSent) {
         res
           .status(500)
-          .json({ error: "Proxy request error", message: err.message });
+          .json({ error: "Proxy request error", message: err.message, request_id: ctx.requestId });
       } else {
         res.end();
       }
@@ -469,9 +480,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     upstreamReq.end();
   } catch (err: any) {
-    console.error("🔥 Proxy handler error:", err?.message || err);
+    logError(ctx, "download_proxy_handler_failed", err);
     return res
       .status(500)
-      .json({ error: "Proxy handler failed", message: err?.message });
+      .json({ error: "Proxy handler failed", message: err?.message, request_id: ctx.requestId });
   }
 }

@@ -3,6 +3,7 @@ import https from "https";
 import { URL } from "url";
 import { getPool } from "../../_db.js";
 import { verifyRegisteredUser } from "../../lib/verifyRegisteredUser.js";
+import { initRequestContext, logError } from "../_lib/observability.js";
 
 // Document download handler - uses only Redis (no in-memory fallback)
 const EXTERNAL_API_BASE_URL =
@@ -110,16 +111,17 @@ async function deleteRedis(key: string) {
  * GET /api/doc/abc123...
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "doc-token");
   try {
     if (req.method !== "GET") {
       res.setHeader("Allow", "GET");
-      return res.status(405).json({ error: "Method not allowed" });
+      return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
     }
 
     const token = req.query.token as string;
 
     if (!token || typeof token !== "string") {
-      return res.status(400).json({ error: "Token is required" });
+      return res.status(400).json({ error: "Token is required", request_id: ctx.requestId });
     }
 
     console.log(`[doc/[token]] Looking up token: ${token.substring(0, 8)}...`);
@@ -144,7 +146,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Используем только Redis
     if (!docData) {
       console.log(`[doc/[token]] Token not found or expired: ${token.substring(0, 8)}...`);
-      return res.status(404).json({ error: "Document link not found or expired" });
+      return res.status(404).json({ error: "Document link not found or expired", request_id: ctx.requestId });
     }
 
     console.log(`[doc/[token]] Processing document: ${docData.metod} for ${docData.number}`);
@@ -155,6 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(503).json({
         error: "Service credentials are not configured",
         message: "Set PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD in Vercel.",
+        request_id: ctx.requestId,
       });
     }
 
@@ -165,7 +168,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const pool = getPool();
         const verified = await verifyRegisteredUser(pool, login, password);
         if (!verified) {
-          return res.status(401).json({ error: "Неверный email или пароль" });
+          return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
         }
         const cacheRow = await pool.query<{ data: unknown[] }>("SELECT data FROM cache_perevozki WHERE id = 1");
         if (cacheRow.rows.length > 0) {
@@ -180,12 +183,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return itemInn === (verified.inn ?? "");
           });
           if (!item) {
-            return res.status(404).json({ error: "Перевозка не найдена или нет доступа" });
+            return res.status(404).json({ error: "Перевозка не найдена или нет доступа", request_id: ctx.requestId });
           }
         }
       } catch (e: any) {
-        console.error("[doc/[token]] registered user error:", e?.message || e);
-        return res.status(500).json({ error: "Ошибка запроса", message: e?.message });
+        logError(ctx, "doc_token_registered_user_failed", e);
+        return res.status(500).json({ error: "Ошибка запроса", message: e?.message, request_id: ctx.requestId });
       }
     }
     login = serviceLogin;
@@ -283,14 +286,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 res.end(pdfBuffer);
               } else if (json.Error) {
                 console.error(`[doc/[token]] ❌ Upstream logic error: ${json.Error}`);
-                res.status(400).json({ error: json.Error });
+                res.status(400).json({ error: json.Error, request_id: ctx.requestId });
               } else {
                 console.error(`[doc/[token]] ❌ Unknown JSON format`);
-                res.status(404).json({ error: "Документ не обнаружен" });
+                res.status(404).json({ error: "Документ не обнаружен", request_id: ctx.requestId });
               }
             } catch (e) {
               console.error(`[doc/[token]] ❌ Failed to parse as JSON`);
-              res.status(500).json({ error: "Ошибка сервера. Попробуйте позже." });
+              res.status(500).json({ error: "Ошибка сервера. Попробуйте позже.", request_id: ctx.requestId });
             }
           }
           resolve();
@@ -299,7 +302,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       upstreamRes.on("error", (err) => {
         console.error("Upstream error:", err);
         if (!res.headersSent) {
-          res.status(500).json({ error: "Ошибка сервера. Попробуйте позже." });
+          res.status(500).json({ error: "Ошибка сервера. Попробуйте позже.", request_id: ctx.requestId });
         }
         resolve();
       });
@@ -308,7 +311,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     upstreamReq.on("error", (err) => {
       console.error("[doc/[token]] Request error:", err);
       if (!res.headersSent) {
-        res.status(500).json({ error: "Ошибка сервера. Попробуйте позже." });
+        res.status(500).json({ error: "Ошибка сервера. Попробуйте позже.", request_id: ctx.requestId });
       }
       resolve();
     });
@@ -316,11 +319,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     upstreamReq.end();
   });
   } catch (error: any) {
-    console.error(`[doc/[token]] Handler error:`, error);
+    logError(ctx, "doc_token_handler_failed", error);
     if (!res.headersSent) {
       return res.status(500).json({ 
         error: "Internal server error",
-        message: error?.message || String(error)
+        message: error?.message || String(error),
+        request_id: ctx.requestId,
       });
     }
   }

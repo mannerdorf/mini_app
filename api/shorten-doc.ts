@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 // Используем Upstash Redis для хранения токенов документов
 const TOKEN_MAX_AGE = 60 * 60; // 1 час в секундах
@@ -73,9 +74,10 @@ const docTokenStore = new Map<
  * Body: { login, password, metod, number }
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "shorten-doc");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   try {
@@ -84,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON body" });
+        return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
       }
     }
 
@@ -93,6 +95,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!login || !password || !metod || !number) {
       return res.status(400).json({
         error: "Required fields: login, password, metod, number",
+        request_id: ctx.requestId,
       });
     }
 
@@ -164,13 +167,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       shortUrl,
       token,
       originalUrl: tokenUrl,
-      debug
+      debug,
+      request_id: ctx.requestId,
     });
   } catch (error: any) {
-    console.error("Shorten doc error:", error);
+    logError(ctx, "shorten_doc_failed", error);
     return res.status(500).json({
       error: "Failed to create short URL",
       message: error?.message || String(error),
+      request_id: ctx.requestId,
     });
   }
 }

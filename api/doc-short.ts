@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { initRequestContext } from "./_lib/observability.js";
 
 /**
  * Короткая ссылка на документ, которая открывает мини-апп
@@ -7,16 +8,17 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
  * Этот endpoint редиректит на мини-апп с параметрами для скачивания документа
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const ctx = initRequestContext(req, res, "doc-short");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   const metod = req.query.metod as string;
   const number = req.query.number as string;
 
   if (!metod || !number) {
-    return res.status(400).json({ error: "metod and number are required" });
+    return res.status(400).json({ error: "metod and number are required", request_id: ctx.requestId });
   }
 
   // Определяем URL мини-аппа

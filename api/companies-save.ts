@@ -1,13 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  const ctx = initRequestContext(req, res, "companies-save");
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let body: any = req.body;
@@ -15,7 +17,7 @@ export default async function handler(
     try {
       body = JSON.parse(body);
     } catch {
-      return res.status(400).json({ error: "Invalid JSON body" });
+      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
 
@@ -23,7 +25,7 @@ export default async function handler(
   if (!login || typeof login !== "string" || !Array.isArray(customers)) {
     return res
       .status(400)
-      .json({ error: "login (string) and customers (array) are required" });
+      .json({ error: "login (string) and customers (array) are required", request_id: ctx.requestId });
   }
 
   const normalized = customers
@@ -49,7 +51,7 @@ export default async function handler(
   const deduped = Array.from(byInn.values());
 
   if (deduped.length === 0) {
-    return res.status(200).json({ ok: true, saved: 0 });
+    return res.status(200).json({ ok: true, saved: 0, request_id: ctx.requestId });
   }
 
   try {
@@ -57,8 +59,8 @@ export default async function handler(
     try {
       pool = getPool();
     } catch (dbInitErr: any) {
-      console.error("companies-save: DB not configured", dbInitErr?.message);
-      return res.status(200).json({ ok: true, saved: 0, warning: "DATABASE_URL not set" });
+      logError(ctx, "companies_save_db_not_configured", dbInitErr);
+      return res.status(200).json({ ok: true, saved: 0, warning: "DATABASE_URL not set", request_id: ctx.requestId });
     }
     const client = await pool.connect();
     try {
@@ -75,15 +77,15 @@ export default async function handler(
         );
       }
       await client.query("COMMIT");
-      return res.status(200).json({ ok: true, saved: deduped.length });
+      return res.status(200).json({ ok: true, saved: deduped.length, request_id: ctx.requestId });
     } finally {
       client.release();
     }
   } catch (e: any) {
-    console.error("companies-save error:", e);
+    logError(ctx, "companies_save_failed", e);
     return res
       .status(500)
-      .json({ error: "Database error", details: e?.message || String(e) });
+      .json({ error: "Database error", details: e?.message || String(e), request_id: ctx.requestId });
   }
 }
 

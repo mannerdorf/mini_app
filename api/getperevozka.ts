@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
+import { initRequestContext, logError } from "./_lib/observability.js";
 
 const GETAPI_BASE =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
@@ -56,9 +57,10 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  const ctx = initRequestContext(req, res, "getperevozka");
   if (req.method !== "POST" && req.method !== "GET") {
     res.setHeader("Allow", "POST, GET");
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
   let login: string | undefined;
@@ -83,7 +85,7 @@ export default async function handler(
       try {
         body = JSON.parse(body);
       } catch {
-        return res.status(400).json({ error: "Invalid JSON body" });
+        return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
       }
     }
     ({ login, password, number, inn, isRegisteredUser } = body ?? {});
@@ -92,22 +94,25 @@ export default async function handler(
   if (!number) {
     return res.status(400).json({
       error: "Required: number",
+      request_id: ctx.requestId,
     });
   }
   if (!serviceLogin || !servicePassword) {
     return res.status(503).json({
       error: "Service credentials are not configured",
       message: "Set PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD in Vercel.",
+      request_id: ctx.requestId,
     });
   }
   if (isRegisteredUser && (!login || !password)) {
     return res.status(400).json({
       error: "Required for registered user: login, password, number",
+      request_id: ctx.requestId,
     });
   }
 
   if (!/^[0-9A-Za-zА-Яа-я._-]{1,64}$/u.test(number)) {
-    return res.status(400).json({ error: "Invalid number" });
+    return res.status(400).json({ error: "Invalid number", request_id: ctx.requestId });
   }
 
   if (isRegisteredUser) {
@@ -115,7 +120,7 @@ export default async function handler(
       const pool = getPool();
       const verified = await verifyRegisteredUser(pool, login!, password!);
       if (!verified) {
-        return res.status(401).json({ error: "Неверный email или пароль" });
+        return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
       }
       const cacheRow = await pool.query<{ data: unknown[] }>(
         "SELECT data FROM cache_perevozki WHERE id = 1"
@@ -162,12 +167,12 @@ export default async function handler(
         }
       }
       if (!item) {
-        return res.status(404).json({ error: "Перевозка не найдена" });
+        return res.status(404).json({ error: "Перевозка не найдена", request_id: ctx.requestId });
       }
       return res.status(200).json(item);
     } catch (e) {
-      console.error("getperevozka registered user error:", e);
-      return res.status(500).json({ error: "Ошибка запроса" });
+      logError(ctx, "getperevozka_registered_user_failed", e);
+      return res.status(500).json({ error: "Ошибка запроса", request_id: ctx.requestId });
     }
   }
 
@@ -195,11 +200,14 @@ export default async function handler(
     if (!upstream.ok) {
       try {
         const errJson = JSON.parse(text);
-        return res.status(upstream.status).json(errJson);
+        if (errJson && typeof errJson === "object" && !Array.isArray(errJson)) {
+          return res.status(upstream.status).json({ ...(errJson as Record<string, unknown>), request_id: ctx.requestId });
+        }
+        return res.status(upstream.status).json({ error: String(errJson), request_id: ctx.requestId });
       } catch {
         return res
           .status(upstream.status)
-          .json({ error: text || `Upstream error: ${upstream.status}` });
+          .json({ error: text || `Upstream error: ${upstream.status}`, request_id: ctx.requestId });
       }
     }
 
@@ -210,9 +218,9 @@ export default async function handler(
       return res.status(200).send(text);
     }
   } catch (e: any) {
-    console.error("Getperevozka proxy error:", e);
+    logError(ctx, "getperevozka_proxy_failed", e);
     return res
       .status(500)
-      .json({ error: "Proxy error", details: e?.message || String(e) });
+      .json({ error: "Proxy error", details: e?.message || String(e), request_id: ctx.requestId });
   }
 }
