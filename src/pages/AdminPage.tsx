@@ -615,6 +615,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [ferryEditMmsi, setFerryEditMmsi] = useState<Record<number, string>>({});
   const [ferrySaveLoading, setFerrySaveLoading] = useState<number | null>(null);
   const [ferryDeleteLoading, setFerryDeleteLoading] = useState<number | null>(null);
+  const [ferryAddModalOpen, setFerryAddModalOpen] = useState(false);
+  const [ferryAddName, setFerryAddName] = useState("");
+  const [ferryAddMmsi, setFerryAddMmsi] = useState("");
+  const [ferryAddLoading, setFerryAddLoading] = useState(false);
+  const [ferryAddError, setFerryAddError] = useState<string | null>(null);
   const [pvzList, setPvzList] = useState<{ ВладелецИНН: string; ВладелецНаименование: string; Ссылка: string; Наименование: string; КодДляПечати: string; РегионНаименование: string; ГородНаименование: string; КонтактноеЛицо: string; ОтправительПолучательНаименование: string }[]>([]);
   const [pvzLoading, setPvzLoading] = useState(false);
   const [pvzFetchTrigger, setPvzFetchTrigger] = useState(0);
@@ -5956,7 +5961,87 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               {ferriesEnrichLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ marginRight: "0.35rem" }} /> : null}
               Запросить у Marinesia
             </Button>
+            <Button
+              type="button"
+              className="button-primary"
+              disabled={ferriesLoading}
+              onClick={() => {
+                setFerryAddModalOpen(true);
+                setFerryAddName("");
+                setFerryAddMmsi("");
+                setFerryAddError(null);
+              }}
+            >
+              <Plus className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+              Добавить паром
+            </Button>
           </Flex>
+          {ferryAddModalOpen && (
+            <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={() => !ferryAddLoading && setFerryAddModalOpen(false)} role="dialog" aria-modal="true" aria-labelledby="ferry-add-title">
+              <div className="modal-content" style={{ maxWidth: "22rem", padding: "1.25rem" }} onClick={(e) => e.stopPropagation()}>
+                <Typography.Headline id="ferry-add-title" style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>Добавить паром</Typography.Headline>
+                <div style={{ marginBottom: "0.75rem" }}>
+                  <label htmlFor="ferry-add-name" style={{ display: "block", fontSize: "0.85rem", marginBottom: "0.25rem", color: "var(--color-text-secondary)" }}>Наименование</label>
+                  <Input
+                    id="ferry-add-name"
+                    className="admin-form-input"
+                    value={ferryAddName}
+                    onChange={(e) => setFerryAddName(e.target.value)}
+                    placeholder="Например: Marshal Rokossovsky"
+                    style={{ width: "100%", padding: "0.5rem" }}
+                  />
+                </div>
+                <div style={{ marginBottom: "1rem" }}>
+                  <label htmlFor="ferry-add-mmsi" style={{ display: "block", fontSize: "0.85rem", marginBottom: "0.25rem", color: "var(--color-text-secondary)" }}>MMSI (9 цифр)</label>
+                  <Input
+                    id="ferry-add-mmsi"
+                    className="admin-form-input"
+                    value={ferryAddMmsi}
+                    onChange={(e) => setFerryAddMmsi(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                    placeholder="273214860"
+                    inputMode="numeric"
+                    style={{ width: "100%", padding: "0.5rem" }}
+                  />
+                </div>
+                {ferryAddError && (
+                  <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>{ferryAddError}</Typography.Body>
+                )}
+                <Flex gap="0.5rem" justify="flex-end">
+                  <Button type="button" className="filter-button" disabled={ferryAddLoading} onClick={() => setFerryAddModalOpen(false)}>Отмена</Button>
+                  <Button
+                    type="button"
+                    className="button-primary"
+                    disabled={ferryAddLoading || !ferryAddName.trim() || ferryAddMmsi.replace(/\D/g, "").length !== 9}
+                    onClick={async () => {
+                      const name = ferryAddName.trim();
+                      const mmsi = ferryAddMmsi.replace(/\D/g, "");
+                      if (!name || mmsi.length !== 9) return;
+                      setFerryAddLoading(true);
+                      setFerryAddError(null);
+                      try {
+                        const res = await fetch("/api/ferries", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken}` },
+                          body: JSON.stringify({ name, mmsi }),
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) throw new Error(data?.error || "Ошибка сохранения");
+                        setFerryAddModalOpen(false);
+                        setFerriesFetchTrigger((n) => n + 1);
+                      } catch (e) {
+                        setFerryAddError((e as Error)?.message || "Ошибка");
+                      } finally {
+                        setFerryAddLoading(false);
+                      }
+                    }}
+                  >
+                    {ferryAddLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Добавить
+                  </Button>
+                </Flex>
+              </div>
+            </div>
+          )}
           {ferriesEnrichMessage && (
             <Typography.Body style={{ marginBottom: "0.5rem", fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
               {ferriesEnrichMessage}
