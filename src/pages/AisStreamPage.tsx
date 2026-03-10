@@ -3,6 +3,29 @@
  */
 import React, { useState, useCallback, useEffect } from "react";
 
+/** UN/LOCODE → название порта/города (Балтика, Россия) */
+const PORT_CODE_TO_NAME: Record<string, string> = {
+  RULED: "Санкт-Петербург",
+  RUKGD: "Калининград",
+  RUBLI: "Балтийск",
+  LTKLL: "Клайпеда",
+  PLGDN: "Гданьск",
+  PLGDY: "Гдыня",
+  SEMMA: "Мальмё",
+  DKCPH: "Копенгаген",
+  DEHAM: "Гамбург",
+  FIHEL: "Хельсинки",
+  EETLL: "Таллин",
+  LVRIX: "Рига",
+};
+
+function formatPortDest(code: string): string {
+  const upper = String(code ?? "").trim().toUpperCase();
+  if (!upper) return "";
+  const name = PORT_CODE_TO_NAME[upper];
+  return name ? `${name} (${upper})` : upper;
+}
+
 const NAV_STATUS_LABELS: Record<number, string> = {
   0: "В движении (двигатель)",
   1: "На якоре",
@@ -21,7 +44,7 @@ const NAV_STATUS_LABELS: Record<number, string> = {
   14: "AIS-SART",
   15: "Не определено",
 };
-import { ArrowLeft, Ship, Loader2, MapPin } from "lucide-react";
+import { ArrowLeft, Loader2, MapPin } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 
 export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { onBack: () => void; initialMmsi?: string; onConsumedInitialMmsi?: () => void }) {
@@ -32,7 +55,6 @@ export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { 
     sog?: number; cog?: number; timeUtc?: string;
     dest?: string; eta?: string; status?: number; hdt?: number; draught?: number;
   } | null>(null);
-  const [events, setEvents] = useState<{ type: string; data: unknown; ts: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -54,7 +76,6 @@ export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { 
       }
       if (data?.vessel) {
         setVesselInfo(data.vessel);
-        setEvents((prev) => [...prev.slice(-19), { type: "marinesia", data: data.vessel, ts: Date.now() }]);
       } else {
         setError("Судно не найдено");
       }
@@ -86,7 +107,6 @@ export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { 
       .then((data) => {
         if (data?.vessel) {
           setVesselInfo(data.vessel);
-          setEvents((prev) => [...prev.slice(-19), { type: "marinesia", data: data.vessel, ts: Date.now() }]);
         } else {
           setError("Судно не найдено");
         }
@@ -122,7 +142,7 @@ export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { 
               value={mmsi}
               onChange={(e) => setMmsi(e.target.value)}
               className="admin-form-input"
-              style={{ width: "100%", maxWidth: "24rem", padding: "0.5rem 0.75rem", fontSize: "1rem", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-bg-primary)" }}
+              style={{ width: "100%", maxWidth: "24rem", padding: "0.5rem 0.75rem", fontSize: "1rem", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-bg-input)", color: "var(--color-text-primary)" }}
             >
               <option value="">— Выберите паром из справочника —</option>
               {ferries.map((f) => (
@@ -179,7 +199,7 @@ export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { 
           )}
           {vesselInfo.dest && (
             <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
-              Порт назначения: {vesselInfo.dest}
+              Порт назначения: {formatPortDest(vesselInfo.dest)}
             </Typography.Body>
           )}
           {vesselInfo.eta && (
@@ -213,40 +233,6 @@ export function AisStreamPage({ onBack, initialMmsi, onConsumedInitialMmsi }: { 
         </Panel>
       )}
 
-      <Panel className="cargo-card" style={{ padding: "1rem", maxHeight: "50vh", overflowY: "auto" }}>
-        <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.5rem" }}>
-          <Ship className="w-5 h-5" style={{ color: "var(--color-primary)" }} />
-          <Typography.Body style={{ fontWeight: 600 }}>События</Typography.Body>
-        </Flex>
-        {events.length === 0 ? (
-          <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-            Результаты поиска появятся здесь.
-          </Typography.Body>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {events.map((ev, i) => (
-              <div
-                key={`${ev.ts}-${i}`}
-                style={{
-                  padding: "0.5rem",
-                  borderRadius: 8,
-                  background: ev.type === "error" ? "rgba(239,68,68,0.1)" : "var(--color-bg-hover)",
-                  fontSize: "0.8rem",
-                  fontFamily: "monospace",
-                  wordBreak: "break-all",
-                }}
-              >
-                <span style={{ fontWeight: 600, color: ev.type === "error" ? "var(--color-error)" : "var(--color-primary)" }}>
-                  [{ev.type}]
-                </span>{" "}
-                {typeof ev.data === "object" && ev.data !== null
-                  ? JSON.stringify(ev.data)
-                  : String(ev.data)}
-              </div>
-            ))}
-          </div>
-        )}
-      </Panel>
     </div>
   );
 }
