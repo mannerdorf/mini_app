@@ -6,6 +6,7 @@ import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { CustomPeriodModal } from "../components/modals/CustomPeriodModal";
 import { InvoiceDetailModal } from "../components/modals/InvoiceDetailModal";
 import { ActDetailModal } from "../components/modals/ActDetailModal";
+import { NewOrderModal } from "../components/modals/NewOrderModal";
 import { DateText } from "../components/ui/DateText";
 import { formatCurrency, stripOoo, formatInvoiceNumber, normalizeInvoiceStatus, cityToCode } from "../lib/formatUtils";
 import { downloadBase64File } from "../utils";
@@ -379,6 +380,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [expandedTableCustomer, setExpandedTableCustomer] = useState<string | null>(null);
     const [expandedTableActCustomer, setExpandedTableActCustomer] = useState<string | null>(null);
     const [expandedOrderRow, setExpandedOrderRow] = useState<string | null>(null);
+    const [newOrderModalOpen, setNewOrderModalOpen] = useState(false);
     const [expandedSendingRow, setExpandedSendingRow] = useState<string | null>(null);
     /** Столбец EOR виден всем с правом haulz; менять значение могут только с правом eor или суперадмин */
     const showEorColumn = (permissions?.haulz === true) || isSuperAdmin;
@@ -1089,6 +1091,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         ordersItems,
         ordersError,
         ordersLoading,
+        mutateOrders,
         sendingsItems,
         sendingsError,
         sendingsLoading,
@@ -3605,6 +3608,39 @@ useEffect(() => {
             )}
             {docSection === 'Заявки' && (
             <>
+            <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Button
+                    onClick={() => setNewOrderModalOpen(true)}
+                    disabled={!auth?.login || !auth?.password}
+                    title={!auth?.login || !auth?.password ? 'Требуется авторизация' : undefined}
+                >
+                    Новая заявка
+                </Button>
+            </div>
+            <NewOrderModal
+                isOpen={newOrderModalOpen}
+                onClose={() => setNewOrderModalOpen(false)}
+                auth={{ login: auth.login, password: auth.password }}
+                activeInn={effectiveActiveInn || null}
+                onSubmit={async (data) => {
+                    const res = await fetch('/api/order-create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            login: auth.login,
+                            password: auth.password,
+                            punktOtpravki: data.punktOtpravki,
+                            punktNaznacheniya: data.punktNaznacheniya,
+                            nomerZayavki: data.nomerZayavki,
+                            dataZabora: data.dataZabora,
+                            tableRows: data.tableRows,
+                        }),
+                    });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(json?.error || 'Ошибка создания заявки');
+                    void mutateOrders(undefined, { revalidate: true });
+                }}
+            />
             {(ordersLoading || !!ordersError) && <DocumentsStateBlocks loading={ordersLoading} error={ordersError} emptyText="" />}
             {!ordersLoading && !ordersError && tableModeEffective && orderRowsSorted.length > 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
