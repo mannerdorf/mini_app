@@ -443,6 +443,19 @@ body {
     position: relative;
     border: 1px solid var(--color-border);
     box-shadow: var(--shadow-lg);
+    flex-shrink: 0;
+}
+/* Мобильный: карточка не растягивается, занимает только высоту контента */
+@media (max-width: 640px) {
+    .login-form-wrapper {
+        padding: 1rem;
+        overflow-y: auto;
+    }
+    .login-form-wrapper .login-card {
+        flex: 0 0 auto;
+        height: fit-content;
+        padding: var(--space-5, 20px);
+    }
 }
 .logo-text {
     font-size: var(--font-size-title2, 22px);

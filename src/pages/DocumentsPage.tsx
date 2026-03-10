@@ -399,9 +399,11 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [byCustomerActionLoading, setByCustomerActionLoading] = useState(false);
     const [byCustomerActionError, setByCustomerActionError] = useState<string | null>(null);
     const [byCustomerActionInfo, setByCustomerActionInfo] = useState<string | null>(null);
+    const [expandedByCustomerKey, setExpandedByCustomerKey] = useState<string | null>(null);
     const [ferriesList, setFerriesList] = useState<{ id: number; name: string; mmsi: string }[]>([]);
     const [sendingsFerryMap, setSendingsFerryMap] = useState<Record<string, { ferry_id: number; ferry_name: string; eta: string | null }>>({});
     const [ferryEtaLoadingByRow, setFerryEtaLoadingByRow] = useState<Record<string, boolean>>({});
+    const [sendingsFerryActionError, setSendingsFerryActionError] = useState<string | null>(null);
     const [tariffsList, setTariffsList] = useState<{
         id: number;
         docDate: string | null;
@@ -988,6 +990,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             setSelectedSendingRowKeys(new Set());
             setBulkEorMenuOpen(false);
             setBulkPlanDateOpen(false);
+            setSendingsFerryActionError(null);
             setBulkSendingActionLoading(false);
             setBulkSendingActionError(null);
             setBulkSendingActionInfo(null);
@@ -1029,6 +1032,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
     const [favVersion, setFavVersion] = useState(0);
     useEffect(() => {
         setSelectedByCustomerSummaryKeys(new Set());
+        setExpandedByCustomerKey(null);
         setByCustomerPlanDateOpen(false);
         setByCustomerPlanDateValue("");
         setByCustomerActionLoading(false);
@@ -1270,6 +1274,36 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         });
         return m;
     }, [perevozkiItems, parseDateTimeValue, normCargoKey]);
+    const cargoPlanDateByNumber = useMemo(() => {
+        const m = new Map<string, Date>();
+        const plannedKeys = [
+            'DateArrival', 'PlannedDeliveryDate', 'PlanDeliveryDate', 'DateDeliveryPlan',
+            'ПлановаяДатаДоставки', 'ПланДатаДоставки', 'ПлановаяДата', 'PlanDate',
+            'ДатаПрибытияПлан', 'ДатаДоставкиПлан', 'ПланДатаПрибытия', 'ПлановаяДатаПрибытия',
+        ];
+        (perevozkiItems || []).forEach((c: any) => {
+            const raw = String(c?.Number ?? c?.number ?? '').replace(/^0000-/, '').trim();
+            if (!raw) return;
+            let date: Date | null = null;
+            for (const k of plannedKeys) {
+                const v = c?.[k];
+                const parsed = parseDateTimeValue(v);
+                if (parsed) {
+                    date = date ? (parsed.getTime() < date.getTime() ? parsed : date) : parsed;
+                }
+            }
+            if (date) {
+                const key = normCargoKey(raw);
+                const prev = m.get(key);
+                if (!prev || date.getTime() < prev.getTime()) m.set(key, date);
+                if (key !== raw) {
+                    const prevRaw = m.get(raw);
+                    if (!prevRaw || date.getTime() < prevRaw.getTime()) m.set(raw, date);
+                }
+            }
+        });
+        return m;
+    }, [perevozkiItems, parseDateTimeValue, normCargoKey]);
     const getSendingCargoNumbers = useCallback((row: any): string[] => {
         const numbers: string[] = [];
         const add = (value: unknown) => {
@@ -1427,6 +1461,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 plannedKeys.forEach((k) => addDate(obj?.[k]));
             };
 
+            collectFrom(row);
             const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
             const parcels = Array.isArray(rawParcels)
                 ? rawParcels
@@ -1443,12 +1478,21 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 }
             });
 
+            if (dates.length === 0) {
+                const cargoNumbers = getSendingCargoNumbers(row);
+                cargoNumbers.forEach((num) => {
+                    const key = normCargoKey(num);
+                    const planDate = cargoPlanDateByNumber.get(key) ?? cargoPlanDateByNumber.get(num);
+                    if (planDate) dates.push(planDate);
+                });
+            }
+
             if (dates.length === 0) return null;
             return dates.reduce((min, d) => (d.getTime() < min.getTime() ? d : min), dates[0]);
         } catch {
             return null;
         }
-    }, [parseDateTimeValue]);
+    }, [parseDateTimeValue, getSendingCargoNumbers, cargoPlanDateByNumber, normCargoKey]);
     const cargoCustomerByNumber = useMemo(() => {
         const m = new Map<string, string>();
         (perevozkiItems || []).forEach((c: any) => {
@@ -2668,6 +2712,7 @@ useEffect(() => {
         return null;
     }, [sendingsFerryMap]);
     const handleFerrySelect = useCallback(async (rowKey: string, ferryIdStr: string, effectiveInn: string | null) => {
+        setSendingsFerryActionError(null);
         const ferryId = ferryIdStr ? parseInt(ferryIdStr, 10) : null;
         const ferry = ferriesList.find((f) => f.id === ferryId);
         if (!ferry && ferryId != null) return;
@@ -2705,8 +2750,8 @@ useEffect(() => {
                 });
                 return next;
             });
-        } catch {
-            // ignore
+        } catch (err) {
+            setSendingsFerryActionError(String((err as Error)?.message ?? 'Не удалось сохранить паром'));
         } finally {
             setFerryEtaLoadingByRow((prev) => {
                 const next = { ...prev };
@@ -3982,6 +4027,11 @@ useEffect(() => {
                         )}
                     </div>
                 )}
+                {sendingsFerryActionError && (
+                    <Typography.Body style={{ marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--color-error)' }}>
+                        {sendingsFerryActionError}
+                    </Typography.Body>
+                )}
                 {tableModeEffective && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
@@ -4115,27 +4165,37 @@ useEffect(() => {
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td
-                                                style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle' }}
+                                                style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle', position: 'relative', zIndex: 1, touchAction: 'manipulation' }}
                                                 onClick={(e) => e.stopPropagation()}
                                                 onMouseDown={(e) => e.stopPropagation()}
+                                                onMouseUp={(e) => e.stopPropagation()}
                                                 onTouchStart={(e) => e.stopPropagation()}
+                                                onTouchEnd={(e) => e.stopPropagation()}
+                                                onPointerDownCapture={(e) => e.stopPropagation()}
                                             >
                                                 {transportType === 'ferry' ? (
                                                     canEditPlanDate && ferriesList.length > 0 ? (
-                                                        <select
-                                                            className="admin-form-input"
-                                                            value={getSendingsFerryEntry(rowKey, number)?.ferry_id ?? ''}
-                                                            onChange={(e) => handleFerrySelect(rowKey, e.target.value, effectiveActiveInn ?? null)}
-                                                            disabled={ferryEtaLoadingByRow[rowKey]}
+                                                        <div
+                                                            style={{ display: 'inline-block', minWidth: 140 }}
                                                             onClick={(e) => e.stopPropagation()}
-                                                            onMouseDown={(e) => e.stopPropagation()}
-                                                            style={{ padding: '0.25rem 0.4rem', fontSize: '0.8rem', minWidth: 140, maxWidth: 200, cursor: 'pointer' }}
+                                                            onPointerDown={(e) => e.stopPropagation()}
                                                         >
-                                                            <option value="">— Выберите паром —</option>
-                                                            {ferriesList.map((f) => (
-                                                                <option key={f.id} value={f.id}>{f.name}</option>
-                                                            ))}
-                                                        </select>
+                                                            <select
+                                                                className="admin-form-input"
+                                                                value={getSendingsFerryEntry(rowKey, number)?.ferry_id ?? ''}
+                                                                onChange={(e) => handleFerrySelect(rowKey, e.target.value, effectiveActiveInn ?? null)}
+                                                                disabled={ferryEtaLoadingByRow[rowKey]}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                onPointerDown={(e) => e.stopPropagation()}
+                                                                style={{ padding: '0.4rem 0.5rem', fontSize: '0.85rem', minWidth: 140, maxWidth: 200, minHeight: 36, cursor: 'pointer' }}
+                                                                aria-label="Выберите паром"
+                                                            >
+                                                                <option value="">— Выберите паром —</option>
+                                                                {ferriesList.map((f) => (
+                                                                    <option key={f.id} value={f.id}>{f.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
                                                     ) : getSendingsFerryEntry(rowKey, number)?.ferry_name ?? '—'
                                                 ) : '—'}
                                             </td>
@@ -4739,42 +4799,131 @@ useEffect(() => {
                                                                         };
                                                                         return (
                                                                             <>
-                                                                                {sortedSummaryRows.map((summary, parcelIdx: number) => (
-                                                                                    <tr
-                                                                                        key={`${rowKey}-summary-customer-${summary.party}-${parcelIdx}`}
-                                                                                        style={{
-                                                                                            borderBottom: '1px solid var(--color-border)',
-                                                                                            background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
-                                                                                        }}
-                                                                                    >
-                                                                                        {canEditPlanDate && (
-                                                                                            <td style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
-                                                                                                <input
-                                                                                                    type="checkbox"
-                                                                                                    checked={selectedByCustomerSummaryKeys.has(summary.selectionKey)}
-                                                                                                    onChange={(e) => {
-                                                                                                        const checked = e.target.checked;
-                                                                                                        setSelectedByCustomerSummaryKeys((prev) => {
-                                                                                                            const next = new Set(prev);
-                                                                                                            if (checked) next.add(summary.selectionKey);
-                                                                                                            else next.delete(summary.selectionKey);
-                                                                                                            return next;
-                                                                                                        });
-                                                                                                    }}
-                                                                                                    aria-label={`Выбрать ${sendingsSummaryGroupBy === 'receiver' ? 'получателя' : 'заказчика'} ${summary.party || parcelIdx + 1}`}
-                                                                                                />
-                                                                                            </td>
-                                                                                        )}
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{stripOoo(summary.party) || '—'}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.volume)}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', color: densityColor(summary.weight, summary.volume), fontWeight: 600 }}>{densityOf(summary.weight, summary.volume)}</td>
-                                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
-                                                                                    </tr>
-                                                                                ))}
+                                                                                {sortedSummaryRows.map((summary, parcelIdx: number) => {
+                                                                                    const isExpanded = expandedByCustomerKey === summary.selectionKey;
+                                                                                    const cargoNumbersSet = new Set(summary.cargoNumbers.map((c: string) => normCargoKey(c)));
+                                                                                    const parcelsForParty = parcelsToRender.filter((p: any) => {
+                                                                                        const cargo = String(p?.Перевозка ?? '').trim();
+                                                                                        return cargo && cargoNumbersSet.has(normCargoKey(cargo));
+                                                                                    });
+                                                                                    const byCargoExpanded = new Map<string, { cargo: string; status: string; count: number; volume: number; weight: number; paidWeight: number }>();
+                                                                                    parcelsForParty.forEach((parcel: any) => {
+                                                                                        const cargo = String(parcel?.Перевозка ?? '').trim() || '—';
+                                                                                        const prev = byCargoExpanded.get(cargo) ?? { cargo, status: '', count: 0, volume: 0, weight: 0, paidWeight: 0 };
+                                                                                        prev.count += 1;
+                                                                                        prev.volume += toNumber(parcel?.ОбъемДляОтчета);
+                                                                                        prev.weight += toNumber(parcel?.ВесДляОтчета);
+                                                                                        prev.paidWeight += toNumber(parcel?.ПлатныйВес);
+                                                                                        if (!prev.status || prev.status === '-') {
+                                                                                            const state = cargo !== '—' ? String(cargoStateByNumber.get(normCargoKey(cargo)) ?? '') : '';
+                                                                                            prev.status = state || prev.status;
+                                                                                        }
+                                                                                        byCargoExpanded.set(cargo, prev);
+                                                                                    });
+                                                                                    const cargoRows = Array.from(byCargoExpanded.values()).map((s, i) => {
+                                                                                        const cargoKey = normCargoKey(s.cargo);
+                                                                                        const sendingCustomer = cargoCustomerByNumber.get(cargoKey) || String(row?.Заказчик ?? row?.Customer ?? '').trim();
+                                                                                        const sendingReceiver = cargoReceiverByNumber.get(cargoKey) || String(row?.Получатель ?? row?.Грузополучатель ?? '').trim();
+                                                                                        const partyName = sendingsSummaryGroupBy === 'receiver' ? sendingReceiver : sendingCustomer;
+                                                                                        return { ...s, status: normalizeStatus(s.status || ''), partyName, _idx: i + 1 };
+                                                                                    });
+                                                                                    return (
+                                                                                        <React.Fragment key={`${rowKey}-summary-customer-${summary.party}-${parcelIdx}`}>
+                                                                                            <tr
+                                                                                                style={{
+                                                                                                    borderBottom: '1px solid var(--color-border)',
+                                                                                                    background: isExpanded ? 'var(--color-bg-hover)' : (hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined),
+                                                                                                    cursor: 'pointer',
+                                                                                                }}
+                                                                                                onClick={() => setExpandedByCustomerKey((prev) => (prev === summary.selectionKey ? null : summary.selectionKey))}
+                                                                                                title={isExpanded ? 'Свернуть перевозки' : 'Показать перевозки'}
+                                                                                            >
+                                                                                                {canEditPlanDate && (
+                                                                                                    <td style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                                                                                        <input
+                                                                                                            type="checkbox"
+                                                                                                            checked={selectedByCustomerSummaryKeys.has(summary.selectionKey)}
+                                                                                                            onChange={(e) => {
+                                                                                                                const checked = e.target.checked;
+                                                                                                                setSelectedByCustomerSummaryKeys((prev) => {
+                                                                                                                    const next = new Set(prev);
+                                                                                                                    if (checked) next.add(summary.selectionKey);
+                                                                                                                    else next.delete(summary.selectionKey);
+                                                                                                                    return next;
+                                                                                                                });
+                                                                                                            }}
+                                                                                                            aria-label={`Выбрать ${sendingsSummaryGroupBy === 'receiver' ? 'получателя' : 'заказчика'} ${summary.party || parcelIdx + 1}`}
+                                                                                                        />
+                                                                                                    </td>
+                                                                                                )}
+                                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{parcelIdx + 1}</td>
+                                                                                                <td style={{ padding: '0.35rem 0.3rem' }}>
+                                                                                                    {stripOoo(summary.party) || '—'}
+                                                                                                    {summary.cargoNumbers.length > 0 && (
+                                                                                                        <span style={{ marginLeft: '0.25rem', color: 'var(--color-text-secondary)', fontSize: '0.75em' }} title={isExpanded ? 'Свернуть' : 'Показать перевозки'}>
+                                                                                                            {isExpanded ? '▼' : '▶'}
+                                                                                                        </span>
+                                                                                                    )}
+                                                                                                </td>
+                                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{summary.count}</td>
+                                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.volume)}</td>
+                                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
+                                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
+                                                                                                <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', color: densityColor(summary.weight, summary.volume), fontWeight: 600 }}>{densityOf(summary.weight, summary.volume)}</td>
+                                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
+                                                                                            </tr>
+                                                                                            {isExpanded && cargoRows.length > 0 && (
+                                                                                                <tr>
+                                                                                                    <td colSpan={canEditPlanDate ? 9 : 8} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+                                                                                                        <div style={{ padding: '0.35rem 0.5rem 0.5rem', paddingLeft: '1.5rem' }}>
+                                                                                                            <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                                                                                                                <thead>
+                                                                                                                    <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>№ пп</th>
+                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'left', fontWeight: 600 }}>Консолидация</th>
+                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
+                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Кол-во</th>
+                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>Объем</th>
+                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>Вес</th>
+                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>Платный вес</th>
+                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'left', fontWeight: 600 }}>{sendingsSummaryGroupBy === 'receiver' ? 'Получатель' : 'Заказчик'}</th>
+                                                                                                                        <th style={{ padding: '0.3rem 0.25rem', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Плановая дата</th>
+                                                                                                                    </tr>
+                                                                                                                </thead>
+                                                                                                                <tbody>
+                                                                                                                    {cargoRows.map((cr, crIdx) => (
+                                                                                                                        <tr key={`${rowKey}-cargo-${cr.cargo}-${crIdx}`} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                                                            <td style={{ padding: '0.3rem 0.25rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{cr._idx}</td>
+                                                                                                                            <td style={{ padding: '0.3rem 0.25rem', whiteSpace: 'nowrap' }}>
+                                                                                                                                {cr.cargo && cr.cargo !== '—' ? (
+                                                                                                                                    <button
+                                                                                                                                        type="button"
+                                                                                                                                        style={{ border: 'none', background: 'transparent', padding: 0, color: 'var(--color-primary-blue)', cursor: 'pointer', textDecoration: 'underline' }}
+                                                                                                                                        onClick={(e) => { e.stopPropagation(); onOpenCargo?.(String(cr.cargo)); }}
+                                                                                                                                        title="Открыть перевозку в Грузах"
+                                                                                                                                    >
+                                                                                                                                        {cr.cargo}
+                                                                                                                                    </button>
+                                                                                                                                ) : '—'}
+                                                                                                                            </td>
+                                                                                                                            <td style={{ padding: '0.3rem 0.25rem' }}><StatusBadge status={cr.status || '—'} /></td>
+                                                                                                                            <td style={{ padding: '0.3rem 0.25rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{cr.count}</td>
+                                                                                                                            <td style={{ padding: '0.3rem 0.25rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(cr.volume)}</td>
+                                                                                                                            <td style={{ padding: '0.3rem 0.25rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(cr.weight)}</td>
+                                                                                                                            <td style={{ padding: '0.3rem 0.25rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(cr.paidWeight)}</td>
+                                                                                                                            <td style={{ padding: '0.3rem 0.25rem' }}>{stripOoo(cr.partyName) || '—'}</td>
+                                                                                                                            <td style={{ padding: '0.3rem 0.25rem', whiteSpace: 'nowrap' }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
+                                                                                                                        </tr>
+                                                                                                                    ))}
+                                                                                                                </tbody>
+                                                                                                            </table>
+                                                                                                        </div>
+                                                                                                    </td>
+                                                                                                </tr>
+                                                                                            )}
+                                                                                        </React.Fragment>
+                                                                                    );
+                                                                                })}
                                                                                 <tr>
                                                                                     {canEditPlanDate && <td style={stickyTotalsCellBase} />}
                                                                                     <td style={{ ...stickyTotalsCellBase, textAlign: 'right' }} colSpan={2}>Итого</td>
