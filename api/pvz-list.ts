@@ -64,18 +64,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const geoExclude = "AND lower(naimenovanie) NOT LIKE '%геологистика%'";
+    const zelenoeExclude =
+      "AND lower(coalesce(naimenovanie,'') || ' ' || coalesce(gorod,'') || ' ' || coalesce(region,'')) NOT LIKE '%зеленое шоссе%'" +
+      " AND lower(coalesce(naimenovanie,'') || ' ' || coalesce(gorod,'') || ' ' || coalesce(region,'')) NOT LIKE '%зелёное шоссе%'";
     const query =
       filterInns.length === 0
         ? `SELECT ssylka, naimenovanie, kod_dlya_pechati, gorod, region,
                  vladelec_inn, vladelec_naimenovanie, otpravitel_poluchatel, kontaktnoe_litso
           FROM cache_pvz
-          WHERE 1=1 ${geoExclude}
+          WHERE 1=1 ${geoExclude} ${zelenoeExclude}
           ORDER BY sort_order ASC, naimenovanie ASC`
         : `SELECT ssylka, naimenovanie, kod_dlya_pechati, gorod, region,
                  vladelec_inn, vladelec_naimenovanie, otpravitel_poluchatel, kontaktnoe_litso
           FROM cache_pvz
           WHERE regexp_replace(vladelec_inn, '[^0-9]', '', 'g') = ANY($1::text[])
-          ${geoExclude}
+          ${geoExclude} ${zelenoeExclude}
           ORDER BY sort_order ASC, naimenovanie ASC`;
 
     const params = filterInns.length === 0 ? [] : [filterInns];
