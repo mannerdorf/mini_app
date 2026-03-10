@@ -3,4 +3,5 @@ export const DOCUMENT_METHODS: Record<string, string> = {
     "АПП": "АПП",
     "СЧЕТ": "Счет",
     "УПД": "Акт",
+    "Реестр": "РеестрКсчету",
 };

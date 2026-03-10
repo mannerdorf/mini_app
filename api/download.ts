@@ -129,10 +129,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         request_id: ctx.requestId,
       });
     }
-    // АктСверки требует dateDoc
-    if ((metod === "АктСверки" || metod === "AktSverki") && !dateDoc) {
+    // АктСверки и РеестрКсчету требуют dateDoc
+    if ((metod === "АктСверки" || metod === "AktSverki" || metod === "РеестрКсчету") && !dateDoc) {
       return res.status(400).json({
-        error: "Required fields for АктСверки: metod, number, dateDoc",
+        error: "Required fields: metod, number, dateDoc",
         request_id: ctx.requestId,
       });
     }
@@ -168,7 +168,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Зарегистрированные (CMS) пользователи: проверяем доступ к перевозке, затем запрашиваем файл сервисным аккаунтом
-    if (isRegisteredUser) {
+    // РеестрКсчету использует номер счёта — проверка cache_perevozki не применима
+    if (isRegisteredUser && metod !== "РеестрКсчету") {
       try {
         const pool = getPool();
         const verified = await verifyRegisteredUser(pool, login, password);
@@ -204,9 +205,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ error: "Ошибка запроса", message: e?.message, request_id: ctx.requestId });
       }
     }
+    // РеестрКсчету: после verify пользователя переключаемся на сервисные креды
+    if (isRegisteredUser && metod === "РеестрКсчету") {
+      try {
+        const pool = getPool();
+        const verified = await verifyRegisteredUser(pool, login, password);
+        if (!verified) {
+          return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
+        }
+        const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN;
+        const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD;
+        if (serviceLogin && servicePassword) {
+          login = serviceLogin;
+          password = servicePassword;
+        }
+      } catch (e: any) {
+        logError(ctx, "download_registered_user_failed", e);
+        return res.status(500).json({ error: "Ошибка запроса", message: e?.message, request_id: ctx.requestId });
+      }
+    }
 
-    // Для Договор и АктСверки используем Info@haulz.pro (как в Postman), для остальных — сервисные креды
-    const useHaulzAuth = metod === "Договор" || metod === "Dogovor" || metod === "АктСверки" || metod === "AktSverki";
+    // Для Договор, АктСверки и РеестрКсчету используем Info@haulz.pro (Auth) + admin (Authorization), как в Postman
+    const useHaulzAuth = metod === "Договор" || metod === "Dogovor" || metod === "АктСверки" || metod === "AktSverki" || metod === "РеестрКсчету";
     if (useHaulzAuth) {
       // Auth: Basic Info@haulz.pro:Y2ME42XyI_, Authorization: Basic YWRtaW46anVlYmZueWU=
       login = "";

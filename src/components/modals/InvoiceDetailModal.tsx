@@ -10,7 +10,7 @@ import { PROXY_API_DOWNLOAD_URL } from "../../constants/config";
 import { DOCUMENT_METHODS } from "../../documentMethods";
 import type { AuthData } from "../../types";
 
-const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
+const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД", "Реестр"] as const;
 
 type InvoiceDetailModalProps = {
     item: any;
@@ -66,6 +66,18 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
     const cargoNumber = getFirstCargoNumberFromInvoice(item);
     const invoiceNumber = (item?.Number ?? item?.number ?? "").toString().trim() || null;
 
+    const formatDateDocForApi = (raw: unknown): string | null => {
+        const s = String(raw ?? "").trim();
+        if (!s) return null;
+        const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T12:00:00`;
+        const ruMatch = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
+        if (ruMatch) return `${ruMatch[3]}-${ruMatch[2]}-${ruMatch[1]}T12:00:00`;
+        const parsed = new Date(s);
+        if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 19);
+        return null;
+    };
+
     const handleDownload = async (label: string) => {
         if (!auth?.login || !auth?.password) {
             setDownloadError("Требуется авторизация");
@@ -73,10 +85,22 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
         }
         const metod = DOCUMENT_METHODS[label] ?? label;
         const isInvoiceDoc = label === "СЧЕТ";
-        const numberToUse = cargoNumber ?? (isInvoiceDoc && invoiceNumber ? invoiceNumber : null);
+        const isReestr = label === "Реестр";
+        const numberToUse = isReestr
+            ? invoiceNumber
+            : cargoNumber ?? (isInvoiceDoc && invoiceNumber ? invoiceNumber : null);
         if (!numberToUse) {
-            setDownloadError("Номер перевозки не найден в счёте" + (isInvoiceDoc && invoiceNumber ? ". Для СЧЕТ можно использовать номер счёта." : ""));
+            setDownloadError(isReestr
+                ? "Номер счёта не найден"
+                : "Номер перевозки не найден в счёте" + (isInvoiceDoc && invoiceNumber ? ". Для СЧЕТ можно использовать номер счёта." : ""));
             return;
+        }
+        if (isReestr) {
+            const dateDocFormatted = formatDateDocForApi(dateDoc);
+            if (!dateDocFormatted) {
+                setDownloadError("Дата счёта не найдена");
+                return;
+            }
         }
         setDownloading(label);
         setDownloadError(null);
@@ -84,16 +108,20 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
             ? `${window.location.origin}${PROXY_API_DOWNLOAD_URL}`
             : PROXY_API_DOWNLOAD_URL;
         try {
+            const body: Record<string, unknown> = {
+                login: auth.login,
+                password: auth.password,
+                metod,
+                number: numberToUse,
+                ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
+            };
+            if (isReestr) {
+                body.dateDoc = formatDateDocForApi(dateDoc);
+            }
             const res = await fetch(downloadUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    login: auth.login,
-                    password: auth.password,
-                    metod,
-                    number: numberToUse,
-                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                }),
+                body: JSON.stringify(body),
             });
             if (!res.ok) {
                 const msg = res.status === 404 ? "Документ не найден" : res.status >= 500 ? "Ошибка сервера" : "Не удалось получить документ";
@@ -160,19 +188,25 @@ export function InvoiceDetailModal({ item, isOpen, onClose, onOpenCargo, auth, c
                 )}
                 {auth && (
                     <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: '1rem', flexShrink: 0 }}>
-                        {DOC_BUTTONS.map((label) => (
-                            <Button
-                                key={label}
-                                className="filter-button"
-                                size="small"
-                                disabled={!cargoNumber || downloading !== null}
-                                onClick={() => handleDownload(label)}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
-                            >
-                                {downloading === label ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                                {label}
-                            </Button>
-                        ))}
+                        {DOC_BUTTONS.map((label) => {
+                            const isReestr = label === "Реестр";
+                            const canDownload = isReestr
+                                ? !!(invoiceNumber && formatDateDocForApi(dateDoc))
+                                : !!cargoNumber;
+                            return (
+                                <Button
+                                    key={label}
+                                    className="filter-button"
+                                    size="small"
+                                    disabled={!canDownload || downloading !== null}
+                                    onClick={() => handleDownload(label)}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                                >
+                                    {downloading === label ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                    {label}
+                                </Button>
+                            );
+                        })}
                     </Flex>
                 )}
                 {downloadError && (
