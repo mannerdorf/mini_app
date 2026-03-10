@@ -2092,18 +2092,24 @@ export function DashboardPage({
         return stages.map((s) => ({ ...s, count: counts.get(s.key) || 0 }));
     }, [filteredItems, useServiceRequest]);
 
-    const statusFunnelCustomers = useMemo(() => {
-        if (!useServiceRequest) return {} as Record<string, string[]>;
-        const byStatus = new Map<string, Set<string>>();
+    type FunnelCustomerRow = { customer: string; count: number; sum: number };
+    const statusFunnelCustomersTable = useMemo(() => {
+        if (!useServiceRequest) return {} as Record<string, FunnelCustomerRow[]>;
+        const byStatus = new Map<string, Map<string, { count: number; sum: number }>>();
         filteredItems.forEach((item) => {
             const statusKey = getFilterKeyByStatus(item.State);
             const customer = stripOoo((item.Customer ?? (item as any).customer ?? '').trim() || '—');
-            if (!byStatus.has(statusKey)) byStatus.set(statusKey, new Set<string>());
-            byStatus.get(statusKey)!.add(customer);
+            const sumVal = typeof item.Sum === 'string' ? parseFloat(item.Sum) || 0 : (item.Sum ?? 0);
+            if (!byStatus.has(statusKey)) byStatus.set(statusKey, new Map());
+            const custMap = byStatus.get(statusKey)!;
+            const cur = custMap.get(customer) ?? { count: 0, sum: 0 };
+            custMap.set(customer, { count: cur.count + 1, sum: cur.sum + sumVal });
         });
-        const result: Record<string, string[]> = {};
-        byStatus.forEach((set, key) => {
-            result[key] = [...set].sort((a, b) => a.localeCompare(b, "ru"));
+        const result: Record<string, FunnelCustomerRow[]> = {};
+        byStatus.forEach((custMap, key) => {
+            result[key] = [...custMap.entries()]
+                .map(([customer, { count, sum }]) => ({ customer, count, sum }))
+                .sort((a, b) => b.count - a.count);
         });
         return result;
     }, [filteredItems, useServiceRequest]);
@@ -2349,7 +2355,7 @@ export function DashboardPage({
         byCustomer.forEach((dates, name) => {
             if (dates.length < 2) {
                 const daysSinceLast = Math.round((now.getTime() - Math.max(...dates.map(d => d.getTime()))) / 86400000);
-                results.push({ name, avgInterval: 0, lastInterval: 0, daysSinceLast, zone: daysSinceLast > 60 ? 'red' : daysSinceLast > 30 ? 'yellow' : 'green', orders: 1 });
+                results.push({ name, avgInterval: 0, lastInterval: 0, daysSinceLast, zone: daysSinceLast > 90 ? 'red' : daysSinceLast > 45 ? 'yellow' : 'green', orders: 1 });
                 return;
             }
             dates.sort((a, b) => a.getTime() - b.getTime());
@@ -3416,12 +3422,27 @@ export function DashboardPage({
                             <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, marginBottom: '0.35rem' }}>
                                 Заказчики по статусу: {statusFunnel.find((s) => s.key === selectedFunnelStatusKey)?.label || selectedFunnelStatusKey}
                             </Typography.Body>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
-                                {(statusFunnelCustomers[selectedFunnelStatusKey] ?? []).map((name) => (
-                                    <span key={name} style={{ fontSize: '0.72rem', padding: '0.2rem 0.45rem', borderRadius: 999, border: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
-                                        {name}
-                                    </span>
-                                ))}
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                                    <thead>
+                                        <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>#</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
+                                            {showSums && <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Сумма</th>}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(statusFunnelCustomersTable[selectedFunnelStatusKey] ?? []).map((row, idx) => (
+                                            <tr key={row.customer} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                <td style={{ padding: '0.35rem 0.45rem', color: 'var(--color-text-secondary)' }}>{idx + 1}</td>
+                                                <td style={{ padding: '0.35rem 0.45rem' }}>{row.customer}</td>
+                                                <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right' }}>{row.count}</td>
+                                                {showSums && <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     )}
@@ -4433,9 +4454,9 @@ export function DashboardPage({
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
                         Стоимость перевозки на 1 кг платного веса. Чем выше — тем выгоднее клиент.
                     </Typography.Body>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        {customerMargin.slice(0, 12).map((c, i) => {
-                            const maxPerKg = Math.max(...customerMargin.slice(0, 12).map(x => x.perKg), 1);
+                    <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {customerMargin.map((c, i) => {
+                            const maxPerKg = Math.max(...customerMargin.map(x => x.perKg), 1);
                             return (
                                 <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <Typography.Body style={{ fontSize: '0.75rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
