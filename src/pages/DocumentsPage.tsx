@@ -1280,9 +1280,10 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
             'DateArrival', 'PlannedDeliveryDate', 'PlanDeliveryDate', 'DateDeliveryPlan',
             'ПлановаяДатаДоставки', 'ПланДатаДоставки', 'ПлановаяДата', 'PlanDate',
             'ДатаПрибытияПлан', 'ДатаДоставкиПлан', 'ПланДатаПрибытия', 'ПлановаяДатаПрибытия',
+            'DateVrPlan', 'DatePrihPlan', 'ДатаПлан',
         ];
         (perevozkiItems || []).forEach((c: any) => {
-            const raw = String(c?.Number ?? c?.number ?? '').replace(/^0000-/, '').trim();
+            const raw = String(c?.Number ?? c?.number ?? c?.Номер ?? c?.НомерПеревозки ?? c?.CargoNumber ?? c?.NumberPerevozki ?? '').replace(/^0000-/, '').trim();
             if (!raw) return;
             let date: Date | null = null;
             for (const k of plannedKeys) {
@@ -1937,12 +1938,12 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
     }, [ordersItems, effectiveActiveInn, effectiveServiceMode, customerFilter, typeFilter, routeFilter, deliveryStatusFilterSet, routeFilterCargo, effectiveSearchText, sortBy, sortOrder, orderReceiverFilter, orderSenderFilter, orderRouteFilter]);
     const ordersSummary = useMemo(() => buildDocsSummary(filteredOrders), [filteredOrders]);
     const filteredSendings = useMemo(() => {
-        return buildFilteredOrders({
+        let res = buildFilteredOrders({
             items: sendingsItems || [],
             activeInn: effectiveActiveInn,
             useServiceRequest: true,
             customerFilter,
-            typeFilter,
+            typeFilter: 'all',
             routeFilter,
             deliveryStatusFilterSet: new Set<StatusFilter>(),
             routeFilterCargo,
@@ -1951,7 +1952,15 @@ const isDocFavorite = useCallback((section: 'claims' | 'contracts' | 'reconcilia
             sortBy,
             sortOrder,
         });
-    }, [sendingsItems, effectiveActiveInn, customerFilter, typeFilter, routeFilter, routeFilterCargo, transportFilter, effectiveSearchText, sortBy, sortOrder]);
+        if (typeFilter !== 'all' && res.length > 0) {
+            res = res.filter((row: any) => {
+                const vehicle = normalizeTransportDisplay(row?.АвтомобильCMRНаименование ?? row?.AutoReg ?? row?.AutoType ?? '');
+                const transportType = vehicle ? (/[A-ZА-Я][0-9]{3}[A-ZА-Я]{2}(?:\s*\/?\s*[0-9]{2,3})?/u.test(vehicle.toUpperCase()) ? 'auto' : 'ferry') : '';
+                return transportType === typeFilter;
+            });
+        }
+        return res;
+    }, [sendingsItems, effectiveActiveInn, customerFilter, typeFilter, routeFilter, routeFilterCargo, transportFilter, effectiveSearchText, sortBy, sortOrder, normalizeTransportDisplay]);
     const sendingsSummary = useMemo(() => buildDocsSummary(filteredSendings), [filteredSendings]);
     const filteredTariffs = useMemo(() => {
         const placeCode = (value: string) => cityToCode(value || '') || (value || '');
@@ -3047,6 +3056,16 @@ useEffect(() => {
                         )}
                         {docSection === 'Отправки' && (
                         <>
+                        <div ref={typeButtonRef} style={{ display: 'inline-flex' }}>
+                            <Button className="filter-button" onClick={() => { setIsTypeDropdownOpen(!isTypeDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsRouteCargoDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
+                                Тип: {typeFilter === 'all' ? 'Все' : typeFilter === 'ferry' ? 'Паром' : 'Авто'} <ChevronDown className="w-4 h-4"/>
+                            </Button>
+                        </div>
+                        <FilterDropdownPortal triggerRef={typeButtonRef} isOpen={isTypeDropdownOpen} onClose={() => setIsTypeDropdownOpen(false)}>
+                            <div className="dropdown-item" onClick={() => { setTypeFilter('all'); setIsTypeDropdownOpen(false); }}><Typography.Body>Все</Typography.Body></div>
+                            <div className="dropdown-item" onClick={() => { setTypeFilter('ferry'); setIsTypeDropdownOpen(false); }}><Typography.Body>Паром</Typography.Body></div>
+                            <div className="dropdown-item" onClick={() => { setTypeFilter('auto'); setIsTypeDropdownOpen(false); }}><Typography.Body>Авто</Typography.Body></div>
+                        </FilterDropdownPortal>
                         <div ref={routeCargoButtonRef} style={{ display: 'inline-flex' }}>
                             <Button className="filter-button" onClick={() => { setIsRouteCargoDropdownOpen(!isRouteCargoDropdownOpen); setIsDateDropdownOpen(false); setIsCustomerDropdownOpen(false); setIsActCustomerDropdownOpen(false); setIsStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsDeliveryStatusDropdownOpen(false); setIsEdoStatusDropdownOpen(false); setIsTransportDropdownOpen(false); }}>
                                 Маршрут: {routeFilterCargo === 'all' ? 'Все' : routeFilterCargo} <ChevronDown className="w-4 h-4"/>
@@ -4464,7 +4483,12 @@ useEffect(() => {
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
                                                                                             <td style={{ padding: '0.35rem 0.3rem' }}>{stripOoo(summary.customer) || '—'}</td>
-                                                                                            <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
+                                                                                            <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{(() => {
+                                                                                                const planDate = summary.cargo && summary.cargo !== '—'
+                                                                                                    ? (cargoPlanDateByNumber.get(normCargoKey(summary.cargo)) ?? cargoPlanDateByNumber.get(summary.cargo) ?? plannedArrivalDate)
+                                                                                                    : plannedArrivalDate;
+                                                                                                return planDate ? <DateText value={planDate.toISOString()} /> : '—';
+                                                                                            })()}</td>
                                                                                         </tr>
                                                                                     );
                                                                                 })}
@@ -4870,7 +4894,15 @@ useEffect(() => {
                                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.weight)}</td>
                                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(summary.paidWeight)}</td>
                                                                                                 <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', color: densityColor(summary.weight, summary.volume), fontWeight: 600 }}>{densityOf(summary.weight, summary.volume)}</td>
-                                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
+                                                                                                <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{(() => {
+                                                                                                    const planDates = summary.cargoNumbers
+                                                                                                        .flatMap((c: string) => [cargoPlanDateByNumber.get(normCargoKey(c)), cargoPlanDateByNumber.get(c)])
+                                                                                                        .filter((d): d is Date => !!d);
+                                                                                                    const planDate = planDates.length > 0
+                                                                                                        ? planDates.reduce((min, d) => d.getTime() < min.getTime() ? d : min, planDates[0])
+                                                                                                        : plannedArrivalDate;
+                                                                                                    return planDate ? <DateText value={planDate.toISOString()} /> : '—';
+                                                                                                })()}</td>
                                                                                             </tr>
                                                                                             {isExpanded && cargoRows.length > 0 && (
                                                                                                 <tr>
@@ -4912,7 +4944,12 @@ useEffect(() => {
                                                                                                                             <td style={{ padding: '0.3rem 0.25rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(cr.weight)}</td>
                                                                                                                             <td style={{ padding: '0.3rem 0.25rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(cr.paidWeight)}</td>
                                                                                                                             <td style={{ padding: '0.3rem 0.25rem' }}>{stripOoo(cr.partyName) || '—'}</td>
-                                                                                                                            <td style={{ padding: '0.3rem 0.25rem', whiteSpace: 'nowrap' }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
+                                                                                                                            <td style={{ padding: '0.3rem 0.25rem', whiteSpace: 'nowrap' }}>{(() => {
+                                                                                                                                const planDate = cr.cargo && cr.cargo !== '—'
+                                                                                                                                    ? (cargoPlanDateByNumber.get(normCargoKey(cr.cargo)) ?? cargoPlanDateByNumber.get(cr.cargo) ?? plannedArrivalDate)
+                                                                                                                                    : plannedArrivalDate;
+                                                                                                                                return planDate ? <DateText value={planDate.toISOString()} /> : '—';
+                                                                                                                            })()}</td>
                                                                                                                         </tr>
                                                                                                                     ))}
                                                                                                                 </tbody>

@@ -22,7 +22,19 @@ function itemInn(item: any): string {
 }
 
 function itemDate(item: any): string {
-  const d = item?.DatePrih ?? item?.DateVr ?? "";
+  const d =
+    item?.DatePrih ??
+    item?.DateVr ??
+    item?.DateDelivery ??
+    item?.DeliveryDate ??
+    item?.PlanDate ??
+    item?.PlanDeliveryDate ??
+    item?.DateArrival ??
+    item?.DateDoc ??
+    item?.DateOtpr ??
+    item?.DateShipment ??
+    item?.ShipmentDate ??
+    "";
   return normalizeDateOnly(d);
 }
 
