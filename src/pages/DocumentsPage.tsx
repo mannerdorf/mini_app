@@ -1346,6 +1346,9 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
         add(row?.CargoNumber);
         add(row?.NumberPerevozki);
         add(row?.ИДОтправления);
+        add(row?.Номер);
+        add(row?.Number);
+        add(row?.number);
         const rawParcels = row?.Посылки ?? row?.Parcels ?? row?.parcels ?? row?.Packages ?? row?.packages;
         const parcels = Array.isArray(rawParcels)
             ? rawParcels
@@ -1482,15 +1485,27 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 'ДатаПрибытияПлан', 'ДатаДоставкиПлан', 'ПланДатаПрибытия', 'ПлановаяДатаПрибытия', 'ПлановаяДатаДоставки',
                 'DateArrivalPlan', 'DateDeliveryPlan', 'DeliveryDatePlan', 'PlannedDeliveryDate', 'PlanDeliveryDate',
                 'DateArrival', 'PlanDate', 'DateVrPlan', 'DatePrihPlan',
+                'ПланируемаяДата', 'ДатаПланируемойДоставки', 'ПланДатаДоставки', 'ПлановаяДата',
+                'PlannedArrivalDate', 'PlannedDate', 'DatePlan', 'ПланДата',
             ];
+            const dateLikeKeys = /^(дата|date|план|plan)/i;
             const dates: Date[] = [];
             const addDate = (value: unknown) => {
                 const parsed = parseDateTimeValue(value);
-                if (parsed) dates.push(parsed);
+                if (parsed && parsed.getFullYear() >= 1990) dates.push(parsed);
             };
-            const collectFrom = (obj: any) => {
-                if (!obj || typeof obj !== 'object') return;
+            const collectFrom = (obj: any, depth = 0) => {
+                if (!obj || typeof obj !== 'object' || depth > 4) return;
                 plannedKeys.forEach((k) => addDate(obj?.[k]));
+                Object.keys(obj || {}).forEach((k) => {
+                    if (dateLikeKeys.test(k)) addDate(obj[k]);
+                });
+                if (depth < 3) {
+                    [obj?.Перевозки, obj?.Перевозка].filter(Boolean).forEach((v: any) => {
+                        const arr = Array.isArray(v) ? v : (v && typeof v === 'object' ? [v] : []);
+                        arr.forEach((item: any) => collectFrom(item, depth + 1));
+                    });
+                }
             };
 
             collectFrom(row);
@@ -1501,12 +1516,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     ? Object.values(rawParcels as Record<string, any>)
                     : []);
             parcels.forEach((parcel: any) => {
-                collectFrom(parcel);
+                collectFrom(parcel, 1);
                 const goodsRaw = parcel?.Товары ?? parcel?.Goods ?? parcel?.goods;
                 if (Array.isArray(goodsRaw)) {
-                    goodsRaw.forEach((g) => collectFrom(g));
+                    goodsRaw.forEach((g) => collectFrom(g, 2));
                 } else if (goodsRaw && typeof goodsRaw === 'object') {
-                    Object.values(goodsRaw as Record<string, any>).forEach((g) => collectFrom(g));
+                    Object.values(goodsRaw as Record<string, any>).forEach((g) => collectFrom(g, 2));
                 }
             });
 
@@ -2804,7 +2819,12 @@ useEffect(() => {
                 }),
             });
             const result = await resp.json().catch(() => ({}));
-            if (!resp.ok) throw new Error(result?.error || `HTTP ${resp.status}`);
+            if (!resp.ok) {
+                const msg = resp.status === 401
+                    ? 'Сохранение парома доступно только зарегистрированным пользователям. Войдите по email.'
+                    : (result?.error || `HTTP ${resp.status}`);
+                throw new Error(msg);
+            }
             setSendingsFerryMap((prev) => {
                 const next = { ...prev };
                 const entry = ferryId && ferry
@@ -4191,7 +4211,10 @@ useEffect(() => {
                                     <React.Fragment key={rowKey}>
                                         <tr
                                             style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expanded ? 'var(--color-bg-hover)' : undefined }}
-                                            onClick={() => setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey))}
+                                            onClick={(e) => {
+                                                if ((e.target as Element)?.closest?.('select') || (e.target as Element)?.closest?.('[data-ferry-cell]')) return;
+                                                setExpandedSendingRow((prev) => (prev === rowKey ? null : rowKey));
+                                            }}
                                             title={expanded ? 'Свернуть посылки' : 'Показать посылки'}
                                         >
                                             {canEditPlanDate && (
@@ -4246,6 +4269,7 @@ useEffect(() => {
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td
+                                                data-ferry-cell
                                                 style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle', position: 'relative', zIndex: 1, touchAction: 'manipulation' }}
                                                 onClick={(e) => e.stopPropagation()}
                                                 onMouseDown={(e) => e.stopPropagation()}
@@ -4253,6 +4277,7 @@ useEffect(() => {
                                                 onTouchStart={(e) => e.stopPropagation()}
                                                 onTouchEnd={(e) => e.stopPropagation()}
                                                 onPointerDownCapture={(e) => e.stopPropagation()}
+                                                onPointerUpCapture={(e) => e.stopPropagation()}
                                             >
                                                 {transportType === 'ferry' ? (
                                                     canEditPlanDate && ferriesList.length > 0 ? (
