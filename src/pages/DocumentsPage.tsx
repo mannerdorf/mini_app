@@ -1293,7 +1293,7 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     date = date ? (parsed.getTime() < date.getTime() ? parsed : date) : parsed;
                 }
             }
-            if (date) {
+            if (date && date.getFullYear() >= 1990) {
                 const key = normCargoKey(raw);
                 const prev = m.get(key);
                 if (!prev || date.getTime() < prev.getTime()) m.set(key, date);
@@ -1302,6 +1302,37 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     if (!prevRaw || date.getTime() < prevRaw.getTime()) m.set(raw, date);
                 }
             }
+        });
+        return m;
+    }, [perevozkiItems, parseDateTimeValue, normCargoKey]);
+    /** Ближайшая плановая дата вложений (перевозок) по идентификатору отправки — для строк без посылок */
+    const sendingPlanDateBySendingId = useMemo(() => {
+        const m = new Map<string, Date>();
+        const plannedKeys = [
+            'DateArrival', 'PlannedDeliveryDate', 'PlanDeliveryDate', 'DateDeliveryPlan',
+            'ПлановаяДатаДоставки', 'ПланДатаДоставки', 'ПлановаяДата', 'PlanDate',
+            'ДатаПрибытияПлан', 'ДатаДоставкиПлан', 'ПланДатаПрибытия', 'ПлановаяДатаПрибытия',
+            'DateVrPlan', 'DatePrihPlan', 'ДатаПлан',
+        ];
+        const addForId = (id: string, date: Date) => {
+            if (!id || !date || date.getFullYear() < 1990) return;
+            const key = normCargoKey(id);
+            const prev = m.get(key);
+            if (!prev || date.getTime() < prev.getTime()) m.set(key, date);
+        };
+        (perevozkiItems || []).forEach((c: any) => {
+            let date: Date | null = null;
+            for (const k of plannedKeys) {
+                const v = c?.[k];
+                const parsed = parseDateTimeValue(v);
+                if (parsed) date = date ? (parsed.getTime() < date.getTime() ? parsed : date) : parsed;
+            }
+            if (!date || date.getFullYear() < 1990) return;
+            const sendingIds = [
+                c?.ИДОтправления ?? c?.IdOtpravleniya ?? c?.SendingId ?? c?.Отправка ?? c?.ОтправкаНаименование,
+                c?.Number ?? c?.number ?? c?.Номер ?? c?.НомерПеревозки ?? c?.CargoNumber ?? c?.NumberPerevozki,
+            ].filter((v) => v != null && String(v).trim());
+            sendingIds.forEach((id) => addForId(String(id).trim(), date!));
         });
         return m;
     }, [perevozkiItems, parseDateTimeValue, normCargoKey]);
@@ -1487,13 +1518,26 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     if (planDate) dates.push(planDate);
                 });
             }
+            if (dates.length === 0) {
+                const sendingIds = [
+                    row?.Номер ?? row?.Number ?? row?.number,
+                    row?.ИДОтправления ?? row?.ID ?? row?.Id,
+                ].filter((v) => v != null && String(v).trim());
+                sendingIds.forEach((id) => {
+                    const key = normCargoKey(String(id));
+                    const planDate = sendingPlanDateBySendingId.get(key) ?? sendingPlanDateBySendingId.get(String(id));
+                    if (planDate) dates.push(planDate);
+                });
+            }
 
             if (dates.length === 0) return null;
-            return dates.reduce((min, d) => (d.getTime() < min.getTime() ? d : min), dates[0]);
+            const minDate = dates.reduce((min, d) => (d.getTime() < min.getTime() ? d : min), dates[0]);
+            if (minDate.getFullYear() < 1990) return null;
+            return minDate;
         } catch {
             return null;
         }
-    }, [parseDateTimeValue, getSendingCargoNumbers, cargoPlanDateByNumber, normCargoKey]);
+    }, [parseDateTimeValue, getSendingCargoNumbers, cargoPlanDateByNumber, sendingPlanDateBySendingId, normCargoKey]);
     const cargoCustomerByNumber = useMemo(() => {
         const m = new Map<string, string>();
         (perevozkiItems || []).forEach((c: any) => {
@@ -2725,6 +2769,20 @@ useEffect(() => {
         const ferryId = ferryIdStr ? parseInt(ferryIdStr, 10) : null;
         const ferry = ferriesList.find((f) => f.id === ferryId);
         if (!ferry && ferryId != null) return;
+
+        const keys = [rowKey, rowKey.replace(/\D/g, '')].filter(Boolean);
+        const optimisticEntry = ferryId && ferry
+            ? { ferry_id: ferryId, ferry_name: ferry.name, eta: null as string | null }
+            : null;
+        setSendingsFerryMap((prev) => {
+            const next = { ...prev };
+            keys.forEach((k) => {
+                if (optimisticEntry) next[k] = optimisticEntry;
+                else delete next[k];
+            });
+            return next;
+        });
+
         setFerryEtaLoadingByRow((prev) => ({ ...prev, [rowKey]: true }));
         try {
             let eta: string | null = null;
@@ -2749,7 +2807,6 @@ useEffect(() => {
             if (!resp.ok) throw new Error(result?.error || `HTTP ${resp.status}`);
             setSendingsFerryMap((prev) => {
                 const next = { ...prev };
-                const keys = [rowKey, rowKey.replace(/\D/g, '')].filter(Boolean);
                 const entry = ferryId && ferry
                     ? { ferry_id: ferryId, ferry_name: ferry.name, eta }
                     : null;
@@ -2760,6 +2817,11 @@ useEffect(() => {
                 return next;
             });
         } catch (err) {
+            setSendingsFerryMap((prev) => {
+                const next = { ...prev };
+                keys.forEach((k) => delete next[k]);
+                return next;
+            });
             setSendingsFerryActionError(String((err as Error)?.message ?? 'Не удалось сохранить паром'));
         } finally {
             setFerryEtaLoadingByRow((prev) => {
@@ -4180,7 +4242,7 @@ useEffect(() => {
                                                 {sendingStatusLabel ? <StatusBadge status={sendingStatusLabel} /> : '—'}
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>
-                                                {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}
+                                                {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'}
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td
@@ -4201,8 +4263,11 @@ useEffect(() => {
                                                         >
                                                             <select
                                                                 className="admin-form-input"
-                                                                value={getSendingsFerryEntry(rowKey, number)?.ferry_id ?? ''}
-                                                                onChange={(e) => handleFerrySelect(rowKey, e.target.value, effectiveActiveInn ?? null)}
+                                                                value={String(getSendingsFerryEntry(rowKey, number)?.ferry_id ?? '')}
+                                                                onChange={(e) => {
+                                                                    const v = e.target.value;
+                                                                    handleFerrySelect(rowKey, v, effectiveActiveInn ?? null);
+                                                                }}
                                                                 disabled={ferryEtaLoadingByRow[rowKey]}
                                                                 onClick={(e) => e.stopPropagation()}
                                                                 onPointerDown={(e) => e.stopPropagation()}
@@ -4487,7 +4552,7 @@ useEffect(() => {
                                                                                                 const planDate = summary.cargo && summary.cargo !== '—'
                                                                                                     ? (cargoPlanDateByNumber.get(normCargoKey(summary.cargo)) ?? cargoPlanDateByNumber.get(summary.cargo) ?? plannedArrivalDate)
                                                                                                     : plannedArrivalDate;
-                                                                                                return planDate ? <DateText value={planDate.toISOString()} /> : '—';
+                                                                                                return planDate ? <DateText value={planDate.toISOString()} /> : 'нет';
                                                                                             })()}</td>
                                                                                         </tr>
                                                                                     );
@@ -4499,7 +4564,7 @@ useEffect(() => {
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.weight)}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatNum(totals.paidWeight)}</td>
                                                                                     <td style={{ padding: '0.35rem 0.3rem', fontWeight: 700 }}>—</td>
-                                                                                    <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap', fontWeight: 700 }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
+                                                                                    <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap', fontWeight: 700 }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'}</td>
                                                                                 </tr>
                                                                             </>
                                                                         );
@@ -4901,7 +4966,7 @@ useEffect(() => {
                                                                                                     const planDate = planDates.length > 0
                                                                                                         ? planDates.reduce((min, d) => d.getTime() < min.getTime() ? d : min, planDates[0])
                                                                                                         : plannedArrivalDate;
-                                                                                                    return planDate ? <DateText value={planDate.toISOString()} /> : '—';
+                                                                                                    return planDate ? <DateText value={planDate.toISOString()} /> : 'нет';
                                                                                                 })()}</td>
                                                                                             </tr>
                                                                                             {isExpanded && cargoRows.length > 0 && (
@@ -4948,7 +5013,7 @@ useEffect(() => {
                                                                                                                                 const planDate = cr.cargo && cr.cargo !== '—'
                                                                                                                                     ? (cargoPlanDateByNumber.get(normCargoKey(cr.cargo)) ?? cargoPlanDateByNumber.get(cr.cargo) ?? plannedArrivalDate)
                                                                                                                                     : plannedArrivalDate;
-                                                                                                                                return planDate ? <DateText value={planDate.toISOString()} /> : '—';
+                                                                                                                                return planDate ? <DateText value={planDate.toISOString()} /> : 'нет';
                                                                                                                             })()}</td>
                                                                                                                         </tr>
                                                                                                                     ))}
@@ -4969,7 +5034,7 @@ useEffect(() => {
                                                                                     <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(totals.weight)}</td>
                                                                                     <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap' }}>{formatNum(totals.paidWeight)}</td>
                                                                                     <td style={{ ...stickyTotalsCellBase, textAlign: 'right', whiteSpace: 'nowrap', color: densityColor(totals.weight, totals.volume) }}>{densityOf(totals.weight, totals.volume)}</td>
-                                                                                    <td style={{ ...stickyTotalsCellBase, whiteSpace: 'nowrap' }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}</td>
+                                                                                    <td style={{ ...stickyTotalsCellBase, whiteSpace: 'nowrap' }}>{plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'}</td>
                                                                                 </tr>
                                                                             </>
                                                                         );
@@ -5205,7 +5270,7 @@ useEffect(() => {
                                             )}
                                         </Typography.Label>
                                         <Typography.Label>
-                                            План: {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : '—'}
+                                            План: {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'}
                                         </Typography.Label>
                                     </Flex>
                                     <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={vehicle || '—'}>
