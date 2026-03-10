@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let filterInns: string[] = [];
     if (verified.accessAllInns) {
-      filterInns = [];
+      filterInns = requestedInn ? [normalizeInn(requestedInn)] : [];
     } else {
       const acRows = await pool.query<{ inn: string }>(
         "SELECT inn FROM account_companies WHERE login = $1",
@@ -63,32 +63,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ pvz: [], request_id: ctx.requestId });
     }
 
+    const geoExclude = "AND lower(naimenovanie) NOT LIKE '%геологистика%'";
     const query =
       filterInns.length === 0
         ? `SELECT ssylka, naimenovanie, kod_dlya_pechati, gorod, region,
                  vladelec_inn, vladelec_naimenovanie, otpravitel_poluchatel, kontaktnoe_litso
           FROM cache_pvz
+          WHERE 1=1 ${geoExclude}
           ORDER BY sort_order ASC, naimenovanie ASC`
         : `SELECT ssylka, naimenovanie, kod_dlya_pechati, gorod, region,
                  vladelec_inn, vladelec_naimenovanie, otpravitel_poluchatel, kontaktnoe_litso
           FROM cache_pvz
           WHERE regexp_replace(vladelec_inn, '[^0-9]', '', 'g') = ANY($1::text[])
+          ${geoExclude}
           ORDER BY sort_order ASC, naimenovanie ASC`;
 
     const params = filterInns.length === 0 ? [] : [filterInns];
     const { rows } = await pool.query(query, params);
 
-    const pvz = rows.map((r: Record<string, string>) => ({
-      Ссылка: r.ssylka || "",
-      Наименование: r.naimenovanie || "",
-      КодДляПечати: r.kod_dlya_pechati || "",
-      ГородНаименование: r.gorod || "",
-      РегионНаименование: r.region || "",
-      ВладелецИНН: r.vladelec_inn || "",
-      ВладелецНаименование: r.vladelec_naimenovanie || "",
-      ОтправительПолучательНаименование: r.otpravitel_poluchatel || "",
-      КонтактноеЛицо: r.kontaktnoe_litso || "",
-    }));
+    const pvz = rows.map((r: Record<string, string>) => {
+      const naim = (r.naimenovanie || "").replace(/\s+/g, " ").trim();
+      const gorod = (r.gorod || "").replace(/\s+/g, " ").trim();
+      return {
+        Ссылка: r.ssylka || "",
+        Наименование: naim,
+        КодДляПечати: r.kod_dlya_pechati || "",
+        ГородНаименование: gorod,
+        РегионНаименование: r.region || "",
+        ВладелецИНН: r.vladelec_inn || "",
+        ВладелецНаименование: r.vladelec_naimenovanie || "",
+        ОтправительПолучательНаименование: r.otpravitel_poluchatel || "",
+        КонтактноеЛицо: r.kontaktnoe_litso || "",
+      };
+    });
 
     return res.status(200).json({ pvz, request_id: ctx.requestId });
   } catch (e) {

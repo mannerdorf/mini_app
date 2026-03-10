@@ -3611,8 +3611,8 @@ useEffect(() => {
             <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Button
                     onClick={() => setNewOrderModalOpen(true)}
-                    disabled={!auth?.login || !auth?.password}
-                    title={!auth?.login || !auth?.password ? 'Требуется авторизация' : undefined}
+                    disabled={!auth?.login || !auth?.password || !effectiveActiveInn}
+                    title={!effectiveActiveInn ? 'Выберите заказчика в хедере' : !auth?.login || !auth?.password ? 'Требуется авторизация' : undefined}
                 >
                     Новая заявка
                 </Button>

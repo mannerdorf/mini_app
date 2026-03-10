@@ -212,15 +212,18 @@ export function NewOrderModal({ isOpen, onClose, onSubmit, auth, activeInn }: Ne
             className="admin-form-input"
             value={punktOtpravki}
             onChange={(e) => setPunktOtpravki(e.target.value)}
-            style={{ width: "100%", marginBottom: "0.75rem", padding: "0.5rem" }}
+            style={{ width: "100%", marginBottom: "0.75rem", padding: "0.5rem", whiteSpace: "nowrap" }}
             disabled={pvzLoading}
           >
             <option value="">— Выберите ПВЗ —</option>
-            {pvzList.map((p) => (
-              <option key={p.Ссылка} value={p.Ссылка}>
-                {p.Наименование} {p.ГородНаименование ? `(${p.ГородНаименование})` : ""}
-              </option>
-            ))}
+            {pvzList.map((p) => {
+              const label = p.ГородНаименование ? `${p.Наименование} (${p.ГородНаименование})` : p.Наименование;
+              return (
+                <option key={p.Ссылка} value={p.Ссылка}>
+                  {label}
+                </option>
+              );
+            })}
           </select>
 
           {/* Пункт назначения */}
@@ -229,15 +232,18 @@ export function NewOrderModal({ isOpen, onClose, onSubmit, auth, activeInn }: Ne
             className="admin-form-input"
             value={punktNaznacheniya}
             onChange={(e) => setPunktNaznacheniya(e.target.value)}
-            style={{ width: "100%", marginBottom: "0.75rem", padding: "0.5rem" }}
+            style={{ width: "100%", marginBottom: "0.75rem", padding: "0.5rem", whiteSpace: "nowrap" }}
             disabled={pvzLoading}
           >
             <option value="">— Выберите ПВЗ —</option>
-            {pvzList.map((p) => (
-              <option key={p.Ссылка} value={p.Ссылка}>
-                {p.Наименование} {p.ГородНаименование ? `(${p.ГородНаименование})` : ""}
-              </option>
-            ))}
+            {pvzList.map((p) => {
+              const label = p.ГородНаименование ? `${p.Наименование} (${p.ГородНаименование})` : p.Наименование;
+              return (
+                <option key={p.Ссылка} value={p.Ссылка}>
+                  {label}
+                </option>
+              );
+            })}
           </select>
 
           {/* Номер заявки */}
