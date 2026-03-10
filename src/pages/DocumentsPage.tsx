@@ -4305,19 +4305,12 @@ useEffect(() => {
                                                 data-ferry-cell
                                                 style={{ padding: '0.5rem 0.4rem', verticalAlign: 'middle', position: 'relative', zIndex: 1, touchAction: 'manipulation' }}
                                                 onClick={(e) => e.stopPropagation()}
-                                                onMouseDown={(e) => e.stopPropagation()}
-                                                onMouseUp={(e) => e.stopPropagation()}
-                                                onTouchStart={(e) => e.stopPropagation()}
-                                                onTouchEnd={(e) => e.stopPropagation()}
-                                                onPointerDownCapture={(e) => e.stopPropagation()}
-                                                onPointerUpCapture={(e) => e.stopPropagation()}
                                             >
                                                 {transportType === 'ferry' ? (
                                                     canEditPlanDate && ferriesList.length > 0 ? (
                                                         <div
                                                             style={{ display: 'inline-block', minWidth: 140 }}
                                                             onClick={(e) => e.stopPropagation()}
-                                                            onPointerDown={(e) => e.stopPropagation()}
                                                         >
                                                             <select
                                                                 className="admin-form-input"
@@ -4328,7 +4321,6 @@ useEffect(() => {
                                                                 }}
                                                                 disabled={ferryEtaLoadingByRow[rowKey]}
                                                                 onClick={(e) => e.stopPropagation()}
-                                                                onPointerDown={(e) => e.stopPropagation()}
                                                                 style={{ padding: '0.4rem 0.5rem', fontSize: '0.85rem', minWidth: 140, maxWidth: 200, minHeight: 36, cursor: 'pointer' }}
                                                                 aria-label="Выберите паром"
                                                             >

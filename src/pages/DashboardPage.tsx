@@ -185,6 +185,8 @@ export function DashboardPage({
     const [repeatCustomersListMode, setRepeatCustomersListMode] = useState<'all' | 'repeat' | 'new' | null>(null);
     /** Выбранная строка воронки статусов для показа заказчиков */
     const [selectedFunnelStatusKey, setSelectedFunnelStatusKey] = useState<string | null>(null);
+    /** Раскрытый заказчик в таблице «Заказчики по статусу» — показываем перевозки и даты */
+    const [expandedFunnelCustomer, setExpandedFunnelCustomer] = useState<string | null>(null);
     /** Сортировка таблицы «Платёжная дисциплина» */
     const [paymentDisciplineSortCol, setPaymentDisciplineSortCol] = useState<'name' | 'count' | 'paid' | 'unpaid' | 'paidRate'>('paidRate');
     const [paymentDisciplineSortAsc, setPaymentDisciplineSortAsc] = useState(true);
@@ -2114,6 +2116,20 @@ export function DashboardPage({
         return result;
     }, [filteredItems, useServiceRequest]);
 
+    /** Перевозки по (статус, заказчик) для раскрытия при клике */
+    const statusFunnelItemsByCustomer = useMemo(() => {
+        if (!useServiceRequest) return {} as Record<string, Record<string, any[]>>;
+        const result: Record<string, Record<string, any[]>> = {};
+        filteredItems.forEach((item) => {
+            const statusKey = getFilterKeyByStatus(item.State);
+            const customer = stripOoo((item.Customer ?? (item as any).customer ?? '').trim() || '—');
+            if (!result[statusKey]) result[statusKey] = {};
+            if (!result[statusKey][customer]) result[statusKey][customer] = [];
+            result[statusKey][customer].push(item);
+        });
+        return result;
+    }, [filteredItems, useServiceRequest]);
+
     const paretoByCustomer = useMemo(() => {
         if (!useServiceRequest) return { rows: [] as { name: string; value: number; cumPercent: number; color: string }[], total: 0 };
         const map = new Map<string, number>();
@@ -3402,7 +3418,7 @@ export function DashboardPage({
                                     <button
                                         key={stage.key}
                                         type="button"
-                                        onClick={() => setSelectedFunnelStatusKey((prev) => (prev === stage.key ? null : stage.key))}
+                                        onClick={() => { setSelectedFunnelStatusKey((prev) => (prev === stage.key ? null : stage.key)); setExpandedFunnelCustomer(null); }}
                                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: isActive ? 'var(--color-bg-hover)' : 'transparent', border: isActive ? '1px solid var(--color-border)' : '1px solid transparent', borderRadius: 8, padding: '0.2rem 0.25rem', cursor: 'pointer', textAlign: 'left' }}
                                         title="Показать список заказчиков по статусу"
                                     >
@@ -3420,27 +3436,71 @@ export function DashboardPage({
                     {selectedFunnelStatusKey && (
                         <div style={{ marginTop: '0.55rem', border: '1px solid var(--color-border)', borderRadius: 8, padding: '0.55rem', background: 'var(--color-bg-hover)' }}>
                             <Typography.Body style={{ fontSize: '0.74rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                                Заказчики по статусу: {statusFunnel.find((s) => s.key === selectedFunnelStatusKey)?.label || selectedFunnelStatusKey}
+                                Заказчики по статусу: {statusFunnel.find((s) => s.key === selectedFunnelStatusKey)?.label || selectedFunnelStatusKey}. Нажмите на заказчика — перевозки и даты.
                             </Typography.Body>
-                            <div style={{ overflowX: 'auto' }}>
+                            <div style={{ overflowX: 'auto', maxHeight: 400, overflowY: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
-                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>#</th>
+                                            <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600, width: 24 }}>#</th>
                                             <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600 }}>Заказчик</th>
                                             <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600 }}>Кол-во</th>
                                             {showSums && <th style={{ padding: '0.4rem 0.45rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>Сумма</th>}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {(statusFunnelCustomersTable[selectedFunnelStatusKey] ?? []).map((row, idx) => (
-                                            <tr key={row.customer} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                                                <td style={{ padding: '0.35rem 0.45rem', color: 'var(--color-text-secondary)' }}>{idx + 1}</td>
-                                                <td style={{ padding: '0.35rem 0.45rem' }}>{row.customer}</td>
-                                                <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right' }}>{row.count}</td>
-                                                {showSums && <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
-                                            </tr>
-                                        ))}
+                                        {(statusFunnelCustomersTable[selectedFunnelStatusKey] ?? []).map((row, idx) => {
+                                            const isExpanded = expandedFunnelCustomer === row.customer;
+                                            const items = (statusFunnelItemsByCustomer[selectedFunnelStatusKey] ?? {})[row.customer] ?? [];
+                                            const sortedItems = [...items].sort((a, b) => {
+                                                const da = dateUtils.parseDateOnly(String(a?.DatePrih ?? a?.DateOtpr ?? ''))?.getTime() ?? 0;
+                                                const db = dateUtils.parseDateOnly(String(b?.DatePrih ?? b?.DateOtpr ?? ''))?.getTime() ?? 0;
+                                                return db - da;
+                                            });
+                                            return (
+                                                <React.Fragment key={row.customer}>
+                                                    <tr
+                                                        onClick={() => setExpandedFunnelCustomer(isExpanded ? null : row.customer)}
+                                                        style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: isExpanded ? 'var(--color-bg-card)' : undefined }}
+                                                        title="Нажмите, чтобы показать перевозки"
+                                                    >
+                                                        <td style={{ padding: '0.35rem 0.45rem', color: 'var(--color-text-secondary)' }}>{idx + 1}</td>
+                                                        <td style={{ padding: '0.35rem 0.45rem' }}>{row.customer}{isExpanded ? ' ▼' : ' ▶'}</td>
+                                                        <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right' }}>{row.count}</td>
+                                                        {showSums && <td style={{ padding: '0.35rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(row.sum)}</td>}
+                                                    </tr>
+                                                    {isExpanded && sortedItems.length > 0 && (
+                                                        <tr>
+                                                            <td colSpan={showSums ? 4 : 3} style={{ padding: '0.35rem 0.45rem', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)', verticalAlign: 'top' }}>
+                                                                <div style={{ fontSize: '0.72rem', paddingLeft: '0.5rem' }}>
+                                                                    <Typography.Body style={{ fontSize: '0.68rem', fontWeight: 600, marginBottom: '0.25rem', color: 'var(--color-text-secondary)' }}>Перевозки и даты</Typography.Body>
+                                                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
+                                                                        <thead>
+                                                                            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                                                                                <th style={{ padding: '0.2rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
+                                                                                <th style={{ padding: '0.2rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                                                                {showSums && <th style={{ padding: '0.2rem 0.3rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {sortedItems.map((it, i) => (
+                                                                                <tr key={i} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                                                                                    <td style={{ padding: '0.2rem 0.3rem' }}>{String(it?.Number ?? it?.Номер ?? '—').trim() || '—'}</td>
+                                                                                    <td style={{ padding: '0.2rem 0.3rem' }}>
+                                                                                        <DateText value={String(it?.DatePrih ?? it?.DateOtpr ?? it?.Дата ?? '').trim()} />
+                                                                                    </td>
+                                                                                    {showSums && <td style={{ padding: '0.2rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{it?.Sum != null ? formatCurrency(it.Sum as number, true) : '—'}</td>}
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
