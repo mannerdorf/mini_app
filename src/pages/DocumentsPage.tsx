@@ -1488,24 +1488,14 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                 'ПланируемаяДата', 'ДатаПланируемойДоставки', 'ПланДатаДоставки', 'ПлановаяДата',
                 'PlannedArrivalDate', 'PlannedDate', 'DatePlan', 'ПланДата',
             ];
-            const dateLikeKeys = /^(дата|date|план|plan)/i;
             const dates: Date[] = [];
             const addDate = (value: unknown) => {
                 const parsed = parseDateTimeValue(value);
                 if (parsed && parsed.getFullYear() >= 1990) dates.push(parsed);
             };
-            const collectFrom = (obj: any, depth = 0) => {
-                if (!obj || typeof obj !== 'object' || depth > 4) return;
+            const collectFrom = (obj: any) => {
+                if (!obj || typeof obj !== 'object') return;
                 plannedKeys.forEach((k) => addDate(obj?.[k]));
-                Object.keys(obj || {}).forEach((k) => {
-                    if (dateLikeKeys.test(k)) addDate(obj[k]);
-                });
-                if (depth < 3) {
-                    [obj?.Перевозки, obj?.Перевозка].filter(Boolean).forEach((v: any) => {
-                        const arr = Array.isArray(v) ? v : (v && typeof v === 'object' ? [v] : []);
-                        arr.forEach((item: any) => collectFrom(item, depth + 1));
-                    });
-                }
             };
 
             collectFrom(row);
@@ -1516,12 +1506,12 @@ export function DocumentsPage({ auth, useServiceRequest, activeInn, searchText, 
                     ? Object.values(rawParcels as Record<string, any>)
                     : []);
             parcels.forEach((parcel: any) => {
-                collectFrom(parcel, 1);
+                collectFrom(parcel);
                 const goodsRaw = parcel?.Товары ?? parcel?.Goods ?? parcel?.goods;
                 if (Array.isArray(goodsRaw)) {
-                    goodsRaw.forEach((g) => collectFrom(g, 2));
+                    goodsRaw.forEach((g) => collectFrom(g));
                 } else if (goodsRaw && typeof goodsRaw === 'object') {
-                    Object.values(goodsRaw as Record<string, any>).forEach((g) => collectFrom(g, 2));
+                    Object.values(goodsRaw as Record<string, any>).forEach((g) => collectFrom(g));
                 }
             });
 
@@ -4129,9 +4119,16 @@ useEffect(() => {
                     </div>
                 )}
                 {sendingsFerryActionError && (
-                    <Typography.Body style={{ marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--color-error)' }}>
-                        {sendingsFerryActionError}
-                    </Typography.Body>
+                    <div style={{ marginBottom: '0.5rem' }}>
+                        <Typography.Body style={{ fontSize: '0.85rem', color: 'var(--color-error)' }}>
+                            {sendingsFerryActionError}
+                        </Typography.Body>
+                        {sendingsFerryActionError.includes('миграц') && (
+                            <Typography.Body style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', marginTop: '0.25rem' }}>
+                                Выполните миграции 049_ferries.sql и 050_sendings_ferry.sql на БД (Vercel Postgres или подключение через psql).
+                            </Typography.Body>
+                        )}
+                    </div>
                 )}
                 {tableModeEffective && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
