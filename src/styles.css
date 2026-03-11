@@ -765,6 +765,29 @@ body {
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
 }
+
+/* Контент раздела Договоры/Тарифы — отступ сверху, чтобы данные не сливались с фильтрами */
+.doc-section-content {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    min-height: 2rem;
+}
+
+/* Таблицы в Документах: шапка липкая, видна под cargo-page-sticky-header при скролле */
+.doc-section-table thead th,
+.doc-tariffs-table thead th {
+    position: sticky;
+    top: 220px; /* ниже заголовка (64px) + вкладок + фильтров */
+    background: var(--color-bg-hover);
+    z-index: 10;
+    box-shadow: 0 1px 0 var(--color-border);
+}
+@media (max-width: 768px) {
+    .doc-section-table thead th,
+    .doc-tariffs-table thead th {
+        top: 180px; /* мобильный: хедер + вкладки + фильтры */
+    }
+}
 @media (max-width: 768px) {
     .dashboard-sticky-filters {
         top: 0;

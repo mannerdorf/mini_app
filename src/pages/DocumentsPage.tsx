@@ -5412,7 +5412,7 @@ useEffect(() => {
             </>
             )}
             {docSection === 'Тарифы' && (
-                <>
+                <div className="doc-section-content">
                     {tariffsLoading ? (
                         <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -5421,8 +5421,8 @@ useEffect(() => {
                     ) : filteredTariffs.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по тарифам</Typography.Body>
                     ) : tableModeEffective ? (
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                        <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
+                            <table className="doc-tariffs-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
                                         <th
@@ -5604,7 +5604,7 @@ useEffect(() => {
                             })}
                         </div>
                     )}
-                </>
+                </div>
             )}
             {docSection === 'Акты сверок' && (
                 <>
@@ -5651,8 +5651,8 @@ useEffect(() => {
                                 {'   '}Заявок пока нет
                             </Typography.Body>
                         ) : tableModeEffective ? (
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                            <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
+                                <table className="doc-section-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                     <thead>
                                         <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
                                             <th style={{ padding: '0.45rem 0.65rem', textAlign: 'left', fontWeight: 600 }}>Договор</th>
@@ -5759,8 +5759,8 @@ useEffect(() => {
                     ) : filteredSverki.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по актам сверок</Typography.Body>
                     ) : tableModeEffective ? (
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                        <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
+                            <table className="doc-section-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
@@ -5890,7 +5890,7 @@ useEffect(() => {
                 </>
             )}
             {docSection === 'Договоры' && (
-                <>
+                <div className="doc-section-content">
                     {dogovorsLoading ? (
                         <Flex align="center" gap="0.5rem" style={{ padding: '2rem 0' }}>
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -5899,8 +5899,8 @@ useEffect(() => {
                     ) : filteredDogovors.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Нет данных по договорам</Typography.Body>
                     ) : tableModeEffective ? (
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                        <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
+                            <table className="doc-section-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
@@ -6021,7 +6021,7 @@ useEffect(() => {
                             {dogovorsDownloadError}
                         </Typography.Body>
                     )}
-                </>
+                </div>
             )}
             {docSection === 'Претензии' && (
                 <>
@@ -6079,8 +6079,8 @@ useEffect(() => {
                     ) : filteredClaims.length === 0 ? (
                         <Typography.Body style={{ color: 'var(--color-text-secondary)', padding: '2rem 0' }}>Претензий пока нет</Typography.Body>
                     ) : tableModeEffective ? (
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                        <div className="doc-section-table-wrap" style={{ overflowX: 'auto' }}>
+                            <table className="doc-section-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--color-bg-hover)', borderBottom: '1px solid var(--color-border)' }}>
                                         <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
