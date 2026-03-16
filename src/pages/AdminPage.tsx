@@ -6980,12 +6980,12 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       {tab === "timesheet" && isSuperAdmin && (
         <Panel className="cargo-card timesheet-container" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Табель учета рабочего времени</Typography.Body>
-          <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.8rem" }}>
+          <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.8rem" }} className="timesheet-filters-row">
             <Flex
               align="center"
               gap="0.4rem"
               style={{
-                minWidth: "12rem",
+                minWidth: "min(12rem, 100%)",
                 height: "2.5rem",
                 boxSizing: "border-box",
                 padding: "0 0.45rem",
@@ -7043,7 +7043,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               value={timesheetSearch}
               onChange={(e) => setTimesheetSearch(e.target.value)}
               placeholder="Поиск по ФИО, email, подразделению"
-              style={{ minWidth: "18rem", flex: 1, height: "2.5rem", boxSizing: "border-box" }}
+              style={{ minWidth: "min(10rem, 100%)", flex: "1 1 10rem", height: "2.5rem", boxSizing: "border-box" }}
             />
           </Flex>
           <Typography.Body style={{ fontSize: "0.78rem", color: timesheetMonthPaymentStatus.color, marginTop: "-0.35rem", marginBottom: "0.55rem" }}>
@@ -7074,7 +7074,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
                         Подразделение: {group.department}
                       </Typography.Body>
-                      <div className="timesheet-table-scroll" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh", WebkitOverflowScrolling: "touch", minWidth: 0, width: "100%", scrollbarGutter: "stable" }}>
+                      <div className="timesheet-table-scroll" style={{ overflowX: "auto", overflowY: "auto", minWidth: 0, width: "100%", scrollbarGutter: "stable" }}>
                         <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
                           <thead>
                             <tr>
@@ -7309,6 +7309,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                   adminShiftHoldTimerRef.current = null;
                                                 }
                                               }}
+                                              className="timesheet-mark-btn"
                                               style={{
                                                 width: "2.2rem",
                                                 height: "1.6rem",
@@ -7458,6 +7459,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                                                   adminShiftHoldTimerRef.current = null;
                                                 }
                                               }}
+                                              className="timesheet-mark-btn"
                                               style={{
                                                 width: "2.2rem",
                                                 height: "1.6rem",
