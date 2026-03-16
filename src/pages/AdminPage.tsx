@@ -7074,7 +7074,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
                         Подразделение: {group.department}
                       </Typography.Body>
-                      <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh", WebkitOverflowScrolling: "touch" }}>
+                      <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh", WebkitOverflowScrolling: "touch", minWidth: 0, width: "100%" }}>
                         <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
                           <thead>
                             <tr>

@@ -33,7 +33,7 @@ class AdminErrorBoundary extends Component<{ children: React.ReactNode; onBack: 
   render() {
     if (this.state.error) {
       return (
-        <Container className="app-container" style={{ padding: "1rem" }}>
+        <Container className="app-container app-container--allow-h-scroll" style={{ padding: "1rem" }}>
           <Panel className="cargo-card" style={{ padding: "1rem" }}>
             <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Ошибка загрузки админки</Typography.Body>
             <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
@@ -204,7 +204,7 @@ export function CMSStandalonePage() {
   if (adminToken) {
     return (
       <AdminErrorBoundary onBack={goBackToApp}>
-        <Container className="app-container" style={{ padding: "1rem" }}>
+        <Container className="app-container app-container--allow-h-scroll" style={{ padding: "1rem" }}>
           {sessionWarningOpen && (
             <div
               className="modal-overlay"
