@@ -495,8 +495,8 @@ export function ProfilePage({
             maxWidth: "100vw",
             marginLeft: "calc(50% - 50vw)",
             marginRight: "calc(50% - 50vw)",
-            paddingLeft: "1rem",
-            paddingRight: "1rem",
+            paddingLeft: "max(1rem, env(safe-area-inset-left))",
+            paddingRight: "max(1rem, env(safe-area-inset-right))",
             boxSizing: "border-box",
         };
     }, [departmentTimesheetMobilePicker, departmentTimesheetWideMode]);
@@ -2090,7 +2090,7 @@ export function ProfilePage({
                     </Panel>
                 ) : (
                     <>
-                    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '70vh', WebkitOverflowScrolling: 'touch' }}>
+                    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '70vh', WebkitOverflowScrolling: 'touch', paddingLeft: 'max(0.5rem, env(safe-area-inset-left))', paddingRight: 'max(0.5rem, env(safe-area-inset-right))' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${340 + departmentTimesheetDays.length * 44 + SHIFT_MARK_CODES.length * 52}px` }}>
                             <thead>
                                 <tr>

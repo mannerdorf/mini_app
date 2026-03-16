@@ -360,13 +360,13 @@ body {
         flex: 1;
         min-height: 0;
         overflow-y: auto;
-        overflow-x: hidden;
+        overflow-x: auto; /* не обрезать табель и широкие таблицы слева */
         -webkit-overflow-scrolling: touch;
         /* Высота хедера + отступ + safe-area, чтобы название раздела и фильтры были ниже хедера */
         padding-top: calc(100px + env(safe-area-inset-top));
         padding-bottom: calc(84px + env(safe-area-inset-bottom));
-        padding-left: var(--space-3, 12px);
-        padding-right: var(--space-3, 12px);
+        padding-left: max(var(--space-3, 12px), env(safe-area-inset-left));
+        padding-right: max(var(--space-3, 12px), env(safe-area-inset-right));
     }
     .cargo-page-sticky-header {
         padding-top: 1rem;
@@ -625,6 +625,7 @@ body {
     min-width: 0;
 }
 .timesheet-groups-wrap {
+    padding-left: max(0.5rem, env(safe-area-inset-left)); /* не обрезать первый столбец слева */
     padding-right: 2rem; /* запас справа при скролле до конца (FAB и др.) */
 }
 .timesheet-table-scroll {
