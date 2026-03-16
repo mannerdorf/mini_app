@@ -616,6 +616,19 @@ body {
     box-sizing: border-box;
 }
 
+/* Табель в CMS: контейнер и панели не обрезают скролл; обёртка растягивается под ширину таблицы */
+.cargo-card.timesheet-container,
+.cargo-card.timesheet-panel {
+    overflow-x: visible;
+    min-width: 0;
+}
+.timesheet-groups-wrap {
+    padding-right: 2rem; /* запас справа при скролле до конца (FAB и др.) */
+}
+.timesheet-table-scroll {
+    scrollbar-width: auto;
+}
+
 /* --- CARGO LIST --- */
 .cargo-list { width: 100%; min-width: 0; overflow-x: hidden; }
 .cargo-card {

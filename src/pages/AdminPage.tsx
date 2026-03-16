@@ -6978,7 +6978,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       )}
 
       {tab === "timesheet" && isSuperAdmin && (
-        <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
+        <Panel className="cargo-card timesheet-container" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Табель учета рабочего времени</Typography.Body>
           <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.8rem" }}>
             <Flex
@@ -7068,13 +7068,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   За выбранный период сотрудники не найдены.
                 </Typography.Body>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+                <div className="timesheet-groups-wrap" style={{ display: "flex", flexDirection: "column", gap: "0.9rem", minWidth: "max-content", paddingRight: "3rem" }}>
                   {timesheetEmployeesByDepartment.map((group) => (
-                    <Panel key={`timesheet-group-${group.department}`} className="cargo-card" style={{ padding: "0.6rem" }}>
+                    <Panel key={`timesheet-group-${group.department}`} className="cargo-card timesheet-panel" style={{ padding: "0.6rem" }}>
                       <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
                         Подразделение: {group.department}
                       </Typography.Body>
-                      <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh", WebkitOverflowScrolling: "touch", minWidth: 0, width: "100%" }}>
+                      <div className="timesheet-table-scroll" style={{ overflowX: "auto", overflowY: "auto", maxHeight: "70vh", WebkitOverflowScrolling: "touch", minWidth: 0, width: "100%", scrollbarGutter: "stable" }}>
                         <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
                           <thead>
                             <tr>
