@@ -174,6 +174,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [editingRowKey, setEditingRowKey] = useState<string | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<string>('');
   const [editingAmount, setEditingAmount] = useState<string>('');
   const [editingComment, setEditingComment] = useState<string>('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -280,15 +281,32 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
     } finally { setSaving(false); }
   };
 
-  const handleUpdateSaved = async (categoryId: string, newAmount: number, comment?: string | null, direction = '', transportType = '', requestId = '') => {
+  const handleUpdateSaved = async (
+    oldCategoryId: string,
+    newCategoryId: string,
+    newAmount: number,
+    comment?: string | null,
+    direction = '',
+    transportType = '',
+    requestId = '',
+  ) => {
     setEditingRowKey(null);
     const period = `${savedFilterYear}-${String(savedFilterMonth).padStart(2, '0')}-01`;
+    const nextCategoryId = (newCategoryId || oldCategoryId || '').trim();
+    const prevCategoryId = String(oldCategoryId || '').trim();
+    const categoryChanged = !requestId && Boolean(nextCategoryId) && Boolean(prevCategoryId) && nextCategoryId !== prevCategoryId;
     await pnlPost('/api/manual-entry', {
       period,
       revenues: [],
       expenses: [requestId
-        ? { requestId, amount: newAmount, comment: comment?.trim() || undefined }
-        : { categoryId, amount: newAmount, comment: comment?.trim() || undefined, direction, transportType }],
+        ? { requestId, categoryId: nextCategoryId || undefined, amount: newAmount, comment: comment?.trim() || undefined }
+        : categoryChanged
+          ? { categoryId: prevCategoryId, amount: 0, direction, transportType }
+          : { categoryId: nextCategoryId || prevCategoryId, amount: newAmount, comment: comment?.trim() || undefined, direction, transportType },
+      ...(requestId || !categoryChanged
+        ? []
+        : [{ categoryId: nextCategoryId, amount: newAmount, comment: comment?.trim() || undefined, direction, transportType }]),
+      ],
     });
     loadSaved();
   };
@@ -340,8 +358,9 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
     setDeletingId(null); loadSaved();
   };
 
-  const handleUpdateLocalRequest = (localRequestId: string, amount: number, comment: string) => {
-    const changed = updateLocalRequest(localRequestId, (item) => ({ ...item, amount, comment }));
+  const handleUpdateLocalRequest = (localRequestId: string, categoryId: string, amount: number, comment: string) => {
+    const category = filteredCats.find((c) => c.id === categoryId);
+    const changed = updateLocalRequest(localRequestId, (item) => ({ ...item, categoryId, categoryName: category?.name ?? item?.categoryName, amount, comment }));
     if (changed) loadSaved();
   };
 
@@ -509,7 +528,24 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                         className={`border-b border-slate-50 hover:bg-slate-50 ${isTimesheetSalary ? 'cursor-pointer' : ''}`}
                         onClick={() => isTimesheetSalary && !isEditingRow && toggleAccrualDetails(e, key)}
                       >
-                        <td className="px-6 py-2 text-slate-900">{e.categoryName}</td>
+                        <td className="px-6 py-2 text-slate-900">
+                          {canEditRow && isEditingRow ? (
+                            <select
+                              value={editingCategoryId}
+                              onChange={(ev) => setEditingCategoryId(ev.target.value)}
+                              className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-900"
+                              style={{ minWidth: 180 }}
+                            >
+                              <option value="">— Выберите статью —</option>
+                              {filteredCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                              {editingCategoryId && !filteredCats.some((c) => c.id === editingCategoryId) ? (
+                                <option value={editingCategoryId}>{e.categoryName || editingCategoryId}</option>
+                              ) : null}
+                            </select>
+                          ) : (
+                            e.categoryName
+                          )}
+                        </td>
                         <td className="px-6 py-2 text-slate-600 text-sm">{subdivisionLabel}</td>
                         <td className="px-6 py-2 text-slate-600 text-sm">{getExpenseTypeLabel(typeValue)}</td>
                         {isMainline && <td className="px-6 py-2 text-slate-600 text-sm">{dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${transport === 'FERRY' ? 'паром' : 'авто'}` : '—'}</td>}
@@ -544,11 +580,11 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                         return;
                                       }
                                       if (localRequestId) {
-                                        handleUpdateLocalRequest(localRequestId, amountValue, editingComment);
+                                        handleUpdateLocalRequest(localRequestId, editingCategoryId || e.categoryId, amountValue, editingComment);
                                         setEditingRowKey(null);
                                         return;
                                       }
-                                      handleUpdateSaved(e.categoryId, amountValue, editingComment, dir, transport, requestId);
+                                      handleUpdateSaved(e.categoryId, editingCategoryId || e.categoryId, amountValue, editingComment, dir, transport, requestId);
                                       setEditingRowKey(null);
                                     }}
                                     className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
@@ -567,12 +603,44 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                   <button
                                     onClick={() => {
                                       setEditingRowKey(key);
+                                      setEditingCategoryId(e.categoryId || '');
                                       setEditingAmount(String(Math.round(Number(e.amount) || 0)));
                                       setEditingComment((e.comment ?? '').trim());
                                     }}
                                     className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
                                   >
                                     Изменить
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      const directionLabel = dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${transport === 'FERRY' ? 'паром' : 'авто'}` : '—';
+                                      const copyText = [
+                                        `Статья: ${e.categoryName || '—'}`,
+                                        `Подразделение: ${subdivisionLabel}`,
+                                        `Тип: ${getExpenseTypeLabel(typeValue)}`,
+                                        isMainline ? `Направление: ${directionLabel}` : '',
+                                        `Сумма: ${formatRub(Math.round(Number(e.amount) || 0))}`,
+                                        `Комментарий: ${isRequestExpense ? buildRequestAnalyticsDisplay(e) : ((e.comment ?? '').trim() || '—')}`,
+                                      ].filter(Boolean).join('\n');
+                                      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                                        await navigator.clipboard.writeText(copyText);
+                                        return;
+                                      }
+                                      if (typeof document !== 'undefined') {
+                                        const ta = document.createElement('textarea');
+                                        ta.value = copyText;
+                                        ta.setAttribute('readonly', '');
+                                        ta.style.position = 'absolute';
+                                        ta.style.left = '-9999px';
+                                        document.body.appendChild(ta);
+                                        ta.select();
+                                        document.execCommand('copy');
+                                        document.body.removeChild(ta);
+                                      }
+                                    }}
+                                    className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
+                                  >
+                                    Копировать
                                   </button>
                                   <button
                                     onClick={() => {
