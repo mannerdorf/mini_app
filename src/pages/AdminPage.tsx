@@ -6978,7 +6978,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       )}
 
       {tab === "timesheet" && isSuperAdmin && (
-        <Panel className="cargo-card timesheet-container timesheet-container-wide" style={{ padding: "var(--pad-card, 1rem)" }}>
+        <Panel
+          className="cargo-card timesheet-container timesheet-container-wide"
+          style={{ padding: "var(--pad-card, 1rem)", overflowX: "auto", overflowY: "visible", WebkitOverflowScrolling: "touch" }}
+        >
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Табель учета рабочего времени</Typography.Body>
           <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.8rem" }} className="timesheet-filters-row">
             <Flex
@@ -7071,12 +7074,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <div style={{ overflowX: "auto", overflowY: "visible", WebkitOverflowScrolling: "touch", width: "100%", maxWidth: "100%" }}>
                   <div className="timesheet-groups-wrap" style={{ display: "flex", flexDirection: "column", gap: "0.9rem", minWidth: "max-content", paddingRight: "3rem" }}>
                   {timesheetEmployeesByDepartment.map((group) => (
-                    <Panel key={`timesheet-group-${group.department}`} className="cargo-card timesheet-panel" style={{ padding: "0.6rem" }}>
+                    <Panel
+                      key={`timesheet-group-${group.department}`}
+                      className="cargo-card timesheet-panel"
+                      style={{ padding: "0.6rem", overflowX: "auto", overflowY: "visible", WebkitOverflowScrolling: "touch" }}
+                    >
                       <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
                         Подразделение: {group.department}
                       </Typography.Body>
                       <div className="timesheet-table-scroll" style={{ overflowX: "auto", overflowY: "auto", minWidth: 0, width: "100%", scrollbarGutter: "stable" }}>
-                        <table style={{ borderCollapse: "collapse", width: "max-content", minWidth: "100%" }}>
+                        <table
+                          style={{
+                            borderCollapse: "collapse",
+                            width: "max-content",
+                            minWidth: `${380 + timesheetDays.length * 52 + SHIFT_MARK_CODES.length * 52}px`,
+                          }}
+                        >
                           <thead>
                             <tr>
                               <th style={{ textAlign: "left", padding: "0.35rem 0.45rem", borderBottom: "1px solid var(--color-border)", position: "sticky", top: 0, left: 0, background: "var(--color-bg-card, #fff)", zIndex: 40, minWidth: "15rem", boxShadow: "2px 0 0 var(--color-border)" }}>
