@@ -6978,7 +6978,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       )}
 
       {tab === "timesheet" && isSuperAdmin && (
-        <Panel className="cargo-card timesheet-container" style={{ padding: "var(--pad-card, 1rem)" }}>
+        <Panel className="cargo-card timesheet-container timesheet-container-wide" style={{ padding: "var(--pad-card, 1rem)" }}>
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Табель учета рабочего времени</Typography.Body>
           <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.8rem" }} className="timesheet-filters-row">
             <Flex
