@@ -44,7 +44,7 @@ export function PerKgView() {
         setError(err?.message ?? 'Ошибка загрузки данных');
       })
       .finally(() => setLoading(false));
-  }, [filters.month, filters.year, filters.direction, filters.transportType]);
+  }, [filters.dateFrom, filters.dateTo, filters.direction, filters.transportType]);
 
   if (error && !unitEcon) return (
     <div className="space-y-6">

@@ -1,4 +1,4 @@
-import { DIRECTION_LABELS, MONTHS } from './constants';
+import { DIRECTION_LABELS } from './constants';
 
 const DIRECTIONS = [
   { value: 'all', label: 'Все' },
@@ -12,8 +12,8 @@ const TRANSPORT_TYPES = [
 ];
 
 export interface FiltersState {
-  month: number;
-  year: number;
+  dateFrom: string; // YYYY-MM
+  dateTo: string;   // YYYY-MM
   direction: string;
   transportType: string;
 }
@@ -22,14 +22,29 @@ interface FiltersProps extends FiltersState {
   onChange: (key: string, value: string | number) => void;
 }
 
-const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i);
+function monthStart(ym: string): string {
+  return `${ym}-01`;
+}
+
+function monthEnd(ym: string): string {
+  const [yRaw, mRaw] = String(ym || '').split('-');
+  const y = Number(yRaw);
+  const m = Number(mRaw);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return '';
+  const lastDay = new Date(y, m, 0).getDate();
+  return `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
 
 export function filtersToParams(f: FiltersState): Record<string, string> {
-  const ms = String(f.month).padStart(2, '0');
-  const lastDay = new Date(f.year, f.month, 0).getDate();
+  const fromYm = String(f.dateFrom || '').trim();
+  const toYm = String(f.dateTo || '').trim();
+  const normalizedFrom = /^\d{4}-\d{2}$/.test(fromYm) ? fromYm : toYm;
+  const normalizedTo = /^\d{4}-\d{2}$/.test(toYm) ? toYm : fromYm;
+  const finalFromYm = normalizedFrom && normalizedTo && normalizedFrom <= normalizedTo ? normalizedFrom : normalizedTo;
+  const finalToYm = normalizedFrom && normalizedTo && normalizedFrom <= normalizedTo ? normalizedTo : normalizedFrom;
   const p: Record<string, string> = {
-    from: `${f.year}-${ms}-01`,
-    to: `${f.year}-${ms}-${String(lastDay).padStart(2, '0')}`,
+    from: monthStart(finalFromYm),
+    to: monthEnd(finalToYm),
   };
   if (f.direction !== 'all') p.direction = f.direction;
   if (f.transportType !== 'all') p.transportType = f.transportType;
@@ -38,25 +53,30 @@ export function filtersToParams(f: FiltersState): Record<string, string> {
 
 export function defaultFiltersState(): FiltersState {
   const now = new Date();
-  return { month: now.getMonth() + 1, year: now.getFullYear(), direction: 'all', transportType: 'all' };
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return { dateFrom: ym, dateTo: ym, direction: 'all', transportType: 'all' };
 }
 
-export function Filters({ month, year, direction, transportType, onChange }: FiltersProps) {
+export function Filters({ dateFrom, dateTo, direction, transportType, onChange }: FiltersProps) {
   return (
     <div className="flex flex-wrap items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Месяц</label>
-        <select value={month} onChange={(e) => onChange('month', Number(e.target.value))}
-          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
-          {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-        </select>
+        <label className="block text-xs text-slate-500 mb-1">Период с</label>
+        <input
+          type="month"
+          value={dateFrom}
+          onChange={(e) => onChange('dateFrom', e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900"
+        />
       </div>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Год</label>
-        <select value={year} onChange={(e) => onChange('year', Number(e.target.value))}
-          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
-          {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
+        <label className="block text-xs text-slate-500 mb-1">Период по</label>
+        <input
+          type="month"
+          value={dateTo}
+          onChange={(e) => onChange('dateTo', e.target.value)}
+          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900"
+        />
       </div>
       <div>
         <label className="block text-xs text-slate-500 mb-1">Направление</label>

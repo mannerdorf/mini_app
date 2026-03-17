@@ -48,7 +48,7 @@ export function DashboardView() {
         setPnl(null); setUnitEcon(null); setCharts(null);
         setError(err?.message ?? 'Ошибка загрузки данных');
       });
-  }, [filters.month, filters.year, filters.direction, filters.transportType]);
+  }, [filters.dateFrom, filters.dateTo, filters.direction, filters.transportType]);
 
   const stageLabels: Record<string, string> = {
     PICKUP: 'Забор', DEPARTURE_WAREHOUSE: 'Склад отпр.', MAINLINE: 'Магистраль',

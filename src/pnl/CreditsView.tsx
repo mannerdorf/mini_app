@@ -23,7 +23,7 @@ export function CreditsView() {
     const params = filtersToParams(filters);
     if (typeFilter !== 'all') params.type = typeFilter;
     pnlGet<Payment[]>('/api/credits', params).then(setPayments).finally(() => setLoading(false));
-  }, [filters.month, filters.year, typeFilter]);
+  }, [filters.dateFrom, filters.dateTo, typeFilter]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

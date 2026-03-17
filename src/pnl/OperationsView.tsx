@@ -18,7 +18,7 @@ export function OperationsView() {
 
   useEffect(() => {
     pnlGet<any[]>('/api/operations', filtersToParams(filters)).then(setOps);
-  }, [filters.month, filters.year, filters.direction, filters.transportType]);
+  }, [filters.dateFrom, filters.dateTo, filters.direction, filters.transportType]);
 
   return (
     <div className="space-y-6">

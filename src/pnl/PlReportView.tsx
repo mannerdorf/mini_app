@@ -21,7 +21,7 @@ export function PlReportView() {
       .then((d) => { setData(d?.error ? null : d); if (d?.error) setError(d.error); })
       .catch((err) => { setData(null); setError(err?.message ?? 'Ошибка загрузки данных'); })
       .finally(() => setLoading(false));
-  }, [filters.month, filters.year, filters.direction, filters.transportType]);
+  }, [filters.dateFrom, filters.dateTo, filters.direction, filters.transportType]);
 
   if (error && !data) return (
     <div className="space-y-6">

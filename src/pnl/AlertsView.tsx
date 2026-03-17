@@ -13,7 +13,7 @@ export function AlertsView() {
 
   useEffect(() => {
     pnlGet<any>('/api/alerts', filtersToParams(filters)).then((d) => setAlerts(d.alerts ?? [])).finally(() => setLoading(false));
-  }, [filters.month, filters.year, filters.direction, filters.transportType]);
+  }, [filters.dateFrom, filters.dateTo, filters.direction, filters.transportType]);
 
   return (
     <div className="space-y-6">
