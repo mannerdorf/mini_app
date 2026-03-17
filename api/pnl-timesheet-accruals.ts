@@ -137,17 +137,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       amount: number;
       employeeDepartment: string;
     }> = [];
-    const payoutByEmployee = new Map<number, { amount: number; payoutDate: string; employeeName: string; employeeDepartment: string }>();
+    const payoutByEmployee = new Map<number, { amount: number; payoutDate: string; employeeName: string; employeeDepartment: string; payoutCount: number }>();
     for (const r of payoutResult.rows) {
       const amountAbs = Math.abs(Number(r.amount) || 0);
       if (!(amountAbs > 0)) continue;
       if (!resolveMatches(r.employeeDepartment)) continue;
-      payoutByEmployee.set(Number(r.employeeId), {
-        amount: Number(Number(amountAbs).toFixed(2)),
-        payoutDate: String(r.payoutDate || "").slice(0, 10) || period,
-        employeeName: String(r.employeeName || "").trim() || `Сотрудник #${r.employeeId}`,
-        employeeDepartment: String(r.employeeDepartment || "").trim() || "",
-      });
+      const employeeId = Number(r.employeeId);
+      const prev = payoutByEmployee.get(employeeId);
+      const payoutDate = String(r.payoutDate || "").slice(0, 10) || period;
+      if (!prev) {
+        payoutByEmployee.set(employeeId, {
+          amount: Number(Number(amountAbs).toFixed(2)),
+          payoutDate,
+          employeeName: String(r.employeeName || "").trim() || `Сотрудник #${r.employeeId}`,
+          employeeDepartment: String(r.employeeDepartment || "").trim() || "",
+          payoutCount: 1,
+        });
+      } else {
+        prev.amount = Number((prev.amount + amountAbs).toFixed(2));
+        // Keep latest payout date for reference in details.
+        if (payoutDate > prev.payoutDate) prev.payoutDate = payoutDate;
+        prev.payoutCount += 1;
+        payoutByEmployee.set(employeeId, prev);
+      }
     }
 
     for (const [employeeId, payout] of payoutByEmployee.entries()) {
@@ -155,7 +167,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         employeeId,
         employeeName: payout.employeeName,
         workDate: payout.payoutDate,
-        valueText: "Выплата за месяц",
+        valueText: payout.payoutCount > 1 ? `Выплаты за месяц (${payout.payoutCount})` : "Выплата за месяц",
         amount: payout.amount,
         employeeDepartment: payout.employeeDepartment,
       });
