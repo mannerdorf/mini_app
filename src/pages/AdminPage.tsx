@@ -7013,7 +7013,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
               value={timesheetSearch}
               onChange={(e) => setTimesheetSearch(e.target.value)}
               placeholder="Поиск по сотруднику: ФИО, должность, логин"
-              style={{ width: "100%", marginTop: "0.55rem", minHeight: "2.4rem", boxSizing: "border-box" }}
+              style={{ width: "100%", marginTop: "0.55rem", height: "2rem", minHeight: "2rem", boxSizing: "border-box", paddingTop: "0.25rem", paddingBottom: "0.25rem" }}
             />
           </Panel>
           <Typography.Body style={{ fontSize: "0.78rem", color: timesheetMonthPaymentStatus.color, marginTop: "-0.35rem", marginBottom: "0.55rem" }}>

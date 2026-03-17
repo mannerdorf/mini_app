@@ -104,13 +104,25 @@ export function DashboardView() {
                 <ComposedChart data={lineData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                  <YAxis width={90} tick={{ fontSize: 12 }} tickFormatter={(v) => formatAxisValue(Number(v) || 0)} />
+                  <YAxis
+                    yAxisId="left"
+                    width={90}
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(v) => formatAxisValue(Number(v) || 0)}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    width={90}
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(v) => formatAxisValue(Number(v) || 0)}
+                  />
                   <Tooltip formatter={(v: number) => formatRub(v)} />
                   <Legend />
-                  <Line type="monotone" dataKey="Выручка" stroke="#3b82f6" strokeWidth={2} />
-                  <Line type="monotone" dataKey="COGS" stroke="#ef4444" strokeWidth={2} />
-                  <Line type="monotone" dataKey="EBITDA" stroke="#10b981" strokeWidth={2} />
-                  <Line type="monotone" dataKey="Вал.прибыль–OPEX–CAPEX" stroke="#f97316" strokeWidth={2} />
+                  <Line yAxisId="left" type="monotone" dataKey="Выручка" stroke="#3b82f6" strokeWidth={2} />
+                  <Line yAxisId="left" type="monotone" dataKey="COGS" stroke="#ef4444" strokeWidth={2} />
+                  <Line yAxisId="left" type="monotone" dataKey="EBITDA" stroke="#10b981" strokeWidth={2} />
+                  <Line yAxisId="right" type="monotone" dataKey="Вал.прибыль–OPEX–CAPEX" stroke="#f97316" strokeWidth={2} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

@@ -43,7 +43,7 @@ interface TimesheetRowOverride {
   hidden?: boolean;
 }
 
-function formatRub(n: number) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽'; }
+function formatRub(n: number) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + '\u00A0₽'; }
 function generateId() { return Math.random().toString(36).slice(2, 9); }
 const EXPENSE_REQUESTS_STORAGE_PREFIX = 'haulz.expense_requests.';
 const TIMESHEET_OVERRIDES_STORAGE_PREFIX = 'haulz.timesheet_saved_overrides.';
