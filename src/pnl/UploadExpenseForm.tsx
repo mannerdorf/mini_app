@@ -165,6 +165,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [inputExpanded, setInputExpanded] = useState(false);
+  const [allCats, setAllCats] = useState<ExpenseCat[]>([]);
   const [filteredCats, setFilteredCats] = useState<ExpenseCat[]>([]);
   const isMainline = logisticsStage === 'MAINLINE';
   const [rows, setRows] = useState<ExpenseRow[]>([{ id: generateId(), categoryId: '', amount: '', direction: 'MSK_TO_KGD', transportType: 'AUTO' }]);
@@ -174,6 +175,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [editingRowKey, setEditingRowKey] = useState<string | null>(null);
+  const [editingSubdivisionKey, setEditingSubdivisionKey] = useState<string>('');
   const [editingCategoryId, setEditingCategoryId] = useState<string>('');
   const [editingAmount, setEditingAmount] = useState<string>('');
   const [editingComment, setEditingComment] = useState<string>('');
@@ -208,6 +210,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
 
   useEffect(() => {
     pnlGet<ExpenseCat[]>('/api/expense-categories').then((cats) => {
+      setAllCats(Array.isArray(cats) ? cats : []);
       setFilteredCats(cats.filter((c) => c.department === department && (logisticsStage === null ? c.logisticsStage === null : c.logisticsStage === logisticsStage)));
       setCatsLoading(false);
     });
@@ -359,7 +362,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   };
 
   const handleUpdateLocalRequest = (localRequestId: string, categoryId: string, amount: number, comment: string) => {
-    const category = filteredCats.find((c) => c.id === categoryId);
+    const category = allCats.find((c) => c.id === categoryId);
     const changed = updateLocalRequest(localRequestId, (item) => ({ ...item, categoryId, categoryName: category?.name ?? item?.categoryName, amount, comment }));
     if (changed) loadSaved();
   };
@@ -396,6 +399,32 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
     savedExpensesAll.forEach((e) => set.add(getExpenseTypeLabel(e.type)));
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru'));
   }, [savedExpensesAll]);
+  const expenseCatsBySubdivision = useMemo(() => {
+    const map = new Map<string, ExpenseCat[]>();
+    allCats.forEach((c) => {
+      const key = getSubdivisionKey(c.department, c.logisticsStage);
+      const list = map.get(key) || [];
+      list.push(c);
+      map.set(key, list);
+    });
+    map.forEach((list, key) => {
+      map.set(key, [...list].sort((a, b) => a.name.localeCompare(b.name, 'ru')));
+    });
+    return map;
+  }, [allCats]);
+  const subdivisionOptions = useMemo(() => {
+    const opts = subdivisionDirectory
+      .map((s) => ({ key: getSubdivisionKey(s.department, s.logisticsStage), label: String(s.name || '').trim() }))
+      .filter((x) => x.label)
+      .sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+    if (opts.length > 0) return opts;
+    const fallback: Array<{ key: string; label: string }> = [];
+    expenseCatsBySubdivision.forEach((_, key) => {
+      const [dep, stage] = key.split('::');
+      fallback.push({ key, label: getSubdivisionDirectoryLabel(dep, stage || null) });
+    });
+    return fallback.sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+  }, [subdivisionDirectory, expenseCatsBySubdivision, subdivisionLabelByKey]);
   const savedExpenses = useMemo(() => {
     const prepared = savedExpensesAll
       .map((e) => {
@@ -516,11 +545,14 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                     const canEditRow = isManualExpense || canEditRequest || isTimesheetSalary;
                     const isEditingRow = editingRowKey === key;
                     const dir = e.direction ?? ''; const transport = e.transportType ?? '';
-                    const cat = filteredCats.find((c) => c.id === e.categoryId || normalizeName(c.name) === normalizeName(e.categoryName));
+                    const cat = allCats.find((c) => c.id === e.categoryId || normalizeName(c.name) === normalizeName(e.categoryName));
                     const departmentValue = e.department ?? cat?.department ?? department;
                     const logisticsStageValue = e.logisticsStage ?? cat?.logisticsStage ?? logisticsStage ?? null;
                     const typeValue = e.type ?? cat?.type ?? 'OPEX';
                     const subdivisionLabel = getSubdivisionDirectoryLabel(departmentValue, logisticsStageValue);
+                    const currentSubdivisionKey = getSubdivisionKey(departmentValue, logisticsStageValue);
+                    const activeEditSubdivisionKey = isEditingRow ? (editingSubdivisionKey || currentSubdivisionKey) : currentSubdivisionKey;
+                    const editCategoryOptions = expenseCatsBySubdivision.get(activeEditSubdivisionKey) || [];
                     const isAccrualExpanded = expandedAccrualKey === key;
                     return (
                       <React.Fragment key={key}>
@@ -537,8 +569,8 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                               style={{ minWidth: 180 }}
                             >
                               <option value="">— Выберите статью —</option>
-                              {filteredCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                              {editingCategoryId && !filteredCats.some((c) => c.id === editingCategoryId) ? (
+                              {editCategoryOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                              {editingCategoryId && !editCategoryOptions.some((c) => c.id === editingCategoryId) ? (
                                 <option value={editingCategoryId}>{e.categoryName || editingCategoryId}</option>
                               ) : null}
                             </select>
@@ -546,7 +578,29 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                             e.categoryName
                           )}
                         </td>
-                        <td className="px-6 py-2 text-slate-600 text-sm">{subdivisionLabel}</td>
+                        <td className="px-6 py-2 text-slate-600 text-sm">
+                          {canEditRow && isEditingRow ? (
+                            <select
+                              value={activeEditSubdivisionKey}
+                              onChange={(ev) => {
+                                const nextKey = ev.target.value;
+                                setEditingSubdivisionKey(nextKey);
+                                const nextCats = expenseCatsBySubdivision.get(nextKey) || [];
+                                if (!nextCats.some((c) => c.id === editingCategoryId)) {
+                                  setEditingCategoryId(nextCats[0]?.id || '');
+                                }
+                              }}
+                              className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-900"
+                              style={{ minWidth: 180 }}
+                            >
+                              {subdivisionOptions.map((opt) => (
+                                <option key={opt.key} value={opt.key}>{opt.label}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            subdivisionLabel
+                          )}
+                        </td>
                         <td className="px-6 py-2 text-slate-600 text-sm">{getExpenseTypeLabel(typeValue)}</td>
                         {isMainline && <td className="px-6 py-2 text-slate-600 text-sm">{dir && transport ? `${(DIRECTION_LABELS as Record<string, string>)[dir] ?? dir} ${transport === 'FERRY' ? 'паром' : 'авто'}` : '—'}</td>}
                         <td className="px-6 py-2 text-right">
@@ -577,22 +631,25 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                       if (isTimesheetSalary && e.id) {
                                         saveTimesheetOverride(e.id, { amount: amountValue, comment: editingComment });
                                         setEditingRowKey(null);
+                                        setEditingSubdivisionKey('');
                                         return;
                                       }
                                       if (localRequestId) {
                                         handleUpdateLocalRequest(localRequestId, editingCategoryId || e.categoryId, amountValue, editingComment);
                                         setEditingRowKey(null);
+                                        setEditingSubdivisionKey('');
                                         return;
                                       }
                                       handleUpdateSaved(e.categoryId, editingCategoryId || e.categoryId, amountValue, editingComment, dir, transport, requestId);
                                       setEditingRowKey(null);
+                                      setEditingSubdivisionKey('');
                                     }}
                                     className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
                                   >
                                     Сохранить
                                   </button>
                                   <button
-                                    onClick={() => setEditingRowKey(null)}
+                                    onClick={() => { setEditingRowKey(null); setEditingSubdivisionKey(''); }}
                                     className="px-2 py-1 text-xs rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
                                   >
                                     Отмена
@@ -603,6 +660,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                   <button
                                     onClick={() => {
                                       setEditingRowKey(key);
+                                      setEditingSubdivisionKey(currentSubdivisionKey);
                                       setEditingCategoryId(e.categoryId || '');
                                       setEditingAmount(String(Math.round(Number(e.amount) || 0)));
                                       setEditingComment((e.comment ?? '').trim());

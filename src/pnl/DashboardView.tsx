@@ -12,6 +12,14 @@ function formatRub(n: number) {
   return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽';
 }
 
+function formatAxisValue(n: number) {
+  return new Intl.NumberFormat('ru-RU', {
+    notation: 'compact',
+    compactDisplay: 'short',
+    maximumFractionDigits: 1,
+  }).format(n);
+}
+
 function KpiCard({ title, value }: { title: string; value: string }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
@@ -96,7 +104,7 @@ export function DashboardView() {
                 <ComposedChart data={lineData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <YAxis width={90} tick={{ fontSize: 12 }} tickFormatter={(v) => formatAxisValue(Number(v) || 0)} />
                   <Tooltip formatter={(v: number) => formatRub(v)} />
                   <Legend />
                   <Line type="monotone" dataKey="Выручка" stroke="#3b82f6" strokeWidth={2} />
@@ -114,7 +122,7 @@ export function DashboardView() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={charts.cogsByStage?.map((x: any) => ({ name: stageLabels[x.stage] ?? x.stage, value: x.amount })) ?? []} layout="vertical" margin={{ left: 80 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis type="number" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                    <XAxis type="number" tickFormatter={(v) => formatAxisValue(Number(v) || 0)} />
                     <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 11 }} />
                     <Tooltip formatter={(v: number) => formatRub(v)} />
                     <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} />
@@ -129,7 +137,7 @@ export function DashboardView() {
                   <BarChart data={charts.revenueByDir?.map((x: any) => ({ name: x.label ?? (x.direction === 'MSK_TO_KGD' ? 'МСК → КГД' : x.direction === 'KGD_TO_MSK' ? 'КГД → МСК' : x.direction), value: x.amount })) ?? []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="name" />
-                    <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                    <YAxis width={90} tickFormatter={(v) => formatAxisValue(Number(v) || 0)} />
                     <Tooltip formatter={(v: number) => formatRub(v)} />
                     <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]} />
                   </BarChart>
