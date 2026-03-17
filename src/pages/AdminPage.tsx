@@ -9389,7 +9389,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <td style={{ padding: "6px 8px" }}>{getLoginDisplayName(r.login)}</td>
                         <td style={{ padding: "6px 8px" }}>{r.department}</td>
                         <td style={{ padding: "6px 8px" }}>{r.categoryName}</td>
-                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{r.amount.toLocaleString("ru-RU")} ₽{(r as any).vatRate ? ` (${(r as any).vatRate}%)` : ""}</td>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{`${r.amount.toLocaleString("ru-RU")}\u00A0₽`}{(r as any).vatRate ? ` (${(r as any).vatRate}%)` : ""}</td>
                         <td style={{ padding: "6px 8px" }}>{statusBadge(r.status)}</td>
                         <td style={{ padding: "6px 8px", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {r.comment || "—"}
@@ -9465,6 +9465,40 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             {isAccounting && (r.status === "approved" || r.status === "sent") && (
                               <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "paid", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
                             )}
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  const supplierName = (r as any).supplierName || "";
+                                  const supplierInn = (r as any).supplierInn || "";
+                                  const supplier = supplierName || supplierInn
+                                    ? [supplierName, supplierInn ? `ИНН ${supplierInn}` : ""].filter(Boolean).join(", ")
+                                    : "—";
+                                  const text = [
+                                    `№ док.: ${(r as any).docNumber || "—"}`,
+                                    `Дата док.: ${(r as any).docDate || "—"}`,
+                                    `Период: ${(r as any).period || "—"}`,
+                                    `ФИО: ${getLoginDisplayName(r.login)}`,
+                                    `Подразделение: ${r.department || "—"}`,
+                                    `Статья: ${r.categoryName || "—"}`,
+                                    `Сумма: ${r.amount.toLocaleString("ru-RU")} ₽${(r as any).vatRate ? ` (НДС ${(r as any).vatRate}%)` : ""}`,
+                                    `Комментарий: ${r.comment || "—"}`,
+                                    `ТС: ${r.vehicleOrEmployee || "—"}`,
+                                    `Сотрудник: ${(r as any).employeeName || "—"}`,
+                                    `Поставщик услуг: ${supplier}`,
+                                  ].join("\n");
+                                  await navigator.clipboard?.writeText(text);
+                                } catch {
+                                  setError("Не удалось скопировать заявку");
+                                }
+                              }}
+                              style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}
+                              title="Копировать данные заявки"
+                              aria-label="Копировать данные заявки"
+                            >
+                              <Copy size={12} />
+                              Копировать
+                            </button>
                             <button type="button" onClick={() => { setExpenseEditId(r.id); setExpenseEditDocNumber((r as any).docNumber ?? ""); setExpenseEditDocDate((r as any).docDate ?? ""); setExpenseEditPeriod((r as any).period ?? ""); setExpenseEditDepartment(r.department); setExpenseEditCategory(r.categoryId); setExpenseEditAmount(String(r.amount)); setExpenseEditVatRate((r as any).vatRate ?? ""); setExpenseEditComment(r.comment); setExpenseEditVehicle(r.vehicleOrEmployee); setExpenseEditEmployee((r as any).employeeName ?? ""); setExpenseEditSupplierName((r as any).supplierName ?? ""); setExpenseEditSupplierInn((r as any).supplierInn ?? ""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer" }}>Изменить</button>
                             <button type="button" onClick={() => { if (window.confirm("Удалить заявку? Действие нельзя отменить.")) deleteExpenseRequest(r.id, r.login); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Удалить</button>
                           </Flex>
@@ -9631,7 +9665,19 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </div>
                       <div>
                         <label style={fieldLabel}>Подразделение</label>
-                        <input type="text" className="admin-form-input" value={expenseEditDepartment} onChange={(e) => setExpenseEditDepartment(e.target.value)} style={fieldInput} />
+                        <select
+                          className="admin-form-input"
+                          value={expenseEditDepartment}
+                          onChange={(e) => setExpenseEditDepartment(e.target.value)}
+                          style={{ ...fieldInput, height: 36 }}
+                        >
+                          {(() => {
+                            const opts = [...depOptions];
+                            if (expenseEditDepartment && !opts.includes(expenseEditDepartment)) opts.unshift(expenseEditDepartment);
+                            if (!expenseEditDepartment && opts.length === 0) opts.push("—");
+                            return opts.map((dep) => <option key={dep} value={dep}>{dep}</option>);
+                          })()}
+                        </select>
                       </div>
                       <div>
                         <label style={fieldLabel}>Статья расхода</label>

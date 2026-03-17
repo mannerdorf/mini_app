@@ -22,6 +22,8 @@ export function UploadStatementView() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ name: '', subdivisionId: 'pickup_msk', type: 'OPEX', amount: 0, comment: '' });
   const years = [year - 1, year, year + 1];
+  const totalByCounterparties = rows.reduce((sum, row) => sum + Number(row.totalAmount || 0), 0);
+  const totalOperations = rows.reduce((sum, row) => sum + Number(row.count || 0), 0);
 
   useEffect(() => {
     pnlGet<any>('/api/statement', { month: String(month), year: String(year) }).then((d) => setRows(Array.isArray(d?.byCounterparty) ? d.byCounterparty : [])).catch(() => setRows([]));
@@ -82,7 +84,10 @@ export function UploadStatementView() {
       </div>
       {rows.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-          <div className="px-4 py-3 border-b border-slate-100 font-medium text-slate-700">Расходы по контрагентам</div>
+          <div className="px-4 py-3 border-b border-slate-100 font-medium text-slate-700 flex items-center justify-between gap-3">
+            <span>Расходы по контрагентам</span>
+            <span className="text-sm font-semibold text-slate-800">Итого: {formatRub(totalByCounterparties)} · {totalOperations} опер.</span>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead><tr className="border-b border-slate-100 bg-slate-50"><th className="px-4 py-3 text-left text-sm font-medium text-slate-600">Контрагент</th><th className="px-4 py-3 text-right text-sm font-medium text-slate-600">Сумма</th><th className="px-4 py-3 text-right text-sm font-medium text-slate-600">Операций</th><th className="px-4 py-3 text-center text-sm font-medium text-slate-600">Статус</th><th className="px-4 py-3 w-56 text-right text-sm font-medium text-slate-600">Действия</th></tr></thead>
