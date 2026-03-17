@@ -7068,7 +7068,8 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   За выбранный период сотрудники не найдены.
                 </Typography.Body>
               ) : (
-                <div className="timesheet-groups-wrap" style={{ display: "flex", flexDirection: "column", gap: "0.9rem", minWidth: "max-content", paddingRight: "3rem" }}>
+                <div style={{ overflowX: "auto", overflowY: "visible", WebkitOverflowScrolling: "touch", width: "100%", maxWidth: "100%" }}>
+                  <div className="timesheet-groups-wrap" style={{ display: "flex", flexDirection: "column", gap: "0.9rem", minWidth: "max-content", paddingRight: "3rem" }}>
                   {timesheetEmployeesByDepartment.map((group) => (
                     <Panel key={`timesheet-group-${group.department}`} className="cargo-card timesheet-panel" style={{ padding: "0.6rem" }}>
                       <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
@@ -7790,6 +7791,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </span>
                     </Flex>
                   </Panel>
+                </div>
                 </div>
               )}
             </>
