@@ -307,52 +307,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
       };
 
-      let accrualRows: any[] = [];
-      try {
-        const result = await pool.query(
-          `SELECT e.employee_id AS "employeeId",
-                  e.work_date::text AS "workDate",
-                  e.value_text AS "valueText",
-                  ru.department AS "employeeDepartment",
-                  ru.accrual_type AS "accrualType",
-                  ru.accrual_rate AS "accrualRate",
-                  sro.shift_rate AS "shiftRateOverride"
-           FROM employee_timesheet_entries e
-           JOIN registered_users ru ON ru.id = e.employee_id
-           LEFT JOIN employee_timesheet_shift_rate_overrides sro
-             ON sro.employee_id = e.employee_id
-            AND sro.work_date = e.work_date
-           WHERE e.work_date >= $1::date
-             AND e.work_date < $2::date`,
-          [period, nextPeriod]
-        );
-        accrualRows = result.rows;
-      } catch (e) {
-        logError(ctx, "pnl_manual_entry_timesheet_entries_read_failed", e);
-        accrualRows = [];
-      }
-
       const grouped = new Map<string, { amount: number; count: number; department: string; logisticsStage: string | null }>();
-      accrualRows.forEach((r: any) => {
-        const accrualType = normalizeAccrualType(r.accrualType);
-        const rate = Number(r.accrualRate || 0);
-        const valueText = String(r.valueText || "");
-        const mark = normalizeShiftMark(valueText);
-        let amountAbs = 0;
-        if (accrualType === "shift") {
-          if (mark !== "Я") return;
-          const override = Number(r.shiftRateOverride);
-          const dayRate = Number.isFinite(override) ? override : rate;
-          amountAbs = Math.abs(dayRate || 0);
-        } else if (accrualType === "month") {
-          if (mark !== "Я") return;
-          amountAbs = Math.abs((rate || 0) / 21);
-        } else {
-          const hours = parseHoursValue(valueText);
-          amountAbs = Math.abs(hours * (rate || 0));
-        }
-        if (!(amountAbs > 0)) return;
-        const primary = mapPrimaryDepartmentCandidate(r.employeeDepartment);
+      const matchTargets = (employeeDepartmentRaw?: string | null) => {
+        const primary = mapPrimaryDepartmentCandidate(employeeDepartmentRaw);
         let matched: Array<{ department: string; logisticsStage: string | null }> = [primary];
         if (department != null) {
           matched = matched.filter((m) => m.department === department);
@@ -369,15 +326,95 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               .filter((m) => m.logisticsStage == null)
               .map((m) => ({ ...m, logisticsStage }));
         }
-        if (matched.length === 0) return;
-        matched.forEach((mapped) => {
-          const key = `${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
-          const prev = grouped.get(key) || { amount: 0, count: 0, department: mapped.department, logisticsStage: mapped.logisticsStage };
-          prev.amount += amountAbs;
-          prev.count += 1;
-          grouped.set(key, prev);
+        return matched;
+      };
+
+      let payoutRows: any[] = [];
+      try {
+        const result = await pool.query(
+          `SELECT p.employee_id AS "employeeId",
+                  p.amount AS "amount",
+                  ru.department AS "employeeDepartment"
+           FROM employee_timesheet_payouts p
+           JOIN registered_users ru ON ru.id = p.employee_id
+           WHERE p.period_month = $1::date`,
+          [period]
+        );
+        payoutRows = result.rows;
+      } catch (e) {
+        logError(ctx, "pnl_manual_entry_timesheet_payouts_read_failed", e);
+        payoutRows = [];
+      }
+
+      if (payoutRows.length > 0) {
+        payoutRows.forEach((r: any) => {
+          const amountAbs = Math.abs(Number(r.amount) || 0);
+          if (!(amountAbs > 0)) return;
+          const matched = matchTargets(r.employeeDepartment);
+          if (matched.length === 0) return;
+          matched.forEach((mapped) => {
+            const key = `${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
+            const prev = grouped.get(key) || { amount: 0, count: 0, department: mapped.department, logisticsStage: mapped.logisticsStage };
+            prev.amount += amountAbs;
+            prev.count += 1;
+            grouped.set(key, prev);
+          });
         });
-      });
+      } else {
+        let accrualRows: any[] = [];
+        try {
+          const result = await pool.query(
+            `SELECT e.employee_id AS "employeeId",
+                    e.work_date::text AS "workDate",
+                    e.value_text AS "valueText",
+                    ru.department AS "employeeDepartment",
+                    ru.accrual_type AS "accrualType",
+                    ru.accrual_rate AS "accrualRate",
+                    sro.shift_rate AS "shiftRateOverride"
+             FROM employee_timesheet_entries e
+             JOIN registered_users ru ON ru.id = e.employee_id
+             LEFT JOIN employee_timesheet_shift_rate_overrides sro
+               ON sro.employee_id = e.employee_id
+              AND sro.work_date = e.work_date
+             WHERE e.work_date >= $1::date
+               AND e.work_date < $2::date`,
+            [period, nextPeriod]
+          );
+          accrualRows = result.rows;
+        } catch (e) {
+          logError(ctx, "pnl_manual_entry_timesheet_entries_read_failed", e);
+          accrualRows = [];
+        }
+        accrualRows.forEach((r: any) => {
+          const accrualType = normalizeAccrualType(r.accrualType);
+          const rate = Number(r.accrualRate || 0);
+          const valueText = String(r.valueText || "");
+          const mark = normalizeShiftMark(valueText);
+          let amountAbs = 0;
+          if (accrualType === "shift") {
+            if (mark !== "Я") return;
+            const override = Number(r.shiftRateOverride);
+            const dayRate = Number.isFinite(override) ? override : rate;
+            amountAbs = Math.abs(dayRate || 0);
+          } else if (accrualType === "month") {
+            if (mark !== "Я") return;
+            amountAbs = Math.abs((rate || 0) / 21);
+          } else {
+            const hours = parseHoursValue(valueText);
+            amountAbs = Math.abs(hours * (rate || 0));
+          }
+          if (!(amountAbs > 0)) return;
+          const matched = matchTargets(r.employeeDepartment);
+          if (matched.length === 0) return;
+          matched.forEach((mapped) => {
+            const key = `${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
+            const prev = grouped.get(key) || { amount: 0, count: 0, department: mapped.department, logisticsStage: mapped.logisticsStage };
+            prev.amount += amountAbs;
+            prev.count += 1;
+            grouped.set(key, prev);
+          });
+        });
+      }
 
       salaryExpenses = Array.from(grouped.values()).map((g) => ({
         id: `timesheet-salary:${periodKey}:${g.department}:${String(g.logisticsStage ?? "none")}`,

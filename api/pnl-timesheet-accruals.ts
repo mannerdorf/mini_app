@@ -90,6 +90,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
+    const payoutResult = await pool.query(
+      `SELECT p.employee_id AS "employeeId",
+              p.payout_date::text AS "payoutDate",
+              p.amount AS "amount",
+              ru.department AS "employeeDepartment",
+              coalesce(ru.full_name, ru.login, '') AS "employeeName"
+       FROM employee_timesheet_payouts p
+       JOIN registered_users ru ON ru.id = p.employee_id
+       WHERE p.period_month = $1::date`,
+      [period]
+    );
     const result = await pool.query(
       `SELECT e.employee_id AS "employeeId",
               e.work_date::text AS "workDate",
@@ -111,6 +122,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const targetDep = String(department).trim();
     const targetStage = logisticsStage === "null" || logisticsStage === "" ? null : String(logisticsStage).trim();
+    const resolveMatches = (employeeDepartmentRaw?: string | null) => {
+      const primary = mapPrimaryDepartmentCandidate(employeeDepartmentRaw);
+      if (primary.department !== targetDep) return false;
+      if (targetStage == null) return primary.logisticsStage == null;
+      return primary.logisticsStage === targetStage || primary.logisticsStage == null;
+    };
 
     const accruals: Array<{
       employeeId: number;
@@ -120,8 +137,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       amount: number;
       employeeDepartment: string;
     }> = [];
+    const payoutByEmployee = new Map<number, { amount: number; payoutDate: string; employeeName: string; employeeDepartment: string }>();
+    for (const r of payoutResult.rows) {
+      const amountAbs = Math.abs(Number(r.amount) || 0);
+      if (!(amountAbs > 0)) continue;
+      if (!resolveMatches(r.employeeDepartment)) continue;
+      payoutByEmployee.set(Number(r.employeeId), {
+        amount: Number(Number(amountAbs).toFixed(2)),
+        payoutDate: String(r.payoutDate || "").slice(0, 10) || period,
+        employeeName: String(r.employeeName || "").trim() || `Сотрудник #${r.employeeId}`,
+        employeeDepartment: String(r.employeeDepartment || "").trim() || "",
+      });
+    }
+
+    for (const [employeeId, payout] of payoutByEmployee.entries()) {
+      accruals.push({
+        employeeId,
+        employeeName: payout.employeeName,
+        workDate: payout.payoutDate,
+        valueText: "Выплата за месяц",
+        amount: payout.amount,
+        employeeDepartment: payout.employeeDepartment,
+      });
+    }
 
     for (const r of result.rows) {
+      if (payoutByEmployee.has(Number(r.employeeId))) continue;
       const accrualType = normalizeAccrualType(r.accrualType);
       const rate = Number(r.accrualRate || 0);
       const valueText = String(r.valueText || "");
@@ -140,19 +181,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         amountAbs = Math.abs(hours * (rate || 0));
       }
       if (!(amountAbs > 0)) continue;
-
-      const primary = mapPrimaryDepartmentCandidate(r.employeeDepartment);
-      let matched = false;
-      if (primary.department === targetDep) {
-        if (targetStage == null) {
-          matched = primary.logisticsStage == null;
-        } else if (primary.logisticsStage === targetStage) {
-          matched = true;
-        } else if (primary.logisticsStage == null) {
-          matched = true;
-        }
-      }
-      if (!matched) continue;
+      if (!resolveMatches(r.employeeDepartment)) continue;
 
       accruals.push({
         employeeId: r.employeeId,
