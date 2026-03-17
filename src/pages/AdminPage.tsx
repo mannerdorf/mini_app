@@ -980,6 +980,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     return `${now.getFullYear()}-${month}`;
   });
   const [timesheetSearch, setTimesheetSearch] = useState("");
+  const [timesheetDepartmentFilter, setTimesheetDepartmentFilter] = useState<string>("all");
   const [timesheetHours, setTimesheetHours] = useState<Record<string, string>>({});
   const [timesheetPaymentMarks, setTimesheetPaymentMarks] = useState<Record<string, boolean>>({});
   const [timesheetShiftRateOverrides, setTimesheetShiftRateOverrides] = useState<Record<string, number>>({});
@@ -1003,34 +1004,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [timesheetPayoutActionLoadingId, setTimesheetPayoutActionLoadingId] = useState<number | null>(null);
   const [timesheetMobilePicker, setTimesheetMobilePicker] = useState(false);
   const WORK_DAYS_IN_MONTH = 21;
-  const TIMESHEET_MONTH_OPTIONS = [
-    { value: "01", label: "январь" },
-    { value: "02", label: "февраль" },
-    { value: "03", label: "март" },
-    { value: "04", label: "апрель" },
-    { value: "05", label: "май" },
-    { value: "06", label: "июнь" },
-    { value: "07", label: "июль" },
-    { value: "08", label: "август" },
-    { value: "09", label: "сентябрь" },
-    { value: "10", label: "октябрь" },
-    { value: "11", label: "ноябрь" },
-    { value: "12", label: "декабрь" },
-  ] as const;
-  const timesheetMonthParts = useMemo(() => {
-    const match = /^(\d{4})-(\d{2})$/.exec(timesheetMonth);
-    if (match) return { year: match[1], month: match[2] };
-    const now = new Date();
-    return { year: String(now.getFullYear()), month: String(now.getMonth() + 1).padStart(2, "0") };
-  }, [timesheetMonth]);
-  const timesheetYearOptions = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const years = new Set<number>([currentYear - 1, currentYear, currentYear + 1, Number(timesheetMonthParts.year)]);
-    return Array.from(years)
-      .filter((x) => Number.isFinite(x))
-      .sort((a, b) => b - a)
-      .map(String);
-  }, [timesheetMonthParts.year]);
   const SHIFT_MARK_OPTIONS = [
     { code: "Я", label: "Явка", bg: "#35c46a", color: "#ffffff", border: "#1f8f45" },
     { code: "ПР", label: "Прогул", bg: "#ef4444", color: "#ffffff", border: "#dc2626" },
@@ -1191,6 +1164,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       }))
       .sort((a, b) => a.department.localeCompare(b.department, "ru"));
   }, [employeeDirectoryItems, timesheetSearch]);
+  const timesheetDepartmentOptions = useMemo(() => {
+    return timesheetEmployeesByDepartment.map((group) => group.department);
+  }, [timesheetEmployeesByDepartment]);
+  const timesheetVisibleGroups = useMemo(() => {
+    if (timesheetDepartmentFilter === "all") return timesheetEmployeesByDepartment;
+    return timesheetEmployeesByDepartment.filter((group) => group.department === timesheetDepartmentFilter);
+  }, [timesheetDepartmentFilter, timesheetEmployeesByDepartment]);
   const timesheetDepartmentSummaries = useMemo(() => {
     return timesheetEmployeesByDepartment.map((group) => {
       let totalHours = 0;
@@ -3004,6 +2984,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       fetchTimesheetEntries();
     }
   }, [tab, isSuperAdmin, fetchTimesheetEntries]);
+  useEffect(() => {
+    if (timesheetDepartmentFilter !== "all" && !timesheetDepartmentOptions.includes(timesheetDepartmentFilter)) {
+      setTimesheetDepartmentFilter("all");
+    }
+  }, [timesheetDepartmentFilter, timesheetDepartmentOptions]);
 
   useEffect(() => {
     if (tab !== "users") setShowAddUserForm(false);
@@ -6983,72 +6968,54 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           style={{ padding: "var(--pad-card, 1rem)" }}
         >
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Табель учета рабочего времени</Typography.Body>
-          <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.8rem" }} className="timesheet-filters-row">
-            <Flex
-              align="center"
-              gap="0.4rem"
-              style={{
-                minWidth: "min(12rem, 100%)",
-                height: "2.5rem",
-                boxSizing: "border-box",
-                padding: "0 0.45rem",
-                border: `1px solid ${timesheetMonthPaymentStatus.border}`,
-                borderRadius: 8,
-                background: timesheetMonthPaymentStatus.bg,
-              }}
-            >
-              <select
-                className="admin-form-input"
-                value={timesheetMonthParts.month}
-                onChange={(e) => setTimesheetMonth(`${timesheetMonthParts.year}-${e.target.value}`)}
-                style={{
-                  height: "2rem",
-                  border: "none",
-                  background: "transparent",
-                  color: timesheetMonthPaymentStatus.color,
-                  fontWeight: 600,
-                  minWidth: "6.6rem",
-                  padding: 0,
-                }}
-                aria-label="Месяц табеля"
-              >
-                {TIMESHEET_MONTH_OPTIONS.map((opt) => (
-                  <option key={`timesheet-month-${opt.value}`} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="admin-form-input"
-                value={timesheetMonthParts.year}
-                onChange={(e) => setTimesheetMonth(`${e.target.value}-${timesheetMonthParts.month}`)}
-                style={{
-                  height: "2rem",
-                  border: "none",
-                  background: "transparent",
-                  color: timesheetMonthPaymentStatus.color,
-                  fontWeight: 600,
-                  minWidth: "4.1rem",
-                  padding: 0,
-                }}
-                aria-label="Год табеля"
-              >
-                {timesheetYearOptions.map((year) => (
-                  <option key={`timesheet-year-${year}`} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </select>
+          <Panel className="cargo-card" style={{ padding: "0.75rem", marginBottom: "0.75rem" }}>
+            <Flex align="center" justify="space-between" wrap="wrap" gap="0.75rem">
+              <Typography.Body style={{ fontWeight: 600 }}>
+                Подразделение: {timesheetDepartmentFilter === "all" ? "Все подразделения" : timesheetDepartmentFilter}
+              </Typography.Body>
+              <Flex align="center" gap="0.5rem" wrap="wrap">
+                <select
+                  value={timesheetDepartmentFilter}
+                  onChange={(e) => setTimesheetDepartmentFilter(e.target.value)}
+                  style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.4rem 0.6rem", background: "var(--color-bg)", minWidth: "12.5rem" }}
+                  aria-label="Фильтр подразделения табеля"
+                >
+                  <option value="all">Все подразделения</option>
+                  {timesheetDepartmentOptions.map((dep) => (
+                    <option key={`timesheet-department-filter-${dep}`} value={dep}>
+                      {dep}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="month"
+                  value={timesheetMonth}
+                  onChange={(e) => setTimesheetMonth(e.target.value)}
+                  style={{ border: "1px solid var(--color-border)", borderRadius: 8, padding: "0.4rem 0.6rem", background: "var(--color-bg)" }}
+                  aria-label="Месяц табеля"
+                />
+                <Button
+                  type="button"
+                  className="filter-button"
+                  onClick={() => {
+                    void fetchEmployeeDirectory(timesheetMonth);
+                    void fetchTimesheetEntries();
+                  }}
+                  disabled={employeeDirectoryLoading}
+                >
+                  Обновить
+                </Button>
+              </Flex>
             </Flex>
             <Input
               type="text"
               className="admin-form-input"
               value={timesheetSearch}
               onChange={(e) => setTimesheetSearch(e.target.value)}
-              placeholder="Поиск по ФИО, email, подразделению"
-              style={{ minWidth: "min(10rem, 100%)", flex: "1 1 10rem", height: "2.5rem", boxSizing: "border-box" }}
+              placeholder="Поиск по сотруднику: ФИО, должность, логин"
+              style={{ width: "100%", marginTop: "0.55rem", minHeight: "2.4rem", boxSizing: "border-box" }}
             />
-          </Flex>
+          </Panel>
           <Typography.Body style={{ fontSize: "0.78rem", color: timesheetMonthPaymentStatus.color, marginTop: "-0.35rem", marginBottom: "0.55rem" }}>
             Статус месяца: {timesheetMonthPaymentStatus.label}
           </Typography.Body>
@@ -7066,13 +7033,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
                   Выберите месяц для отображения табеля.
                 </Typography.Body>
-              ) : timesheetEmployeesByDepartment.length === 0 ? (
+              ) : timesheetVisibleGroups.length === 0 ? (
                 <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
                   За выбранный период сотрудники не найдены.
                 </Typography.Body>
               ) : (
                 <div className="timesheet-groups-wrap" style={{ display: "flex", flexDirection: "column", gap: "0.9rem", width: "100%", paddingRight: "3rem" }}>
-                  {timesheetEmployeesByDepartment.map((group) => (
+                  {timesheetVisibleGroups.map((group) => (
                     <Panel
                       key={`timesheet-group-${group.department}`}
                       className="cargo-card timesheet-panel"
