@@ -6980,7 +6980,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       {tab === "timesheet" && isSuperAdmin && (
         <Panel
           className="cargo-card timesheet-container timesheet-container-wide"
-          style={{ padding: "var(--pad-card, 1rem)", overflowX: "auto", overflowY: "visible", WebkitOverflowScrolling: "touch" }}
+          style={{ padding: "var(--pad-card, 1rem)" }}
         >
           <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Табель учета рабочего времени</Typography.Body>
           <Flex gap="0.5rem" align="center" wrap="wrap" style={{ marginBottom: "0.8rem" }} className="timesheet-filters-row">
@@ -7071,22 +7071,32 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                   За выбранный период сотрудники не найдены.
                 </Typography.Body>
               ) : (
-                <div style={{ overflowX: "auto", overflowY: "visible", WebkitOverflowScrolling: "touch", width: "100%", maxWidth: "100%" }}>
-                  <div className="timesheet-groups-wrap" style={{ display: "flex", flexDirection: "column", gap: "0.9rem", minWidth: "max-content", paddingRight: "3rem" }}>
+                <div className="timesheet-groups-wrap" style={{ display: "flex", flexDirection: "column", gap: "0.9rem", width: "100%", paddingRight: "3rem" }}>
                   {timesheetEmployeesByDepartment.map((group) => (
                     <Panel
                       key={`timesheet-group-${group.department}`}
                       className="cargo-card timesheet-panel"
-                      style={{ padding: "0.6rem", overflowX: "auto", overflowY: "visible", WebkitOverflowScrolling: "touch" }}
+                      style={{ padding: "0.6rem" }}
                     >
                       <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
                         Подразделение: {group.department}
                       </Typography.Body>
-                      <div className="timesheet-table-scroll" style={{ overflowX: "auto", overflowY: "auto", minWidth: 0, width: "100%", scrollbarGutter: "stable" }}>
+                      <div
+                        className="timesheet-table-scroll"
+                        style={{
+                          overflowX: "auto",
+                          overflowY: "auto",
+                          minWidth: 0,
+                          width: "100%",
+                          scrollbarGutter: "stable",
+                          paddingLeft: "max(0.5rem, env(safe-area-inset-left))",
+                          paddingRight: "max(0.5rem, env(safe-area-inset-right))",
+                        }}
+                      >
                         <table
                           style={{
                             borderCollapse: "collapse",
-                            width: "max-content",
+                            width: "100%",
                             minWidth: `${380 + timesheetDays.length * 52 + SHIFT_MARK_CODES.length * 52}px`,
                           }}
                         >
@@ -7804,7 +7814,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       </span>
                     </Flex>
                   </Panel>
-                </div>
                 </div>
               )}
             </>
