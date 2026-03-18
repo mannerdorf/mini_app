@@ -115,7 +115,7 @@ function getLocalApprovedPaidExpenses(month: number, year: number, department?: 
       if (!Array.isArray(list)) continue;
       for (const item of list) {
         const status = String(item?.status ?? '').trim().toLowerCase();
-        if (status !== 'approved' && status !== 'paid') continue;
+        if (status !== 'approved' && status !== 'sent' && status !== 'paid') continue;
         const period = String(item?.period ?? '').trim();
         const docDate = String(item?.docDate ?? '').trim();
         const periodFromDate = /^\d{4}-\d{2}-\d{2}$/.test(docDate) ? docDate.slice(0, 7) : '';

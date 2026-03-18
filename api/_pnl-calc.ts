@@ -383,7 +383,7 @@ export async function getOpexByExpenseCategory(
     const p: unknown[] = [];
     const idx = { v: 1 };
     const c = [
-      `er.status IN ('approved','paid')`,
+      `er.status IN ('approved','sent','paid')`,
       `coalesce(ec.cost_type, 'OPEX') = 'OPEX'`,
     ];
     c.push(...buildDateWhere("coalesce(er.doc_date, er.created_at::date)", f, p, idx));
