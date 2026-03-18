@@ -2628,10 +2628,22 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const saveExpenseEdit = useCallback(async (itemId: string, itemLogin: string) => {
     const num = parseFloat(expenseEditAmount.replace(",", "."));
     const catObj = CATEGORIES_LIST.find((c) => c.id === expenseEditCategory);
+    const normalizeDocDateInput = (value: string): string | null => {
+      const raw = String(value ?? "").trim();
+      if (!raw) return null;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+      if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+      const ru = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+      if (ru) return `${ru[3]}-${ru[2]}-${ru[1]}`;
+      const isoPrefix = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (isoPrefix) return isoPrefix[1];
+      return null;
+    };
+    const normalizedDocDate = normalizeDocDateInput(expenseEditDocDate);
     const payload = {
       uid: itemId,
       docNumber: expenseEditDocNumber,
-      docDate: expenseEditDocDate || null,
+      docDate: normalizedDocDate,
       period: expenseEditPeriod,
       department: expenseEditDepartment,
       categoryId: catObj?.id ?? expenseEditCategory,
@@ -2672,7 +2684,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         r.id === itemId ? {
           ...r,
           docNumber: expenseEditDocNumber,
-          docDate: expenseEditDocDate,
+          docDate: normalizedDocDate || "",
           period: expenseEditPeriod,
           department: expenseEditDepartment || r.department,
           ...(catObj ? { categoryId: catObj.id, categoryName: catObj.name } : {}),

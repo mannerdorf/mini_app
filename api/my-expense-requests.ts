@@ -28,6 +28,18 @@ type DbRow = {
   created_at: string;
 };
 
+function normalizeDocDateInput(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+  const ru = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (ru) return `${ru[3]}-${ru[2]}-${ru[1]}`;
+  const isoPrefix = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoPrefix) return isoPrefix[1];
+  return null;
+}
+
 function pickCredentials(req: VercelRequest): { login: string; password: string } {
   const login = String(req.headers["x-login"] ?? req.query?.login ?? "").trim();
   const password = String(req.headers["x-password"] ?? req.query?.password ?? "").trim();
@@ -85,8 +97,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
       const empName = typeof b?.employeeName === "string" ? b.employeeName.trim() : undefined;
       if (empName !== undefined) add("employee_name", empName);
-      const docDateRaw = typeof b?.docDate === "string" ? b.docDate.slice(0, 10) : undefined;
-      if (docDateRaw !== undefined && /^\d{4}-\d{2}-\d{2}$/.test(docDateRaw)) add("doc_date", docDateRaw);
+      const docDateRaw = normalizeDocDateInput(b?.docDate);
+      if (docDateRaw !== null) add("doc_date", docDateRaw);
       const statusVal = typeof b?.status === "string" ? b.status.trim() : undefined;
       if (statusVal && ["draft", "pending_approval"].includes(statusVal)) add("status", statusVal);
       if (has("updated_at")) sets.push("updated_at = now()");

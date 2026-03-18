@@ -103,6 +103,18 @@ function toFrontendFormat(r: DbRow, login: string) {
   };
 }
 
+function normalizeDocDateInput(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+  const ru = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (ru) return `${ru[3]}-${ru[2]}-${ru[1]}`;
+  const isoPrefix = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoPrefix) return isoPrefix[1];
+  return null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "admin-expense-requests");
   const token = getAdminTokenFromRequest(req);
@@ -322,7 +334,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       };
       add("doc_number", String(b?.docNumber ?? "").trim());
-      add("doc_date", typeof b?.docDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.docDate) ? b.docDate : null);
+      add("doc_date", normalizeDocDateInput(b?.docDate));
       add("period", String(b?.period ?? "").trim());
       add("department", String(b?.department ?? "").trim());
       add("category_id", String(b?.categoryId ?? "other").trim());
