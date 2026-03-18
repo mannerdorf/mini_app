@@ -179,10 +179,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 er.created_at
          FROM expense_requests er
          LEFT JOIN expense_categories ec ON ec.id = er.category_id
-         WHERE er.status IN ('approved', 'sent', 'paid')
+         WHERE lower(trim(er.status)) IN ('approved', 'sent', 'paid', 'согласовано', 'оплачено')
            AND (
              er.period = $1
-             OR to_char(coalesce(er.doc_date, er.created_at::date), 'YYYY-MM') = $2
+             OR substring(coalesce(er.doc_date::text, er.created_at::text), 1, 7) = $2
            )
          ORDER BY coalesce(er.doc_date, er.created_at::date) DESC`,
         [periodKey, periodKey]
