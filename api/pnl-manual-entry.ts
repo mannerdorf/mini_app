@@ -467,6 +467,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Fallback for legacy/partially synced data: include approved request operations from pnl_operations.
     if (requestExpenses.length === 0) {
       let requestOpsRows: any[] = [];
+      let requestRowsByDoc = new Map<string, any[]>();
       try {
         const result = await pool.query(
           `SELECT id,
@@ -494,31 +495,89 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (logisticsStage) return rowStage === logisticsStage;
           return true;
         });
+
+        // Пытаемся подтянуть реальные реквизиты заявок (дата/ТС/комментарий) по номеру документа.
+        const reqResult = await pool.query(
+          `SELECT er.uid,
+                  er.doc_number AS "docNumber",
+                  er.doc_date AS "docDate",
+                  er.amount,
+                  er.comment,
+                  er.vehicle_text AS "vehicleText",
+                  er.supplier_name AS "supplierName",
+                  er.supplier_inn AS "supplierInn",
+                  er.employee_name AS "employeeName",
+                  er.status,
+                  er.department,
+                  er.category_id AS "categoryId",
+                  coalesce(ec.name, er.category_id) AS "categoryName"
+           FROM expense_requests er
+           LEFT JOIN expense_categories ec ON ec.id = er.category_id
+           WHERE lower(trim(er.status)) IN ('approved', 'sent', 'paid', 'согласовано', 'оплачено')
+             AND (
+               er.period = $1
+               OR substring(coalesce(er.doc_date::text, er.created_at::text), 1, 7) = $2
+             )`,
+          [periodKey, periodKey]
+        );
+        const grouped = new Map<string, any[]>();
+        reqResult.rows.forEach((row: any) => {
+          const key = String(row.docNumber ?? "").trim().toLowerCase();
+          if (!key) return;
+          const list = grouped.get(key) || [];
+          list.push(row);
+          grouped.set(key, list);
+        });
+        requestRowsByDoc = grouped;
       } catch (e) {
         logError(ctx, "pnl_manual_entry_fallback_ops_read_failed", e);
         requestOpsRows = [];
+        requestRowsByDoc = new Map<string, any[]>();
       }
       requestExpenses = requestOpsRows.map((r: any) => {
         const purpose = String(r.purpose ?? "").trim();
+        const docFromPurpose = (() => {
+          const m = purpose.match(/^Согласование заявки\s+(.+?)(?:\s*\(|$)/i);
+          return m && m[1] ? m[1].trim() : "";
+        })();
         const nameFromPurpose = (() => {
           const m = purpose.match(/\(([^)]+)\)\s*$/);
           if (m && m[1]) return m[1].trim();
           return "Заявка на расходы";
         })();
+        const candidates = requestRowsByDoc.get(docFromPurpose.toLowerCase()) || [];
+        const mappedRow = mapDepartmentToPnl(r.department);
+        const matchedRequest = candidates
+          .map((c: any) => {
+            const mappedCandidate = mapDepartmentToPnl(c.department);
+            let score = 0;
+            if (Math.abs(Math.abs(Number(c.amount) || 0) - Math.abs(Number(r.amount) || 0)) < 0.01) score += 5;
+            if (mappedCandidate.department === mappedRow.department) score += 3;
+            const rowStage = String(r.logisticsStage ?? "").trim();
+            if (rowStage && mappedCandidate.logisticsStage === rowStage) score += 2;
+            return { c, score };
+          })
+          .sort((a, b) => b.score - a.score)[0]?.c;
         return {
           id: `op:${String(r.id)}`,
-          categoryId: `from-op:${String(r.id)}`,
-          categoryName: nameFromPurpose,
+          categoryId: String(matchedRequest?.categoryId ?? `from-op:${String(r.id)}`),
+          categoryName: String(matchedRequest?.categoryName ?? nameFromPurpose),
           amount: Math.abs(Number(r.amount) || 0),
-          comment: purpose || null,
+          comment: String(matchedRequest?.comment ?? "").trim() || null,
           direction: "",
           transportType: String(r.transportType ?? "").trim(),
           type: String(r.operation_type || "OPEX"),
-          department: mapDepartmentToPnl(r.department).department,
-          logisticsStage: String(r.logisticsStage ?? "").trim() || mapDepartmentToPnl(r.department).logisticsStage,
+          department: mappedRow.department,
+          logisticsStage: String(r.logisticsStage ?? "").trim() || mappedRow.logisticsStage,
           requestDepartment: String(r.department ?? "").trim() || null,
           source: "expense_request",
-          requestStatus: "approved",
+          requestStatus: String(matchedRequest?.status ?? "approved").trim() || "approved",
+          docNumber: String(matchedRequest?.docNumber ?? docFromPurpose).trim() || null,
+          docDate: normalizeDocDateFromDb(matchedRequest?.docDate),
+          employeeName: String(matchedRequest?.employeeName ?? "").trim() || null,
+          vehicleText: String(matchedRequest?.vehicleText ?? "").trim() || null,
+          supplierName: String(matchedRequest?.supplierName ?? "").trim() || null,
+          supplierInn: String(matchedRequest?.supplierInn ?? "").trim() || null,
         };
       });
     }
