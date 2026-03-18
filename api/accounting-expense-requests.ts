@@ -20,6 +20,7 @@ type DbRow = {
   employee_name: string;
   comment: string;
   vehicle_text: string | null;
+  transport_type: string | null;
   status: string;
   created_at: string;
 };
@@ -53,6 +54,15 @@ function normalizeDocDateFromDb(value: unknown): string {
     }
   }
   return "";
+}
+
+function normalizeTransportType(value: unknown, categoryId?: string | null): "auto" | "ferry" {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "ferry" || raw === "паром") return "ferry";
+  if (raw === "auto" || raw === "авто") return "auto";
+  const categoryRaw = String(categoryId ?? "").trim().toLowerCase();
+  if (categoryRaw === "ferry" || categoryRaw.includes("паром")) return "ferry";
+  return "auto";
 }
 
 function pickCredentials(req: VercelRequest): { login: string; password: string } {
@@ -121,6 +131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            ${selectExpr("employee_name", "''::text")},
            ${selectExpr("comment", "''::text")},
            ${selectExpr("vehicle_text", "NULL::text")},
+           ${selectExpr("transport_type", "NULL::text")},
            ${selectExpr("status", "'draft'::text")},
            ${selectExpr("created_at", "now()")}
          FROM expense_requests er
@@ -167,6 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           employeeName: r.employee_name || "",
           comment: r.comment || "",
           vehicleOrEmployee: r.vehicle_text || "",
+          transportType: normalizeTransportType(r.transport_type, r.category_id),
           status: r.status,
           attachments,
         };

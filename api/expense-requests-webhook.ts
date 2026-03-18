@@ -38,6 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     employeeName?: string;
     comment?: string;
     vehicleOrEmployee?: string;
+    transportType?: string;
     supplierName?: string;
     supplierInn?: string;
     status?: string;
@@ -60,6 +61,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const employeeName = String(b?.employeeName ?? "").trim();
   const comment = String(b?.comment ?? "").trim();
   const vehicleText = String(b?.vehicleOrEmployee ?? "").trim() || null;
+  const transportTypeRaw = String(b?.transportType ?? "").trim().toLowerCase();
+  const transportType = transportTypeRaw === "ferry" ? "ferry" : "auto";
   const supplierName = String(b?.supplierName ?? "").trim() || null;
   const supplierInn = String(b?.supplierInn ?? "").trim() || null;
   const status = STATUSES.has(String(b?.status ?? "")) ? String(b.status) : "draft";
@@ -95,6 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       employee_name: employeeName,
       comment,
       vehicle_text: vehicleText,
+      transport_type: transportType,
       supplier_name: supplierName,
       supplier_inn: supplierInn,
       status,

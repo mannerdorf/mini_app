@@ -92,6 +92,7 @@ export function DashboardView() {
           <KpiCard title="EBITDA %" value={`${pnl.ebitdaPercent?.toFixed(1) ?? 0}%`} />
           <KpiCard title="CAPEX" value={formatRub(pnl.capex)} />
           <KpiCard title="EBITDA – CAPEX" value={formatRub(pnl.netAfterCapex)} />
+          <KpiCard title="Выручка - все затраты" value={formatRub(pnl.revenueMinusAllCosts ?? (pnl.revenue - (pnl.cogs + pnl.opex + pnl.capex + (pnl.belowEbitda ?? 0))))} />
           <KpiCard title="Себестоимость 1 кг" value={unitEcon ? formatRub(unitEcon.cogsPerKg) : '—'} />
         </div>
       )}

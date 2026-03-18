@@ -162,24 +162,6 @@ type AccrualType = "hour" | "shift" | "month";
 
 /** Fallback при пустом справочнике подразделений */
 const EMPLOYEE_DEPARTMENTS_FALLBACK = ["Склад Москва", "Склад Калининград", "Отдел продаж", "Управляющая компания"];
-const EXPENSE_CATEGORY_FALLBACK = [
-  { id: "fuel", name: "Топливо" },
-  { id: "repair", name: "Ремонт и обслуживание" },
-  { id: "spare_parts", name: "Запасные части" },
-  { id: "salary", name: "Зарплата" },
-  { id: "office", name: "Офис" },
-  { id: "rent", name: "Аренда" },
-  { id: "insurance", name: "Страхование" },
-  { id: "mainline", name: "Магистраль" },
-  { id: "pickup_logistics", name: "Заборная логистика" },
-  { id: "ferry", name: "Паром" },
-  { id: "auto", name: "Авто" },
-  { id: "telephony", name: "Телефония" },
-  { id: "bank", name: "Банк" },
-  { id: "cafe", name: "Кафе" },
-  { id: "post_site", name: "Почта и сайт" },
-  { id: "other", name: "Прочее" },
-];
 const COOPERATION_TYPE_OPTIONS = [
   { value: "self_employed", label: "Самозанятость" },
   { value: "ip", label: "ИП" },
@@ -899,10 +881,11 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [expenseEditVatRate, setExpenseEditVatRate] = useState("");
   const [expenseEditComment, setExpenseEditComment] = useState("");
   const [expenseEditVehicle, setExpenseEditVehicle] = useState("");
+  const [expenseEditTransportType, setExpenseEditTransportType] = useState<"auto" | "ferry">("auto");
   const [expenseEditEmployee, setExpenseEditEmployee] = useState("");
   const [expenseEditSupplierName, setExpenseEditSupplierName] = useState("");
   const [expenseEditSupplierInn, setExpenseEditSupplierInn] = useState("");
-  const [expenseCategories, setExpenseCategories] = useState<Array<{ id: string; name: string }>>(EXPENSE_CATEGORY_FALLBACK);
+  const [expenseCategories, setExpenseCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [editorChangeLoginValue, setEditorChangeLoginValue] = useState("");
   const [editorChangeLoginOpen, setEditorChangeLoginOpen] = useState(false);
   const [editorChangeLoginLoading, setEditorChangeLoginLoading] = useState(false);
@@ -2175,6 +2158,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
     const params = new URLSearchParams();
     if (expenseEditDepartment) params.set("department", expenseEditDepartment);
+    params.set("transportType", expenseEditTransportType);
     fetch(`${origin}/api/expense-request-categories${params.toString() ? `?${params.toString()}` : ""}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data: any) => {
@@ -2187,7 +2171,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       .catch(() => {
         // keep fallback list
       });
-  }, [expenseEditDepartment]);
+  }, [expenseEditDepartment, expenseEditTransportType]);
+
+  useEffect(() => {
+    if (!expenseEditId) return;
+    if (expenseCategories.length === 0) {
+      setExpenseEditCategory("");
+      return;
+    }
+    if (!expenseCategories.some((c) => c.id === expenseEditCategory)) {
+      setExpenseEditCategory(expenseCategories[0].id);
+    }
+  }, [expenseEditId, expenseCategories, expenseEditCategory]);
 
   const loadPnlExpenseCategoryLinks = useCallback(async () => {
     try {
@@ -2661,6 +2656,10 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   }, [adminToken, reloadAllExpenseRequests]);
 
   const saveExpenseEdit = useCallback(async (itemId: string, itemLogin: string) => {
+    if (!expenseEditCategory) {
+      setError("Выберите статью расхода");
+      return;
+    }
     const num = parseFloat(expenseEditAmount.replace(",", "."));
     const catObj = expenseCategories.find((c) => c.id === expenseEditCategory);
     const normalizeDocDateInput = (value: string): string | null => {
@@ -2686,6 +2685,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       vatRate: expenseEditVatRate,
       comment: expenseEditComment,
       vehicleOrEmployee: expenseEditVehicle,
+      transportType: expenseEditTransportType,
       employeeName: expenseEditEmployee,
       supplierName: expenseEditSupplierName,
       supplierInn: expenseEditSupplierInn,
@@ -2727,6 +2727,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           vatRate: expenseEditVatRate,
           comment: expenseEditComment,
           vehicleOrEmployee: expenseEditVehicle,
+          transportType: expenseEditTransportType,
           employeeName: expenseEditEmployee,
           supplierName: expenseEditSupplierName,
           supplierInn: expenseEditSupplierInn,
@@ -2736,7 +2737,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setExpenseEditId(null);
       reloadAllExpenseRequests();
     } catch { /* skip */ }
-  }, [adminToken, expenseEditDocNumber, expenseEditDocDate, expenseEditPeriod, expenseEditDepartment, expenseEditCategory, expenseEditAmount, expenseEditVatRate, expenseEditComment, expenseEditVehicle, expenseEditEmployee, expenseEditSupplierName, expenseEditSupplierInn, reloadAllExpenseRequests, expenseCategories]);
+  }, [adminToken, expenseEditDocNumber, expenseEditDocDate, expenseEditPeriod, expenseEditDepartment, expenseEditCategory, expenseEditAmount, expenseEditVatRate, expenseEditComment, expenseEditVehicle, expenseEditTransportType, expenseEditEmployee, expenseEditSupplierName, expenseEditSupplierInn, reloadAllExpenseRequests, expenseCategories]);
 
   const fetchEmployeeDirectory = useCallback(async (monthForTimesheet?: string) => {
     if (!adminToken || !isSuperAdmin) return;
@@ -9555,7 +9556,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                               <Copy size={12} />
                               Копировать
                             </button>
-                            <button type="button" onClick={() => { setExpenseEditId(r.id); setExpenseEditDocNumber((r as any).docNumber ?? ""); setExpenseEditDocDate((r as any).docDate ?? ""); setExpenseEditPeriod((r as any).period ?? ""); setExpenseEditDepartment(r.department); setExpenseEditCategory(r.categoryId); setExpenseEditAmount(String(r.amount)); setExpenseEditVatRate((r as any).vatRate ?? ""); setExpenseEditComment(r.comment); setExpenseEditVehicle(r.vehicleOrEmployee); setExpenseEditEmployee((r as any).employeeName ?? ""); setExpenseEditSupplierName((r as any).supplierName ?? ""); setExpenseEditSupplierInn((r as any).supplierInn ?? ""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer" }}>Изменить</button>
+                            <button type="button" onClick={() => { setExpenseEditId(r.id); setExpenseEditDocNumber((r as any).docNumber ?? ""); setExpenseEditDocDate((r as any).docDate ?? ""); setExpenseEditPeriod((r as any).period ?? ""); setExpenseEditDepartment(r.department); setExpenseEditCategory(r.categoryId); setExpenseEditAmount(String(r.amount)); setExpenseEditVatRate((r as any).vatRate ?? ""); setExpenseEditComment(r.comment); setExpenseEditVehicle(r.vehicleOrEmployee); setExpenseEditTransportType((r as any).transportType === "ferry" ? "ferry" : "auto"); setExpenseEditEmployee((r as any).employeeName ?? ""); setExpenseEditSupplierName((r as any).supplierName ?? ""); setExpenseEditSupplierInn((r as any).supplierInn ?? ""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer" }}>Изменить</button>
                             <button type="button" onClick={() => { if (window.confirm("Удалить заявку? Действие нельзя отменить.")) deleteExpenseRequest(r.id, r.login); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Удалить</button>
                           </Flex>
                         </td>
@@ -9661,7 +9662,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     </div>
                     <Flex gap="0.5rem" justify="flex-end">
                       <Button type="button" className="filter-button" onClick={() => setExpenseViewId(null)}>Закрыть</Button>
-                      <Button type="button" className="filter-button" onClick={() => { setExpenseViewId(null); setExpenseEditId(item.id); setExpenseEditDocNumber((item as any).docNumber ?? ""); setExpenseEditDocDate((item as any).docDate ?? ""); setExpenseEditPeriod((item as any).period ?? ""); setExpenseEditDepartment(item.department); setExpenseEditCategory(item.categoryId); setExpenseEditAmount(String(item.amount)); setExpenseEditVatRate((item as any).vatRate ?? ""); setExpenseEditComment(item.comment); setExpenseEditVehicle(item.vehicleOrEmployee); setExpenseEditEmployee((item as any).employeeName ?? ""); setExpenseEditSupplierName((item as any).supplierName ?? ""); setExpenseEditSupplierInn((item as any).supplierInn ?? ""); }}>Изменить</Button>
+                      <Button type="button" className="filter-button" onClick={() => { setExpenseViewId(null); setExpenseEditId(item.id); setExpenseEditDocNumber((item as any).docNumber ?? ""); setExpenseEditDocDate((item as any).docDate ?? ""); setExpenseEditPeriod((item as any).period ?? ""); setExpenseEditDepartment(item.department); setExpenseEditCategory(item.categoryId); setExpenseEditAmount(String(item.amount)); setExpenseEditVatRate((item as any).vatRate ?? ""); setExpenseEditComment(item.comment); setExpenseEditVehicle(item.vehicleOrEmployee); setExpenseEditTransportType((item as any).transportType === "ferry" ? "ferry" : "auto"); setExpenseEditEmployee((item as any).employeeName ?? ""); setExpenseEditSupplierName((item as any).supplierName ?? ""); setExpenseEditSupplierInn((item as any).supplierInn ?? ""); }}>Изменить</Button>
                     </Flex>
                   </div>
                 </div>
@@ -9740,9 +9741,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         <select className="admin-form-input" value={expenseEditCategory} onChange={(e) => setExpenseEditCategory(e.target.value)} style={{ ...fieldInput, height: 36 }}>
                           {(() => {
                             const options = [...expenseCategories];
-                            if (expenseEditCategory && !options.some((c) => c.id === expenseEditCategory)) {
-                              options.unshift({ id: expenseEditCategory, name: expenseEditCategory });
-                            }
                             if (options.length === 0) {
                               options.push({ id: "", name: "Нет статей для подразделения" });
                             }
@@ -9769,6 +9767,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                             <option value="22">22%</option>
                           </select>
                         </div>
+                      </div>
+                      <div>
+                        <label style={fieldLabel}>Тип ТС</label>
+                        <select
+                          className="admin-form-input"
+                          value={expenseEditTransportType}
+                          onChange={(e) => setExpenseEditTransportType(e.target.value === "ferry" ? "ferry" : "auto")}
+                          style={{ ...fieldInput, height: 36 }}
+                        >
+                          <option value="auto">Авто</option>
+                          <option value="ferry">Паром</option>
+                        </select>
                       </div>
                       <div>
                         <label style={fieldLabel}>Транспортное средство</label>
@@ -9822,7 +9832,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     </div>
                     <Flex gap="0.5rem" justify="flex-end">
                       <Button type="button" className="filter-button" onClick={() => setExpenseEditId(null)}>Отмена</Button>
-                      <Button type="button" className="filter-button" style={{ background: "var(--color-primary-blue)", color: "white" }} onClick={() => saveExpenseEdit(item.id, item.login)}>Сохранить</Button>
+                      <Button type="button" className="filter-button" style={{ background: "var(--color-primary-blue)", color: "white" }} onClick={() => saveExpenseEdit(item.id, item.login)} disabled={!expenseEditCategory}>Сохранить</Button>
                     </Flex>
                   </div>
                 </div>

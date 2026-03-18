@@ -23,6 +23,7 @@ type DbRow = {
   employee_name: string;
   comment: string;
   vehicle_text: string | null;
+  transport_type: string | null;
   supplier_name: string | null;
   supplier_inn: string | null;
   status: string;
@@ -42,6 +43,7 @@ type RequestForPnlRow = {
   login: string;
   employee_name: string;
   comment: string;
+  transport_type: string | null;
   category_name: string | null;
   category_cost_type: string | null;
 };
@@ -95,6 +97,7 @@ function toFrontendFormat(r: DbRow, login: string) {
     employeeName: r.employee_name || "",
     comment: r.comment || "",
     vehicleOrEmployee: r.vehicle_text || "",
+    transportType: normalizeTransportType(r.transport_type, r.category_id),
     supplierName: r.supplier_name || "",
     supplierInn: r.supplier_inn || "",
     attachmentNames: [] as string[],
@@ -133,9 +136,29 @@ function normalizeDocDateFromDb(value: unknown): string {
   return "";
 }
 
-async function resolveExpenseCategoryIdForUpdate(pool: any, uid: string, rawValue: unknown): Promise<string> {
+function normalizeTransportType(value: unknown, categoryId?: string | null): "auto" | "ferry" {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "ferry" || raw === "паром") return "ferry";
+  if (raw === "auto" || raw === "авто") return "auto";
+  const categoryRaw = String(categoryId ?? "").trim().toLowerCase();
+  if (categoryRaw === "ferry" || categoryRaw.includes("паром")) return "ferry";
+  return "auto";
+}
+
+async function resolveExpenseCategoryIdForUpdate(pool: any, uid: string, rawValue: unknown): Promise<string | null> {
   const raw = String(rawValue ?? "").trim();
-  if (!raw) return "other";
+  if (!raw) {
+    const currentValid = await pool.query<{ category_id: string }>(
+      `SELECT er.category_id
+       FROM expense_requests er
+       JOIN expense_categories ec ON ec.id = er.category_id
+       WHERE er.uid = $1
+       LIMIT 1`,
+      [uid]
+    );
+    if (currentValid.rows.length > 0) return String(currentValid.rows[0].category_id || "").trim() || "other";
+    return "other";
+  }
 
   const exactById = await pool.query<{ id: string }>(
     `SELECT id FROM expense_categories WHERE id = $1 LIMIT 1`,
@@ -149,17 +172,7 @@ async function resolveExpenseCategoryIdForUpdate(pool: any, uid: string, rawValu
   );
   if (byName.rows.length > 0) return String(byName.rows[0].id || "").trim() || "other";
 
-  const currentValid = await pool.query<{ category_id: string }>(
-    `SELECT er.category_id
-     FROM expense_requests er
-     JOIN expense_categories ec ON ec.id = er.category_id
-     WHERE er.uid = $1
-     LIMIT 1`,
-    [uid]
-  );
-  if (currentValid.rows.length > 0) return String(currentValid.rows[0].category_id || "").trim() || "other";
-
-  return "other";
+  return null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -200,6 +213,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            ${selectExpr("employee_name", "''::text")},
            ${selectExpr("comment", "''::text")},
            ${selectExpr("vehicle_text", "NULL::text")},
+           ${selectExpr("transport_type", "NULL::text")},
            ${selectExpr("supplier_name", "NULL::text")},
            ${selectExpr("supplier_inn", "NULL::text")},
            ${selectExpr("status", "'draft'::text")},
@@ -276,6 +290,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const { rows } = await client.query<RequestForPnlRow>(
           `SELECT er.id, er.uid, er.status, er.amount, er.department, er.doc_number, er.doc_date, er.period, er.login, ${empSel}, er.comment,
+                  ${hasCol("transport_type") ? "er.transport_type" : "NULL::text AS transport_type"},
                   ec.name AS category_name, ec.cost_type AS category_cost_type
            FROM expense_requests er
            LEFT JOIN expense_categories ec ON ec.id = er.category_id
@@ -313,7 +328,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const logisticsStage = operationType === "COGS" ? deptMap.logisticsStage : null;
             await client.query(
               `INSERT INTO pnl_operations (date, counterparty, purpose, amount, operation_type, department, logistics_stage, direction, transport_type)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL)`,
+               VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8)`,
               [
                 opDate,
                 requestRow.employee_name || requestRow.login || "expense_request",
@@ -322,6 +337,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 operationType,
                 deptMap.department || "GENERAL",
                 logisticsStage,
+                normalizeTransportType(requestRow.transport_type, requestRow.category_name),
               ]
             );
           }
@@ -385,6 +401,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       add("period", String(b?.period ?? "").trim());
       add("department", String(b?.department ?? "").trim());
       const resolvedCategoryId = await resolveExpenseCategoryIdForUpdate(pool, uid, b?.categoryId);
+      if (!resolvedCategoryId) {
+        return res.status(400).json({ error: "Выбранная статья расхода недоступна для сохранения", request_id: ctx.requestId });
+      }
       add("category_id", resolvedCategoryId);
       const amount = Number(b?.amount);
       if (Number.isFinite(amount)) add("amount", amount);
@@ -392,6 +411,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       add("comment", String(b?.comment ?? "").trim());
       const vText = String(b?.vehicleOrEmployee ?? "").trim();
       add("vehicle_text", vText || null);
+      const transportTypeRaw = String(b?.transportType ?? "").trim().toLowerCase();
+      add("transport_type", transportTypeRaw === "ferry" ? "ferry" : "auto");
       add("employee_name", String(b?.employeeName ?? "").trim());
       add("supplier_name", String(b?.supplierName ?? "").trim() || null);
       add("supplier_inn", String(b?.supplierInn ?? "").trim() || null);

@@ -36,6 +36,7 @@ export type ExpenseRequestItem = {
     supplierName?: string;
     supplierInn?: string;
     vehicleOrEmployee: string;
+    transportType?: "auto" | "ferry";
     employeeName: string;
     attachmentNames: string[];
     attachments?: { name: string; dataUrl: string }[];
@@ -110,6 +111,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [supplierSearch, setSupplierSearch] = useState("");
     const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false);
     const [selectedVehicle, setSelectedVehicle] = useState("");
+    const [transportType, setTransportType] = useState<"auto" | "ferry">("auto");
     const [duplicateWarning, setDuplicateWarning] = useState("");
     const [vehicleSearch, setVehicleSearch] = useState("");
     const [vehicleDropdownOpen, setVehicleDropdownOpen] = useState(false);
@@ -160,7 +162,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                     "x-password": auth.password,
                 },
             });
-            const data = await (r.ok ? r.json() : Promise.resolve({ items: [] })) as { items?: Array<{ id: string; createdAt?: string; department?: string; docNumber?: string; docDate?: string; period?: string; categoryId?: string; categoryName?: string; amount?: number; vatRate?: string; comment?: string; vehicleOrEmployee?: string; employeeName?: string; supplierName?: string; supplierInn?: string; status: string; rejectionReason?: string }> };
+            const data = await (r.ok ? r.json() : Promise.resolve({ items: [] })) as { items?: Array<{ id: string; createdAt?: string; department?: string; docNumber?: string; docDate?: string; period?: string; categoryId?: string; categoryName?: string; amount?: number; vatRate?: string; comment?: string; vehicleOrEmployee?: string; transportType?: string; employeeName?: string; supplierName?: string; supplierInn?: string; status: string; rejectionReason?: string }> };
             const apiItems = Array.isArray(data?.items) ? data.items : [];
             const mapped: ExpenseRequestItem[] = apiItems.map((api) => ({
                 id: api.id,
@@ -175,6 +177,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 vatRate: api.vatRate ?? "",
                 comment: api.comment ?? "",
                 vehicleOrEmployee: api.vehicleOrEmployee ?? "",
+                transportType: api.transportType === "ferry" ? "ferry" : "auto",
                 employeeName: api.employeeName ?? "",
                 supplierName: api.supplierName,
                 supplierInn: api.supplierInn,
@@ -254,6 +257,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
         const params = new URLSearchParams();
         if (department) params.set("department", department);
+        params.set("transportType", transportType);
         fetch(`${origin}/api/expense-request-categories${params.toString() ? `?${params.toString()}` : ""}`)
             .then((r) => (r.ok ? r.json() : Promise.reject()))
             .then((data: any[]) => {
@@ -262,7 +266,14 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 setCategories(mapped);
             })
             .catch(() => { /* keep FALLBACK_CATEGORIES */ });
-    }, [department]);
+    }, [department, transportType]);
+
+    useEffect(() => {
+        if (!categoryId) return;
+        if (!categories.some((c) => c.id === categoryId)) {
+            setCategoryId(categories[0]?.id ?? "");
+        }
+    }, [categories, categoryId]);
 
     // --- Поставщики услуг (из cache_suppliers) ---
     useEffect(() => {
@@ -421,6 +432,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setSelectedSupplierInn("");
         setSupplierSearch("");
         setSelectedVehicle("");
+        setTransportType("auto");
         setSelectedEmployee("");
         setDuplicateWarning("");
         setFiles([]);
@@ -448,6 +460,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             supplierName: selectedSupplierName.trim(),
             supplierInn: selectedSupplierInn.trim(),
             vehicleOrEmployee: selectedVehicle.trim(),
+            transportType,
             employeeName: selectedEmployee,
             attachmentNames: files.map((f) => f.name),
             attachments: files.map((f) => ({ name: f.name, dataUrl: f.dataUrl })),
@@ -483,7 +496,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         } finally {
             setSending(false);
         }
-    }, [categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, selectedEmployee, files, auth?.login, department, docNumber, docDate, period, categories, fetchExpenseRequests, resetForm]);
+    }, [categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, transportType, selectedEmployee, files, auth?.login, department, docNumber, docDate, period, categories, fetchExpenseRequests, resetForm]);
 
     const sendForApproval = useCallback(async (itemId: string) => {
         setSending(true);
@@ -582,6 +595,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setSelectedSupplierInn(String((item as any).supplierInn ?? "").trim());
         setSupplierSearch("");
         setSelectedVehicle(item.vehicleOrEmployee ?? "");
+        setTransportType(item.transportType === "ferry" ? "ferry" : "auto");
         setSelectedEmployee((item as any).employeeName ?? "");
         setTimeout(() => formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     }, [availableDepartments, fallbackDepartment]);
@@ -611,6 +625,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 supplierName: selectedSupplierName.trim(),
                 supplierInn: selectedSupplierInn.trim(),
                 vehicleOrEmployee: selectedVehicle.trim(),
+                transportType,
                 employeeName: selectedEmployee,
                 status: "draft",
                 login: auth?.login ?? undefined,
@@ -635,7 +650,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         } finally {
             setSending(false);
         }
-    }, [editingId, department, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, selectedEmployee, auth?.login, categories, list, fetchExpenseRequests, resetForm]);
+    }, [editingId, department, docNumber, docDate, period, categoryId, amount, vatRate, comment, selectedSupplierName, selectedSupplierInn, selectedVehicle, transportType, selectedEmployee, auth?.login, categories, list, fetchExpenseRequests, resetForm]);
 
     const cancelEdit = useCallback(() => {
         setEditingId(null);
@@ -650,6 +665,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         setSelectedSupplierInn("");
         setSupplierSearch("");
         setSelectedVehicle("");
+        setTransportType("auto");
         setSelectedEmployee("");
     }, []);
 
@@ -907,6 +923,19 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                             style={{ width: "100%", minHeight: 72, resize: "vertical" }}
                             rows={3}
                         />
+                    </div>
+
+                    <div>
+                        <label style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)", display: "block", marginBottom: "0.25rem" }}>Тип ТС</label>
+                        <select
+                            value={transportType}
+                            onChange={(e) => setTransportType(e.target.value === "ferry" ? "ferry" : "auto")}
+                            className="admin-form-input"
+                            style={{ width: "100%", padding: "0.5rem", height: 38, boxSizing: "border-box" }}
+                        >
+                            <option value="auto">Авто</option>
+                            <option value="ferry">Паром</option>
+                        </select>
                     </div>
 
                     {/* Vehicle — searchable dropdown */}

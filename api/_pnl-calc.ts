@@ -18,6 +18,8 @@ export interface PnLData {
   capex: number;
   netAfterCapex: number;
   belowEbitda: number;
+  totalCosts: number;
+  revenueMinusAllCosts: number;
   creditPayments: number;
 }
 
@@ -192,6 +194,8 @@ export async function getPnL(
   const ebitda = grossProfit - opex;
   const ebitdaPercent = revenue > 0 ? (ebitda / revenue) * 100 : 0;
   const netAfterCapex = ebitda - capex;
+  const totalCosts = cogs + opex + capex + belowEbitda;
+  const revenueMinusAllCosts = revenue - totalCosts;
 
   return {
     revenue,
@@ -203,6 +207,8 @@ export async function getPnL(
     capex,
     netAfterCapex,
     belowEbitda,
+    totalCosts,
+    revenueMinusAllCosts,
     creditPayments: creditPay,
   };
 }

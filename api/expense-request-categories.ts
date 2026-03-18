@@ -28,6 +28,13 @@ function mapDepartmentToPnl(raw?: string | null): { department: string | null; l
   return { department: null, logisticsStage: null };
 }
 
+function normalizeTransportType(raw?: string | string[] | null): "auto" | "ferry" | null {
+  const value = Array.isArray(raw) ? String(raw[0] ?? "") : String(raw ?? "");
+  const v = value.trim().toLowerCase();
+  if (v === "auto" || v === "ferry") return v;
+  return null;
+}
+
 /**
  * Справочник статей расходов для заявок на расходы.
  * Если передано подразделение — отдаём статьи только для него из pnl_expense_categories.
@@ -42,6 +49,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const pool = getPool();
     const requestedDepartment = String(req.query.department ?? "").trim();
+    const transportType = normalizeTransportType(req.query.transportType as string | string[] | undefined);
     const mapped = mapDepartmentToPnl(requestedDepartment);
     const useDepartmentFilter = Boolean(mapped.department);
     let rows: Array<{ id: string; name: string; costType: string | null; sortOrder: number | null }> = [];
@@ -84,7 +92,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       rows = common.rows;
     }
 
-    return res.json(rows);
+    const filteredRows = transportType
+      ? rows.filter((row) => {
+          if (transportType === "ferry") return row.id !== "auto";
+          return row.id !== "ferry";
+        })
+      : rows;
+
+    return res.json(filteredRows);
   } catch (e) {
     logError(ctx, "expense_request_categories_failed", e);
     const msg = e instanceof Error ? e.message : String(e);
