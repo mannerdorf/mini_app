@@ -6,6 +6,7 @@ import {
   getPnL,
   getCogsByStage,
   getOpexByDepartment,
+  getOpexByExpenseCategory,
   getRevenueByDirection,
   type FilterParams,
 } from "./_pnl-calc.js";
@@ -27,14 +28,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       transportType: (req.query.transportType as string) || undefined,
     };
 
-    const [pnl, cogsByStage, opexByDept, revenueByDir] = await Promise.all([
+    const [pnl, cogsByStage, opexByDept, opexByCategory, revenueByDir] = await Promise.all([
       getPnL(pool, params),
       getCogsByStage(pool, params),
       getOpexByDepartment(pool, params),
+      getOpexByExpenseCategory(pool, params),
       getRevenueByDirection(pool, params),
     ]);
 
-    return res.json({ pnl, cogsByStage, opexByDept, revenueByDir });
+    return res.json({ pnl, cogsByStage, opexByDept, opexByCategory, revenueByDir });
   } catch (e) {
     logError(ctx, "pnl_report_failed", e);
     const msg = e instanceof Error ? e.message : String(e);

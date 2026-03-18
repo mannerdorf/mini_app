@@ -39,10 +39,18 @@ export function PlReportView() {
     </div>
   );
 
-  const { pnl, cogsByStage, opexByDept, revenueByDir } = data;
+  const { pnl, cogsByStage, opexByDept, opexByCategory, revenueByDir } = data;
   const stageOrder = ['PICKUP', 'DEPARTURE_WAREHOUSE', 'MAINLINE', 'ARRIVAL_WAREHOUSE', 'LAST_MILE'];
   const cogsMap = Object.fromEntries((cogsByStage ?? []).map((c: any) => [c.stage, c.amount]));
   const totalCogs = (cogsByStage ?? []).reduce((s: number, c: any) => s + c.amount, 0);
+  const effectiveOpexRows = Array.isArray(opexByCategory) && opexByCategory.length > 0
+    ? opexByCategory.map((o: any) => ({ label: o.category, amount: Number(o.amount) || 0 }))
+    : (opexByDept ?? []).map((o: any) => ({ label: (DEPARTMENT_LABELS as Record<string, string>)[o.dept] ?? o.dept, amount: Number(o.amount) || 0 }));
+  const effectiveOpexTotal = effectiveOpexRows.reduce((s: number, o: { label: string; amount: number }) => s + o.amount, 0);
+  const opexRemainder = Number(pnl?.opex || 0) - effectiveOpexTotal;
+  const opexRowsForRender = Math.abs(opexRemainder) > 1
+    ? [...effectiveOpexRows, { label: 'Прочие OPEX операции', amount: opexRemainder }]
+    : effectiveOpexRows;
 
   return (
     <div className="space-y-6">
@@ -82,11 +90,11 @@ export function PlReportView() {
             <div className="pl-4"><span className="font-semibold">{formatRub(pnl.grossProfit)}</span></div>
           </section>
           <section className="p-6">
-            <h2 className="font-semibold text-slate-800 mb-4">4. OPEX</h2>
+            <h2 className="font-semibold text-slate-800 mb-4">4. OPEX (статьи расходов периода)</h2>
             <div className="space-y-2 pl-4">
-              {(opexByDept ?? []).map((o: any) => (
-                <div key={o.dept} className="flex justify-between">
-                  <span>{(DEPARTMENT_LABELS as Record<string, string>)[o.dept] ?? o.dept}</span>
+              {opexRowsForRender.map((o: { label: string; amount: number }) => (
+                <div key={o.label} className="flex justify-between">
+                  <span>{o.label}</span>
                   <span>{formatRub(o.amount)}</span>
                 </div>
               ))}

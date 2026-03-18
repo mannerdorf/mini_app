@@ -341,6 +341,78 @@ export async function getOpexByDepartment(
   return Object.entries(byDept).map(([dept, amount]) => ({ dept, amount }));
 }
 
+export async function getOpexByExpenseCategory(
+  pool: Pool,
+  params: FilterParams
+): Promise<{ category: string; amount: number }[]> {
+  const f = parseFilter(params);
+  const byCategory: Record<string, number> = {};
+
+  {
+    const p: unknown[] = ["OPEX"];
+    const idx = { v: 2 };
+    const c = ["c.type = $1"];
+    c.push(...buildDateWhere("m.period", f, p, idx));
+    if (f.direction) {
+      c.push(`m.direction = $${idx.v}`);
+      p.push(f.direction);
+      idx.v++;
+    }
+    if (f.transportType) {
+      c.push(`m.transport_type = $${idx.v}`);
+      p.push(f.transportType);
+      idx.v++;
+    }
+    const { rows } = await pool.query(
+      `SELECT c.name AS category, sum(m.amount) AS total
+       FROM pnl_manual_expenses m
+       JOIN pnl_expense_categories c ON c.id = m.category_id
+       WHERE ${c.join(" AND ")}
+       GROUP BY c.name`,
+      p
+    );
+    for (const r of rows) {
+      const key = String(r.category || "").trim();
+      if (!key) continue;
+      byCategory[key] = (byCategory[key] || 0) + (Number(r.total) || 0);
+    }
+  }
+
+  // Заявки на расходы не имеют направления, поэтому включаем их только при фильтре direction=all.
+  if (!f.direction) {
+    const p: unknown[] = [];
+    const idx = { v: 1 };
+    const c = [
+      `er.status IN ('approved','paid')`,
+      `coalesce(ec.cost_type, 'OPEX') = 'OPEX'`,
+    ];
+    c.push(...buildDateWhere("coalesce(er.doc_date, er.created_at::date)", f, p, idx));
+    if (f.transportType) {
+      c.push(`coalesce(er.transport_type, 'auto') = $${idx.v}`);
+      p.push(f.transportType);
+      idx.v++;
+    }
+    const { rows } = await pool.query(
+      `SELECT ec.name AS category, sum(er.amount) AS total
+       FROM expense_requests er
+       LEFT JOIN expense_categories ec ON ec.id = er.category_id
+       WHERE ${c.join(" AND ")}
+       GROUP BY ec.name`,
+      p
+    );
+    for (const r of rows) {
+      const key = String(r.category || "").trim();
+      if (!key) continue;
+      byCategory[key] = (byCategory[key] || 0) + (Number(r.total) || 0);
+    }
+  }
+
+  return Object.entries(byCategory)
+    .map(([category, amount]) => ({ category, amount }))
+    .filter((x) => Math.abs(x.amount) > 0)
+    .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount) || a.category.localeCompare(b.category, "ru"));
+}
+
 export async function getRevenueByDirection(
   pool: Pool,
   params: FilterParams
