@@ -465,7 +465,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Fallback for legacy/partially synced data: include approved request operations from pnl_operations.
-    if (requestExpenses.length === 0 && department != null) {
+    if (requestExpenses.length === 0) {
       let requestOpsRows: any[] = [];
       try {
         const result = await pool.query(
@@ -473,7 +473,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   purpose,
                   amount,
                   operation_type,
-                  department
+                  department,
+                  logistics_stage AS "logisticsStage",
+                  transport_type AS "transportType"
            FROM pnl_operations
            WHERE date_trunc('month', date) = $1::date
              AND purpose ILIKE 'Согласование заявки %'
@@ -483,7 +485,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
         requestOpsRows = result.rows.filter((r: any) => {
           const mapped = mapDepartmentToPnl(r.department);
-          return mapped.department === department;
+          const rowDepartment = mapped.department;
+          const rowStage = String(r.logisticsStage ?? "").trim() || null;
+          if (department != null && rowDepartment !== department) return false;
+          if (logisticsStage === "" || logisticsStage === "null") {
+            return rowStage == null;
+          }
+          if (logisticsStage) return rowStage === logisticsStage;
+          return true;
         });
       } catch (e) {
         logError(ctx, "pnl_manual_entry_fallback_ops_read_failed", e);
@@ -503,10 +512,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           amount: Math.abs(Number(r.amount) || 0),
           comment: purpose || null,
           direction: "",
-          transportType: "",
+          transportType: String(r.transportType ?? "").trim(),
           type: String(r.operation_type || "OPEX"),
           department: mapDepartmentToPnl(r.department).department,
-          logisticsStage: mapDepartmentToPnl(r.department).logisticsStage,
+          logisticsStage: String(r.logisticsStage ?? "").trim() || mapDepartmentToPnl(r.department).logisticsStage,
           requestDepartment: String(r.department ?? "").trim() || null,
           source: "expense_request",
           requestStatus: "approved",
