@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { pnlGet, pnlPost, pnlPatch, pnlDelete } from './api';
-import { SUBDIVISIONS } from './constants';
 import { Plus, Trash2, Info } from 'lucide-react';
 
 interface BaseCategory { id: string; name: string; costType?: string; sortOrder?: number; }
 interface Category { id: string; name: string; department: string; type: string; logisticsStage: string | null; sortOrder: number; expenseCategoryId?: string; }
+interface Subdivision { id: string; name: string; department: string; logisticsStage: string | null; sortOrder?: number; }
 type ExpenseCategoryPrefill = {
   requestId: string;
   expenseCategoryId?: string;
@@ -40,8 +40,9 @@ const COST_TYPE_LEGEND = [
 export function RefExpensesView({ initialPrefill = null }: { initialPrefill?: ExpenseCategoryPrefill | null }) {
   const [cats, setCats] = useState<Category[]>([]);
   const [baseCats, setBaseCats] = useState<BaseCategory[]>([]);
+  const [subdivisions, setSubdivisions] = useState<Subdivision[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ expenseCategoryId: '', subdivision: 'pickup_msk', type: 'COGS' });
+  const [form, setForm] = useState({ expenseCategoryId: '', subdivision: '', type: 'COGS' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filterName, setFilterName] = useState('');
@@ -52,12 +53,19 @@ export function RefExpensesView({ initialPrefill = null }: { initialPrefill?: Ex
   useEffect(() => {
     Promise.all([
       load(),
+      pnlGet<Subdivision[]>('/api/subdivisions').then((d) => setSubdivisions(Array.isArray(d) ? d : [])),
       fetch(`${typeof window !== 'undefined' ? window.location.origin : ''}/api/expense-request-categories`)
         .then((r) => (r.ok ? r.json() : [])).then((d: BaseCategory[]) => setBaseCats(Array.isArray(d) ? d : [])),
     ]).finally(() => setLoading(false));
   }, []);
 
-  const allowedSubdivisionIds = useMemo(() => new Set(SUBDIVISIONS.map((s) => s.id)), []);
+  const allowedSubdivisionIds = useMemo(() => new Set(subdivisions.map((s) => s.id)), [subdivisions]);
+  useEffect(() => {
+    if (subdivisions.length === 0) return;
+    setForm((prev) => (prev.subdivision && allowedSubdivisionIds.has(prev.subdivision))
+      ? prev
+      : { ...prev, subdivision: subdivisions[0].id });
+  }, [subdivisions, allowedSubdivisionIds]);
 
   useEffect(() => {
     if (!initialPrefill) return;
@@ -71,20 +79,20 @@ export function RefExpensesView({ initialPrefill = null }: { initialPrefill?: Ex
     const resolvedSubdivision =
       initialPrefill.subdivision && allowedSubdivisionIds.has(initialPrefill.subdivision)
         ? initialPrefill.subdivision
-        : 'administration';
+        : (subdivisions[0]?.id || '');
     setForm({
       expenseCategoryId: resolvedExpenseCategoryId,
       subdivision: resolvedSubdivision,
       type: 'OPEX',
     });
-  }, [initialPrefill, baseCats, allowedSubdivisionIds]);
+  }, [initialPrefill, baseCats, allowedSubdivisionIds, subdivisions]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.expenseCategoryId.trim()) return;
     setSaving(true); setError(null);
     try {
-      const sub = SUBDIVISIONS.find((s) => s.id === form.subdivision);
+      const sub = subdivisions.find((s) => s.id === form.subdivision);
       if (!sub) return;
       const res = await pnlPost<any>('/api/expense-categories', {
         expenseCategoryId: form.expenseCategoryId,
@@ -93,7 +101,7 @@ export function RefExpensesView({ initialPrefill = null }: { initialPrefill?: Ex
         logisticsStage: sub.logisticsStage,
       });
       if (res?.error) { setError(res.error); return; }
-      setForm({ expenseCategoryId: '', subdivision: 'pickup_msk', type: 'COGS' });
+      setForm((prev) => ({ expenseCategoryId: '', subdivision: prev.subdivision || subdivisions[0]?.id || '', type: 'COGS' }));
       await load();
     } catch (err: any) {
       setError(err?.message || 'Не удалось добавить категорию');
@@ -122,8 +130,8 @@ export function RefExpensesView({ initialPrefill = null }: { initialPrefill?: Ex
   const uniqueNames = useMemo(() => [...new Set(cats.map((c) => c.name))].sort(), [cats]);
 
   const bySubdivision = filteredCats.reduce((acc: Record<string, Category[]>, c) => {
-    const sub = SUBDIVISIONS.find((s) => s.department === c.department && s.logisticsStage === c.logisticsStage);
-    const key = sub ? sub.id : c.department;
+    const sub = subdivisions.find((s) => s.department === c.department && s.logisticsStage === c.logisticsStage);
+    const key = sub ? sub.id : `${c.department}::${String(c.logisticsStage ?? '')}`;
     (acc[key] = acc[key] || []).push(c); return acc;
   }, {});
 
@@ -162,11 +170,11 @@ export function RefExpensesView({ initialPrefill = null }: { initialPrefill?: Ex
               {baseCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div><label className="block text-sm text-slate-600 mb-1">Подразделение</label><select value={form.subdivision} onChange={(e) => setForm((f) => ({ ...f, subdivision: e.target.value }))} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900">{SUBDIVISIONS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
+          <div><label className="block text-sm text-slate-600 mb-1">Подразделение</label><select value={form.subdivision} onChange={(e) => setForm((f) => ({ ...f, subdivision: e.target.value }))} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900">{subdivisions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
           <div><label className="block text-sm text-slate-600 mb-1">Тип</label><select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900"><option value="COGS">COGS</option><option value="OPEX">OPEX</option><option value="CAPEX">CAPEX</option></select></div>
         </div>
         {error && <p className="text-red-600 text-sm">{error}</p>}
-        <button type="submit" disabled={saving || baseCats.length === 0} className="px-4 py-2 text-white rounded-lg disabled:opacity-50 flex items-center gap-2" style={{ background: '#2563eb' }}><Plus className="w-4 h-4" /> Добавить</button>
+        <button type="submit" disabled={saving || baseCats.length === 0 || !form.subdivision} className="px-4 py-2 text-white rounded-lg disabled:opacity-50 flex items-center gap-2" style={{ background: '#2563eb' }}><Plus className="w-4 h-4" /> Добавить</button>
       </form>
 
       <div className="flex flex-wrap gap-3 items-end">
@@ -191,7 +199,7 @@ export function RefExpensesView({ initialPrefill = null }: { initialPrefill?: Ex
       <div className="space-y-4">
         {Object.entries(bySubdivision).map(([key, items]) => (
           <div key={key} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-4 py-2 bg-slate-50 font-medium text-slate-700">{SUBDIVISIONS.find((s) => s.id === key)?.label || key}</div>
+            <div className="px-4 py-2 bg-slate-50 font-medium text-slate-700">{subdivisions.find((s) => s.id === key)?.name || key}</div>
             <table className="min-w-full"><thead><tr className="border-b border-slate-100"><th className="px-4 py-2 text-left text-sm text-slate-600">Название</th><th className="px-4 py-2 text-left text-sm text-slate-600">Тип</th><th className="px-4 py-2 w-24"></th></tr></thead>
               <tbody>{items.map((c) => (
                 <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50">

@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { pnlGet, pnlPost, pnlPostForm, pnlPatch } from './api';
-import { SUBDIVISIONS, MONTHS } from './constants';
+import { MONTHS } from './constants';
 import { Upload, FileSpreadsheet, Plus, X, Trash2, Info } from 'lucide-react';
 
 type Row = { counterparty: string; totalAmount: number; count: number; accounted?: boolean; };
+type Subdivision = { id: string; name: string; department: string; logisticsStage: string | null; sortOrder?: number };
 
 function formatRub(n: number) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽'; }
 
@@ -14,13 +15,14 @@ export function UploadStatementView() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
+  const [subdivisions, setSubdivisions] = useState<Subdivision[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<Row | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveExpense, setSaveExpense] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState({ name: '', subdivisionId: 'pickup_msk', type: 'OPEX', amount: 0, comment: '' });
+  const [form, setForm] = useState({ name: '', subdivisionId: '', type: 'OPEX', amount: 0, comment: '' });
   const years = [year - 1, year, year + 1];
   const totalByCounterparties = rows.reduce((sum, row) => sum + Number(row.totalAmount || 0), 0);
   const totalOperations = rows.reduce((sum, row) => sum + Number(row.count || 0), 0);
@@ -28,6 +30,17 @@ export function UploadStatementView() {
   useEffect(() => {
     pnlGet<any>('/api/statement', { month: String(month), year: String(year) }).then((d) => setRows(Array.isArray(d?.byCounterparty) ? d.byCounterparty : [])).catch(() => setRows([]));
   }, [month, year]);
+  useEffect(() => {
+    pnlGet<Subdivision[]>('/api/subdivisions')
+      .then((d) => {
+        const list = Array.isArray(d) ? d : [];
+        setSubdivisions(list);
+        if (list.length > 0) {
+          setForm((prev) => (prev.subdivisionId ? prev : { ...prev, subdivisionId: list[0].id }));
+        }
+      })
+      .catch(() => setSubdivisions([]));
+  }, []);
 
   const handleUpload = async () => {
     if (!file) return;
@@ -43,7 +56,13 @@ export function UploadStatementView() {
     finally { setLoading(false); }
   };
 
-  const openModal = (row: Row) => { setModal(row); setForm({ name: row.counterparty, subdivisionId: 'pickup_msk', type: 'OPEX', amount: row.totalAmount, comment: '' }); setSaveExpense(true); setSaveError(null); };
+  const openModal = (row: Row) => {
+    const defaultSubdivisionId = subdivisions[0]?.id || '';
+    setModal(row);
+    setForm({ name: row.counterparty, subdivisionId: defaultSubdivisionId, type: 'OPEX', amount: row.totalAmount, comment: '' });
+    setSaveExpense(true);
+    setSaveError(null);
+  };
   const closeModal = () => { setModal(null); setSaveError(null); };
 
   const toggleAccounted = async (row: Row) => {
@@ -121,13 +140,22 @@ export function UploadStatementView() {
             <form onSubmit={handleCreateInReference} className="space-y-4">
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Сумма (₽)</label><input type="number" step="0.01" min="0" value={form.amount > 0 ? form.amount : ''} onChange={(e) => setForm((f) => ({ ...f, amount: parseFloat(e.target.value) || 0 }))} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900" /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Название статьи</label><input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900" /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Подразделение</label><select value={form.subdivisionId} onChange={(e) => setForm((f) => ({ ...f, subdivisionId: e.target.value }))} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900">{SUBDIVISIONS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</select></div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Подразделение</label>
+                <select
+                  value={form.subdivisionId}
+                  onChange={(e) => setForm((f) => ({ ...f, subdivisionId: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900"
+                >
+                  {subdivisions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Тип расхода</label><select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900"><option value="COGS">COGS</option><option value="OPEX">OPEX</option><option value="CAPEX">CAPEX</option></select></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Комментарий</label><textarea value={form.comment} onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))} rows={2} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900 resize-y" /></div>
               <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={saveExpense} onChange={(e) => setSaveExpense(e.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300" /><span>Записать сумму {formatRub(form.amount)} в расходы за выбранный период</span></label>
               {saveError && <p className="text-sm text-red-600">{saveError}</p>}
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={saving} className="flex-1 py-2.5 text-white rounded-lg font-medium disabled:opacity-50" style={{ background: '#2563eb' }}>{saving ? 'Сохранение...' : 'Создать'}</button>
+                <button type="submit" disabled={saving || !form.subdivisionId} className="flex-1 py-2.5 text-white rounded-lg font-medium disabled:opacity-50" style={{ background: '#2563eb' }}>{saving ? 'Сохранение...' : 'Создать'}</button>
                 <button type="button" onClick={closeModal} className="px-4 py-2.5 border border-slate-300 rounded-lg text-slate-700">Отмена</button>
               </div>
             </form>
