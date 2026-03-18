@@ -133,6 +133,35 @@ function normalizeDocDateFromDb(value: unknown): string {
   return "";
 }
 
+async function resolveExpenseCategoryIdForUpdate(pool: any, uid: string, rawValue: unknown): Promise<string> {
+  const raw = String(rawValue ?? "").trim();
+  if (!raw) return "other";
+
+  const exactById = await pool.query<{ id: string }>(
+    `SELECT id FROM expense_categories WHERE id = $1 LIMIT 1`,
+    [raw]
+  );
+  if (exactById.rows.length > 0) return String(exactById.rows[0].id || "").trim() || "other";
+
+  const byName = await pool.query<{ id: string }>(
+    `SELECT id FROM expense_categories WHERE lower(trim(name)) = lower(trim($1)) LIMIT 1`,
+    [raw]
+  );
+  if (byName.rows.length > 0) return String(byName.rows[0].id || "").trim() || "other";
+
+  const currentValid = await pool.query<{ category_id: string }>(
+    `SELECT er.category_id
+     FROM expense_requests er
+     JOIN expense_categories ec ON ec.id = er.category_id
+     WHERE er.uid = $1
+     LIMIT 1`,
+    [uid]
+  );
+  if (currentValid.rows.length > 0) return String(currentValid.rows[0].category_id || "").trim() || "other";
+
+  return "other";
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "admin-expense-requests");
   const token = getAdminTokenFromRequest(req);
@@ -355,7 +384,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       add("doc_date", normalizeDocDateInput(b?.docDate));
       add("period", String(b?.period ?? "").trim());
       add("department", String(b?.department ?? "").trim());
-      add("category_id", String(b?.categoryId ?? "other").trim());
+      const resolvedCategoryId = await resolveExpenseCategoryIdForUpdate(pool, uid, b?.categoryId);
+      add("category_id", resolvedCategoryId);
       const amount = Number(b?.amount);
       if (Number.isFinite(amount)) add("amount", amount);
       add("vat_rate", String(b?.vatRate ?? "").trim());

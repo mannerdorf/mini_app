@@ -252,15 +252,17 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     // --- Справочник статей расходов (единый с PNL) ---
     useEffect(() => {
         const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
-        fetch(`${origin}/api/expense-request-categories`)
+        const params = new URLSearchParams();
+        if (department) params.set("department", department);
+        fetch(`${origin}/api/expense-request-categories${params.toString() ? `?${params.toString()}` : ""}`)
             .then((r) => (r.ok ? r.json() : Promise.reject()))
             .then((data: any[]) => {
-                if (Array.isArray(data) && data.length > 0) {
-                    setCategories(data.map((c: any) => ({ id: c.id ?? "", name: c.name ?? "" })).filter((c) => c.id && c.name));
-                }
+                if (!Array.isArray(data)) return;
+                const mapped = data.map((c: any) => ({ id: c.id ?? "", name: c.name ?? "" })).filter((c) => c.id && c.name);
+                setCategories(mapped);
             })
             .catch(() => { /* keep FALLBACK_CATEGORIES */ });
-    }, []);
+    }, [department]);
 
     // --- Поставщики услуг (из cache_suppliers) ---
     useEffect(() => {

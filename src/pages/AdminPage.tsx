@@ -162,6 +162,24 @@ type AccrualType = "hour" | "shift" | "month";
 
 /** Fallback при пустом справочнике подразделений */
 const EMPLOYEE_DEPARTMENTS_FALLBACK = ["Склад Москва", "Склад Калининград", "Отдел продаж", "Управляющая компания"];
+const EXPENSE_CATEGORY_FALLBACK = [
+  { id: "fuel", name: "Топливо" },
+  { id: "repair", name: "Ремонт и обслуживание" },
+  { id: "spare_parts", name: "Запасные части" },
+  { id: "salary", name: "Зарплата" },
+  { id: "office", name: "Офис" },
+  { id: "rent", name: "Аренда" },
+  { id: "insurance", name: "Страхование" },
+  { id: "mainline", name: "Магистраль" },
+  { id: "pickup_logistics", name: "Заборная логистика" },
+  { id: "ferry", name: "Паром" },
+  { id: "auto", name: "Авто" },
+  { id: "telephony", name: "Телефония" },
+  { id: "bank", name: "Банк" },
+  { id: "cafe", name: "Кафе" },
+  { id: "post_site", name: "Почта и сайт" },
+  { id: "other", name: "Прочее" },
+];
 const COOPERATION_TYPE_OPTIONS = [
   { value: "self_employed", label: "Самозанятость" },
   { value: "ip", label: "ИП" },
@@ -884,6 +902,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [expenseEditEmployee, setExpenseEditEmployee] = useState("");
   const [expenseEditSupplierName, setExpenseEditSupplierName] = useState("");
   const [expenseEditSupplierInn, setExpenseEditSupplierInn] = useState("");
+  const [expenseCategories, setExpenseCategories] = useState<Array<{ id: string; name: string }>>(EXPENSE_CATEGORY_FALLBACK);
   const [editorChangeLoginValue, setEditorChangeLoginValue] = useState("");
   const [editorChangeLoginOpen, setEditorChangeLoginOpen] = useState(false);
   const [editorChangeLoginLoading, setEditorChangeLoginLoading] = useState(false);
@@ -2152,6 +2171,24 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     if ((tab === "accounting" || tab === "claims") && isSuperAdmin) reloadAdminClaims();
   }, [tab, isSuperAdmin, reloadAdminClaims]);
 
+  useEffect(() => {
+    const origin = typeof window !== "undefined" && window.location?.origin ? window.location.origin : "";
+    const params = new URLSearchParams();
+    if (expenseEditDepartment) params.set("department", expenseEditDepartment);
+    fetch(`${origin}/api/expense-request-categories${params.toString() ? `?${params.toString()}` : ""}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data: any) => {
+        if (!Array.isArray(data)) return;
+        const mapped = data
+          .map((row: any) => ({ id: String(row?.id ?? "").trim(), name: String(row?.name ?? "").trim() }))
+          .filter((row: { id: string; name: string }) => row.id && row.name);
+        setExpenseCategories(mapped);
+      })
+      .catch(() => {
+        // keep fallback list
+      });
+  }, [expenseEditDepartment]);
+
   const loadPnlExpenseCategoryLinks = useCallback(async () => {
     try {
       const res = await fetch("/api/pnl-expense-categories");
@@ -2623,11 +2660,9 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     reloadAllExpenseRequests();
   }, [adminToken, reloadAllExpenseRequests]);
 
-  const CATEGORIES_LIST = [{ id: "fuel", name: "Топливо" }, { id: "repair", name: "Ремонт и обслуживание" }, { id: "spare_parts", name: "Запасные части" }, { id: "salary", name: "Зарплата" }, { id: "office", name: "Офис" }, { id: "rent", name: "Аренда" }, { id: "insurance", name: "Страхование" }, { id: "mainline", name: "Магистраль" }, { id: "pickup_logistics", name: "Заборная логистика" }, { id: "other", name: "Прочее" }];
-
   const saveExpenseEdit = useCallback(async (itemId: string, itemLogin: string) => {
     const num = parseFloat(expenseEditAmount.replace(",", "."));
-    const catObj = CATEGORIES_LIST.find((c) => c.id === expenseEditCategory);
+    const catObj = expenseCategories.find((c) => c.id === expenseEditCategory);
     const normalizeDocDateInput = (value: string): string | null => {
       const raw = String(value ?? "").trim();
       if (!raw) return null;
@@ -2701,7 +2736,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
       setExpenseEditId(null);
       reloadAllExpenseRequests();
     } catch { /* skip */ }
-  }, [adminToken, expenseEditDocNumber, expenseEditDocDate, expenseEditPeriod, expenseEditDepartment, expenseEditCategory, expenseEditAmount, expenseEditVatRate, expenseEditComment, expenseEditVehicle, expenseEditEmployee, expenseEditSupplierName, expenseEditSupplierInn, reloadAllExpenseRequests]);
+  }, [adminToken, expenseEditDocNumber, expenseEditDocDate, expenseEditPeriod, expenseEditDepartment, expenseEditCategory, expenseEditAmount, expenseEditVatRate, expenseEditComment, expenseEditVehicle, expenseEditEmployee, expenseEditSupplierName, expenseEditSupplierInn, reloadAllExpenseRequests, expenseCategories]);
 
   const fetchEmployeeDirectory = useCallback(async (monthForTimesheet?: string) => {
     if (!adminToken || !isSuperAdmin) return;
@@ -9703,9 +9738,18 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       <div>
                         <label style={fieldLabel}>Статья расхода</label>
                         <select className="admin-form-input" value={expenseEditCategory} onChange={(e) => setExpenseEditCategory(e.target.value)} style={{ ...fieldInput, height: 36 }}>
-                          {CATEGORIES_LIST.map((c) => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
+                          {(() => {
+                            const options = [...expenseCategories];
+                            if (expenseEditCategory && !options.some((c) => c.id === expenseEditCategory)) {
+                              options.unshift({ id: expenseEditCategory, name: expenseEditCategory });
+                            }
+                            if (options.length === 0) {
+                              options.push({ id: "", name: "Нет статей для подразделения" });
+                            }
+                            return options.map((c) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ));
+                          })()}
                         </select>
                       </div>
                       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
