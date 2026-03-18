@@ -452,13 +452,19 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
     const requestGroupOrder: string[] = [];
     const requestGroups = new Map<string, SavedExpense[]>();
     const result: SavedExpense[] = [];
-    const groupKeyForRequest = (e: SavedExpense) => [
-      normalizeName(e.categoryId || e.categoryName),
-      getSubdivisionKey(e.department, e.logisticsStage),
-      String(e.type ?? '').trim().toUpperCase(),
-      String(e.direction ?? '').trim().toUpperCase(),
-      String(e.transportType ?? '').trim().toUpperCase(),
-    ].join('::');
+    const groupKeyForRequest = (e: SavedExpense) => {
+      const cat = allCats.find((c) => c.id === e.categoryId || normalizeName(c.name) === normalizeName(e.categoryName));
+      const departmentValue = e.department ?? cat?.department ?? department;
+      const logisticsStageValue = e.logisticsStage ?? cat?.logisticsStage ?? logisticsStage ?? null;
+      const typeValue = e.type ?? cat?.type ?? 'OPEX';
+      // Группируем строго по первым трем колонкам таблицы:
+      // Статья + Подразделение + Тип.
+      return [
+        normalizeName(e.categoryName || cat?.name || e.categoryId),
+        getSubdivisionKey(departmentValue, logisticsStageValue),
+        String(typeValue ?? '').trim().toUpperCase(),
+      ].join('::');
+    };
 
     filtered.forEach((e) => {
       if (e.source !== 'expense_request') {
