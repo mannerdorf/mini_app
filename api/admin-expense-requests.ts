@@ -86,7 +86,7 @@ function toFrontendFormat(r: DbRow, login: string) {
     login,
     department: r.department,
     docNumber: r.doc_number,
-    docDate: r.doc_date ? String(r.doc_date).slice(0, 10) : "",
+    docDate: normalizeDocDateFromDb(r.doc_date),
     period: r.period,
     categoryId: r.category_id,
     categoryName: r.category_id,
@@ -113,6 +113,24 @@ function normalizeDocDateInput(value: unknown): string | null {
   const isoPrefix = raw.match(/^(\d{4}-\d{2}-\d{2})/);
   if (isoPrefix) return isoPrefix[1];
   return null;
+}
+
+function normalizeDocDateFromDb(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const fromInput = normalizeDocDateInput(raw);
+  if (fromInput) return fromInput;
+  // Fallback for legacy textual values like "Sun Jan 18 2026 ..."
+  if (/\d{4}/.test(raw)) {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, "0");
+      const d = String(parsed.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+  }
+  return "";
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

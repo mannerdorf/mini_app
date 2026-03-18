@@ -26,6 +26,35 @@ type DbRow = {
 
 const STATUSES = new Set(["approved", "sent", "paid"]);
 
+function normalizeDocDateInput(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+  const ru = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (ru) return `${ru[3]}-${ru[2]}-${ru[1]}`;
+  const isoPrefix = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoPrefix) return isoPrefix[1];
+  return null;
+}
+
+function normalizeDocDateFromDb(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const fromInput = normalizeDocDateInput(raw);
+  if (fromInput) return fromInput;
+  if (/\d{4}/.test(raw)) {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, "0");
+      const d = String(parsed.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+  }
+  return "";
+}
+
 function pickCredentials(req: VercelRequest): { login: string; password: string } {
   const login = String(req.headers["x-login"] ?? req.query?.login ?? "").trim();
   const password = String(req.headers["x-password"] ?? req.query?.password ?? "").trim();
@@ -130,7 +159,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           login: r.login,
           department: r.department,
           docNumber: r.doc_number,
-          docDate: r.doc_date ? String(r.doc_date).slice(0, 10) : "",
+          docDate: normalizeDocDateFromDb(r.doc_date),
           period: r.period,
           categoryId: r.category_id,
           categoryName: catMap[r.category_id] || r.category_id,

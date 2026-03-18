@@ -74,6 +74,35 @@ function parseHoursValue(rawValue: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function normalizeDocDateInput(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  if (/^\d{4}-\d{2}$/.test(raw)) return `${raw}-01`;
+  const ru = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (ru) return `${ru[3]}-${ru[2]}-${ru[1]}`;
+  const isoPrefix = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoPrefix) return isoPrefix[1];
+  return null;
+}
+
+function normalizeDocDateFromDb(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const fromInput = normalizeDocDateInput(raw);
+  if (fromInput) return fromInput;
+  if (/\d{4}/.test(raw)) {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, "0");
+      const d = String(parsed.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+  }
+  return null;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "pnl_manual_entry");
   const pool = getPool();
@@ -247,7 +276,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           source: "expense_request",
           requestStatus: e.status,
           docNumber: String(e.docNumber ?? "").trim() || null,
-          docDate: e.doc_date ? String(e.doc_date).slice(0, 10) : null,
+          docDate: normalizeDocDateFromDb(e.doc_date),
           period: String(e.period ?? "").trim() || null,
           vatRate: String(e.vatRate ?? "").trim() || null,
           employeeName: String(e.employeeName ?? "").trim() || null,
