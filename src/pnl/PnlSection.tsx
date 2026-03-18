@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import './pnl.css';
 import {
   LayoutDashboard, FileText, TrendingUp, BarChart3, Bell,
-  BookOpen, DollarSign, FileUp, Truck, SlidersHorizontal, CreditCard, PenLine,
+  BookOpen, DollarSign, FileUp, Truck, SlidersHorizontal, CreditCard,
 } from 'lucide-react';
 
 import { DashboardView } from './DashboardView';
@@ -12,7 +12,6 @@ import { PerKgView } from './PerKgView';
 import { AlertsView } from './AlertsView';
 import { OperationsView } from './OperationsView';
 import { CreditsView } from './CreditsView';
-import { EntryView } from './EntryView';
 import { SettingsView } from './SettingsView';
 import { UploadBankView } from './UploadBankView';
 import { UploadSalesView } from './UploadSalesView';
@@ -22,7 +21,7 @@ import { RefExpensesView } from './RefExpensesView';
 import { RefIncomeView } from './RefIncomeView';
 type PnlView =
   | 'dashboard' | 'pl' | 'unit-economics' | 'per-kg' | 'alerts'
-  | 'operations' | 'credits' | 'entry' | 'settings'
+  | 'operations' | 'credits' | 'settings'
   | 'upload-bank' | 'upload-sales' | 'upload-statement' | 'upload-expenses'
   | 'ref-expenses' | 'ref-income';
 
@@ -54,7 +53,6 @@ const navExpenses = [
 
 const navOther = [
   { id: 'credits' as PnlView, label: 'Кредиты', icon: CreditCard },
-  { id: 'entry' as PnlView, label: 'Ручной ввод', icon: PenLine },
   { id: 'operations' as PnlView, label: 'Операции', icon: FileText },
   { id: 'upload-bank' as PnlView, label: 'Загрузка выписки (банк)', icon: FileUp },
   { id: 'settings' as PnlView, label: 'Настройки', icon: SlidersHorizontal },
@@ -118,7 +116,6 @@ export function PnlSection({
       case 'alerts': return <AlertsView />;
       case 'operations': return <OperationsView />;
       case 'credits': return <CreditsView />;
-      case 'entry': return <EntryView />;
       case 'settings': return <SettingsView />;
       case 'upload-bank': return <UploadBankView />;
       case 'upload-sales': return <UploadSalesView />;
@@ -152,7 +149,15 @@ export function PnlSection({
           {navOther.map((item) => <NavItem key={item.id} {...item} active={view === item.id} onClick={() => setView(item.id)} />)}
         </nav>
       </aside>
-      <main style={{ flex: 1, padding: 24, overflowY: 'auto', background: '#f8fafc' }}>
+      <main
+        style={{
+          flex: 1,
+          padding: 24,
+          overflowY: 'auto',
+          background: 'var(--color-bg-primary)',
+          color: 'var(--color-text-primary)',
+        }}
+      >
         {renderView()}
       </main>
     </div>

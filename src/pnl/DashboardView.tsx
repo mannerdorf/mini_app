@@ -20,11 +20,22 @@ function formatAxisValue(n: number) {
   }).format(n);
 }
 
+function formatKg(n: number) {
+  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' кг';
+}
+
 function KpiCard({ title, value }: { title: string; value: string }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-      <p className="text-sm text-slate-500 mb-1">{title}</p>
-      <p className="text-lg font-semibold text-slate-900">{value}</p>
+    <div
+      className="rounded-xl p-4"
+      style={{
+        background: 'var(--color-bg-card)',
+        border: '1px solid var(--color-border)',
+        boxShadow: 'var(--shadow-sm)',
+      }}
+    >
+      <p className="text-sm mb-1" style={{ color: 'var(--color-text-secondary)' }}>{title}</p>
+      <p className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>{value}</p>
     </div>
   );
 }
@@ -74,12 +85,19 @@ export function DashboardView() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-slate-500">Ключевые показатели и графики</p>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Dashboard</h1>
+        <p style={{ color: 'var(--color-text-secondary)' }}>Ключевые показатели и графики</p>
       </div>
       <Filters {...filters} onChange={updateFilter} />
       {error && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800">
+        <div
+          className="rounded-xl p-4"
+          style={{
+            background: 'var(--color-error-bg)',
+            border: '1px solid var(--color-error-border)',
+            color: 'var(--color-error-text)',
+          }}
+        >
           {error}
         </div>
       )}
@@ -92,14 +110,21 @@ export function DashboardView() {
           <KpiCard title="EBITDA %" value={`${pnl.ebitdaPercent?.toFixed(1) ?? 0}%`} />
           <KpiCard title="CAPEX" value={formatRub(pnl.capex)} />
           <KpiCard title="EBITDA – CAPEX" value={formatRub(pnl.netAfterCapex)} />
-          <KpiCard title="Выручка - все затраты" value={formatRub(pnl.revenueMinusAllCosts ?? (pnl.revenue - (pnl.cogs + pnl.opex + pnl.capex + (pnl.belowEbitda ?? 0))))} />
+          <KpiCard title="Платный вес за период" value={unitEcon ? formatKg(unitEcon.paidWeightKg ?? 0) : '—'} />
           <KpiCard title="Себестоимость 1 кг" value={unitEcon ? formatRub(unitEcon.cogsPerKg) : '—'} />
         </div>
       )}
       {charts && (
         <div className="grid gap-6">
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold mb-4 text-slate-900">Выручка / COGS / EBITDA</h2>
+          <div
+            className="rounded-xl p-6"
+            style={{
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>Выручка / COGS / EBITDA</h2>
             <div style={{ height: 320 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={lineData}>
@@ -129,8 +154,15 @@ export function DashboardView() {
             </div>
           </div>
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold mb-4 text-slate-900">COGS по этапам логистики</h2>
+            <div
+              className="rounded-xl p-6"
+              style={{
+                background: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>COGS по этапам логистики</h2>
               <div style={{ height: 256 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={charts.cogsByStage?.map((x: any) => ({ name: stageLabels[x.stage] ?? x.stage, value: x.amount })) ?? []} layout="vertical" margin={{ left: 80 }}>
@@ -143,8 +175,15 @@ export function DashboardView() {
                 </ResponsiveContainer>
               </div>
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold mb-4 text-slate-900">EBITDA по направлениям</h2>
+            <div
+              className="rounded-xl p-6"
+              style={{
+                background: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>EBITDA по направлениям</h2>
               <div style={{ height: 256 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={charts.revenueByDir?.map((x: any) => ({ name: x.label ?? (x.direction === 'MSK_TO_KGD' ? 'МСК → КГД' : x.direction === 'KGD_TO_MSK' ? 'КГД → МСК' : x.direction), value: x.amount })) ?? []}>
@@ -158,8 +197,16 @@ export function DashboardView() {
               </div>
             </div>
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm" style={{ maxWidth: 400 }}>
-            <h2 className="text-lg font-semibold mb-4 text-slate-900">Структура OPEX</h2>
+          <div
+            className="rounded-xl p-6"
+            style={{
+              maxWidth: 400,
+              background: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              boxShadow: 'var(--shadow-sm)',
+            }}
+          >
+            <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>Структура OPEX</h2>
             <div style={{ height: 256 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>

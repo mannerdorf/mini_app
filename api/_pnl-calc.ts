@@ -564,11 +564,39 @@ export async function getTotalWeightKg(
   return Number(rows[0].total);
 }
 
+export async function getTotalPaidWeightKg(
+  pool: Pool,
+  params: FilterParams
+): Promise<number> {
+  const f = parseFilter(params);
+  const p: unknown[] = [];
+  const idx = { v: 1 };
+  const c: string[] = [];
+  c.push(...buildDateWhere("date", f, p, idx));
+  if (f.direction) {
+    c.push(`direction = $${idx.v}`);
+    p.push(f.direction);
+    idx.v++;
+  }
+  if (f.transportType) {
+    c.push(`transport_type = $${idx.v}`);
+    p.push(f.transportType);
+    idx.v++;
+  }
+  const w = c.length ? " WHERE " + c.join(" AND ") : "";
+  const { rows } = await pool.query(
+    `SELECT coalesce(sum(paid_weight_kg),0) AS total FROM pnl_sales${w}`,
+    p
+  );
+  return Number(rows[0].total);
+}
+
 export async function getUnitEconomics(
   pool: Pool,
   params: FilterParams
 ) {
   const weightKg = await getTotalWeightKg(pool, params);
+  const paidWeightKg = await getTotalPaidWeightKg(pool, params);
   if (weightKg <= 0) return null;
 
   const pnl = await getPnL(pool, params);
@@ -605,6 +633,7 @@ export async function getUnitEconomics(
 
   return {
     weightKg,
+    paidWeightKg,
     revenuePerKg: pnl.revenue / weightKg,
     cogsPerKg: pnl.cogs / weightKg,
     marginPerKg: (pnl.revenue - pnl.cogs) / weightKg,

@@ -58,37 +58,53 @@ export function defaultFiltersState(): FiltersState {
 }
 
 export function Filters({ dateFrom, dateTo, direction, transportType, onChange }: FiltersProps) {
+  const panelStyle = {
+    background: 'var(--color-bg-card)',
+    border: '1px solid var(--color-border)',
+    boxShadow: 'var(--shadow-sm)',
+  } as const;
+  const labelStyle = { color: 'var(--color-text-secondary)' } as const;
+  const inputStyle = {
+    background: 'var(--color-bg-input)',
+    color: 'var(--color-text-primary)',
+    border: '1px solid var(--color-border)',
+  } as const;
+
   return (
-    <div className="flex flex-wrap items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+    <div className="flex flex-wrap items-center gap-4 p-4 rounded-xl" style={panelStyle}>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Период с</label>
+        <label className="block text-xs mb-1" style={labelStyle}>Период с</label>
         <input
           type="month"
           value={dateFrom}
           onChange={(e) => onChange('dateFrom', e.target.value)}
-          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900"
+          className="rounded-lg px-3 py-2 text-sm"
+          style={inputStyle}
         />
       </div>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Период по</label>
+        <label className="block text-xs mb-1" style={labelStyle}>Период по</label>
         <input
           type="month"
           value={dateTo}
           onChange={(e) => onChange('dateTo', e.target.value)}
-          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900"
+          className="rounded-lg px-3 py-2 text-sm"
+          style={inputStyle}
         />
       </div>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Направление</label>
+        <label className="block text-xs mb-1" style={labelStyle}>Направление</label>
         <select value={direction} onChange={(e) => onChange('direction', e.target.value)}
-          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
+          className="rounded-lg px-3 py-2 text-sm"
+          style={inputStyle}>
           {DIRECTIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
         </select>
       </div>
       <div>
-        <label className="block text-xs text-slate-500 mb-1">Тип перевозки</label>
+        <label className="block text-xs mb-1" style={labelStyle}>Тип перевозки</label>
         <select value={transportType} onChange={(e) => onChange('transportType', e.target.value)}
-          className="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
+          className="rounded-lg px-3 py-2 text-sm"
+          style={inputStyle}>
           {TRANSPORT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
       </div>

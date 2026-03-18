@@ -2,14 +2,14 @@
 
 .pnl-section {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  color: #0f172a;
-  background: #f8fafc;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
 }
 
 .pnl-section input,
 .pnl-section select,
 .pnl-section textarea {
-  color: #0f172a;
+  color: var(--color-text-primary);
 }
 
 .pnl-section .animate-pulse {
