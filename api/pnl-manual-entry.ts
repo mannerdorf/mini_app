@@ -468,6 +468,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (requestExpenses.length === 0) {
       let requestOpsRows: any[] = [];
       let requestRowsByDoc = new Map<string, any[]>();
+      let requestRowsAll: any[] = [];
       try {
         const result = await pool.query(
           `SELECT id,
@@ -510,7 +511,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                   er.status,
                   er.department,
                   er.category_id AS "categoryId",
-                  coalesce(ec.name, er.category_id) AS "categoryName"
+                  coalesce(ec.name, er.category_id) AS "categoryName",
+                  ec.cost_type AS "requestCostType"
            FROM expense_requests er
            LEFT JOIN expense_categories ec ON ec.id = er.category_id
            WHERE lower(trim(er.status)) IN ('approved', 'sent', 'paid', 'согласовано', 'оплачено')
@@ -520,6 +522,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
              )`,
           [periodKey, periodKey]
         );
+        requestRowsAll = reqResult.rows;
         const grouped = new Map<string, any[]>();
         reqResult.rows.forEach((row: any) => {
           const key = String(row.docNumber ?? "").trim().toLowerCase();
@@ -533,7 +536,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         logError(ctx, "pnl_manual_entry_fallback_ops_read_failed", e);
         requestOpsRows = [];
         requestRowsByDoc = new Map<string, any[]>();
+        requestRowsAll = [];
       }
+      const matchedRequestUids = new Set<string>();
       requestExpenses = requestOpsRows.map((r: any) => {
         const purpose = String(r.purpose ?? "").trim();
         const docFromPurpose = (() => {
@@ -558,17 +563,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return { c, score };
           })
           .sort((a, b) => b.score - a.score)[0]?.c;
+        if (matchedRequest?.uid) matchedRequestUids.add(String(matchedRequest.uid));
+        const categoryId = String(matchedRequest?.categoryId ?? "").trim();
+        const mapped = mapDepartmentToPnl(r.department);
+        const exactKey = `${categoryId}::${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
+        const depOnlyKey = `${categoryId}::${mapped.department}::`;
+        const categoryNameNorm = normalizeName(matchedRequest?.categoryName ?? nameFromPurpose);
+        const exactNameKey = `${categoryNameNorm}::${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
+        const depOnlyNameKey = `${categoryNameNorm}::${mapped.department}::`;
+        const resolvedType =
+          pnlTypeMap.get(exactKey) ||
+          pnlTypeMap.get(depOnlyKey) ||
+          pnlTypeByNameMap.get(exactNameKey) ||
+          pnlTypeByNameMap.get(depOnlyNameKey) ||
+          String(matchedRequest?.requestCostType ?? r.operation_type ?? "OPEX").trim().toUpperCase() ||
+          "OPEX";
         return {
           id: `op:${String(r.id)}`,
-          categoryId: String(matchedRequest?.categoryId ?? `from-op:${String(r.id)}`),
+          categoryId: categoryId || `from-op:${String(r.id)}`,
           categoryName: String(matchedRequest?.categoryName ?? nameFromPurpose),
           amount: Math.abs(Number(r.amount) || 0),
           comment: String(matchedRequest?.comment ?? "").trim() || null,
           direction: "",
           transportType: String(r.transportType ?? "").trim(),
-          type: String(r.operation_type || "OPEX"),
-          department: mappedRow.department,
-          logisticsStage: String(r.logisticsStage ?? "").trim() || mappedRow.logisticsStage,
+          type: resolvedType,
+          department: mapped.department,
+          logisticsStage: String(r.logisticsStage ?? "").trim() || mapped.logisticsStage,
           requestDepartment: String(r.department ?? "").trim() || null,
           source: "expense_request",
           requestStatus: String(matchedRequest?.status ?? "approved").trim() || "approved",
@@ -580,6 +600,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           supplierInn: String(matchedRequest?.supplierInn ?? "").trim() || null,
         };
       });
+
+      // Если часть заявок не отразилась в pnl_operations, добавляем их напрямую из expense_requests.
+      const extras = requestRowsAll
+        .filter((row: any) => {
+          const uid = String(row?.uid ?? "").trim();
+          if (!uid || matchedRequestUids.has(uid)) return false;
+          const mapped = mapDepartmentToPnl(row?.department);
+          if (department != null && mapped.department !== department) return false;
+          if (logisticsStage === "" || logisticsStage === "null") return mapped.logisticsStage == null;
+          if (logisticsStage) return mapped.logisticsStage === logisticsStage;
+          return true;
+        })
+        .map((row: any) => {
+          const mapped = mapDepartmentToPnl(row?.department);
+          const categoryId = String(row?.categoryId ?? "").trim();
+          const exactKey = `${categoryId}::${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
+          const depOnlyKey = `${categoryId}::${mapped.department}::`;
+          const categoryNameNorm = normalizeName(row?.categoryName);
+          const exactNameKey = `${categoryNameNorm}::${mapped.department}::${String(mapped.logisticsStage ?? "")}`;
+          const depOnlyNameKey = `${categoryNameNorm}::${mapped.department}::`;
+          const resolvedType =
+            pnlTypeMap.get(exactKey) ||
+            pnlTypeMap.get(depOnlyKey) ||
+            pnlTypeByNameMap.get(exactNameKey) ||
+            pnlTypeByNameMap.get(depOnlyNameKey) ||
+            String(row?.requestCostType ?? "OPEX").trim().toUpperCase() ||
+            "OPEX";
+          return {
+            id: `request-extra:${String(row?.uid ?? generateFallbackId())}`,
+            categoryId: categoryId || `request-extra-category:${String(row?.uid ?? generateFallbackId())}`,
+            categoryName: String(row?.categoryName ?? categoryId || "Заявка на расходы"),
+            amount: Math.abs(Number(row?.amount) || 0),
+            comment: String(row?.comment ?? "").trim() || null,
+            direction: "",
+            transportType: "",
+            type: resolvedType,
+            department: mapped.department,
+            logisticsStage: mapped.logisticsStage,
+            requestDepartment: String(row?.department ?? "").trim() || null,
+            source: "expense_request",
+            requestStatus: String(row?.status ?? "approved").trim() || "approved",
+            docNumber: String(row?.docNumber ?? "").trim() || null,
+            docDate: normalizeDocDateFromDb(row?.docDate),
+            employeeName: String(row?.employeeName ?? "").trim() || null,
+            vehicleText: String(row?.vehicleText ?? "").trim() || null,
+            supplierName: String(row?.supplierName ?? "").trim() || null,
+            supplierInn: String(row?.supplierInn ?? "").trim() || null,
+          };
+        });
+      requestExpenses = [...requestExpenses, ...extras];
     }
 
     const expenses = [
