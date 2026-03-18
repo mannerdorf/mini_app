@@ -30,6 +30,7 @@ interface SavedExpense {
   vehicleText?: string | null;
   supplierName?: string | null;
   supplierInn?: string | null;
+  requestDetails?: SavedExpense[];
 }
 interface SubdivisionDirectoryRow {
   id: string;
@@ -190,6 +191,7 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
   const [accrualDetails, setAccrualDetails] = useState<Array<{ employeeName: string; workDate: string; valueText: string; amount: number }>>([]);
   const [accrualDetailsLoading, setAccrualDetailsLoading] = useState(false);
   const [expandedEmployeeName, setExpandedEmployeeName] = useState<string | null>(null);
+  const [expandedRequestGroupKey, setExpandedRequestGroupKey] = useState<string | null>(null);
 
   const rowKey = (e: SavedExpense) => e.id || `${e.categoryId}:${e.direction ?? ''}:${e.transportType ?? ''}`;
 
@@ -439,13 +441,56 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
         };
       })
       .filter((x): x is SavedExpense => x != null);
-    return prepared.filter((e) => {
+    const filtered = prepared.filter((e) => {
       const depLabel = getSubdivisionDirectoryLabel(e.department, e.logisticsStage);
       const typeLabel = getExpenseTypeLabel(e.type);
       if (savedFilterDepartment !== 'ALL' && depLabel !== savedFilterDepartment) return false;
       if (savedFilterType !== 'ALL' && typeLabel !== savedFilterType) return false;
       return true;
     });
+    // Склеиваем заявки на расходы по статье/подразделению/типу, чтобы не дублировать строки.
+    const requestGroupOrder: string[] = [];
+    const requestGroups = new Map<string, SavedExpense[]>();
+    const result: SavedExpense[] = [];
+    const groupKeyForRequest = (e: SavedExpense) => [
+      normalizeName(e.categoryId || e.categoryName),
+      getSubdivisionKey(e.department, e.logisticsStage),
+      String(e.type ?? '').trim().toUpperCase(),
+      String(e.direction ?? '').trim().toUpperCase(),
+      String(e.transportType ?? '').trim().toUpperCase(),
+    ].join('::');
+
+    filtered.forEach((e) => {
+      if (e.source !== 'expense_request') {
+        result.push(e);
+        return;
+      }
+      const key = groupKeyForRequest(e);
+      if (!requestGroups.has(key)) requestGroupOrder.push(key);
+      const list = requestGroups.get(key) || [];
+      list.push(e);
+      requestGroups.set(key, list);
+    });
+
+    requestGroupOrder.forEach((key) => {
+      const list = requestGroups.get(key) || [];
+      if (list.length <= 1) {
+        if (list[0]) result.push(list[0]);
+        return;
+      }
+      const first = list[0];
+      const total = list.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+      const details = [...list].sort((a, b) => String(b.docDate || b.createdAt || '').localeCompare(String(a.docDate || a.createdAt || '')));
+      result.push({
+        ...first,
+        id: `request-group:${key}`,
+        amount: total,
+        comment: `${list.length} заявок`,
+        requestDetails: details,
+      });
+    });
+
+    return result;
   }, [savedExpensesAll, savedFilterDepartment, savedFilterType, subdivisionLabelByKey, timesheetOverrides]);
   const savedTotal = savedExpenses.reduce((s, e) => s + Math.round(Number(e.amount) || 0), 0);
 
@@ -537,6 +582,8 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                   {savedExpenses.map((e) => {
                     const key = rowKey(e);
                     const isRequestExpense = e.source === 'expense_request';
+                    const requestDetails = Array.isArray(e.requestDetails) ? e.requestDetails : [];
+                    const isRequestGroup = isRequestExpense && requestDetails.length > 1;
                     const isManualExpense = !e.source || e.source === 'manual';
                     const isTimesheetSalary = e.source === 'timesheet_salary';
                     const requestId = isRequestExpense && key.startsWith('request:') ? key.slice('request:'.length) : '';
@@ -554,11 +601,20 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                     const activeEditSubdivisionKey = isEditingRow ? (editingSubdivisionKey || currentSubdivisionKey) : currentSubdivisionKey;
                     const editCategoryOptions = expenseCatsBySubdivision.get(activeEditSubdivisionKey) || [];
                     const isAccrualExpanded = expandedAccrualKey === key;
+                    const isRequestGroupExpanded = expandedRequestGroupKey === key;
                     return (
                       <React.Fragment key={key}>
                       <tr
-                        className={`border-b border-slate-50 hover:bg-slate-50 ${isTimesheetSalary ? 'cursor-pointer' : ''}`}
-                        onClick={() => isTimesheetSalary && !isEditingRow && toggleAccrualDetails(e, key)}
+                        className={`border-b border-slate-50 hover:bg-slate-50 ${(isTimesheetSalary || isRequestGroup) ? 'cursor-pointer' : ''}`}
+                        onClick={() => {
+                          if (isTimesheetSalary && !isEditingRow) {
+                            toggleAccrualDetails(e, key);
+                            return;
+                          }
+                          if (isRequestGroup && !isEditingRow) {
+                            setExpandedRequestGroupKey((prev) => (prev === key ? null : key));
+                          }
+                        }}
                       >
                         <td className="px-6 py-2 text-slate-900">
                           {canEditRow && isEditingRow ? (
@@ -615,7 +671,9 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                             <input type="text" value={editingComment} onChange={(ev) => setEditingComment(ev.target.value)} placeholder="Комментарий" className="w-full border border-slate-200 rounded px-2 py-1 text-sm text-slate-700" style={{ minWidth: 180 }} />
                           ) : (
                             <span className="text-sm text-slate-700" title={isRequestExpense ? buildRequestAnalyticsDisplay(e) : undefined}>
-                              {isRequestExpense ? buildRequestAnalyticsDisplay(e) : ((e.comment ?? '').trim() || '—')}
+                              {isRequestGroup
+                                ? `${requestDetails.length} заявок (нажмите для деталей)`
+                                : (isRequestExpense ? buildRequestAnalyticsDisplay(e) : ((e.comment ?? '').trim() || '—'))}
                             </span>
                           )}
                         </td>
@@ -785,6 +843,41 @@ export function UploadExpenseForm({ department, logisticsStage, label, descripti
                                 </div>
                               </div>
                             ); })()}
+                          </td>
+                        </tr>
+                      )}
+                      {isRequestGroup && isRequestGroupExpanded && (
+                        <tr key={`${key}-request-detail`} className="border-b border-slate-100 bg-slate-50/50">
+                          <td colSpan={isMainline ? 7 : 6} className="px-6 py-4">
+                            <div className="rounded-lg border border-slate-200 overflow-hidden" style={{ maxHeight: 320, overflowY: 'auto' }}>
+                              <table className="min-w-full text-sm">
+                                <thead className="bg-slate-100 sticky top-0">
+                                  <tr>
+                                    <th className="px-4 py-2 text-left font-medium text-slate-600">№ / дата</th>
+                                    <th className="px-4 py-2 text-left font-medium text-slate-600">ТС</th>
+                                    <th className="px-4 py-2 text-left font-medium text-slate-600">Комментарий</th>
+                                    <th className="px-4 py-2 text-right font-medium text-slate-600">Сумма</th>
+                                    <th className="px-4 py-2 text-left font-medium text-slate-600">Статус</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {requestDetails.map((d, i) => (
+                                    <tr key={`${key}-d-${i}`} className="border-t border-slate-100">
+                                      <td className="px-4 py-2 text-slate-900">
+                                        {d.docNumber ? `№${d.docNumber}` : '—'} {d.docDate ? `• ${d.docDate}` : ''}
+                                      </td>
+                                      <td className="px-4 py-2 text-slate-700">{d.vehicleText || '—'}</td>
+                                      <td className="px-4 py-2 text-slate-700">{(d.comment ?? '').trim() || '—'}</td>
+                                      <td className="px-4 py-2 text-right font-medium text-slate-900">{formatRub(Math.round(Number(d.amount) || 0))}</td>
+                                      <td className="px-4 py-2 text-slate-600">{d.requestStatus || '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                              <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 text-sm font-medium text-slate-700">
+                                Итого: {formatRub(requestDetails.reduce((s, d) => s + (Number(d.amount) || 0), 0))} ({requestDetails.length} заявок)
+                              </div>
+                            </div>
                           </td>
                         </tr>
                       )}
