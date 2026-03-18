@@ -7,6 +7,7 @@ type Row = { counterparty: string; totalAmount: number; count: number; accounted
 type Subdivision = { id: string; name: string; department: string; logisticsStage: string | null; sortOrder?: number };
 
 function formatRub(n: number) { return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n) + ' ₽'; }
+function toYm(month: number, year: number) { return `${year}-${String(month).padStart(2, '0')}`; }
 
 export function UploadStatementView() {
   const now = new Date();
@@ -22,13 +23,16 @@ export function UploadStatementView() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveExpense, setSaveExpense] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState({ name: '', subdivisionId: '', type: 'OPEX', amount: 0, comment: '' });
+  const [form, setForm] = useState({ name: '', subdivisionId: '', type: 'OPEX', amount: 0, comment: '', expensePeriod: toYm(month, year) });
   const years = [year - 1, year, year + 1];
   const totalByCounterparties = rows.reduce((sum, row) => sum + Number(row.totalAmount || 0), 0);
   const totalOperations = rows.reduce((sum, row) => sum + Number(row.count || 0), 0);
 
   useEffect(() => {
     pnlGet<any>('/api/statement', { month: String(month), year: String(year) }).then((d) => setRows(Array.isArray(d?.byCounterparty) ? d.byCounterparty : [])).catch(() => setRows([]));
+  }, [month, year]);
+  useEffect(() => {
+    setForm((prev) => ({ ...prev, expensePeriod: prev.expensePeriod || toYm(month, year) }));
   }, [month, year]);
   useEffect(() => {
     pnlGet<Subdivision[]>('/api/subdivisions')
@@ -59,7 +63,7 @@ export function UploadStatementView() {
   const openModal = (row: Row) => {
     const defaultSubdivisionId = subdivisions[0]?.id || '';
     setModal(row);
-    setForm({ name: row.counterparty, subdivisionId: defaultSubdivisionId, type: 'OPEX', amount: row.totalAmount, comment: '' });
+    setForm({ name: row.counterparty, subdivisionId: defaultSubdivisionId, type: 'OPEX', amount: row.totalAmount, comment: '', expensePeriod: toYm(month, year) });
     setSaveExpense(true);
     setSaveError(null);
   };
@@ -76,7 +80,18 @@ export function UploadStatementView() {
     e.preventDefault(); if (!modal) return;
     setSaving(true); setSaveError(null);
     try {
-      const res = await pnlPost<any>('/api/expense-categories/from-statement', { counterparty: modal.counterparty, name: form.name.trim() || modal.counterparty, subdivisionId: form.subdivisionId, type: form.type, month, year, saveExpense, amount: form.amount, comment: form.comment.trim() || undefined });
+      const res = await pnlPost<any>('/api/expense-categories/from-statement', {
+        counterparty: modal.counterparty,
+        name: form.name.trim() || modal.counterparty,
+        subdivisionId: form.subdivisionId,
+        type: form.type,
+        month,
+        year,
+        saveExpense,
+        amount: form.amount,
+        comment: form.comment.trim() || undefined,
+        expensePeriod: form.expensePeriod,
+      });
       if (res?.error) throw new Error(res.error);
       setRows((p) => p.map((r) => r.counterparty === modal.counterparty ? { ...r, accounted: true } : r));
       closeModal();
@@ -151,11 +166,20 @@ export function UploadStatementView() {
                 </select>
               </div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Тип расхода</label><select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900"><option value="COGS">COGS</option><option value="OPEX">OPEX</option><option value="CAPEX">CAPEX</option></select></div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Период учёта</label>
+                <input
+                  type="month"
+                  value={form.expensePeriod}
+                  onChange={(e) => setForm((f) => ({ ...f, expensePeriod: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900"
+                />
+              </div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">Комментарий</label><textarea value={form.comment} onChange={(e) => setForm((f) => ({ ...f, comment: e.target.value }))} rows={2} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-900 resize-y" /></div>
-              <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={saveExpense} onChange={(e) => setSaveExpense(e.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300" /><span>Записать сумму {formatRub(form.amount)} в расходы за выбранный период</span></label>
+              <label className="flex items-start gap-2 text-sm text-slate-700"><input type="checkbox" checked={saveExpense} onChange={(e) => setSaveExpense(e.target.checked)} className="mt-1 h-4 w-4 rounded border-slate-300" /><span>Записать сумму {formatRub(form.amount)} в расходы за период {form.expensePeriod || toYm(month, year)}</span></label>
               {saveError && <p className="text-sm text-red-600">{saveError}</p>}
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={saving || !form.subdivisionId} className="flex-1 py-2.5 text-white rounded-lg font-medium disabled:opacity-50" style={{ background: '#2563eb' }}>{saving ? 'Сохранение...' : 'Создать'}</button>
+                <button type="submit" disabled={saving || !form.subdivisionId || !/^\d{4}-\d{2}$/.test(form.expensePeriod)} className="flex-1 py-2.5 text-white rounded-lg font-medium disabled:opacity-50" style={{ background: '#2563eb' }}>{saving ? 'Сохранение...' : 'Создать'}</button>
                 <button type="button" onClick={closeModal} className="px-4 py-2.5 border border-slate-300 rounded-lg text-slate-700">Отмена</button>
               </div>
             </form>

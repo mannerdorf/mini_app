@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const pool = getPool();
-  const { counterparty, name, subdivisionId, type, month, year, saveExpense, amount, comment } = req.body;
+  const { counterparty, name, subdivisionId, type, month, year, saveExpense, amount, comment, expensePeriod } = req.body;
 
   if (!counterparty?.trim()) return res.status(400).json({ error: "Укажите контрагента", request_id: ctx.requestId });
 
@@ -54,13 +54,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const shouldSave = saveExpense !== false;
       const amt = Number(amount) || 0;
       if (shouldSave && amt !== 0) {
+        const manualPeriod = typeof expensePeriod === "string" && /^\d{4}-\d{2}$/.test(expensePeriod)
+          ? `${expensePeriod}-01`
+          : period;
         const commentStr = comment?.trim() || null;
         await pool.query(
           `INSERT INTO pnl_manual_expenses (period, category_id, amount, comment, direction, transport_type)
            VALUES ($1, $2, $3, $4, '', '')
            ON CONFLICT (period, category_id, direction, transport_type)
            DO UPDATE SET amount = $3, comment = $4`,
-          [period, category.id, amt, commentStr]
+          [manualPeriod, category.id, amt, commentStr]
         );
       }
     }

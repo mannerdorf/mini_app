@@ -1121,7 +1121,14 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                         {r.docNumber ? `№${r.docNumber} · ` : ""}{r.categoryName} — {r.amount.toLocaleString("ru-RU")} ₽{(r as any).vatRate ? ` (НДС ${(r as any).vatRate}%)` : ""}
                                     </Typography.Body>
                                     <Typography.Body style={{ fontSize: "0.75rem", color: "var(--color-text-secondary)" }}>
-                                        {r.docDate ? new Date(r.docDate + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) + " · " : ""}
+                                        {(() => {
+                                            const raw = String(r.docDate ?? "").trim();
+                                            if (!raw) return "";
+                                            const normalized = /^\d{4}-\d{2}$/.test(raw) ? `${raw}-01` : raw;
+                                            const parsed = new Date(`${normalized}T00:00:00`);
+                                            if (Number.isNaN(parsed.getTime())) return `${raw} · `;
+                                            return `${parsed.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })} · `;
+                                        })()}
                                         {r.period ? `период ${r.period} · ` : ""}
                                         {new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}
                                         {r.comment ? ` · ${r.comment}` : ""}
