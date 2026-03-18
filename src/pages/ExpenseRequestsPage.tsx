@@ -1126,7 +1126,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                             if (!raw) return "";
                                             const normalized = /^\d{4}-\d{2}$/.test(raw) ? `${raw}-01` : raw;
                                             const parsed = new Date(`${normalized}T00:00:00`);
-                                            if (Number.isNaN(parsed.getTime())) return `${raw} · `;
+                                            if (Number.isNaN(parsed.getTime())) return "";
                                             return `${parsed.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })} · `;
                                         })()}
                                         {r.period ? `период ${r.period} · ` : ""}

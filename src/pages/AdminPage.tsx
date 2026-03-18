@@ -9384,7 +9384,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                       >
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{new Date(r.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}</td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).docNumber || "—"}</td>
-                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).docDate ? new Date((r as any).docDate + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
+                        <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
+                          {(() => {
+                            const raw = String((r as any).docDate ?? "").trim();
+                            if (!raw) return "—";
+                            const normalized = /^\d{4}-\d{2}$/.test(raw) ? `${raw}-01` : raw;
+                            const parsed = new Date(`${normalized}T00:00:00`);
+                            if (Number.isNaN(parsed.getTime())) return "—";
+                            return parsed.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" });
+                          })()}
+                        </td>
                         <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>{(r as any).period || "—"}</td>
                         <td style={{ padding: "6px 8px" }}>{getLoginDisplayName(r.login)}</td>
                         <td style={{ padding: "6px 8px" }}>{r.department}</td>
