@@ -630,7 +630,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return {
             id: `request-extra:${String(row?.uid ?? generateFallbackId())}`,
             categoryId: categoryId || `request-extra-category:${String(row?.uid ?? generateFallbackId())}`,
-            categoryName: String(row?.categoryName ?? categoryId || "Заявка на расходы"),
+            categoryName: String((row?.categoryName ?? categoryId) || "Заявка на расходы"),
             amount: Math.abs(Number(row?.amount) || 0),
             comment: String(row?.comment ?? "").trim() || null,
             direction: "",
