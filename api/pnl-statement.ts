@@ -14,9 +14,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const period = `${year}-${String(month).padStart(2, "0")}-01`;
       const { rows } = await pool.query(
-        `SELECT counterparty, total_amount AS "totalAmount",
-                operations_count AS count, accounted
-         FROM pnl_statement_expenses WHERE period = $1
+        `SELECT s.counterparty,
+                s.total_amount AS "totalAmount",
+                s.operations_count AS count,
+                CASE
+                  WHEN s.category_id IS NOT NULL THEN EXISTS (
+                    SELECT 1
+                    FROM pnl_manual_expenses m
+                    WHERE m.period = s.period
+                      AND m.category_id = s.category_id
+                      AND abs(coalesce(m.amount, 0)) > 0
+                  )
+                  ELSE s.accounted
+                END AS accounted
+         FROM pnl_statement_expenses s
+         WHERE s.period = $1
          ORDER BY total_amount DESC`,
         [period]
       );

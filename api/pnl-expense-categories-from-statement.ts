@@ -46,7 +46,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (month && year) {
       const period = `${year}-${String(month).padStart(2, "0")}-01`;
       await pool.query(
-        `UPDATE pnl_statement_expenses SET accounted = true, category_id = $1, updated_at = now()
+        `UPDATE pnl_statement_expenses SET accounted = false, category_id = $1, updated_at = now()
          WHERE period = $2 AND counterparty = $3`,
         [category.id, period, counterparty.trim()]
       );
