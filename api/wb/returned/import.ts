@@ -27,6 +27,49 @@ function findHeader(data: unknown[][]) {
   return -1;
 }
 
+/** Шаблон: один столбец с ID коробок (только цифры, без шапки «номер коробки»). */
+function detectSingleColumnBoxIdCol(data: unknown[][]): number | null {
+  let withData = 0;
+  let singleDigitCol = 0;
+  const colHits = new Map<number, number>();
+  const maxScan = Math.min(data.length, 500);
+  for (let i = 0; i < maxScan; i++) {
+    const row = data[i] ?? [];
+    const nonEmptyIdx: number[] = [];
+    for (let j = 0; j < row.length; j++) {
+      if (asText(row[j])) nonEmptyIdx.push(j);
+    }
+    if (nonEmptyIdx.length === 0) continue;
+    withData++;
+    if (nonEmptyIdx.length !== 1) continue;
+    const col = nonEmptyIdx[0]!;
+    const v = asText(row[col]).replace(/\s+/g, "");
+    if (/^\d{6,}$/.test(v)) {
+      singleDigitCol++;
+      colHits.set(col, (colHits.get(col) ?? 0) + 1);
+    }
+  }
+  if (withData < 3) return null;
+  if (singleDigitCol / withData < 0.75) return null;
+  let best = -1;
+  let bestN = 0;
+  for (const [c, n] of colHits) {
+    if (n > bestN) {
+      bestN = n;
+      best = c;
+    }
+  }
+  return best >= 0 ? best : null;
+}
+
+/** Номер ведомости из имени файла, напр. ..._208484996 (3).xlsx */
+function docNumberFromFilename(filename: string): string {
+  const base = filename.replace(/\.[^.]+$/i, "");
+  const runs = base.match(/\d{6,}/g);
+  if (!runs?.length) return "";
+  return runs.reduce((a, b) => (b.length >= a.length ? b : a), runs[0]!);
+}
+
 function pick(row: unknown[], headerMap: Map<string, number>, keys: string[]) {
   for (const k of keys) {
     const idx = headerMap.get(k);
@@ -91,12 +134,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!data.length) return res.status(400).json({ error: "Пустой файл", request_id: ctx.requestId });
 
     const hIdx = findHeader(data);
-    if (hIdx < 0) return res.status(400).json({ error: "Не найден заголовок таблицы", request_id: ctx.requestId });
-    const header = data[hIdx] ?? [];
+    const singleBoxCol = hIdx < 0 ? detectSingleColumnBoxIdCol(data) : null;
+    if (hIdx < 0 && singleBoxCol == null) {
+      return res.status(400).json({
+        error:
+          "Не найден заголовок с колонкой коробки. Ожидается таблица с заголовком или один столбец с ID коробок (от 6 цифр).",
+        request_id: ctx.requestId,
+      });
+    }
+    const header = singleBoxCol == null ? (data[hIdx] ?? []) : [];
     const hm = new Map<string, number>();
     header.forEach((c, i) => hm.set(norm(c), i));
     /** «Возвратная опись»: F2 — номер ведомости, O2 — дата (если не в колонках строк). */
     const sheetMeta = parseVozvratnayaOpisySheetMeta(data, ws);
+    const fileDocHint = docNumberFromFilename(file.originalFilename || "");
 
     let totalRows = 0;
     let insertedRows = 0;
@@ -105,21 +156,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let errorRows = 0;
     const ragQueue: Array<{ sourceId: string; content: string; metadata: Record<string, unknown> }> = [];
 
-    for (let i = hIdx + 1; i < data.length; i++) {
+    const dataStartRow = singleBoxCol != null ? 0 : hIdx + 1;
+
+    for (let i = dataStartRow; i < data.length; i++) {
       const row = data[i] ?? [];
-      const boxId = asText(
-        pick(row, hm, ["id коробки", "номер коробки", "коробка"]),
-      );
-      const cargoNumber = asText(pick(row, hm, ["номер груза", "перевозка", "cargo number"]));
-      const description = asText(pick(row, hm, ["описание", "комментарий"]));
-      let docNumber = asText(
-        pick(row, hm, ["номер документа", "документ", "номер претензии", "номер ведомости", "ведомость"]),
-      );
+      let boxId = "";
+      if (singleBoxCol != null) {
+        boxId = asText(row[singleBoxCol]).replace(/\s+/g, "");
+        if (!boxId || !/^\d{6,}$/.test(boxId)) continue;
+      } else {
+        boxId = asText(pick(row, hm, ["id коробки", "номер коробки", "коробка"]));
+      }
+      const cargoNumber = singleBoxCol != null ? "" : asText(pick(row, hm, ["номер груза", "перевозка", "cargo number"]));
+      const description = singleBoxCol != null ? "" : asText(pick(row, hm, ["описание", "комментарий"]));
+      let docNumber = singleBoxCol
+        ? ""
+        : asText(
+            pick(row, hm, ["номер документа", "документ", "номер претензии", "номер ведомости", "ведомость"]),
+          );
       if (!docNumber && sheetMeta.docNumber) docNumber = sheetMeta.docNumber;
-      let docDate = parseDateOnly(pick(row, hm, ["дата", "дата документа", "дата ведомости"]));
+      if (!docNumber && fileDocHint) docNumber = fileDocHint;
+      let docDate = singleBoxCol
+        ? null
+        : parseDateOnly(pick(row, hm, ["дата", "дата документа", "дата ведомости"]));
       if (!docDate && sheetMeta.docDate) docDate = sheetMeta.docDate;
-      const amount = parseNum(pick(row, hm, ["стоимость", "сумма", "цена"]));
-      const hasShk = parseBooleanFlag(pick(row, hm, ["есть шк", "has shk"]), true);
+      const amount = singleBoxCol != null ? 0 : parseNum(pick(row, hm, ["стоимость", "сумма", "цена"]));
+      const hasShk = parseBooleanFlag(
+        singleBoxCol != null ? "" : pick(row, hm, ["есть шк", "has shk"]),
+        true,
+      );
 
       if (!boxId && !cargoNumber && !description) continue;
       totalRows++;
@@ -142,7 +207,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            ) values (
              $1, 'import', $2, $3, $4, $5, $6, $7::date, $8, $9::jsonb
            )`,
-          [batchId, boxId, cargoNumber || null, description || null, hasShk, docNumber || null, docDate, amount || null, JSON.stringify({ row })],
+          [
+            batchId,
+            boxId,
+            cargoNumber || null,
+            description || null,
+            hasShk,
+            docNumber || null,
+            docDate,
+            Number.isFinite(amount) ? amount : null,
+            JSON.stringify({ row }),
+          ],
         );
         insertedRows++;
       } else {
@@ -156,7 +231,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
            ) values (
              $1, 'import', $2, $3, $4, $5, $6, $7::date, $8, $9::jsonb
            )`,
-          [batchId, boxId, cargoNumber || null, description || null, hasShk, docNumber || null, docDate, amount || null, JSON.stringify({ row })],
+          [
+            batchId,
+            boxId,
+            cargoNumber || null,
+            description || null,
+            hasShk,
+            docNumber || null,
+            docDate,
+            Number.isFinite(amount) ? amount : null,
+            JSON.stringify({ row }),
+          ],
         );
         updatedRows++;
       }
@@ -247,7 +332,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // ignore
       }
     }
-    return res.status(500).json({ error: "Ошибка импорта возвращенного груза", request_id: ctx.requestId });
+    const message =
+      error instanceof Error ? error.message : typeof error === "string" ? error : "Ошибка импорта возвращенного груза";
+    const safe = message.replace(/[\r\n]+/g, " ").trim().slice(0, 500);
+    return res.status(500).json({ error: safe || "Ошибка импорта возвращенного груза", request_id: ctx.requestId });
   } finally {
     try {
       client?.release();

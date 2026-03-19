@@ -4,7 +4,8 @@ import * as XLSX from "xlsx";
 import { getPool } from "../../_db.js";
 import { parseMultipart } from "../../_pnl-multipart.js";
 import { initRequestContext, logError } from "../../_lib/observability.js";
-import { parseDateOnly, parseNum, rebuildWbSummary, resolveWbAccess } from "../../_wb.js";
+import { parseNum, rebuildWbSummary, resolveWbAccess } from "../../_wb.js";
+import { parseCellDateFlexible } from "../_excelMeta.js";
 import { writeAuditLog } from "../../../lib/adminAuditLog.js";
 
 export const config = { api: { bodyParser: false } };
@@ -22,13 +23,42 @@ function pick(map: Map<string, unknown>, keys: string[]) {
   return "";
 }
 
+function safeJsonStringify(obj: unknown): string {
+  try {
+    return JSON.stringify(obj);
+  } catch {
+    return "{}";
+  }
+}
+
+/** Дата вида «04.06.2025 12:34» — берём только дату для parseCellDateFlexible. */
+function wbDateCellValue(raw: unknown): unknown {
+  if (raw instanceof Date) return raw;
+  const s = String(raw ?? "").trim();
+  if (!s) return raw;
+  const head = s.split(/\s+/)[0] ?? "";
+  if (/^\d{1,2}[./]\d{1,2}[./]\d{4}$/.test(head)) return head.replace(/\//g, ".");
+  return raw;
+}
+
+/** Номер коробки из текста комментария WB («коробка 3427463670»). */
+function boxIdFromComment(text: string): string {
+  const m = text.match(/короб(?:ка|ки)?\s*[:\s]?\s*(\d{6,})/iu);
+  return m?.[1] ? m[1].trim() : "";
+}
+
 function findHeaderRow(data: unknown[][]) {
   for (let i = 0; i < Math.min(50, data.length); i++) {
     const row = data[i] ?? [];
     const normalized = row.map(norm);
     const nonEmpty = normalized.filter(Boolean).length;
+    const joined = normalized.join("|");
     const hasClaim = normalized.some((c) => c.includes("удерж") || c.includes("претенз"));
-    if (hasClaim || nonEmpty >= 4) return i;
+    const looksWbExport =
+      joined.includes("штрихкод") &&
+      (joined.includes("цена") || joined.includes("руб")) &&
+      (joined.includes("id") || joined.includes("комментар"));
+    if (hasClaim || looksWbExport || nonEmpty >= 4) return i;
   }
   return 0;
 }
@@ -77,10 +107,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const revisionId = revisionInsert.rows[0]?.id;
     if (!revisionId) throw new Error("Не удалось создать ревизию удержаний");
 
-    const wb = XLSX.read(file.buffer, { type: "buffer", cellDates: true });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as unknown[][];
-    if (!data.length) return res.status(400).json({ error: "Пустой файл", request_id: ctx.requestId });
+    let wb: XLSX.WorkBook;
+    try {
+      wb = XLSX.read(file.buffer, { type: "buffer", cellDates: true });
+    } catch (e) {
+      throw new Error(`Не удалось прочитать Excel: ${(e as Error)?.message || e}`);
+    }
+    const names = wb.SheetNames || [];
+    let data: unknown[][] | null = null;
+    for (const name of names) {
+      const ws = wb.Sheets[name];
+      if (!ws) continue;
+      const sheetData = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as unknown[][];
+      if (sheetData.some((r) => (r ?? []).some((c) => asText(c)))) {
+        data = sheetData;
+        break;
+      }
+    }
+    if (!data?.length) {
+      return res.status(400).json({ error: "Пустой файл или нет данных на листах", request_id: ctx.requestId });
+    }
 
     const hIdx = findHeaderRow(data);
     const headerRaw = data[hIdx] ?? [];
@@ -103,12 +149,73 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const normalizedMap = new Map<string, unknown>();
       for (const [k, v] of Object.entries(allColumns)) normalizedMap.set(norm(k), v);
 
-      const claimNumber = asText(pick(normalizedMap, ["номер удержания", "номер претензии", "удержание", "претензия"]));
-      const boxId = asText(pick(normalizedMap, ["id коробки", "номер коробки", "коробка", "id короб"]));
-      const docNumber = asText(pick(normalizedMap, ["номер документа", "документ", "номер акта", "номер"]));
-      const docDate = parseDateOnly(pick(normalizedMap, ["дата документа", "дата", "date"]));
-      const description = asText(pick(normalizedMap, ["описание", "комментарий", "причина удержания"]));
-      const amountRub = parseNum(pick(normalizedMap, ["сумма", "стоимость", "сумма удержания", "удержание руб"]));
+      const claimNumber = asText(
+        pick(normalizedMap, [
+          "id",
+          "id заявки на оплату",
+          "номер удержания",
+          "номер претензии",
+          "удержание",
+          "претензия",
+          "номер штрафа",
+          "штраф",
+          "№ удержания",
+          "№ претензии",
+        ]),
+      );
+      let boxId = asText(
+        pick(normalizedMap, [
+          "id коробки",
+          "номер коробки",
+          "коробка",
+          "id короб",
+          "box id",
+          "идентификатор коробки",
+        ]),
+      );
+      const barcodeShk = asText(
+        pick(normalizedMap, ["штрихкод", "шк", "баркод", "barcode"]),
+      );
+      const docNumber = asText(
+        pick(normalizedMap, [
+          "id заявки на оплату",
+          "номер документа",
+          "документ",
+          "номер акта",
+          "номер",
+        ]),
+      );
+      const docDate = parseCellDateFlexible(
+        wbDateCellValue(
+          pick(normalizedMap, [
+            "дата претензии",
+            "дата заявки на оплату",
+            "дата документа",
+            "дата",
+            "date",
+          ]),
+        ),
+      );
+      const description = asText(
+        pick(normalizedMap, ["описание", "комментарий", "причина удержания"]),
+      );
+      if (!boxId && description) {
+        const fromComm = boxIdFromComment(description);
+        if (fromComm) boxId = fromComm;
+      }
+      if (!boxId && barcodeShk) boxId = barcodeShk;
+      const amountRub = parseNum(
+        pick(normalizedMap, [
+          "цена, руб.",
+          "цена руб.",
+          "цена, руб",
+          "цена руб",
+          "сумма",
+          "стоимость",
+          "сумма удержания",
+          "удержание руб",
+        ]),
+      );
 
       if (!boxId && !claimNumber && !description) {
         errorRows++;
@@ -116,7 +223,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           await client.query(
             `insert into wb_import_row_errors (batch_id, row_number, error_message, row_payload)
              values ($1, $2, $3, $4::jsonb)`,
-            [batchId, i + 1, "Пустая строка удержания", JSON.stringify({ allColumns })],
+            [batchId, i + 1, "Пустая строка удержания", safeJsonStringify({ allColumns })],
           );
         }
         continue;
@@ -128,7 +235,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          ) values (
            $1, $2, $3, $4, $5, $6::date, $7, $8, $9::jsonb
          )`,
-        [revisionId, i + 1, claimNumber || null, boxId || null, docNumber || null, docDate, description || null, amountRub || null, JSON.stringify(allColumns)],
+        [
+          revisionId,
+          i + 1,
+          claimNumber || null,
+          boxId || null,
+          docNumber || null,
+          docDate,
+          description || null,
+          Number.isFinite(amountRub) ? amountRub : null,
+          safeJsonStringify(allColumns),
+        ],
       );
       insertedRows++;
 
@@ -231,7 +348,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // ignore
       }
     }
-    return res.status(500).json({ error: "Ошибка импорта удержаний", request_id: ctx.requestId });
+    const message =
+      error instanceof Error ? error.message : typeof error === "string" ? error : "Ошибка импорта удержаний";
+    const safe = message.replace(/[\r\n]+/g, " ").trim().slice(0, 500);
+    return res.status(500).json({
+      error: safe || "Ошибка импорта удержаний",
+      request_id: ctx.requestId,
+    });
   } finally {
     try {
       client?.release();
