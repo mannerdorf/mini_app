@@ -4,7 +4,7 @@ import { initRequestContext, logError } from "./_lib/observability.js";
 
 const PERMISSION_KEYS = [
   "cms_access", "home", "dashboard", "cargo", "doc_invoices", "doc_acts", "doc_orders", "doc_sendings", "doc_claims",
-  "doc_contracts", "doc_acts_settlement", "doc_tariffs", "haulz", "eor", "chat", "service_mode", "analytics",
+  "doc_contracts", "doc_acts_settlement", "doc_tariffs", "haulz", "eor", "wb", "chat", "service_mode", "analytics", "supervisor", "accounting",
 ];
 
 function normalizePermissions(permissions: unknown): Record<string, boolean> {

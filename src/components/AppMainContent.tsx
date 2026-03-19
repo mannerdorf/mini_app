@@ -4,6 +4,7 @@ import { Loader2, Package } from "lucide-react";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { CargoPage } from "../pages/CargoPage";
 import { ExpenseRequestsPage } from "../pages/ExpenseRequestsPage";
+import { WildberriesPage } from "../pages/WildberriesPage";
 import type { Account, AuthData, Tab } from "../types";
 
 type Props = {
@@ -30,6 +31,7 @@ type Props = {
   aisOpenWithMmsi: string | null;
   setAisOpenWithMmsi: (value: string | null) => void;
   openTelegramBotWithAccount: () => Promise<void>;
+  openWildberries: () => void;
   handleSwitchAccount: (accountId: string) => void;
   handleAddAccount: (account: Account) => Promise<void>;
   handleRemoveAccount: (accountId: string) => void;
@@ -134,6 +136,7 @@ export function AppMainContent({
   aisOpenWithMmsi,
   setAisOpenWithMmsi,
   openTelegramBotWithAccount,
+  openWildberries,
   handleSwitchAccount,
   handleAddAccount,
   handleRemoveAccount,
@@ -173,6 +176,15 @@ export function AppMainContent({
           <ExpenseRequestsPage
             auth={auth}
             departmentName={activeAccount?.customer ?? "Моё подразделение"}
+          />
+        </SectionBoundary>
+      )}
+
+      {activeTab === "wildberries" && auth && (
+        <SectionBoundary section="Wildberries">
+          <WildberriesPage
+            auth={auth}
+            canUpload={activeAccount?.permissions?.cms_access === true}
           />
         </SectionBoundary>
       )}
@@ -246,6 +258,7 @@ export function AppMainContent({
             onOpenTelegramBot={openTelegramBotWithAccount}
             onOpenMaxBot={undefined}
             onUpdateAccount={handleUpdateAccount}
+            onOpenWildberries={openWildberries}
           />
         </Suspense>
         </SectionBoundary>
@@ -286,6 +299,7 @@ export function AppMainContent({
             onOpenTelegramBot={openTelegramBotWithAccount}
             onOpenMaxBot={undefined}
             onUpdateAccount={handleUpdateAccount}
+            onOpenWildberries={openWildberries}
           />
         </Suspense>
         </SectionBoundary>

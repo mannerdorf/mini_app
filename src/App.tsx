@@ -279,6 +279,28 @@ export default function App() {
     const serviceModeUnlocked = useMemo(() => {
         return !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
     }, [activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
+    const isWbOnlyUser = useMemo(() => {
+        if (!activeAccount?.isRegisteredUser || activeAccount?.permissions?.wb !== true) return false;
+        const perms = activeAccount.permissions || {};
+        const hasCoreNonWbAccess = !!(
+            perms.cms_access ||
+            perms.haulz ||
+            perms.eor ||
+            perms.accounting ||
+            perms.supervisor ||
+            perms.analytics
+        );
+        return !hasCoreNonWbAccess;
+    }, [
+        activeAccount?.isRegisteredUser,
+        activeAccount?.permissions?.wb,
+        activeAccount?.permissions?.cms_access,
+        activeAccount?.permissions?.haulz,
+        activeAccount?.permissions?.eor,
+        activeAccount?.permissions?.accounting,
+        activeAccount?.permissions?.supervisor,
+        activeAccount?.permissions?.analytics,
+    ]);
     useEffect(() => {
         if (!serviceModeUnlocked && useServiceRequest) {
             setUseServiceRequest(false);
@@ -367,7 +389,9 @@ export default function App() {
         if (typeof window === "undefined") return "cargo";
         try {
             const url = new URL(window.location.href);
+            if (/^\/wildberries\/?$/i.test(url.pathname)) return "wildberries";
             const t = (url.searchParams.get("tab") || "").toLowerCase();
+            if (t === "wildberries") return "wildberries";
             if (t === "profile") return "profile";
             if (t === "cargo") return "cargo";
             if (t === "home" || t === "dashboard") return "dashboard";
@@ -485,6 +509,10 @@ export default function App() {
     useEffect(() => {
         if (!activeAccount?.isRegisteredUser || !activeAccount?.permissions) return;
         const perms = activeAccount.permissions;
+        if (isWbOnlyUser) {
+            if (activeTab !== "wildberries") setActiveTab("wildberries");
+            return;
+        }
         const canHome = true;
         const canCargo = true;
         const canDocs = !!(
@@ -508,7 +536,7 @@ export default function App() {
         if (isAllowed) return;
         const fallback: Tab = canHome ? "dashboard" : canDocs ? "docs" : canCargo ? "cargo" : canExpenseRequests ? "expense_requests" : "profile";
         if (fallback !== activeTab) setActiveTab(fallback);
-    }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.permissions, activeTab]);
+    }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.permissions, activeTab, isWbOnlyUser]);
 
     useEffect(() => {
         document.body.className = `${theme}-mode`;
@@ -644,7 +672,7 @@ export default function App() {
                         }
                         // Восстанавливаем последнюю вкладку (без сохранения секретного режима)
                         if (savedTab && !hasUrlTabOverrideRef.current) {
-                            const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs", "expense_requests"];
+                            const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs", "expense_requests", "wildberries"];
                             const t = savedTab as Tab;
                             if (allowed.includes(t)) {
                                 if (t === "docs") {
@@ -702,6 +730,15 @@ export default function App() {
             const url = new URL(window.location.href);
             const tabInUrl = url.searchParams.get("tab");
             if (tabInUrl === "cms") return; // админка — URL не меняем
+            if (activeTab === "wildberries") {
+                url.pathname = "/wildberries";
+                url.searchParams.delete("tab");
+                window.history.replaceState(null, "", url.toString());
+                return;
+            }
+            if (/^\/wildberries\/?$/i.test(url.pathname)) {
+                url.pathname = "/";
+            }
             const tabForUrl = activeTab === "dashboard" ? "home" : activeTab;
             url.searchParams.set("tab", tabForUrl);
             window.history.replaceState(null, "", url.toString());
@@ -1903,6 +1940,77 @@ export default function App() {
         );
     }
 
+    if (isWbOnlyUser) {
+        return (
+            <>
+                <Container className="app-container">
+                    <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
+                        <Flex align="center" justify="space-between" className="header-top-row">
+                            <Typography.Title className="logo-text" style={{ margin: 0 }}>HAULZ WB</Typography.Title>
+                            <Flex align="center" className="space-x-3">
+                                <Button className="search-toggle-button" onClick={toggleTheme} title={theme === "dark" ? "Светлый режим" : "Темный режим"} aria-label={theme === "dark" ? "Включить светлый режим" : "Включить темный режим"}>
+                                    {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                                </Button>
+                                <Button className="search-toggle-button" onClick={handleLogout} title="Выход" aria-label="Выйти">
+                                    <LogOut className="w-5 h-5" />
+                                </Button>
+                            </Flex>
+                        </Flex>
+                    </header>
+                    <div className={`app-main${desktopExpanded ? " app-main-wide" : ""}`}>
+                        <div className="w-full">
+                            <AppRuntimeProvider
+                                value={{
+                                    useServiceRequest: false,
+                                    searchText,
+                                    activeInn: activeAccount?.activeCustomerInn ?? auth?.inn ?? "",
+                                }}
+                            >
+                                <AppMainContent
+                                    showDashboard={false}
+                                    activeTab={"wildberries"}
+                                    auth={auth}
+                                    selectedAuths={selectedAuths}
+                                    accounts={accounts}
+                                    activeAccountId={activeAccountId}
+                                    activeAccount={activeAccount}
+                                    contextCargoNumber={contextCargoNumber}
+                                    useServiceRequest={false}
+                                    setContextCargoNumber={setContextCargoNumber}
+                                    setActiveTab={setActiveTab}
+                                    setSelectedAccountIds={setSelectedAccountIds}
+                                    setActiveAccountId={setActiveAccountId}
+                                    updateActiveAccountCustomer={updateActiveAccountCustomer}
+                                    openCargoWithFilters={openCargoWithFilters}
+                                    openCargoFromChat={openCargoFromChat}
+                                    openCargoFromDocuments={openCargoFromDocuments}
+                                    openClaimFromCargo={openClaimFromCargo}
+                                    openDocumentsWithSection={openDocumentsWithSection}
+                                    openAisWithMmsi={openAisWithMmsi}
+                                    aisOpenWithMmsi={aisOpenWithMmsi}
+                                    setAisOpenWithMmsi={setAisOpenWithMmsi}
+                                    openTelegramBotWithAccount={openTelegramBotWithAccount}
+                                    handleSwitchAccount={handleSwitchAccount}
+                                    handleAddAccount={handleAddAccount}
+                                    handleRemoveAccount={handleRemoveAccount}
+                                    handleUpdateAccount={handleUpdateAccount}
+                                    setIsOfferOpen={setIsOfferOpen}
+                                    setIsPersonalConsentOpen={setIsPersonalConsentOpen}
+                                    openSecretPinModal={openSecretPinModal}
+                                    openWildberries={() => setActiveTab("wildberries")}
+                                    CargoDetailsModal={CargoDetailsModal}
+                                    DashboardPageComponent={DashboardPage}
+                                    ProfilePageComponent={ProfilePage}
+                                    DocumentsPageComponent={DocumentsPage}
+                                />
+                            </AppRuntimeProvider>
+                        </div>
+                    </div>
+                </Container>
+            </>
+        );
+    }
+
     return (
         <>
             <Container className={`app-container`}>
@@ -2091,6 +2199,7 @@ export default function App() {
                             setIsOfferOpen={setIsOfferOpen}
                             setIsPersonalConsentOpen={setIsPersonalConsentOpen}
                             openSecretPinModal={openSecretPinModal}
+                            openWildberries={() => setActiveTab("wildberries")}
                             CargoDetailsModal={CargoDetailsModal}
                             DashboardPageComponent={DashboardPage}
                             ProfilePageComponent={ProfilePage}

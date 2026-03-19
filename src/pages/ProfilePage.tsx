@@ -32,7 +32,8 @@ export function ProfilePage({
     setAisOpenWithMmsi,
     onOpenTelegramBot,
     onOpenMaxBot,
-    onUpdateAccount
+    onUpdateAccount,
+    onOpenWildberries
 }: {
     accounts: Account[];
     activeAccountId: string | null;
@@ -49,6 +50,7 @@ export function ProfilePage({
     onOpenTelegramBot?: () => Promise<void>;
     onOpenMaxBot?: () => Promise<void>;
     onUpdateAccount: (accountId: string, patch: Partial<Account>) => void;
+    onOpenWildberries?: () => void;
 }) {
     const [currentView, setCurrentView] = useState<ProfileView>('main');
     const activeAccount = accounts.find(acc => acc.id === activeAccountId) || null;
@@ -1385,6 +1387,11 @@ export function ProfilePage({
                     {activeAccount?.permissions?.accounting === true && (
                         <Button type="button" className="button-primary" onClick={() => setCurrentView('accounting')}>
                             Бухгалтерия
+                        </Button>
+                    )}
+                    {activeAccount?.permissions?.wb === true && onOpenWildberries && (
+                        <Button type="button" className="button-primary" onClick={onOpenWildberries}>
+                            Wildberries
                         </Button>
                     )}
                 </Flex>

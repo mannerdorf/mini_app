@@ -1360,6 +1360,15 @@ body {
 .permission-button.active.active-eor:hover {
     border-color: #06b6d4;
 }
+.permission-button.active.active-purple {
+    background: #7c3aed;
+    color: white;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.28);
+}
+.permission-button.active.active-purple:hover {
+    border-color: #7c3aed;
+}
 .light-mode .admin-form-input::placeholder,
 .light-mode .admin-form-input input::placeholder {
     color: #9ca3af !important;
@@ -1803,4 +1812,111 @@ body {
 .dark-mode .perevozka-timeline-dot {
     border-color: var(--color-bg-card);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Wildberries module */
+.wb-page {
+    width: 100%;
+}
+.wb-page-top {
+    margin-bottom: 0.75rem;
+}
+.wb-panel {
+    border: 1px solid rgba(124, 58, 237, 0.22);
+    background: linear-gradient(180deg, rgba(124, 58, 237, 0.08) 0%, rgba(124, 58, 237, 0.02) 100%);
+}
+.wb-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-bottom: 0.75rem;
+}
+.wb-tab-btn {
+    border: 1px solid rgba(124, 58, 237, 0.3);
+    border-radius: 999px;
+    background: rgba(124, 58, 237, 0.06);
+    color: var(--color-text-primary);
+    padding: 0.4rem 0.8rem;
+    font-size: 0.86rem;
+    cursor: pointer;
+}
+.wb-tab-btn.active {
+    background: #7c3aed;
+    color: #ffffff;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2);
+}
+.wb-filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.5rem;
+}
+.wb-upload-box {
+    margin-top: 0.75rem;
+    border: 1px dashed rgba(124, 58, 237, 0.42);
+    border-radius: 0.65rem;
+    padding: 0.65rem;
+    background: rgba(124, 58, 237, 0.04);
+}
+.wb-upload-drop {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.55rem;
+    cursor: pointer;
+    color: var(--color-text-secondary);
+}
+.wb-mode-btn {
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-text-primary);
+    padding: 0.25rem 0.6rem;
+    cursor: pointer;
+}
+.wb-mode-btn.active {
+    background: #7c3aed;
+    color: #fff;
+    border-color: #7c3aed;
+}
+.wb-manual-panel {
+    margin-top: 0.75rem;
+    border: 1px solid rgba(124, 58, 237, 0.22);
+}
+.wb-table-wrap {
+    margin-top: 0.75rem;
+    overflow: auto;
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+}
+.wb-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+}
+.wb-table th,
+.wb-table td {
+    border-bottom: 1px solid var(--color-border);
+    padding: 0.45rem 0.5rem;
+    text-align: left;
+    white-space: nowrap;
+}
+.wb-table th {
+    background: rgba(124, 58, 237, 0.1);
+    color: var(--color-text-primary);
+}
+.wb-search-results {
+    margin-top: 0.75rem;
+    border-top: 1px solid var(--color-border);
+    padding-top: 0.75rem;
+}
+.wb-search-card {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    margin-bottom: 0.45rem;
+    background: var(--color-bg-card);
 }

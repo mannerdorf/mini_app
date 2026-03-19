@@ -11,7 +11,7 @@ type NotFoundPageProps = {
 
 const isValidPath = (path: string): boolean => {
   const p = (path || "/").replace(/\/$/, "") || "/";
-  return p === "/" || p === "" || p === "/index.html" || /^\/(admin|cms)$/i.test(p);
+  return p === "/" || p === "" || p === "/index.html" || /^\/(admin|cms|wildberries)$/i.test(p);
 };
 
 export function NotFoundPage({ onGoHome, onSearch }: NotFoundPageProps) {

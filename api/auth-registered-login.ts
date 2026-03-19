@@ -99,6 +99,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
             doc_tariffs: false,
             haulz: false,
             eor: false,
+            wb: false,
             chat: true,
             service_mode: false,
             analytics: false,

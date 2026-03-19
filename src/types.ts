@@ -19,6 +19,7 @@ export type AccountPermissions = {
     supervisor?: boolean;
     chat?: boolean;
     haulz?: boolean;
+    wb?: boolean;
     doc_invoices?: boolean;
     doc_acts?: boolean;
     doc_orders?: boolean;
@@ -60,7 +61,7 @@ export type Account = {
     twoFactorGoogleSecretSet?: boolean;
 };
 
-export type Tab = "home" | "cargo" | "docs" | "profile" | "dashboard" | "expense_requests";
+export type Tab = "home" | "cargo" | "docs" | "profile" | "dashboard" | "expense_requests" | "wildberries";
 
 export type DateFilter = "все" | "сегодня" | "вчера" | "неделя" | "месяц" | "год" | "период";
 

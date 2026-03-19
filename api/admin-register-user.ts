@@ -24,6 +24,7 @@ const DEFAULT_PERMISSIONS = {
   doc_tariffs: false,
   haulz: false,
   eor: false,
+  wb: false,
   chat: true,
   service_mode: false,
   analytics: false,
