@@ -242,7 +242,10 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
           null;
         const cost = parseNum(claim?.amount_rub ?? returned?.amount_rub ?? inbound?.price_rub ?? 0);
         const docNumber = claim?.doc_number || returned?.document_number || null;
-        const docDate = claim?.doc_date || returned?.document_date || inbound?.inventory_created_at || null;
+        // Как при импорте (9a7a1598): dd.mm.yyyy из Excel/БД; иначе $n::date в bulk INSERT даёт 500 на Vercel.
+        const rawDocDate = claim?.doc_date || returned?.document_date || inbound?.inventory_created_at || null;
+        const docDate =
+          rawDocDate == null || rawDocDate === "" ? null : parseDateOnly(rawDocDate);
         const sourceRow = claim?.row_number ?? inbound?.row_number ?? null;
 
         rowTuples.push(
