@@ -262,8 +262,25 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           headers: authHeaders,
           body: fd,
         });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка импорта");
+        const rawText = await res.text();
+        let data: Record<string, unknown> = {};
+        if (rawText) {
+          try {
+            data = JSON.parse(rawText) as Record<string, unknown>;
+          } catch {
+            data = {};
+          }
+        }
+        if (!res.ok) {
+          const apiErr = typeof data.error === "string" ? data.error.trim() : "";
+          const reqId = typeof data.request_id === "string" ? data.request_id : "";
+          const idSuffix = reqId ? ` [${reqId}]` : "";
+          if (apiErr) throw new Error(`${apiErr}${idSuffix}`);
+          const snippet = rawText.replace(/\s+/g, " ").trim().slice(0, 280);
+          if (snippet && !snippet.startsWith("{"))
+            throw new Error(`Сервер ответил ${res.status}: ${snippet}${idSuffix}`);
+          throw new Error(`Импорт не выполнен (HTTP ${res.status})${idSuffix || ""}. Попробуйте меньший файл или режим «Обновить по ключу».`);
+        }
         await loadData();
       } catch (e: unknown) {
         setUploadError((e as Error)?.message || "Ошибка импорта");

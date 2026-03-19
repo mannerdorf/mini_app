@@ -32,6 +32,9 @@
     {"source": "/admin", "destination": "/"},
     {"source": "/admin/:path*", "destination": "/"},
     {"source": "/cms", "destination": "/"},
-    {"source": "/cms/:path*", "destination": "/"}
+    {"source": "/cms/:path*", "destination": "/"},
+    {"source": "/wildberries", "destination": "/"},
+    {"source": "/wildberries/", "destination": "/"},
+    {"source": "/wildberries/:path*", "destination": "/"}
   ]
 }
