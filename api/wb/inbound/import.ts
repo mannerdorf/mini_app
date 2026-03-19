@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { PoolClient } from "pg";
 import * as XLSX from "xlsx";
 import { getPool } from "../../_db.js";
 import { parseMultipart } from "../../_pnl-multipart.js";
@@ -6,7 +7,6 @@ import { initRequestContext, logError } from "../../_lib/observability.js";
 import { parseDateOnly, parseNum, rebuildWbSummary, resolveWbAccess } from "../../_wb.js";
 import { parseCellDateFlexible, readSheetCellRaw } from "./_excelMeta.js";
 import { writeAuditLog } from "../../../lib/adminAuditLog.js";
-import { upsertDocument } from "../../../lib/rag.js";
 
 export const config = { api: { bodyParser: false } };
 const MAX_INBOUND_FILES = 15;
@@ -111,13 +111,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
-  const pool = getPool();
-  const access = await resolveWbAccess(req, pool, "write");
-  if (!access) return res.status(401).json({ error: "Доступ только для админа", request_id: ctx.requestId });
-
-  const client = await pool.connect();
+  let client: PoolClient | null = null;
   let batchId: number | null = null;
   try {
+    const pool = getPool();
+    const access = await resolveWbAccess(req, pool, "write");
+    if (!access) return res.status(401).json({ error: "Доступ только для админа", request_id: ctx.requestId });
+
+    client = await pool.connect();
     const { fields, files } = await parseMultipart(req);
     const inboundFiles = files.filter((f) => f.fieldName === "file" || f.fieldName === "files");
     if (inboundFiles.length === 0) return res.status(400).json({ error: "Файл не передан", request_id: ctx.requestId });
@@ -376,20 +377,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const ragToFlush = ragQueue.slice();
     void (async () => {
-      for (const doc of ragToFlush) {
-        try {
-          await upsertDocument({
-            sourceType: "wb_inbound",
-            sourceId: doc.sourceId,
-            title: `WB inbound ${doc.metadata.inventoryNumber ?? ""}`,
-            content: doc.content,
-            metadata: doc.metadata,
-          });
-        } catch {
-          // best-effort; не блокируем ответ импорта
+      try {
+        const { upsertDocument } = await import("../../../lib/rag.js");
+        for (const doc of ragToFlush) {
+          try {
+            await upsertDocument({
+              sourceType: "wb_inbound",
+              sourceId: doc.sourceId,
+              title: `WB inbound ${doc.metadata.inventoryNumber ?? ""}`,
+              content: doc.content,
+              metadata: doc.metadata,
+            });
+          } catch {
+            // best-effort
+          }
         }
+      } catch {
+        // RAG-модуль не загрузился — импорт в БД уже сохранён
       }
-    })();
+    })().catch(() => {});
 
     return res.status(200).json({
       ok: true,
@@ -405,7 +411,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (error) {
     logError(ctx, "wb_inbound_import_failed", error);
-    if (batchId) {
+    if (batchId && client) {
       try {
         await client.query("update wb_inbound_import_batches set status = 'failed' where id = $1", [batchId]);
       } catch {
@@ -415,7 +421,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const message = (error as Error)?.message || "Ошибка импорта описи WB";
     return res.status(500).json({ error: message, request_id: ctx.requestId });
   } finally {
-    client.release();
+    client?.release();
   }
 }
 
