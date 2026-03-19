@@ -373,7 +373,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    await rebuildWbSummary(pool);
+    // Пересборка сводной в фоне: на больших данных await здесь даёт таймаут/OOM на Vercel (FUNCTION_INVOCATION_FAILED).
+    void rebuildWbSummary(pool).catch((err) => {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          event: "wb_rebuild_summary_deferred_failed",
+          route: ctx.route,
+          request_id: ctx.requestId,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    });
 
     const ragToFlush = ragQueue.slice();
     void (async () => {
@@ -407,6 +418,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       updatedRows,
       skippedRows,
       errorRows,
+      summaryRebuildAsync: true,
       request_id: ctx.requestId,
     });
   } catch (error) {
@@ -421,7 +433,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const message = (error as Error)?.message || "Ошибка импорта описи WB";
     return res.status(500).json({ error: message, request_id: ctx.requestId });
   } finally {
-    client?.release();
+    try {
+      client?.release();
+    } catch {
+      // повторный release / оборванное соединение не должны ронять инвокацию после ответа
+    }
   }
 }
 

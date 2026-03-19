@@ -192,7 +192,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    await rebuildWbSummary(pool);
+    void rebuildWbSummary(pool).catch((err) => {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          event: "wb_rebuild_summary_deferred_failed",
+          route: ctx.route,
+          request_id: ctx.requestId,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    });
 
     const ragToFlush = ragQueue.slice();
     void (async () => {
@@ -225,6 +235,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       updatedRows,
       skippedRows,
       errorRows,
+      summaryRebuildAsync: true,
       request_id: ctx.requestId,
     });
   } catch (error) {
@@ -238,7 +249,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return res.status(500).json({ error: "Ошибка импорта возвращенного груза", request_id: ctx.requestId });
   } finally {
-    client?.release();
+    try {
+      client?.release();
+    } catch {
+      /* ignore */
+    }
   }
 }
 

@@ -167,7 +167,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     await client.query("commit");
-    await rebuildWbSummary(pool);
+
+    void rebuildWbSummary(pool).catch((err) => {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          event: "wb_rebuild_summary_deferred_failed",
+          route: ctx.route,
+          request_id: ctx.requestId,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    });
 
     await writeAuditLog(pool, {
       action: "wb_claims_import_revision",
@@ -207,6 +218,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       totalRows,
       insertedRows,
       errorRows,
+      summaryRebuildAsync: true,
       request_id: ctx.requestId,
     });
   } catch (error) {
@@ -221,7 +233,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     return res.status(500).json({ error: "Ошибка импорта удержаний", request_id: ctx.requestId });
   } finally {
-    client?.release();
+    try {
+      client?.release();
+    } catch {
+      /* ignore */
+    }
   }
 }
 

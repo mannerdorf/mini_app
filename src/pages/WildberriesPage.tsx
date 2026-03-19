@@ -281,6 +281,14 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             throw new Error(`Сервер ответил ${res.status}: ${snippet}${idSuffix}`);
           throw new Error(`Импорт не выполнен (HTTP ${res.status})${idSuffix || ""}. Попробуйте меньший файл или режим «Обновить по ключу».`);
         }
+        // Отдельный запрос: на Vercel фоновый rebuild после ответа импорта может не выполниться.
+        if (data.summaryRebuildAsync === true) {
+          try {
+            await fetch("/api/wb/summary/refresh", { method: "POST", headers: authHeaders });
+          } catch {
+            /* ignore */
+          }
+        }
         await loadData();
       } catch (e: unknown) {
         setUploadError((e as Error)?.message || "Ошибка импорта");
