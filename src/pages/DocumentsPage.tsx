@@ -3322,7 +3322,7 @@ useEffect(() => {
                 />
             )}
             {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
-            {!loading && !error && tableModeEffective && !effectiveServiceMode && sortedGroupedByCustomer.length > 0 && (
+            {!loading && !error && tableModeEffective && sortedGroupedByCustomer.length > 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -3398,7 +3398,7 @@ useEffect(() => {
                     </table>
                 </div>
             )}
-            {!loading && !error && tableModeEffective && effectiveServiceMode && filteredItems.length > 0 && (
+            {!loading && !error && tableModeEffective && effectiveServiceMode && filteredItems.length > 0 && sortedGroupedByCustomer.length === 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -3524,7 +3524,7 @@ useEffect(() => {
                 />
             )}
             {(actsLoading || !!actsError) && <DocumentsStateBlocks loading={actsLoading} error={actsError} emptyText="" />}
-            {!actsLoading && !actsError && tableModeEffective && !effectiveServiceMode && sortedGroupedActsByCustomer.length > 0 && (
+            {!actsLoading && !actsError && tableModeEffective && sortedGroupedActsByCustomer.length > 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -3582,7 +3582,7 @@ useEffect(() => {
                     </table>
                 </div>
             )}
-            {!actsLoading && !actsError && tableModeEffective && effectiveServiceMode && filteredActs.length > 0 && (
+            {!actsLoading && !actsError && tableModeEffective && effectiveServiceMode && filteredActs.length > 0 && sortedGroupedActsByCustomer.length === 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>

@@ -52,7 +52,15 @@ export function CargoCustomerTable({
   onSelectCargo,
 }: CargoCustomerTableProps) {
   return (
-    <div className="cargo-card" style={{ overflowX: "auto", marginBottom: "1rem" }}>
+    <div
+      className="cargo-card"
+      style={{
+        overflowX: "auto",
+        overflowY: "visible",
+        marginBottom: "1rem",
+        paddingTop: "0.45rem",
+      }}
+    >
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
         <thead>
           <tr

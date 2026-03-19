@@ -812,7 +812,7 @@ body {
     min-width: 0;
     overflow-x: hidden;
     padding-bottom: 0.5rem;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.6rem;
 }
 
 /* Панель bulk-действий в "Отправках" остаётся закреплённой при скролле */
