@@ -29,6 +29,37 @@ function findHeaderRow(data: unknown[][]) {
   return -1;
 }
 
+/** Ячейка Excel: row/col с 1 (например F2 → row 2, col 6). */
+function cellRC(data: unknown[][], row1: number, col1: number): unknown {
+  const r = data[row1 - 1];
+  if (!r) return undefined;
+  return r[col1 - 1];
+}
+
+/** Дата из ячейки XLSX: Date, серийный номер Excel или строка. */
+function parseCellDateFlexible(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) {
+    const t = value.getTime();
+    if (Number.isNaN(t)) return null;
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (value > 1 && value < 100000) {
+      try {
+        const p = XLSX.SSF.parse_date_code(value) as { y: number; m: number; d: number };
+        if (p?.y && p.m && p.d) {
+          return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  }
+  return parseDateOnly(value);
+}
+
 function parseInventoryMeta(data: unknown[][]) {
   let inventoryNumber = "";
   let inventoryDate: string | null = null;
@@ -79,6 +110,19 @@ function parseInventoryMeta(data: unknown[][]) {
   }
   // Финальная очистка номера: оставляем только цифры.
   if (inventoryNumber) inventoryNumber = inventoryNumber.replace(/[^\d]/g, "");
+  // Шаблоны вроде «Возвратная/ввозная опись» (Калининград): номер в F2, дата в O2.
+  if (!inventoryNumber || !inventoryDate) {
+    const f2 = cellRC(data, 2, 6);
+    const o2 = cellRC(data, 2, 15);
+    if (!inventoryNumber) {
+      const fromF2 = asText(f2).replace(/[^\d]/g, "") || asText(f2);
+      if (fromF2) inventoryNumber = fromF2.replace(/[^\d]/g, "");
+    }
+    if (!inventoryDate) {
+      const fromO2 = parseCellDateFlexible(o2);
+      if (fromO2) inventoryDate = fromO2;
+    }
+  }
   return { inventoryNumber, inventoryDate };
 }
 
@@ -185,6 +229,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const idxPrice = col("цена, rub");
         const idxTnved = col("тнвэд");
         const idxMass = col("масса");
+        const idxInvNumCol = col("номер ввозной описи");
+        const idxInvDateCol = col("дата создания ввозной описи");
 
         for (let i = headerRowIdx + 1; i < data.length; i++) {
           const row = data[i] ?? [];
@@ -192,9 +238,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const shk = asText(row[idxShk]);
           if (!boxNumber && !shk) continue;
           totalRows++;
-          const inventoryNumber = invMeta || asText((row[col("номер ввозной описи")] ?? ""));
-          const invDateRaw = row[col("дата создания ввозной описи")] ?? inventoryDate ?? "";
-          const inventoryCreatedAt = parseDateOnly(invDateRaw);
+          const inventoryNumber = invMeta || (idxInvNumCol >= 0 ? asText(row[idxInvNumCol]) : "");
+          const invDateFromRow = idxInvDateCol >= 0 ? row[idxInvDateCol] : undefined;
+          const invDateRaw = invDateFromRow ?? inventoryDate ?? "";
+          const inventoryCreatedAt = parseCellDateFlexible(invDateRaw);
           if (!inventoryNumber || !boxNumber || !shk) {
             errorRows++;
             if (batchId) {
