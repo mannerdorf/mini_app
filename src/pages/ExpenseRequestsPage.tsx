@@ -135,6 +135,13 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [selectedEmployee, setSelectedEmployee] = useState("");
     const [employeeSearch, setEmployeeSearch] = useState("");
     const [employeeDropdownOpen, setEmployeeDropdownOpen] = useState(false);
+    const [expenseFilterPeriod, setExpenseFilterPeriod] = useState("");
+    const [expenseFilterDepartment, setExpenseFilterDepartment] = useState("");
+    const [expenseFilterCategory, setExpenseFilterCategory] = useState("");
+    const [expenseFilterVehicle, setExpenseFilterVehicle] = useState("");
+    const [expenseFilterEmployee, setExpenseFilterEmployee] = useState("");
+    const [expenseFilterSupplier, setExpenseFilterSupplier] = useState("");
+    const [expenseFilterStatus, setExpenseFilterStatus] = useState("");
 
     const supplierDropdownRef = useRef<HTMLDivElement>(null);
     const vehicleDropdownRef = useRef<HTMLDivElement>(null);
@@ -389,6 +396,53 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         if (!q) return employees;
         return employees.filter((e) => `${e.fullName} ${e.login} ${e.position ?? ""}`.toLowerCase().includes(q));
     }, [employees, employeeSearch]);
+
+    const getSupplierLabel = useCallback((item: ExpenseRequestItem) => {
+        const supplierName = String(item.supplierName ?? "").trim();
+        const supplierInn = String(item.supplierInn ?? "").trim();
+        if (supplierName && supplierInn) return `${supplierName}, ИНН ${supplierInn}`;
+        if (supplierName) return supplierName;
+        if (supplierInn) return `ИНН ${supplierInn}`;
+        return "";
+    }, []);
+
+    const filterDepartmentOptions = useMemo(
+        () => [...new Set(list.map((r) => String(r.department || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru")),
+        [list]
+    );
+    const filterCategoryOptions = useMemo(
+        () => [...new Set(list.map((r) => String(r.categoryName || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru")),
+        [list]
+    );
+    const filterVehicleOptions = useMemo(
+        () => [...new Set(list.map((r) => String(r.vehicleOrEmployee || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru")),
+        [list]
+    );
+    const filterEmployeeOptions = useMemo(
+        () => [...new Set(list.map((r) => String(r.employeeName || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru")),
+        [list]
+    );
+    const filterSupplierOptions = useMemo(
+        () => [...new Set(list.map((r) => getSupplierLabel(r)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru")),
+        [list, getSupplierLabel]
+    );
+    const filteredRequests = useMemo(
+        () => list.filter((r) => {
+            if (expenseFilterPeriod && String(r.period || "").trim() !== expenseFilterPeriod) return false;
+            if (expenseFilterDepartment && String(r.department || "").trim() !== expenseFilterDepartment) return false;
+            if (expenseFilterCategory && String(r.categoryName || "").trim() !== expenseFilterCategory) return false;
+            if (expenseFilterVehicle && String(r.vehicleOrEmployee || "").trim() !== expenseFilterVehicle) return false;
+            if (expenseFilterEmployee && String(r.employeeName || "").trim() !== expenseFilterEmployee) return false;
+            if (expenseFilterSupplier && getSupplierLabel(r) !== expenseFilterSupplier) return false;
+            if (expenseFilterStatus && String(r.status || "").trim() !== expenseFilterStatus) return false;
+            return true;
+        }),
+        [list, expenseFilterPeriod, expenseFilterDepartment, expenseFilterCategory, expenseFilterVehicle, expenseFilterEmployee, expenseFilterSupplier, expenseFilterStatus, getSupplierLabel]
+    );
+    const filteredTotalAmount = useMemo(
+        () => filteredRequests.reduce((sum, r) => sum + (Number(r.amount) || 0), 0),
+        [filteredRequests]
+    );
 
     const departmentOptions = useMemo(() => {
         if (availableDepartments.length > 0) return availableDepartments;
@@ -1136,15 +1190,77 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
             </Panel>
 
             <Typography.Body style={{ fontSize: "0.9rem", fontWeight: 600, marginBottom: "0.5rem" }}>Мои заявки</Typography.Body>
+            <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginBottom: "0.75rem" }}>
+                <div>
+                    <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Дата (период)</label>
+                    <input
+                        type="month"
+                        className="admin-form-input"
+                        value={expenseFilterPeriod}
+                        onChange={(e) => setExpenseFilterPeriod(e.target.value)}
+                        style={{ padding: "0.3rem 0.5rem", height: 32 }}
+                    />
+                </div>
+                <div>
+                    <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Подразделение</label>
+                    <select className="admin-form-input" value={expenseFilterDepartment} onChange={(e) => setExpenseFilterDepartment(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 140 }}>
+                        <option value="">Все</option>
+                        {filterDepartmentOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Статья</label>
+                    <select className="admin-form-input" value={expenseFilterCategory} onChange={(e) => setExpenseFilterCategory(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 140 }}>
+                        <option value="">Все</option>
+                        {filterCategoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>ТС</label>
+                    <select className="admin-form-input" value={expenseFilterVehicle} onChange={(e) => setExpenseFilterVehicle(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 120 }}>
+                        <option value="">Все</option>
+                        {filterVehicleOptions.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Сотрудник</label>
+                    <select className="admin-form-input" value={expenseFilterEmployee} onChange={(e) => setExpenseFilterEmployee(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 140 }}>
+                        <option value="">Все</option>
+                        {filterEmployeeOptions.map((emp) => <option key={emp} value={emp}>{emp}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Поставщик услуг</label>
+                    <select className="admin-form-input" value={expenseFilterSupplier} onChange={(e) => setExpenseFilterSupplier(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 180 }}>
+                        <option value="">Все</option>
+                        {filterSupplierOptions.map((supplier) => <option key={supplier} value={supplier}>{supplier}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Действия</label>
+                    <select className="admin-form-input" value={expenseFilterStatus} onChange={(e) => setExpenseFilterStatus(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 140 }}>
+                        <option value="">Все</option>
+                        <option value="draft">Черновик</option>
+                        <option value="pending_approval">На согласовании</option>
+                        <option value="approved">Согласовано</option>
+                        <option value="rejected">Отклонено</option>
+                        <option value="sent">Отправлено</option>
+                        <option value="paid">Оплачено</option>
+                    </select>
+                </div>
+            </Flex>
+            <div style={{ marginBottom: "0.75rem", padding: "0.45rem 0.65rem", background: "var(--color-bg-hover)", borderRadius: 8, fontSize: "0.84rem", fontWeight: 600 }}>
+                Итого по фильтрам: {filteredTotalAmount.toLocaleString("ru-RU")} ₽
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                 {listLoading ? (
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-secondary)", fontSize: "0.8rem" }}>
                         <Loader2 className="w-4 h-4 animate-spin" /> Загрузка…
                     </div>
-                ) : list.length === 0 ? (
+                ) : filteredRequests.length === 0 ? (
                     <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>Пока нет заявок</Typography.Body>
                 ) : (
-                    list.map((r) => (
+                    filteredRequests.map((r) => (
                         <Panel key={r.id} className="cargo-card" style={{ background: "var(--color-bg-card)", borderRadius: "10px", padding: "0.75rem 1rem" }}>
                             <Flex justify="space-between" align="flex-start" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
                                 <div>
