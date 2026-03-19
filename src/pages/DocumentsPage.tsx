@@ -2273,7 +2273,7 @@ useEffect(() => {
     if (docSection !== 'Счета' || !tableModeByCustomer || sortedGroupedByCustomer.length === 0) return;
     setExpandedTableCustomer((prev) => {
         if (prev && sortedGroupedByCustomer.some((row) => row.customer === prev)) return prev;
-        return sortedGroupedByCustomer[0]?.customer ?? null;
+        return null;
     });
 }, [docSection, tableModeByCustomer, sortedGroupedByCustomer]);
 
@@ -2281,7 +2281,7 @@ useEffect(() => {
     if (docSection !== 'УПД' || !tableModeByCustomer || sortedGroupedActsByCustomer.length === 0) return;
     setExpandedTableActCustomer((prev) => {
         if (prev && sortedGroupedActsByCustomer.some((row) => row.customer === prev)) return prev;
-        return sortedGroupedActsByCustomer[0]?.customer ?? null;
+        return null;
     });
 }, [docSection, tableModeByCustomer, sortedGroupedActsByCustomer]);
 
@@ -3322,7 +3322,7 @@ useEffect(() => {
                 />
             )}
             {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
-            {!loading && !error && tableModeEffective && sortedGroupedByCustomer.length > 0 && (
+            {!loading && !error && tableModeEffective && !effectiveServiceMode && sortedGroupedByCustomer.length > 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -3387,6 +3387,47 @@ useEffect(() => {
                                     )}
                                 </React.Fragment>
                             ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            {!loading && !error && tableModeEffective && effectiveServiceMode && filteredItems.length > 0 && (
+                <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус перевозки</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Маршрут</th>
+                                {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortInvoices(filteredItems).map((inv: any, i: number) => {
+                                const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
+                                const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
+                                const isum = inv.SumDoc ?? inv.Sum ?? inv.sum ?? inv.Сумма ?? inv.Amount ?? 0;
+                                const ist = normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
+                                const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
+                                const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
+                                const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
+                                return (
+                                    <tr key={inum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedInvoice(inv)} title="Открыть счёт">
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>{formatInvoiceNumber(inum)}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof idt === 'string' ? idt : idt ? String(idt) : undefined} /></td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>{ist ? <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: istBadgeStyle.bg, color: istBadgeStyle.color, border: '1px solid var(--color-border)', whiteSpace: 'nowrap', display: 'inline-block' }}>{ist}</span> : '—'}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>
+                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <StatusBadge status={deliveryState} />}
+                                        </td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>
+                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--color-text-secondary)' }} /> : <span className="role-badge" style={{ fontSize: '0.7rem', fontWeight: 600, padding: '0.15rem 0.35rem', borderRadius: '999px', background: 'rgba(59, 130, 246, 0.15)', color: 'var(--color-primary-blue)', border: '1px solid rgba(59, 130, 246, 0.4)', whiteSpace: 'nowrap', display: 'inline-block' }}>{(firstCargoNum ? cargoRouteByNumber.get(normCargoKey(firstCargoNum)) : null) || '—'}</span>}
+                                        </td>
+                                        {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{isum != null ? formatCurrency(isum) : '—'}</td>}
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -3470,7 +3511,7 @@ useEffect(() => {
                 />
             )}
             {(actsLoading || !!actsError) && <DocumentsStateBlocks loading={actsLoading} error={actsError} emptyText="" />}
-            {!actsLoading && !actsError && tableModeEffective && sortedGroupedActsByCustomer.length > 0 && (
+            {!actsLoading && !actsError && tableModeEffective && !effectiveServiceMode && sortedGroupedActsByCustomer.length > 0 && (
                 <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
@@ -3524,6 +3565,36 @@ useEffect(() => {
                                     )}
                                 </React.Fragment>
                             ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            {!actsLoading && !actsError && tableModeEffective && effectiveServiceMode && filteredActs.length > 0 && (
+                <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Номер</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Дата</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Счёт</th>
+                                {showSums && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600 }}>Сумма</th>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortActs(filteredActs).map((act: any, i: number) => {
+                                const anum = act.Number ?? act.number ?? '';
+                                const adt = act.DateDoc ?? act.Date ?? act.date ?? '';
+                                const ainv = act.Invoice ?? act.invoice ?? act.Счёт ?? '';
+                                const asum = act.SumDoc ?? act.Sum ?? act.sum ?? 0;
+                                return (
+                                    <tr key={anum || i} style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }} onClick={() => setSelectedAct(act)} title="Открыть УПД">
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>{formatInvoiceNumber(String(anum))}</td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}><DateText value={typeof adt === 'string' ? adt : adt ? String(adt) : undefined} /></td>
+                                        <td style={{ padding: '0.5rem 0.4rem' }}>{ainv ? formatInvoiceNumber(String(ainv)) : '—'}</td>
+                                        {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right' }}>{asum != null ? formatCurrency(asum) : '—'}</td>}
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

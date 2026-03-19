@@ -865,6 +865,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [expenseFilterCategory, setExpenseFilterCategory] = useState("");
   const [expenseFilterVehicle, setExpenseFilterVehicle] = useState("");
   const [expenseFilterEmployee, setExpenseFilterEmployee] = useState("");
+  const [expenseFilterSupplier, setExpenseFilterSupplier] = useState("");
   const [expenseFilterStatus, setExpenseFilterStatus] = useState("");
   const [pnlExpenseCategoryLinks, setPnlExpenseCategoryLinks] = useState<PnlExpenseCategoryLink[]>([]);
   const [pnlExpensePrefill, setPnlExpensePrefill] = useState<PnlExpensePrefill | null>(null);
@@ -9237,6 +9238,14 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         ) as Record<string, string>;
         const getLoginDisplayName = (login: string) =>
           loginToFullName[login?.trim().toLowerCase() ?? ""] || login || "—";
+        const getSupplierLabel = (row: ExpenseRequestItem) => {
+          const supplierName = String((row as any).supplierName ?? "").trim();
+          const supplierInn = String((row as any).supplierInn ?? "").trim();
+          if (supplierName && supplierInn) return `${supplierName}, ИНН ${supplierInn}`;
+          if (supplierName) return supplierName;
+          if (supplierInn) return `ИНН ${supplierInn}`;
+          return "";
+        };
         const baseFiltered = isAccountingExpenses ? adminExpenseRequests.filter((r) => r.status === "approved" || r.status === "sent" || r.status === "paid") : adminExpenseRequests;
         const filtered = baseFiltered.filter((r) => {
           if (expenseFilterDate && (r as any).period !== expenseFilterDate) return false;
@@ -9244,6 +9253,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           if (expenseFilterCategory && r.categoryName !== expenseFilterCategory) return false;
           if (expenseFilterVehicle && r.vehicleOrEmployee !== expenseFilterVehicle) return false;
           if (expenseFilterEmployee && (r as any).employeeName !== expenseFilterEmployee) return false;
+          if (expenseFilterSupplier && getSupplierLabel(r) !== expenseFilterSupplier) return false;
           if (expenseFilterStatus && r.status !== expenseFilterStatus) return false;
           return true;
         });
@@ -9252,6 +9262,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
         const catOptions = [...new Set(baseFiltered.map((r) => r.categoryName).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
         const vehicleOptions = [...new Set(baseFiltered.map((r) => r.vehicleOrEmployee).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
         const employeeOptions = [...new Set(baseFiltered.map((r) => (r as any).employeeName).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
+        const supplierOptions = [...new Set(baseFiltered.map((r) => getSupplierLabel(r)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
         const statusOptions = [...new Set(baseFiltered.map((r) => r.status))].sort();
         const sorted = [...filtered].sort((a, b) => {
           const dir = adminExpenseSortAsc ? 1 : -1;
@@ -9380,6 +9391,13 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                 <select className="admin-form-input" value={expenseFilterEmployee} onChange={(e) => setExpenseFilterEmployee(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 140 }}>
                   <option value="">Все</option>
                   {employeeOptions.map((emp) => <option key={emp} value={emp}>{emp}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: "0.7rem", color: "var(--color-text-secondary)", marginRight: "0.25rem" }}>Поставщик услуг</label>
+                <select className="admin-form-input" value={expenseFilterSupplier} onChange={(e) => setExpenseFilterSupplier(e.target.value)} style={{ padding: "0.3rem 0.5rem", height: 32, minWidth: 180 }}>
+                  <option value="">Все</option>
+                  {supplierOptions.map((supplier) => <option key={supplier} value={supplier}>{supplier}</option>)}
                 </select>
               </div>
               <div>
