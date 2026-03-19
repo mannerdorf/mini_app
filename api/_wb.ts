@@ -220,42 +220,35 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
       return { rows: 0 };
     }
 
-    for (const boxId of boxes) {
-      const inbound = inboundByBox.get(boxId);
-      const returned = returnedByBox.get(boxId);
-      const claim = claimsByBox.get(boxId);
-      const description =
-        claim?.description ||
-        returned?.description ||
-        inbound?.description ||
-        inbound?.nomenclature ||
-        null;
-      const cost = parseNum(claim?.amount_rub ?? returned?.amount_rub ?? inbound?.price_rub ?? 0);
-      const docNumber = claim?.doc_number || returned?.document_number || null;
-      const docDate = claim?.doc_date || returned?.document_date || inbound?.inventory_created_at || null;
-      const sourceRow = claim?.row_number ?? inbound?.row_number ?? null;
+    // Раньше: по одному INSERT на коробку → тысячи round-trip и таймаут Vercel на refresh.
+    await client.query("TRUNCATE TABLE wb_summary");
 
-      await client.query(
-        `INSERT INTO wb_summary (
-            box_id, claim_number, declared, source_document_number, source_document_date, source_row_number,
-            description, cost_rub, inbound_item_id, returned_item_id, claim_item_id, updated_at
-         ) VALUES (
-            $1, $2, $3, $4, $5, $6,
-            $7, $8, $9, $10, $11, now()
-         )
-         ON CONFLICT (box_id) DO UPDATE SET
-            claim_number = EXCLUDED.claim_number,
-            declared = EXCLUDED.declared,
-            source_document_number = EXCLUDED.source_document_number,
-            source_document_date = EXCLUDED.source_document_date,
-            source_row_number = EXCLUDED.source_row_number,
-            description = EXCLUDED.description,
-            cost_rub = EXCLUDED.cost_rub,
-            inbound_item_id = EXCLUDED.inbound_item_id,
-            returned_item_id = EXCLUDED.returned_item_id,
-            claim_item_id = EXCLUDED.claim_item_id,
-            updated_at = now()`,
-        [
+    const boxList = [...boxes];
+    const CHUNK = 200;
+    for (let c = 0; c < boxList.length; c += CHUNK) {
+      const slice = boxList.slice(c, c + CHUNK);
+      const rowTuples: string[] = [];
+      const params: unknown[] = [];
+      let p = 1;
+      for (const boxId of slice) {
+        const inbound = inboundByBox.get(boxId);
+        const returned = returnedByBox.get(boxId);
+        const claim = claimsByBox.get(boxId);
+        const description =
+          claim?.description ||
+          returned?.description ||
+          inbound?.description ||
+          inbound?.nomenclature ||
+          null;
+        const cost = parseNum(claim?.amount_rub ?? returned?.amount_rub ?? inbound?.price_rub ?? 0);
+        const docNumber = claim?.doc_number || returned?.document_number || null;
+        const docDate = claim?.doc_date || returned?.document_date || inbound?.inventory_created_at || null;
+        const sourceRow = claim?.row_number ?? inbound?.row_number ?? null;
+
+        rowTuples.push(
+          `($${p++}, $${p++}, $${p++}, $${p++}, $${p++}::date, $${p++}, $${p++}, $${p++}::numeric, $${p++}, $${p++}, $${p++}, now())`,
+        );
+        params.push(
           boxId,
           claim?.claim_number || null,
           !!claim,
@@ -267,11 +260,17 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
           inbound?.id ?? null,
           returned?.id ?? null,
           claim?.id ?? null,
-        ],
+        );
+      }
+      await client.query(
+        `INSERT INTO wb_summary (
+            box_id, claim_number, declared, source_document_number, source_document_date, source_row_number,
+            description, cost_rub, inbound_item_id, returned_item_id, claim_item_id, updated_at
+         ) VALUES ${rowTuples.join(", ")}`,
+        params,
       );
     }
 
-    await client.query("DELETE FROM wb_summary WHERE box_id <> ALL($1::text[])", [[...boxes]]);
     await client.query("commit");
     return { rows: boxes.size };
   } catch (error) {
@@ -282,7 +281,11 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
     }
     throw error;
   } finally {
-    client.release();
+    try {
+      client.release();
+    } catch {
+      /* ignore */
+    }
   }
 }
 
