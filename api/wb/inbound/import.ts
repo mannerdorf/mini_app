@@ -219,8 +219,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           totalRows++;
           const inventoryNumber = invMeta || (idxInvNumCol >= 0 ? asText(row[idxInvNumCol]) : "");
           const invDateFromRow = idxInvDateCol >= 0 ? row[idxInvDateCol] : undefined;
-          const invDateRaw = invDateFromRow ?? inventoryDate ?? "";
-          const inventoryCreatedAt = parseCellDateFlexible(invDateRaw);
+          // Пустая ячейка в колонке — не «значение»: иначе "" ломает ?? и дата из O2/F2 (parseInventoryMeta) не подставляется.
+          const rowHasInvDate =
+            invDateFromRow != null &&
+            !(typeof invDateFromRow === "string" && invDateFromRow.trim() === "");
+          let inventoryCreatedAt = rowHasInvDate ? parseCellDateFlexible(invDateFromRow) : null;
+          if (!inventoryCreatedAt && inventoryDate) inventoryCreatedAt = inventoryDate;
           if (!inventoryNumber || !boxNumber || !shk) {
             errorRows++;
             if (batchId) {
