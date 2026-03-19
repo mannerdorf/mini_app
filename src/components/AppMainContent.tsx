@@ -184,7 +184,9 @@ export function AppMainContent({
         <SectionBoundary section="Wildberries">
           <WildberriesPage
             auth={auth}
-            canUpload={activeAccount?.permissions?.cms_access === true}
+            canUpload={
+              activeAccount?.permissions?.cms_access === true || activeAccount?.permissions?.wb_admin === true
+            }
           />
         </SectionBoundary>
       )}

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
-import { resolveWbAccess } from "../_wb.js";
+import { pgTableExists, resolveWbAccess } from "../_wb.js";
 import { searchSimilar } from "../../lib/rag.js";
 
 type SearchRow = {
@@ -28,6 +28,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const q = String(req.query.q ?? "").trim();
     if (!q) return res.status(400).json({ error: "q обязателен", request_id: ctx.requestId });
+
+    if (!(await pgTableExists(pool, "wb_summary"))) {
+      return res.status(200).json({ q, total: 0, items: [], request_id: ctx.requestId });
+    }
 
     const dateFrom = String(req.query.dateFrom ?? "").trim();
     const dateTo = String(req.query.dateTo ?? "").trim();

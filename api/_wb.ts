@@ -52,6 +52,18 @@ export function parseDateOnly(value: unknown): string | null {
   return d.toISOString().slice(0, 10);
 }
 
+/** Проверка наличия таблицы в public (частично применённые миграции WB). */
+export async function pgTableExists(pool: Pool, tableName: string): Promise<boolean> {
+  const { rows } = await pool.query<{ e: boolean }>(
+    `select exists (
+      select 1 from information_schema.tables
+      where table_schema = 'public' and table_name = $1
+    ) as e`,
+    [tableName],
+  );
+  return rows[0]?.e === true;
+}
+
 export async function resolveWbAccess(
   req: VercelRequest,
   pool: Pool,
@@ -59,7 +71,7 @@ export async function resolveWbAccess(
 ): Promise<WbAccess | null> {
   const adminToken = getAdminTokenFromRequest(req);
   if (verifyAdminToken(adminToken)) {
-    return { login: "admin", isAdmin: true, permissions: { wb: true, cms_access: true } };
+    return { login: "admin", isAdmin: true, permissions: { wb: true, wb_admin: true, cms_access: true } };
   }
 
   const body = req.body && typeof req.body === "object" ? (req.body as Record<string, unknown>) : {};
@@ -85,24 +97,31 @@ export async function resolveWbAccess(
       ? user.permissions
       : {};
   const isAdmin = permissions.cms_access === true;
-  const canRead = isAdmin || permissions.wb === true;
-  const canWrite = isAdmin;
+  const canRead = isAdmin || permissions.wb === true || permissions.wb_admin === true;
+  const canWrite = isAdmin || permissions.wb_admin === true;
   if ((mode === "read" && !canRead) || (mode === "write" && !canWrite)) return null;
 
   return { login: user.login, isAdmin, permissions };
 }
 
-export async function rebuildWbSummary(pool: Pool) {
+export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skipped?: boolean }> {
+  if (!(await pgTableExists(pool, "wb_summary"))) {
+    return { rows: 0, skipped: true };
+  }
+
   const client = await pool.connect();
   try {
     await client.query("begin");
 
-    const { rows: revRows } = await client.query<{ id: number }>(
-      "SELECT id FROM wb_claims_revisions WHERE is_active = true ORDER BY uploaded_at DESC LIMIT 1",
-    );
-    const activeRevisionId = revRows[0]?.id ?? null;
+    let activeRevisionId: number | null = null;
+    if (await pgTableExists(pool, "wb_claims_revisions")) {
+      const { rows: revRows } = await client.query<{ id: number }>(
+        "SELECT id FROM wb_claims_revisions WHERE is_active = true ORDER BY uploaded_at DESC LIMIT 1",
+      );
+      activeRevisionId = revRows[0]?.id ?? null;
+    }
 
-    const { rows: inboundRows } = await client.query<{
+    type InboundRow = {
       id: number;
       box_number: string;
       row_number: number | null;
@@ -110,18 +129,23 @@ export async function rebuildWbSummary(pool: Pool) {
       nomenclature: string | null;
       price_rub: string | number | null;
       inventory_created_at: string | null;
-    }>(
-      `SELECT id, box_number, row_number, description, nomenclature, price_rub, inventory_created_at
-       FROM wb_inbound_items`,
-    );
-    const inboundByBox = new Map<string, typeof inboundRows[0]>();
+    };
+    let inboundRows: InboundRow[] = [];
+    if (await pgTableExists(pool, "wb_inbound_items")) {
+      const ir = await client.query<InboundRow>(
+        `SELECT id, box_number, row_number, description, nomenclature, price_rub, inventory_created_at
+         FROM wb_inbound_items`,
+      );
+      inboundRows = ir.rows;
+    }
+    const inboundByBox = new Map<string, InboundRow>();
     for (const row of inboundRows) {
       const key = String(row.box_number || "").trim();
       if (!key) continue;
       if (!inboundByBox.has(key)) inboundByBox.set(key, row);
     }
 
-    const { rows: returnedRows } = await client.query<{
+    type ReturnedRow = {
       id: number;
       box_id: string;
       description: string | null;
@@ -129,19 +153,24 @@ export async function rebuildWbSummary(pool: Pool) {
       document_number: string | null;
       document_date: string | null;
       created_at: string;
-    }>(
-      `SELECT id, box_id, description, amount_rub, document_number, document_date, created_at
-       FROM wb_returned_items
-       ORDER BY created_at DESC`,
-    );
-    const returnedByBox = new Map<string, typeof returnedRows[0]>();
+    };
+    let returnedRows: ReturnedRow[] = [];
+    if (await pgTableExists(pool, "wb_returned_items")) {
+      const rr = await client.query<ReturnedRow>(
+        `SELECT id, box_id, description, amount_rub, document_number, document_date, created_at
+         FROM wb_returned_items
+         ORDER BY created_at DESC`,
+      );
+      returnedRows = rr.rows;
+    }
+    const returnedByBox = new Map<string, ReturnedRow>();
     for (const row of returnedRows) {
       const key = String(row.box_id || "").trim();
       if (!key) continue;
       if (!returnedByBox.has(key)) returnedByBox.set(key, row);
     }
 
-    let claimRows: Array<{
+    type ClaimRow = {
       id: number;
       box_id: string | null;
       claim_number: string | null;
@@ -150,18 +179,10 @@ export async function rebuildWbSummary(pool: Pool) {
       row_number: number | null;
       description: string | null;
       amount_rub: string | number | null;
-    }> = [];
-    if (activeRevisionId) {
-      const claims = await client.query<{
-        id: number;
-        box_id: string | null;
-        claim_number: string | null;
-        doc_number: string | null;
-        doc_date: string | null;
-        row_number: number | null;
-        description: string | null;
-        amount_rub: string | number | null;
-      }>(
+    };
+    let claimRows: ClaimRow[] = [];
+    if (activeRevisionId && (await pgTableExists(pool, "wb_claims_items"))) {
+      const claims = await client.query<ClaimRow>(
         `SELECT id, box_id, claim_number, doc_number, doc_date, row_number, description, amount_rub
          FROM wb_claims_items
          WHERE revision_id = $1`,
@@ -169,7 +190,7 @@ export async function rebuildWbSummary(pool: Pool) {
       );
       claimRows = claims.rows;
     }
-    const claimsByBox = new Map<string, typeof claimRows[0]>();
+    const claimsByBox = new Map<string, ClaimRow>();
     for (const row of claimRows) {
       const key = String(row.box_id || "").trim();
       if (!key) continue;

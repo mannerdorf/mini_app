@@ -24,7 +24,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       details: { refreshedRows: result.rows, requestedBy: access.login },
     });
 
-    return res.status(200).json({ ok: true, rows: result.rows, request_id: ctx.requestId });
+    return res.status(200).json({
+      ok: true,
+      rows: result.rows,
+      skipped: result.skipped === true,
+      request_id: ctx.requestId,
+    });
   } catch (error) {
     logError(ctx, "wb_summary_refresh_failed", error);
     return res.status(500).json({ error: "Ошибка пересчета сводной", request_id: ctx.requestId });

@@ -1389,7 +1389,8 @@ export function ProfilePage({
                             Бухгалтерия
                         </Button>
                     )}
-                    {activeAccount?.permissions?.wb === true && onOpenWildberries && (
+                    {(activeAccount?.permissions?.wb === true || activeAccount?.permissions?.wb_admin === true) &&
+                      onOpenWildberries && (
                         <Button type="button" className="button-primary" onClick={onOpenWildberries}>
                             Wildberries
                         </Button>

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
-import { resolveWbAccess } from "../_wb.js";
+import { pgTableExists, resolveWbAccess } from "../_wb.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_claims_list");
@@ -29,6 +29,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const brand = String(req.query.brand ?? "").trim();
     const q = String(req.query.q ?? "").trim();
 
+    if (!(await pgTableExists(pool, "wb_claims_revisions"))) {
+      return res.status(200).json({
+        page: 1,
+        limit,
+        total: 0,
+        revisionId: null,
+        revisions: [],
+        items: [],
+        request_id: ctx.requestId,
+      });
+    }
+
     const revisionsRes = await pool.query<{
       id: number;
       revision_number: number;
@@ -48,6 +60,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         : (revisions.find((r) => r.is_active)?.id ?? null);
     if (!activeRevisionId) {
       return res.status(200).json({ page: 1, limit, total: 0, revisionId: null, revisions: includeHistory ? revisions : [], items: [], request_id: ctx.requestId });
+    }
+
+    if (!(await pgTableExists(pool, "wb_claims_items"))) {
+      return res.status(200).json({
+        page: 1,
+        limit,
+        total: 0,
+        revisionId: activeRevisionId,
+        revisions: includeHistory ? revisions : [],
+        items: [],
+        request_id: ctx.requestId,
+      });
     }
 
     const where: string[] = ["c.revision_id = $1"];

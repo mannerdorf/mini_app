@@ -38,7 +38,8 @@ export function wildberriesInitialTabFromUrl(): Tab | null {
  * Зарегистрированный пользователь с правом wb и без «основных» модулей HAULZ — только экран WB.
  */
 export function isWbOnlyAccount(activeAccount: Pick<Account, "isRegisteredUser" | "permissions"> | null | undefined): boolean {
-  if (!activeAccount?.isRegisteredUser || activeAccount?.permissions?.wb !== true) return false;
+  const perms = activeAccount?.permissions;
+  if (!activeAccount?.isRegisteredUser || !(perms?.wb === true || perms?.wb_admin === true)) return false;
   const perms = activeAccount.permissions || {};
   const hasCoreNonWbAccess = !!(
     perms.cms_access ||
@@ -77,11 +78,6 @@ export function syncAppUrlWithActiveTab(activeTab: Tab): void {
   }
 }
 
-/** Логотип WB в шапке (public/wb-logo.png). */
-export function WbHeaderLogo() {
-  return <img src="/wb-logo.png" alt="Wildberries" className="wb-header-logo" />;
-}
-
 type WbOnlyAppLayoutProps = {
   desktopExpanded: boolean;
   onLogout: () => void;
@@ -94,8 +90,7 @@ export function WbOnlyAppLayout({ desktopExpanded, onLogout, children }: WbOnlyA
     <>
       <Container className="app-container">
         <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
-          <Flex align="center" justify="space-between" className="header-top-row">
-            <WbHeaderLogo />
+          <Flex align="center" justify="flex-end" className="header-top-row">
             <Flex align="center" className="space-x-3">
               <Button className="search-toggle-button" onClick={onLogout} title="Выход" aria-label="Выйти">
                 <LogOut className="w-5 h-5" />

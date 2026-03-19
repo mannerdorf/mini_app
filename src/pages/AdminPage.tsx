@@ -31,6 +31,7 @@ const PERMISSION_KEYS = [
   { key: "supervisor", label: "Руководитель" },
   { key: "eor", label: "EOR" },
   { key: "wb", label: "WB" },
+  { key: "wb_admin", label: "WB админ" },
 ] as const;
 
 /** 1-я строка: доступна к изменению только суперадминистратору, активный цвет — красный. */
@@ -42,6 +43,7 @@ const PERMISSION_ROW1_SUPERADMIN = [
   { key: "eor", label: "EOR" as const },
   { key: "accounting", label: "Бухгалтерия" as const },
   { key: "wb", label: "WB" as const },
+  { key: "wb_admin", label: "WB админ" as const },
   { key: "doc_sendings", label: "Отправки" as const },
 ] as const;
 
@@ -50,6 +52,14 @@ const PERMISSION_ROW2_ORANGE = [
   { key: "__financial__", label: "Фин. показатели" as const },
   { key: "supervisor", label: "Руководитель" as const },
 ] as const;
+
+/** Подсветка кнопок 1-й строки прав (суперадмин): WB — фиолетовый, WB админ — тёмно-фиолетовый, остальное — красный. */
+function superadminRowPermissionActiveClass(key: string, isActive: boolean): string {
+  if (!isActive) return "";
+  if (key === "wb_admin") return "active active-wb-admin";
+  if (key === "wb") return "active active-purple";
+  return "active active-danger";
+}
 
 /** 3-я строка: доступна всем, у кого есть доступ в CMS, активный цвет — синий. */
 const PERMISSION_ROW3_BLUE = [
@@ -512,7 +522,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [bulkDeactivateConfirmOpen, setBulkDeactivateConfirmOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
   const [bulkPermissions, setBulkPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false,
+    cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false,
   });
   const [bulkFinancial, setBulkFinancial] = useState(false);
   const [bulkAccessAllInns, setBulkAccessAllInns] = useState(false);
@@ -830,7 +840,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [presetEditingId, setPresetEditingId] = useState<string | null>(null);
   const [presetFormLabel, setPresetFormLabel] = useState("");
   const [presetFormPermissions, setPresetFormPermissions] = useState<Record<string, boolean>>({
-    cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false,
+    cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false,
   });
   const [presetFormFinancial, setPresetFormFinancial] = useState(false);
   const [presetFormServiceMode, setPresetFormServiceMode] = useState(false);
@@ -907,6 +917,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
     supervisor: true,
     eor: false,
     wb: false,
+    wb_admin: false,
   });
   const [formSelectedPresetId, setFormSelectedPresetId] = useState<string>("");
   const [formFinancial, setFormFinancial] = useState(true);
@@ -4292,7 +4303,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           }
                           handlePermissionsToggle(key);
                         };
-                        const activeClass = isActive ? (key === "wb" ? "active active-purple" : "active active-danger") : "";
+                        const activeClass = superadminRowPermissionActiveClass(key, isActive);
                         return (
                           <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>
                         );
@@ -4557,7 +4568,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         }
                         setBulkPermissions((p) => ({ ...p, [key]: !p[key] }));
                       };
-                      const activeClass = isActive ? (key === "wb" ? "active active-purple" : "active active-danger") : "";
+                      const activeClass = superadminRowPermissionActiveClass(key, isActive);
                       return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>;
                     })}
                   </div>
@@ -4964,7 +4975,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                     }
                     togglePerm(key);
                   };
-                  const activeClass = isActive ? (key === "wb" ? "active active-purple" : "active active-danger") : "";
+                  const activeClass = superadminRowPermissionActiveClass(key, isActive);
                   return (
                     <button type="button" key={key} className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>
                   );
@@ -8386,7 +8397,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                         }
                         setPresetFormPermissions((p) => ({ ...p, [key]: !p[key] }));
                       };
-                      const activeClass = isActive ? "active active-danger" : "";
+                      const activeClass = superadminRowPermissionActiveClass(key, isActive);
                       return <button key={key} type="button" className={`permission-button ${activeClass}`} onClick={onClick} disabled={isLocked} title={isLocked ? "Только для суперадминистратора" : undefined}>{label}</button>;
                     })}
                   </div>
@@ -8430,7 +8441,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
                           const data = await res.json().catch(() => ({}));
                           if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка сохранения");
                           setPresetFormLabel("");
-                          setPresetFormPermissions({ cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false });
+                          setPresetFormPermissions({ cms_access: false, home: true, dashboard: true, cargo: true, doc_invoices: true, doc_acts: true, doc_orders: true, doc_sendings: true, doc_claims: true, doc_contracts: true, doc_acts_settlement: true, doc_tariffs: true, haulz: false, service_mode: false, analytics: false, supervisor: false, eor: false, wb: false, wb_admin: false });
                           setPresetFormFinancial(false);
                           setPresetFormServiceMode(false);
                           setPresetEditingId(null);

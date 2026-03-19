@@ -1369,6 +1369,16 @@ body {
 .permission-button.active.active-purple:hover {
     border-color: #7c3aed;
 }
+/* WB админ в CMS — тёмнее фиолетового «WB» (только просмотр) */
+.permission-button.active.active-wb-admin {
+    background: #5b21b6;
+    color: white;
+    border-color: #5b21b6;
+    box-shadow: 0 0 0 2px rgba(91, 33, 182, 0.35);
+}
+.permission-button.active.active-wb-admin:hover {
+    border-color: #5b21b6;
+}
 .light-mode .admin-form-input::placeholder,
 .light-mode .admin-form-input input::placeholder {
     color: #9ca3af !important;
@@ -1818,19 +1828,14 @@ body {
 .wb-page {
     width: 100%;
 }
-.wb-header-logo {
-    height: 40px;
-    width: auto;
-    max-width: 120px;
-    object-fit: contain;
-    object-position: left center;
-    display: block;
-    flex-shrink: 0;
-    border-radius: 10px;
-}
 .wb-panel {
     border: 1px solid rgba(124, 58, 237, 0.22);
     background: linear-gradient(180deg, rgba(124, 58, 237, 0.08) 0%, rgba(124, 58, 237, 0.02) 100%);
+    /* ~0,5 см поля слева/справа от вкладок, фильтров и кнопок */
+    padding-left: clamp(0.75rem, 2.5vw, 1.35rem);
+    padding-right: clamp(0.75rem, 2.5vw, 1.35rem);
+    padding-bottom: 0.75rem;
+    box-sizing: border-box;
 }
 .wb-panel-tabs-section {
     padding: 0.75rem 0;

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
-import { resolveWbAccess } from "../_wb.js";
+import { pgTableExists, resolveWbAccess } from "../_wb.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_returned_list");
@@ -14,6 +14,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pool = getPool();
     const access = await resolveWbAccess(req, pool, "read");
     if (!access) return res.status(401).json({ error: "Нет доступа", request_id: ctx.requestId });
+
+    if (!(await pgTableExists(pool, "wb_returned_items"))) {
+      return res.status(200).json({
+        page: 1,
+        limit: Math.min(500, Math.max(1, Number(req.query.limit ?? 50) || 50)),
+        total: 0,
+        items: [],
+        request_id: ctx.requestId,
+      });
+    }
 
     const limitRaw = Number(req.query.limit ?? 50);
     const pageRaw = Number(req.query.page ?? 1);

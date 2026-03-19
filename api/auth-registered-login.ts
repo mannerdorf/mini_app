@@ -100,6 +100,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
             haulz: false,
             eor: false,
             wb: false,
+            wb_admin: false,
             chat: true,
             service_mode: false,
             analytics: false,

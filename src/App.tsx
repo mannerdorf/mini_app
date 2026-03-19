@@ -63,7 +63,6 @@ import {
     isWildberriesTab,
     wildberriesInitialTabFromUrl,
     syncAppUrlWithActiveTab,
-    WbHeaderLogo,
     WbOnlyAppLayout,
     useResetGlobalSearchOnWildberries,
     TABS_ALLOWED_ON_RESTORE,
@@ -1948,7 +1947,6 @@ export default function App() {
             <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
                     <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {isWildberriesTab(activeTab) && <WbHeaderLogo />}
                         {!isWildberriesTab(activeTab) && !useServiceRequest && activeAccountId && activeAccount && (
                             <CustomerSwitcher
                                 accounts={accounts}

@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import * as XLSX from "xlsx";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
-import { resolveWbAccess } from "../_wb.js";
+import { pgTableExists, resolveWbAccess } from "../_wb.js";
 
 function toCsv(rows: Record<string, unknown>[]) {
   if (rows.length === 0) return "";
@@ -38,51 +38,62 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     let rows: Record<string, unknown>[] = [];
     if (block === "inbound") {
-      rows = (
-        await pool.query(
-          `select inventory_number, inventory_created_at, box_number, shk, sticker, barcode, article, brand, nomenclature, description, kit, price_rub, mass_kg
-           from wb_inbound_items
-           ${whereQ ? `where box_number ilike $${whereQ} or shk ilike $${whereQ} or coalesce(article,'') ilike $${whereQ} or coalesce(brand,'') ilike $${whereQ} or coalesce(description,'') ilike $${whereQ}` : ""}
-           order by id desc
-           limit 10000`,
-          params,
-        )
-      ).rows;
+      if (await pgTableExists(pool, "wb_inbound_items")) {
+        rows = (
+          await pool.query(
+            `select inventory_number, inventory_created_at, box_number, shk, sticker, barcode, article, brand, nomenclature, description, kit, price_rub, mass_kg
+             from wb_inbound_items
+             ${whereQ ? `where box_number ilike $${whereQ} or shk ilike $${whereQ} or coalesce(article,'') ilike $${whereQ} or coalesce(brand,'') ilike $${whereQ} or coalesce(description,'') ilike $${whereQ}` : ""}
+             order by id desc
+             limit 10000`,
+            params,
+          )
+        ).rows;
+      }
     } else if (block === "returned") {
-      rows = (
-        await pool.query(
-          `select box_id, cargo_number, description, has_shk, document_number, document_date, amount_rub, source, created_at
-           from wb_returned_items
-           ${whereQ ? `where box_id ilike $${whereQ} or coalesce(cargo_number,'') ilike $${whereQ} or coalesce(description,'') ilike $${whereQ}` : ""}
-           order by id desc
-           limit 10000`,
-          params,
-        )
-      ).rows;
+      if (await pgTableExists(pool, "wb_returned_items")) {
+        rows = (
+          await pool.query(
+            `select box_id, cargo_number, description, has_shk, document_number, document_date, amount_rub, source, created_at
+             from wb_returned_items
+             ${whereQ ? `where box_id ilike $${whereQ} or coalesce(cargo_number,'') ilike $${whereQ} or coalesce(description,'') ilike $${whereQ}` : ""}
+             order by id desc
+             limit 10000`,
+            params,
+          )
+        ).rows;
+      }
     } else if (block === "claims") {
-      rows = (
-        await pool.query(
-          `select c.claim_number, c.box_id, c.doc_number, c.doc_date, c.description, c.amount_rub, c.row_number, r.revision_number, r.uploaded_at
-           from wb_claims_items c
-           join wb_claims_revisions r on r.id = c.revision_id
-           where r.is_active = true
-           ${whereQ ? `and (coalesce(c.claim_number,'') ilike $${whereQ} or coalesce(c.box_id,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or c.all_columns::text ilike $${whereQ})` : ""}
-           order by c.id desc
-           limit 10000`,
-          params,
-        )
-      ).rows;
+      if (
+        (await pgTableExists(pool, "wb_claims_items")) &&
+        (await pgTableExists(pool, "wb_claims_revisions"))
+      ) {
+        rows = (
+          await pool.query(
+            `select c.claim_number, c.box_id, c.doc_number, c.doc_date, c.description, c.amount_rub, c.row_number, r.revision_number, r.uploaded_at
+             from wb_claims_items c
+             join wb_claims_revisions r on r.id = c.revision_id
+             where r.is_active = true
+             ${whereQ ? `and (coalesce(c.claim_number,'') ilike $${whereQ} or coalesce(c.box_id,'') ilike $${whereQ} or coalesce(c.description,'') ilike $${whereQ} or c.all_columns::text ilike $${whereQ})` : ""}
+             order by c.id desc
+             limit 10000`,
+            params,
+          )
+        ).rows;
+      }
     } else {
-      rows = (
-        await pool.query(
-          `select box_id, claim_number, declared, source_document_number, source_document_date, source_row_number, description, cost_rub, updated_at
-           from wb_summary
-           ${whereQ ? `where box_id ilike $${whereQ} or coalesce(claim_number,'') ilike $${whereQ} or coalesce(description,'') ilike $${whereQ}` : ""}
-           order by updated_at desc
-           limit 10000`,
-          params,
-        )
-      ).rows;
+      if (await pgTableExists(pool, "wb_summary")) {
+        rows = (
+          await pool.query(
+            `select box_id, claim_number, declared, source_document_number, source_document_date, source_row_number, description, cost_rub, updated_at
+             from wb_summary
+             ${whereQ ? `where box_id ilike $${whereQ} or coalesce(claim_number,'') ilike $${whereQ} or coalesce(description,'') ilike $${whereQ}` : ""}
+             order by updated_at desc
+             limit 10000`,
+            params,
+          )
+        ).rows;
+      }
     }
 
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");

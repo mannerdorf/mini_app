@@ -19,7 +19,10 @@ export type AccountPermissions = {
     supervisor?: boolean;
     chat?: boolean;
     haulz?: boolean;
+    /** Доступ к модулю WB: просмотр, экспорт, поиск */
     wb?: boolean;
+    /** Загрузка/изменение данных WB (импорт, ручной ввод); без этого флага — только просмотр и скачивание */
+    wb_admin?: boolean;
     doc_invoices?: boolean;
     doc_acts?: boolean;
     doc_orders?: boolean;
