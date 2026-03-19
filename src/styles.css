@@ -815,6 +815,11 @@ body {
     margin-bottom: 0.6rem;
 }
 
+/* Документы: дополнительный отступ под таблицы во всех разделах */
+.documents-page-sticky-header {
+    margin-bottom: 3cm;
+}
+
 /* Панель bulk-действий в "Отправках" остаётся закреплённой при скролле */
 .sendings-bulk-actions-sticky {
     position: sticky;
