@@ -509,7 +509,12 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 multiple
                 accept=".xlsx,.xls,.csv"
                 style={{ display: "none" }}
-                onChange={(e) => void handleUpload(e.target.files)}
+                onChange={(e) => {
+                  const files = e.target.files;
+                  void handleUpload(files).finally(() => {
+                    e.target.value = "";
+                  });
+                }}
               />
               <FileUp size={16} />
               <span>{uploading ? "Идет импорт..." : "Перетащите файлы или нажмите для выбора (до 15)"}</span>
@@ -518,8 +523,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         )}
 
         {canUpload && activeTab === "returned" && (
-          <Panel mode="secondary" className="wb-manual-panel">
-            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
+          <div className="wb-manual-panel">
+            <Typography.Body style={{ fontWeight: 600, marginBottom: "0.5rem", color: "var(--color-text-primary)" }}>
               Ручной ввод (грузы без ШК)
             </Typography.Body>
             <div className="wb-filters-grid">
@@ -536,7 +541,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 Сохранить запись
               </Button>
             </Flex>
-          </Panel>
+          </div>
         )}
 
         {activeTab === "claims" && claimsRevisions.length > 0 && (

@@ -4,6 +4,7 @@ import { getPool } from "../../_db.js";
 import { parseMultipart } from "../../_pnl-multipart.js";
 import { initRequestContext, logError } from "../../_lib/observability.js";
 import { parseBooleanFlag, parseDateOnly, parseNum, rebuildWbSummary, resolveWbAccess } from "../../_wb.js";
+import { parseCellDateFlexible, readSheetCellRaw } from "./_excelMeta.js";
 import { writeAuditLog } from "../../../lib/adminAuditLog.js";
 import { upsertDocument } from "../../../lib/rag.js";
 
@@ -42,25 +43,15 @@ function cellRC(data: unknown[][], row1: number, col1: number): unknown {
 }
 
 /**
- * Шаблон «Возвратная опись» (в т.ч. Калининград): номер ведомости в F2, дата ведомости в O2.
- * Используется, если в строках таблицы нет своих значений.
+ * Шаблон «Возвратная опись» (в т.ч. Калининград): номер в F2, дата в O2 (часто текст 23.04.2025).
+ * Чтение с ws по A1 — иначе O2 теряется в sheet_to_json.
  */
-function parseVozvratnayaOpisySheetMeta(data: unknown[][]): { docNumber: string; docDate: string | null } {
-  const f2 = cellRC(data, 2, 6); // F = 6
-  const o2 = cellRC(data, 2, 15); // O = 15
+function parseVozvratnayaOpisySheetMeta(data: unknown[][], ws: XLSX.WorkSheet): { docNumber: string; docDate: string | null } {
+  const f2 = readSheetCellRaw(ws, "F2") ?? cellRC(data, 2, 6);
+  const o2 = readSheetCellRaw(ws, "O2") ?? cellRC(data, 2, 15);
   const rawNum = asText(f2);
   const docNumber = rawNum.replace(/[^\d]/g, "") || rawNum;
-  let docDate: string | null = parseDateOnly(o2);
-  if (!docDate && typeof o2 === "number" && Number.isFinite(o2)) {
-    try {
-      const p = XLSX.SSF.parse_date_code(o2) as { y: number; m: number; d: number };
-      if (p?.y && p.m && p.d) {
-        docDate = `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
-      }
-    } catch {
-      // ignore
-    }
-  }
+  const docDate = parseCellDateFlexible(o2);
   return { docNumber, docDate };
 }
 
@@ -92,7 +83,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     batchId = batchResult.rows[0]?.id ?? null;
 
     const wb = XLSX.read(file.buffer, { type: "buffer", cellDates: true });
-    const ws = wb.Sheets[wb.SheetNames[0]];
+    const firstSheet = wb.SheetNames?.[0];
+    const ws = firstSheet ? wb.Sheets[firstSheet] : undefined;
+    if (!ws) return res.status(400).json({ error: "Пустой файл", request_id: ctx.requestId });
     const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as unknown[][];
     if (!data.length) return res.status(400).json({ error: "Пустой файл", request_id: ctx.requestId });
 
@@ -102,7 +95,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const hm = new Map<string, number>();
     header.forEach((c, i) => hm.set(norm(c), i));
     /** «Возвратная опись»: F2 — номер ведомости, O2 — дата (если не в колонках строк). */
-    const sheetMeta = parseVozvratnayaOpisySheetMeta(data);
+    const sheetMeta = parseVozvratnayaOpisySheetMeta(data, ws);
 
     let totalRows = 0;
     let insertedRows = 0;
@@ -200,19 +193,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await rebuildWbSummary(pool);
 
-    for (const doc of ragQueue) {
-      try {
-        await upsertDocument({
-          sourceType: "wb_returned",
-          sourceId: doc.sourceId,
-          title: "WB returned",
-          content: doc.content,
-          metadata: doc.metadata,
-        });
-      } catch {
-        // best-effort
+    const ragToFlush = ragQueue.slice();
+    void (async () => {
+      for (const doc of ragToFlush) {
+        try {
+          await upsertDocument({
+            sourceType: "wb_returned",
+            sourceId: doc.sourceId,
+            title: "WB returned",
+            content: doc.content,
+            metadata: doc.metadata,
+          });
+        } catch {
+          // best-effort
+        }
       }
-    }
+    })();
 
     return res.status(200).json({
       ok: true,

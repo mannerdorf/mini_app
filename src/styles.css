@@ -1928,7 +1928,16 @@ body {
 }
 .wb-manual-panel {
     margin-top: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
     border: 1px solid rgba(124, 58, 237, 0.22);
+    background: rgba(124, 58, 237, 0.06);
+    color: var(--color-text-primary);
+}
+.wb-manual-panel .admin-form-input,
+.wb-manual-panel .admin-form-input input {
+    background: var(--color-bg-primary, #fff);
+    color: var(--color-text-primary);
 }
 .wb-table-wrap {
     margin-top: 0.75rem;

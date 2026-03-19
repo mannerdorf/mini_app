@@ -4,6 +4,7 @@ import { getPool } from "../../_db.js";
 import { parseMultipart } from "../../_pnl-multipart.js";
 import { initRequestContext, logError } from "../../_lib/observability.js";
 import { parseDateOnly, parseNum, rebuildWbSummary, resolveWbAccess } from "../../_wb.js";
+import { parseCellDateFlexible, readSheetCellRaw } from "./_excelMeta.js";
 import { writeAuditLog } from "../../../lib/adminAuditLog.js";
 import { upsertDocument } from "../../../lib/rag.js";
 
@@ -36,31 +37,7 @@ function cellRC(data: unknown[][], row1: number, col1: number): unknown {
   return r[col1 - 1];
 }
 
-/** Дата из ячейки XLSX: Date, серийный номер Excel или строка. */
-function parseCellDateFlexible(value: unknown): string | null {
-  if (value == null || value === "") return null;
-  if (value instanceof Date) {
-    const t = value.getTime();
-    if (Number.isNaN(t)) return null;
-    return value.toISOString().slice(0, 10);
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    if (value > 1 && value < 100000) {
-      try {
-        const p = XLSX.SSF.parse_date_code(value) as { y: number; m: number; d: number };
-        if (p?.y && p.m && p.d) {
-          return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return null;
-  }
-  return parseDateOnly(value);
-}
-
-function parseInventoryMeta(data: unknown[][]) {
+function parseInventoryMeta(data: unknown[][], ws?: XLSX.WorkSheet) {
   let inventoryNumber = "";
   let inventoryDate: string | null = null;
   const maxRows = Math.min(8, data.length);
@@ -111,9 +88,10 @@ function parseInventoryMeta(data: unknown[][]) {
   // Финальная очистка номера: оставляем только цифры.
   if (inventoryNumber) inventoryNumber = inventoryNumber.replace(/[^\d]/g, "");
   // Шаблоны вроде «Возвратная/ввозная опись» (Калининград): номер в F2, дата в O2.
+  // Читаем с листа по A1: в sheet_to_json строка 2 часто «короткая», без индекса O.
   if (!inventoryNumber || !inventoryDate) {
-    const f2 = cellRC(data, 2, 6);
-    const o2 = cellRC(data, 2, 15);
+    const f2 = (ws ? readSheetCellRaw(ws, "F2") : undefined) ?? cellRC(data, 2, 6);
+    const o2 = (ws ? readSheetCellRaw(ws, "O2") : undefined) ?? cellRC(data, 2, 15);
     if (!inventoryNumber) {
       const fromF2 = asText(f2).replace(/[^\d]/g, "") || asText(f2);
       if (fromF2) inventoryNumber = fromF2.replace(/[^\d]/g, "");
@@ -205,7 +183,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const headerRowIdx = findHeaderRow(data);
         if (headerRowIdx < 0) continue;
-        const { inventoryNumber: invMeta, inventoryDate } = parseInventoryMeta(data);
+        const { inventoryNumber: invMeta, inventoryDate } = parseInventoryMeta(data, ws);
         const header = data[headerRowIdx] ?? [];
         const headerMap = new Map<string, number>();
         header.forEach((cell, idx) => headerMap.set(normalizeHeaderCell(cell), idx));
@@ -396,19 +374,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await rebuildWbSummary(pool);
 
-    for (const doc of ragQueue) {
-      try {
-        await upsertDocument({
-          sourceType: "wb_inbound",
-          sourceId: doc.sourceId,
-          title: `WB inbound ${doc.metadata.inventoryNumber ?? ""}`,
-          content: doc.content,
-          metadata: doc.metadata,
-        });
-      } catch {
-        // best-effort
+    const ragToFlush = ragQueue.slice();
+    void (async () => {
+      for (const doc of ragToFlush) {
+        try {
+          await upsertDocument({
+            sourceType: "wb_inbound",
+            sourceId: doc.sourceId,
+            title: `WB inbound ${doc.metadata.inventoryNumber ?? ""}`,
+            content: doc.content,
+            metadata: doc.metadata,
+          });
+        } catch {
+          // best-effort; не блокируем ответ импорта
+        }
       }
-    }
+    })();
 
     return res.status(200).json({
       ok: true,

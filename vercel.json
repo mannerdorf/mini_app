@@ -23,7 +23,10 @@
     "api/cron/process-claim-push-queue.ts": {"maxDuration": 300},
     "api/cron/refresh-sverki-cache.ts": {"maxDuration": 300},
     "api/cron/refresh-dogovors-cache.ts": {"maxDuration": 300},
-    "api/cron/refresh-pvz-cache.ts": {"maxDuration": 300}
+    "api/cron/refresh-pvz-cache.ts": {"maxDuration": 300},
+    "api/wb/inbound/import.ts": {"maxDuration": 120},
+    "api/wb/returned/import.ts": {"maxDuration": 120},
+    "api/wb/claims/import.ts": {"maxDuration": 120}
   },
   "rewrites": [
     {"source": "/admin", "destination": "/"},

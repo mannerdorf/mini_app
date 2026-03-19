@@ -174,19 +174,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       details: { revisionNumber, batchId, totalRows, insertedRows, errorRows, uploadedBy: access.login },
     });
 
-    for (const doc of ragQueue) {
-      try {
-        await upsertDocument({
-          sourceType: "wb_claims",
-          sourceId: doc.sourceId,
-          title: `WB claims rev ${revisionNumber}`,
-          content: doc.content,
-          metadata: doc.metadata,
-        });
-      } catch {
-        // best-effort
+    const ragToFlush = ragQueue.slice();
+    void (async () => {
+      for (const doc of ragToFlush) {
+        try {
+          await upsertDocument({
+            sourceType: "wb_claims",
+            sourceId: doc.sourceId,
+            title: `WB claims rev ${revisionNumber}`,
+            content: doc.content,
+            metadata: doc.metadata,
+          });
+        } catch {
+          // best-effort; ответ клиенту уже ушёл
+        }
       }
-    }
+    })();
 
     return res.status(200).json({
       ok: true,

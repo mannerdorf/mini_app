@@ -41,11 +41,16 @@ export function parseDateOnly(value: unknown): string | null {
     if (Number.isNaN(t)) return null;
     return value.toISOString().slice(0, 10);
   }
-  const s = String(value).trim();
+  let s = String(value).trim();
+  if (!s) return null;
+  // NBSP, узкие пробелы, «умные» точки (Google Sheets / Excel)
+  s = s.replace(/\u00a0/g, " ").replace(/\u2007|\u202f/g, " ").trim();
+  s = s.replace(/[．。‧·‧∙⋅]/g, ".");
+  s = s.replace(/\s+/g, "");
   if (!s) return null;
   // yyyy-mm-dd
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // dd.mm.yyyy
+  // dd.mm.yyyy или dd/mm/yyyy
   const m = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})$/);
   if (m) {
     const dd = m[1]!.padStart(2, "0");
