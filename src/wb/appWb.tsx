@@ -38,9 +38,9 @@ export function wildberriesInitialTabFromUrl(): Tab | null {
  * Зарегистрированный пользователь с правом wb и без «основных» модулей HAULZ — только экран WB.
  */
 export function isWbOnlyAccount(activeAccount: Pick<Account, "isRegisteredUser" | "permissions"> | null | undefined): boolean {
-  const perms = activeAccount?.permissions;
-  if (!activeAccount?.isRegisteredUser || !(perms?.wb === true || perms?.wb_admin === true)) return false;
+  if (!activeAccount?.isRegisteredUser) return false;
   const perms = activeAccount.permissions || {};
+  if (!(perms.wb === true || perms.wb_admin === true)) return false;
   const hasCoreNonWbAccess = !!(
     perms.cms_access ||
     perms.haulz ||
