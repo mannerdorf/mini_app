@@ -4,7 +4,14 @@ import * as XLSX from "xlsx";
 import { getPool } from "../../_db.js";
 import { parseMultipart } from "../../_pnl-multipart.js";
 import { initRequestContext, logError } from "../../_lib/observability.js";
-import { parseBooleanFlag, parseDateOnly, parseNum, rebuildWbSummary, resolveWbAccess } from "../../_wb.js";
+import {
+  parseBooleanFlag,
+  parseDateOnly,
+  parseNum,
+  pgTableExists,
+  rebuildWbSummary,
+  resolveWbAccess,
+} from "../../_wb.js";
 import { parseCellDateFlexible, readSheetCellRaw } from "../_excelMeta.js";
 import { writeAuditLog } from "../../../lib/adminAuditLog.js";
 
@@ -112,6 +119,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const access = await resolveWbAccess(req, pool, "write");
     if (!access) return res.status(401).json({ error: "Доступ только для админа", request_id: ctx.requestId });
 
+    if (!(await pgTableExists(pool, "wb_returned_items"))) {
+      return res.status(503).json({
+        error:
+          "В базе нет таблицы wb_returned_items. Выполните миграцию Wildberries: migrations/055_wildberries.sql (или полный набор миграций проекта).",
+        request_id: ctx.requestId,
+      });
+    }
+
     client = await pool.connect();
     const { fields, files } = await parseMultipart(req);
     const file = files.find((f) => f.fieldName === "file");
@@ -203,9 +218,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (mode === "append") {
         await client.query(
           `insert into wb_returned_items (
-             batch_id, source, box_id, cargo_number, description, has_shk, document_number, document_date, amount_rub, raw_row
+             batch_id, source, box_id, cargo_number, description, has_shk, document_number, document_date, amount_rub, raw_row, source_row_number
            ) values (
-             $1, 'import', $2, $3, $4, $5, $6, $7::date, $8, $9::jsonb
+             $1, 'import', $2, $3, $4, $5, $6, $7::date, $8, $9::jsonb, $10
            )`,
           [
             batchId,
@@ -217,6 +232,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             docDate,
             Number.isFinite(amount) ? amount : null,
             JSON.stringify({ row }),
+            i + 1,
           ],
         );
         insertedRows++;
@@ -227,9 +243,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
         await client.query(
           `insert into wb_returned_items (
-             batch_id, source, box_id, cargo_number, description, has_shk, document_number, document_date, amount_rub, raw_row
+             batch_id, source, box_id, cargo_number, description, has_shk, document_number, document_date, amount_rub, raw_row, source_row_number
            ) values (
-             $1, 'import', $2, $3, $4, $5, $6, $7::date, $8, $9::jsonb
+             $1, 'import', $2, $3, $4, $5, $6, $7::date, $8, $9::jsonb, $10
            )`,
           [
             batchId,
@@ -241,6 +257,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             docDate,
             Number.isFinite(amount) ? amount : null,
             JSON.stringify({ row }),
+            i + 1,
           ],
         );
         updatedRows++;

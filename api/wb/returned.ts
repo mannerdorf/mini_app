@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
-import { pgTableExists, resolveWbAccess } from "../_wb.js";
+import { pgIlikeContainsPattern, pgTableExists, resolveWbAccess } from "../_wb.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_returned_list");
@@ -49,8 +49,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       where.push(`coalesce(r.document_date, r.created_at::date) <= $${params.length}::date`);
     }
     if (boxId) {
-      params.push(boxId);
-      where.push(`r.box_id = $${params.length}`);
+      params.push(pgIlikeContainsPattern(boxId));
+      where.push(`r.box_id ilike $${params.length} escape '\\'`);
     }
     if (cargoNumber) {
       params.push(cargoNumber);
@@ -89,6 +89,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          r.document_number as "documentNumber",
          r.document_date as "documentDate",
          r.amount_rub as "amountRub",
+         r.source_row_number as "rowNumber",
          r.created_at as "createdAt"
        from wb_returned_items r
        ${whereSql}

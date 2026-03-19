@@ -54,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (await pgTableExists(pool, "wb_returned_items")) {
         rows = (
           await pool.query(
-            `select box_id, cargo_number, description, has_shk, document_number, document_date, amount_rub, source, created_at
+            `select box_id, cargo_number, description, has_shk, document_number, document_date, amount_rub, source_row_number, source, created_at
              from wb_returned_items
              ${whereQ ? `where box_id ilike $${whereQ} or coalesce(cargo_number,'') ilike $${whereQ} or coalesce(description,'') ilike $${whereQ}` : ""}
              order by id desc

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
-import { pgTableExists, resolveWbAccess } from "../_wb.js";
+import { pgIlikeContainsPattern, pgTableExists, resolveWbAccess } from "../_wb.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "wb_inbound_list");
@@ -62,8 +62,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       where.push(`i.inventory_number = $${params.length}`);
     }
     if (boxId) {
-      params.push(boxId);
-      where.push(`i.box_number = $${params.length}`);
+      params.push(pgIlikeContainsPattern(boxId));
+      where.push(`i.box_number ilike $${params.length} escape '\\'`);
     }
     if (article) {
       params.push(`%${article}%`);

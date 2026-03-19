@@ -63,6 +63,14 @@ export function parseDateOnly(value: unknown): string | null {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Шаблон для `... ilike $n escape '\\'` — поиск подстроки (номер коробки и т.д.).
+ * Экранирует % и _ во вводе пользователя.
+ */
+export function pgIlikeContainsPattern(term: string): string {
+  return `%${term.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
+}
+
 /** Проверка наличия таблицы в public (частично применённые миграции WB). */
 export async function pgTableExists(pool: Pool, tableName: string): Promise<boolean> {
   const { rows } = await pool.query<{ e: boolean }>(

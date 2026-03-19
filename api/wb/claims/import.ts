@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { getPool } from "../../_db.js";
 import { parseMultipart } from "../../_pnl-multipart.js";
 import { initRequestContext, logError } from "../../_lib/observability.js";
-import { parseNum, rebuildWbSummary, resolveWbAccess } from "../../_wb.js";
+import { parseNum, pgTableExists, rebuildWbSummary, resolveWbAccess } from "../../_wb.js";
 import { parseCellDateFlexible } from "../_excelMeta.js";
 import { writeAuditLog } from "../../../lib/adminAuditLog.js";
 
@@ -77,6 +77,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     pool = getPool();
     const access = await resolveWbAccess(req, pool, "write");
     if (!access) return res.status(401).json({ error: "Доступ только для админа", request_id: ctx.requestId });
+
+    if (!(await pgTableExists(pool, "wb_claims_revisions"))) {
+      return res.status(503).json({
+        error:
+          "В базе нет таблиц удержаний/претензий (wb_claims_revisions). Выполните миграцию migrations/055_wildberries.sql.",
+        request_id: ctx.requestId,
+      });
+    }
 
     client = await pool.connect();
     const { files } = await parseMultipart(req);

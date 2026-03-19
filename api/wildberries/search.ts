@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
-import { pgTableExists, resolveWbAccess } from "../_wb.js";
+import { pgIlikeContainsPattern, pgTableExists, resolveWbAccess } from "../_wb.js";
 import { searchSimilar } from "../../lib/rag.js";
 
 type SearchRow = {
@@ -52,8 +52,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       filters.push(`s.source_document_date <= $${params.length}::date`);
     }
     if (boxId) {
-      params.push(boxId);
-      filters.push(`s.box_id = $${params.length}`);
+      params.push(pgIlikeContainsPattern(boxId));
+      filters.push(`s.box_id ilike $${params.length} escape '\\'`);
     }
     if (article) {
       params.push(article);

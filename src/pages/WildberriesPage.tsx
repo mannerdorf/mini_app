@@ -39,7 +39,7 @@ const INBOUND_DETAIL_COLUMNS: ColumnDef[] = [
   { key: "massKg", label: "Масса" },
 ];
 
-/** Совпадение строки детализации с полем «Поиск» / «ID коробки» (подсветка и отбор строк). */
+/** Совпадение строки детализации с полем «Поиск» / «Номер коробки» (подсветка и отбор строк). */
 function inboundDetailRowMatchesNeedle(row: Record<string, unknown>, needleLower: string): boolean {
   if (!needleLower) return true;
   const keys = [
@@ -140,7 +140,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     q: "",
   });
 
-  /** Нижний регистр: фильтр строк внутри раскрытой ведомости (поиск / ID коробки). */
+  /** Нижний регистр: фильтр строк внутри раскрытой ведомости (поиск / номер коробки). */
   const inboundDetailNeedle = useMemo(() => {
     if (activeTab !== "inbound") return "";
     return (filters.boxId.trim() || filters.q.trim()).toLowerCase();
@@ -499,6 +499,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     }
     if (activeTab === "returned") {
       return [
+        { key: "rowNumber", label: "№ строки (Excel)" },
         { key: "boxId", label: "ID коробки" },
         { key: "cargoNumber", label: "Номер груза" },
         { key: "description", label: "Описание" },
@@ -585,7 +586,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             value={filters.boxId}
             onChange={(e) => setFilters((p) => ({ ...p, boxId: e.target.value }))}
             className="admin-form-input"
-            placeholder="ID коробки"
+            placeholder="Номер коробки"
+            title="Фильтр по номеру коробки (частичное совпадение)"
           />
           <Input
             value={filters.article}
@@ -829,7 +831,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>Нет строк по этой ведомости</Typography.Body>
                             ) : needle && detailRows.length === 0 ? (
                               <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>
-                                Нет строк с «{filters.boxId.trim() || filters.q.trim()}» в коробке/ШК/стикере и т.д. Очистите поле поиска или «ID коробки», чтобы увидеть все позиции.
+                                Нет строк с «{filters.boxId.trim() || filters.q.trim()}» в коробке/ШК/стикере и т.д. Очистите поиск или фильтр «Номер коробки», чтобы увидеть все позиции.
                               </Typography.Body>
                             ) : (
                               <div className="wb-inbound-detail-wrap">

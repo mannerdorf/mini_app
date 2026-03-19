@@ -80,6 +80,7 @@ create table if not exists wb_returned_items (
   document_number text,
   document_date date,
   amount_rub numeric(14,2),
+  source_row_number int,
   raw_row jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
