@@ -363,7 +363,7 @@ body {
         overflow-x: auto; /* не обрезать табель и широкие таблицы слева */
         -webkit-overflow-scrolling: touch;
         /* Высота хедера + отступ + safe-area, чтобы название раздела и фильтры были ниже хедера */
-        padding-top: calc(100px + env(safe-area-inset-top));
+        padding-top: calc(124px + env(safe-area-inset-top));
         padding-bottom: calc(84px + env(safe-area-inset-bottom));
         padding-left: max(var(--space-3, 12px), env(safe-area-inset-left));
         padding-right: max(var(--space-3, 12px), env(safe-area-inset-right));
@@ -812,7 +812,7 @@ body {
     min-width: 0;
     overflow-x: hidden;
     padding-bottom: 0.5rem;
-    margin-bottom: 0;
+    margin-bottom: 0.35rem;
 }
 
 /* Панель bulk-действий в "Отправках" остаётся закреплённой при скролле */

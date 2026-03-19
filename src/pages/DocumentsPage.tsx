@@ -3388,6 +3388,13 @@ useEffect(() => {
                                 </React.Fragment>
                             ))}
                         </tbody>
+                        <tfoot>
+                            <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                <td style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
+                                {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(documentsSummary.sum)}</td>}
+                                <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700 }}>{documentsSummary.count}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             )}
@@ -3429,6 +3436,12 @@ useEffect(() => {
                                 );
                             })}
                         </tbody>
+                        <tfoot>
+                            <tr style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
+                                <td colSpan={showSums ? 5 : 6} style={{ padding: '0.5rem 0.4rem', fontWeight: 700 }}>Итого</td>
+                                {showSums && <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap' }}>{formatCurrency(documentsSummary.sum)}</td>}
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             )}
