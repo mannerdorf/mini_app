@@ -2017,7 +2017,7 @@ export default function App() {
             <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
                     <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {!useServiceRequest && activeAccountId && activeAccount && (
+                        {activeTab !== "wildberries" && !useServiceRequest && activeAccountId && activeAccount && (
                             <CustomerSwitcher
                                 accounts={accounts}
                                 activeAccountId={activeAccountId}
@@ -2025,7 +2025,7 @@ export default function App() {
                                 onUpdateAccount={handleUpdateAccount}
                             />
                         )}
-                        {serviceModeUnlocked && (
+                        {activeTab !== "wildberries" && serviceModeUnlocked && (
                             <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
                                 <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Служ.</Typography.Label>
                                 <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>

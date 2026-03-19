@@ -1920,3 +1920,28 @@ body {
     margin-bottom: 0.45rem;
     background: var(--color-bg-card);
 }
+.wb-action-btn {
+    border-radius: 999px !important;
+    border: 1px solid #7c3aed !important;
+    background: rgba(124, 58, 237, 0.1) !important;
+    color: #6d28d9 !important;
+    box-shadow: none !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    min-width: 126px !important;
+    padding: 0 14px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+}
+.wb-action-btn:hover {
+    background: rgba(124, 58, 237, 0.16) !important;
+    border-color: #6d28d9 !important;
+}
+.wb-action-btn:disabled {
+    opacity: 0.6;
+}

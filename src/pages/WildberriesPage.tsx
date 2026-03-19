@@ -21,6 +21,8 @@ type WbSearchResult = {
   payload: Record<string, unknown>;
 };
 
+type ColumnDef = { key: string; label: string };
+
 const TAB_LABELS: Array<{ key: WbTab; label: string }> = [
   { key: "inbound", label: "Принятый груз" },
   { key: "returned", label: "Возвращенный груз" },
@@ -132,13 +134,18 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   }, [loadData]);
 
   const handleUpload = useCallback(
-    async (file: File | null) => {
-      if (!file) return;
+    async (fileList: FileList | null) => {
+      if (!fileList || fileList.length === 0) return;
+      const files = Array.from(fileList).slice(0, 15);
+      if (fileList.length > 15) {
+        setUploadError("Можно загрузить максимум 15 файлов за раз");
+        return;
+      }
       setUploading(true);
       setUploadError(null);
       try {
         const fd = new FormData();
-        fd.append("file", file);
+        for (const file of files) fd.append("file", file);
         fd.append("mode", importMode);
         const endpoint =
           activeTab === "inbound"
@@ -235,11 +242,56 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     }
   }, [authHeaders, filters.article, filters.boxId, filters.brand, filters.dateFrom, filters.dateTo, filters.q]);
 
-  const columns = useMemo(() => {
-    if (activeTab === "inbound") return ["inventoryNumber", "inventoryCreatedAt", "boxNumber", "shk", "article", "brand", "description", "priceRub", "massKg"];
-    if (activeTab === "returned") return ["boxId", "cargoNumber", "description", "hasShk", "documentNumber", "documentDate", "amountRub", "source", "createdAt"];
-    if (activeTab === "claims") return ["claimNumber", "boxId", "docNumber", "docDate", "rowNumber", "description", "amountRub"];
-    return ["boxId", "claimNumber", "declared", "documentNumber", "documentDate", "rowNumber", "description", "costRub", "article", "brand"];
+  const columns = useMemo<ColumnDef[]>(() => {
+    if (activeTab === "inbound") {
+      return [
+        { key: "inventoryNumber", label: "Номер ввозной описи" },
+        { key: "inventoryCreatedAt", label: "Дата создания ввозной описи" },
+        { key: "boxNumber", label: "Номер коробки" },
+        { key: "shk", label: "ШК" },
+        { key: "article", label: "Артикул" },
+        { key: "brand", label: "Бренд" },
+        { key: "description", label: "Описание" },
+        { key: "priceRub", label: "Цена, RUB" },
+        { key: "massKg", label: "Масса" },
+      ];
+    }
+    if (activeTab === "returned") {
+      return [
+        { key: "boxId", label: "ID коробки" },
+        { key: "cargoNumber", label: "Номер груза" },
+        { key: "description", label: "Описание" },
+        { key: "hasShk", label: "Есть ШК" },
+        { key: "documentNumber", label: "Номер документа" },
+        { key: "documentDate", label: "Дата документа" },
+        { key: "amountRub", label: "Стоимость" },
+        { key: "source", label: "Источник" },
+        { key: "createdAt", label: "Создано" },
+      ];
+    }
+    if (activeTab === "claims") {
+      return [
+        { key: "claimNumber", label: "Номер из претензии" },
+        { key: "boxId", label: "ID коробки" },
+        { key: "docNumber", label: "Номер документа" },
+        { key: "docDate", label: "Дата" },
+        { key: "rowNumber", label: "Номер строки" },
+        { key: "description", label: "Описание" },
+        { key: "amountRub", label: "Стоимость" },
+      ];
+    }
+    return [
+      { key: "boxId", label: "ID коробки" },
+      { key: "claimNumber", label: "Номер из претензии" },
+      { key: "declared", label: "Заявлено / Не заявлено" },
+      { key: "documentNumber", label: "Номер документа" },
+      { key: "documentDate", label: "Дата" },
+      { key: "rowNumber", label: "Номер строки" },
+      { key: "description", label: "Описание" },
+      { key: "costRub", label: "Стоимость" },
+      { key: "article", label: "Артикул" },
+      { key: "brand", label: "Бренд" },
+    ];
   }, [activeTab]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -249,7 +301,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
       <div className="wb-page-top">
         <Typography.Title style={{ margin: 0 }}>Wildberries</Typography.Title>
         <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
-          Приемка, возвраты, удержания и сводная аналитика
+          Приемка,{`\u00A0\u00A0`}возвраты,{`\u00A0\u00A0`}удержания{`\u00A0\u00A0`}и{`\u00A0\u00A0`}сводная{`\u00A0\u00A0`}аналитика
         </Typography.Body>
       </div>
 
@@ -328,19 +380,19 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         </div>
 
         <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginTop: "0.75rem" }}>
-          <Button className="button-primary" onClick={() => void loadData()} disabled={loading}>
+          <Button className="wb-action-btn" onClick={() => void loadData()} disabled={loading}>
             {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             {loading ? " Загрузка..." : "Обновить"}
           </Button>
-          <Button className="filter-button" onClick={() => void runHybridSearch()} disabled={!filters.q.trim() || searchLoading}>
+          <Button className="wb-action-btn" onClick={() => void runHybridSearch()} disabled={!filters.q.trim() || searchLoading}>
             {searchLoading ? <Search className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Гибридный поиск
           </Button>
-          <Button className="filter-button" onClick={() => void handleExport("csv")}>
+          <Button className="wb-action-btn" onClick={() => void handleExport("csv")}>
             <Download className="w-4 h-4" />
             CSV
           </Button>
-          <Button className="filter-button" onClick={() => void handleExport("xlsx")}>
+          <Button className="wb-action-btn" onClick={() => void handleExport("xlsx")}>
             <Download className="w-4 h-4" />
             XLSX
           </Button>
@@ -360,12 +412,13 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             <label className="wb-upload-drop">
               <input
                 type="file"
+                multiple
                 accept=".xlsx,.xls,.csv"
                 style={{ display: "none" }}
-                onChange={(e) => void handleUpload(e.target.files?.[0] ?? null)}
+                onChange={(e) => void handleUpload(e.target.files)}
               />
               <FileUp size={16} />
-              <span>{uploading ? "Идет импорт..." : "Перетащите файл или нажмите для выбора"}</span>
+              <span>{uploading ? "Идет импорт..." : "Перетащите файлы или нажмите для выбора (до 15)"}</span>
             </label>
           </div>
         )}
@@ -384,7 +437,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               <Input className="admin-form-input" placeholder="Стоимость" value={manualReturned.amountRub} onChange={(e) => setManualReturned((p) => ({ ...p, amountRub: e.target.value }))} />
             </div>
             <Flex gap="0.5rem" style={{ marginTop: "0.5rem" }}>
-              <Button className="button-primary" onClick={() => void handleManualReturnedSubmit()}>
+              <Button className="wb-action-btn" onClick={() => void handleManualReturnedSubmit()}>
                 <Upload className="w-4 h-4" />
                 Сохранить запись
               </Button>
@@ -418,7 +471,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             <thead>
               <tr>
                 {columns.map((col) => (
-                  <th key={col}>{col}</th>
+                  <th key={col.key}>{col.label}</th>
                 ))}
               </tr>
             </thead>
@@ -433,7 +486,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                 items.map((row, idx) => (
                   <tr key={`${activeTab}-${idx}`}>
                     {columns.map((col) => (
-                      <td key={col}>{String(row[col] ?? "")}</td>
+                      <td key={col.key}>{String(row[col.key] ?? "")}</td>
                     ))}
                   </tr>
                 ))
@@ -447,10 +500,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             {`Страница ${page} из ${totalPages} • записей: ${total}`}
           </Typography.Body>
           <Flex gap="0.5rem" align="center">
-            <Button className="filter-button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+            <Button className="wb-action-btn" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
               Назад
             </Button>
-            <Button className="filter-button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
+            <Button className="wb-action-btn" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
               Далее
             </Button>
             <select className="admin-form-input" value={limit} onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); }} style={{ width: 90 }}>
