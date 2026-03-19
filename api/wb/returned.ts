@@ -79,21 +79,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const dataParams = [...params, limit, offset];
     const rowsRes = await pool.query(
-      `select
-         r.id,
-         r.source,
-         r.box_id as "boxId",
-         r.cargo_number as "cargoNumber",
-         r.description,
-         r.has_shk as "hasShk",
-         r.document_number as "documentNumber",
-         r.document_date as "documentDate",
-         r.amount_rub as "amountRub",
-         r.source_row_number as "rowNumber",
-         r.created_at as "createdAt"
-       from wb_returned_items r
-       ${whereSql}
-       order by r.created_at desc
+      `select * from (
+         select
+           r.id,
+           r.source,
+           r.box_id as "boxId",
+           r.cargo_number as "cargoNumber",
+           r.description,
+           r.has_shk as "hasShk",
+           r.document_number as "documentNumber",
+           r.document_date as "documentDate",
+           r.amount_rub as "amountRub",
+           r.source_row_number as "rowNumber",
+           r.created_at as "createdAt",
+           row_number() over (
+             partition by
+               coalesce(nullif(trim(r.document_number), ''), ''),
+               coalesce(r.batch_id::text, '0')
+             order by r.source_row_number nulls last, r.id asc
+           )::int as "documentLineNumber"
+         from wb_returned_items r
+         ${whereSql}
+       ) sub
+       order by sub."createdAt" desc
        limit $${dataParams.length - 1}
        offset $${dataParams.length}`,
       dataParams,

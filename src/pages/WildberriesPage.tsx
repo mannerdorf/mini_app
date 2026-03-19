@@ -334,6 +334,22 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     [authHeaders, loadData],
   );
 
+  /** Сводная пересобирается на сервере после импорта в фоне — на serverless это часто обрывается; ждём явный POST refresh. */
+  const triggerWbSummaryRefresh = useCallback(async () => {
+    try {
+      await fetch("/api/wb/summary/refresh", { method: "POST", headers: authHeaders });
+    } catch {
+      // сеть / 401 при праве только чтения
+    }
+  }, [authHeaders]);
+
+  const handleWbRefreshClick = useCallback(async () => {
+    if (activeTab === "summary") {
+      await triggerWbSummaryRefresh();
+    }
+    await loadData();
+  }, [activeTab, loadData, triggerWbSummaryRefresh]);
+
   const handleUpload = useCallback(
     async (fileList: FileList | null) => {
       if (!fileList || fileList.length === 0) return;
@@ -396,8 +412,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           if (data.summaryRebuildAsync === true) summaryRefreshOnce = true;
         }
 
-        if (summaryRefreshOnce && activeTab === "inbound") {
-          void fetch("/api/wb/summary/refresh", { method: "POST", headers: authHeaders }).catch(() => {});
+        if (summaryRefreshOnce) {
+          await triggerWbSummaryRefresh();
         }
         if (okCount > 0) await loadData();
 
@@ -413,7 +429,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         setUploading(false);
       }
     },
-    [activeTab, authHeaders, importMode, loadData],
+    [activeTab, authHeaders, importMode, loadData, triggerWbSummaryRefresh],
   );
 
   const handleExport = useCallback(
@@ -500,6 +516,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
     if (activeTab === "returned") {
       return [
         { key: "rowNumber", label: "№ строки (Excel)" },
+        { key: "documentLineNumber", label: "№ в ведомости" },
         { key: "boxId", label: "ID коробки" },
         { key: "cargoNumber", label: "Номер груза" },
         { key: "description", label: "Описание" },
@@ -618,7 +635,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         </div>
 
         <Flex gap="0.5rem" wrap="wrap" align="center" style={{ marginTop: "0.75rem" }}>
-          <Button className="wb-action-btn" onClick={() => void loadData()} disabled={loading}>
+          <Button className="wb-action-btn" onClick={() => void handleWbRefreshClick()} disabled={loading}>
             {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             {loading ? " Загрузка..." : "Обновить"}
           </Button>
@@ -765,7 +782,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
                     }
                     style={{ textAlign: "center", color: "var(--color-text-secondary)" }}
                   >
-                    {loading ? "Загрузка..." : "Нет данных"}
+                    {loading
+                      ? "Загрузка..."
+                      : activeTab === "summary"
+                        ? "Нет данных. Если коробки уже есть в «Описи», «Возвращенный груз» или «Претензии», нажмите «Обновить» — выполнится пересчёт сводной."
+                        : "Нет данных"}
                   </td>
                 </tr>
               ) : activeTab === "inbound" ? (
