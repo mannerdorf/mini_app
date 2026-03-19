@@ -275,7 +275,11 @@ export async function rebuildWbSummary(pool: Pool): Promise<{ rows: number; skip
     await client.query("commit");
     return { rows: boxes.size };
   } catch (error) {
-    await client.query("rollback");
+    try {
+      await client.query("rollback");
+    } catch {
+      // уже не в транзакции / соединение оборвано
+    }
     throw error;
   } finally {
     client.release();
