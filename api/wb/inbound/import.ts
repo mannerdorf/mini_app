@@ -32,20 +32,53 @@ function findHeaderRow(data: unknown[][]) {
 function parseInventoryMeta(data: unknown[][]) {
   let inventoryNumber = "";
   let inventoryDate: string | null = null;
-  for (let i = 0; i < Math.min(20, data.length); i++) {
+  const maxRows = Math.min(8, data.length);
+  const dateHints = ["дата", "дата создания", "дата составления", "дата ведомости", "дата описи"];
+  for (let i = 0; i < maxRows; i++) {
     const row = data[i] ?? [];
     for (let j = 0; j < row.length; j++) {
+      const rawCell = asText(row[j]);
       const cell = normalizeHeaderCell(row[j]);
       if (!cell) continue;
-      if (cell.includes("номер ввозной описи")) {
-        inventoryNumber = asText(row[j + 1] ?? row[j + 2] ?? "");
+      if (!inventoryNumber && cell.includes("номер ввозной описи")) {
+        inventoryNumber = asText(row[j + 1] ?? row[j + 2] ?? row[j + 3] ?? "");
       }
-      if (cell.includes("дата создания ввозной описи")) {
+      if (!inventoryDate && cell.includes("дата создания ввозной описи")) {
         const raw = row[j + 1] ?? row[j + 2] ?? "";
         inventoryDate = parseDateOnly(raw);
       }
+
+      // Номер в формате "№ 206679354" часто лежит в первых строках как отдельная ячейка.
+      if (!inventoryNumber) {
+        const numberBySign = rawCell.match(/№\s*([0-9]{4,})/u);
+        if (numberBySign?.[1]) {
+          inventoryNumber = numberBySign[1];
+        } else {
+          const numberStandalone = rawCell.match(/\b([0-9]{6,})\b/u);
+          // Берем только если в строке есть подсказка "номер/опись/ведомость".
+          if (numberStandalone?.[1] && (cell.includes("номер") || cell.includes("опись") || cell.includes("ведомост"))) {
+            inventoryNumber = numberStandalone[1];
+          }
+        }
+      }
+
+      // Дата в первых строках может быть без явной подписи в соседних ячейках.
+      if (!inventoryDate) {
+        const localDate = parseDateOnly(rawCell);
+        if (localDate && (dateHints.some((hint) => cell.includes(hint)) || /\d{1,2}[./]\d{1,2}[./]\d{4}/.test(rawCell))) {
+          inventoryDate = localDate;
+        }
+      }
+
+      // Если в текущей ячейке подсказка "дата...", смотрим соседние ячейки справа.
+      if (!inventoryDate && dateHints.some((hint) => cell.includes(hint))) {
+        const candidate = parseDateOnly(row[j + 1] ?? row[j + 2] ?? row[j + 3] ?? "");
+        if (candidate) inventoryDate = candidate;
+      }
     }
   }
+  // Финальная очистка номера: оставляем только цифры.
+  if (inventoryNumber) inventoryNumber = inventoryNumber.replace(/[^\d]/g, "");
   return { inventoryNumber, inventoryDate };
 }
 

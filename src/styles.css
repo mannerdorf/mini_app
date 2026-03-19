@@ -1818,18 +1818,28 @@ body {
 .wb-page {
     width: 100%;
 }
-.wb-page-top {
-    margin-bottom: 0.75rem;
+.wb-header-logo {
+    height: 40px;
+    width: auto;
+    max-width: 120px;
+    object-fit: contain;
+    object-position: left center;
+    display: block;
+    flex-shrink: 0;
+    border-radius: 10px;
 }
 .wb-panel {
     border: 1px solid rgba(124, 58, 237, 0.22);
     background: linear-gradient(180deg, rgba(124, 58, 237, 0.08) 0%, rgba(124, 58, 237, 0.02) 100%);
 }
+.wb-panel-tabs-section {
+    padding: 0.75rem 0;
+}
 .wb-tabs {
     display: flex;
     flex-wrap: wrap;
     gap: 0.45rem;
-    margin-bottom: 0.75rem;
+    margin: 0;
 }
 .wb-tab-btn {
     border: 1px solid rgba(124, 58, 237, 0.3);
@@ -1850,6 +1860,38 @@ body {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 0.5rem;
+}
+
+/* WB: высота полей на ~20% меньше (0.8 × база 2.5rem) */
+.wb-page {
+    --wb-input-height: calc(2.5rem * 0.8);
+    --wb-input-pad-y: calc(0.5rem * 0.8);
+    --wb-input-pad-x: calc(0.65rem * 0.8);
+}
+.wb-page .wb-panel .admin-form-input {
+    min-height: var(--wb-input-height) !important;
+    height: var(--wb-input-height) !important;
+    max-height: var(--wb-input-height) !important;
+    padding-top: var(--wb-input-pad-y) !important;
+    padding-bottom: var(--wb-input-pad-y) !important;
+    padding-left: var(--wb-input-pad-x) !important;
+    padding-right: var(--wb-input-pad-x) !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+}
+.wb-page .wb-panel select.admin-form-input {
+    display: inline-block !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    line-height: var(--wb-input-height) !important;
+    font-size: 0.8125rem !important;
+}
+.wb-page .wb-panel .admin-form-input input {
+    min-height: 0 !important;
+    height: auto !important;
+    line-height: 1.25 !important;
+    font-size: 0.8125rem !important;
 }
 .wb-upload-box {
     margin-top: 0.75rem;
@@ -1904,6 +1946,38 @@ body {
 .wb-table th {
     background: rgba(124, 58, 237, 0.1);
     color: var(--color-text-primary);
+}
+.wb-col-expand {
+    width: 2rem;
+    text-align: center;
+    color: var(--color-text-secondary);
+}
+.wb-inbound-summary-row {
+    cursor: pointer;
+}
+.wb-inbound-summary-row:hover {
+    background: rgba(124, 58, 237, 0.06);
+}
+.wb-inbound-summary-row--open {
+    background: rgba(124, 58, 237, 0.08);
+}
+.wb-inbound-detail-row td {
+    background: var(--color-bg-secondary, #f9fafb);
+    white-space: normal;
+    padding: 0.5rem;
+    vertical-align: top;
+}
+.wb-inbound-detail-wrap {
+    max-height: 70vh;
+    overflow: auto;
+}
+.wb-table.wb-table--nested {
+    font-size: 0.8rem;
+}
+.wb-table--nested th,
+.wb-table--nested td {
+    white-space: normal;
+    max-width: 16rem;
 }
 .wb-search-results {
     margin-top: 0.75rem;

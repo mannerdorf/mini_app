@@ -28,6 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const article = String(req.query.article ?? "").trim();
     const brand = String(req.query.brand ?? "").trim();
     const q = String(req.query.q ?? "").trim();
+    const view = String(req.query.view ?? "").trim().toLowerCase();
 
     const where: string[] = [];
     const params: unknown[] = [];
@@ -65,10 +66,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         or coalesce(i.brand, '') ilike $${params.length}
         or coalesce(i.description, '') ilike $${params.length}
         or coalesce(i.nomenclature, '') ilike $${params.length}
+        or i.inventory_number ilike $${params.length}
       )`);
     }
 
     const whereSql = where.length ? `where ${where.join(" and ")}` : "";
+
+    if (view === "summary") {
+      const countSql = `
+        select count(*)::int as total from (
+          select i.inventory_number
+          from wb_inbound_items i
+          ${whereSql}
+          group by i.inventory_number
+        ) t
+      `;
+      const countRes = await pool.query<{ total: number }>(countSql, params);
+      const total = countRes.rows[0]?.total ?? 0;
+
+      const dataParams = [...params, limit, offset];
+      const rowsSql = `
+        with base as (
+          select i.*
+          from wb_inbound_items i
+          ${whereSql}
+        )
+        select
+          b.inventory_number as "inventoryNumber",
+          max(b.inventory_created_at)::date as "inventoryCreatedAt",
+          count(distinct b.box_number)::int as "boxCount",
+          coalesce(sum(b.price_rub), 0)::numeric as "totalPriceRub",
+          count(*)::int as "lineCount"
+        from base b
+        group by b.inventory_number
+        order by max(b.inventory_created_at) desc nulls last, b.inventory_number desc
+        limit $${dataParams.length - 1}
+        offset $${dataParams.length}
+      `;
+      const dataRes = await pool.query(rowsSql, dataParams);
+
+      return res.status(200).json({
+        page,
+        limit,
+        total,
+        view: "summary",
+        items: dataRes.rows,
+        request_id: ctx.requestId,
+      });
+    }
+
     const countSql = `select count(*)::int as total from wb_inbound_items i ${whereSql}`;
     const countRes = await pool.query<{ total: number }>(countSql, params);
     const total = countRes.rows[0]?.total ?? 0;
@@ -108,6 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       page,
       limit,
       total,
+      view: "detail",
       items: dataRes.rows,
       request_id: ctx.requestId,
     });

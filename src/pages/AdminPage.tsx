@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
-import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Sun, Moon, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator, ClipboardList, FileText, Ship, MapPin } from "lucide-react";
+import { ArrowLeft, Users, Loader2, Plus, LogOut, Trash2, Eye, EyeOff, Activity, Copy, Building2, History, Layers, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Mail, Calendar, AlertCircle, Download, Clock, Receipt, BarChart3, Calculator, ClipboardList, FileText, Ship, MapPin } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { CustomerPickModal, type CustomerItem } from "../components/modals/CustomerPickModal";
 import type { ExpenseRequestItem } from "./ExpenseRequestsPage";
@@ -479,33 +479,16 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const [accountingSubsection, setAccountingSubsection] = useState<"expense_requests" | "sverki" | "claims">("expense_requests");
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations";
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    try {
-      const saved = localStorage.getItem(ADMIN_THEME_KEY);
-      return saved === "light" || saved === "dark" ? saved : "dark";
-    } catch {
-      return "dark";
-    }
-  });
-
+  // Только светлая тема в админке
   useEffect(() => {
     try {
-      localStorage.setItem(ADMIN_THEME_KEY, theme);
+      localStorage.setItem(ADMIN_THEME_KEY, "light");
     } catch {
       /* ignore */
     }
-  }, [theme]);
-
-  useEffect(() => {
     const el = typeof document !== "undefined" ? document.body : null;
-    if (!el) return;
-    if (theme === "light") {
-      el.classList.add("light-mode");
-    } else {
-      el.classList.remove("light-mode");
-    }
-    return () => el.classList.remove("light-mode");
-  }, [theme]);
+    if (el) el.classList.add("light-mode");
+  }, []);
   const onLogoutRef = useRef(onLogout);
   useEffect(() => {
     onLogoutRef.current = onLogout;
@@ -3432,7 +3415,7 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
   const isDirectoryTab = tab === "users" || tab === "customers" || tab === "suppliers" || tab === "tariffs" || tab === "sverki" || tab === "dogovors" || tab === "ferries" || tab === "pvz" || tab === "employee_directory" || tab === "subdivisions" || tab === "presets";
 
   return (
-    <div className={theme === "light" ? "light-mode w-full" : "w-full"}>
+    <div className="light-mode w-full">
       <Flex align="center" justify="space-between" style={{ marginBottom: "1rem", gap: "0.75rem", flexWrap: "wrap" }}>
         <Flex align="center" gap="0.75rem">
           <Button type="button" className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }} aria-label="Назад в приложение">
@@ -3441,16 +3424,6 @@ export function AdminPage({ adminToken, onBack, onLogout }: AdminPageProps) {
           <Typography.Headline style={{ fontSize: "1.25rem" }}>CMS</Typography.Headline>
         </Flex>
         <Flex align="center" gap="0.5rem">
-          <Button
-            type="button"
-            className="filter-button"
-            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-            style={{ padding: "0.5rem" }}
-            aria-label={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
-            title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
-          >
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </Button>
           {onLogout && (
             <Button type="button" className="filter-button" onClick={onLogout} style={{ padding: "0.5rem 0.75rem" }} aria-label="Выйти из админки">
               <LogOut className="w-4 h-4" style={{ marginRight: "0.35rem" }} />

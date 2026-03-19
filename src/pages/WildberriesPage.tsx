@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
 import { Download, FileUp, RefreshCw, Search, Upload } from "lucide-react";
 import type { AuthData } from "../types";
@@ -23,11 +23,38 @@ type WbSearchResult = {
 
 type ColumnDef = { key: string; label: string };
 
+const INBOUND_DETAIL_COLUMNS: ColumnDef[] = [
+  { key: "inventoryNumber", label: "Номер ввозной описи" },
+  { key: "inventoryCreatedAt", label: "Дата создания ввозной описи" },
+  { key: "boxNumber", label: "Номер коробки" },
+  { key: "shk", label: "ШК" },
+  { key: "article", label: "Артикул" },
+  { key: "brand", label: "Бренд" },
+  { key: "description", label: "Описание" },
+  { key: "priceRub", label: "Цена, RUB" },
+  { key: "massKg", label: "Масса" },
+];
+
+function formatWbCellValue(key: string, value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (key === "totalPriceRub" || key === "priceRub") {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return String(value);
+    return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  if (key === "inventoryCreatedAt" || key === "createdAt" || key === "documentDate") {
+    const s = String(value);
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    return s;
+  }
+  return String(value);
+}
+
 const TAB_LABELS: Array<{ key: WbTab; label: string }> = [
-  { key: "inbound", label: "Принятый груз" },
+  { key: "inbound", label: "Описи" },
   { key: "returned", label: "Возвращенный груз" },
-  { key: "claims", label: "Претензии (удержания)" },
-  { key: "summary", label: "Выводы (сводная)" },
+  { key: "claims", label: "Претензии" },
+  { key: "summary", label: "Сводная" },
 ];
 
 function buildQuery(params: Record<string, string | number | undefined>) {
@@ -56,6 +83,11 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const [searchResults, setSearchResults] = useState<WbSearchResult[]>([]);
   const [claimsRevisionId, setClaimsRevisionId] = useState<number | null>(null);
   const [claimsRevisions, setClaimsRevisions] = useState<Array<{ id: number; revision_number: number; is_active: boolean }>>([]);
+  const [expandedInboundInv, setExpandedInboundInv] = useState<string | null>(null);
+  const [inboundDetailsCache, setInboundDetailsCache] = useState<Record<string, Record<string, unknown>[]>>({});
+  const [inboundDetailLoading, setInboundDetailLoading] = useState<string | null>(null);
+  const inboundDetailsCacheRef = useRef(inboundDetailsCache);
+  inboundDetailsCacheRef.current = inboundDetailsCache;
   const [manualReturned, setManualReturned] = useState({
     boxId: "",
     cargoNumber: "",
@@ -109,6 +141,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
         q: filters.q,
         history: activeTab === "claims" ? "true" : undefined,
         revisionId: activeTab === "claims" && claimsRevisionId ? claimsRevisionId : undefined,
+        view: activeTab === "inbound" ? "summary" : undefined,
       });
       const res = await fetch(`${dataEndpoint}?${query}`, { headers: authHeaders });
       const data = await res.json().catch(() => ({}));
@@ -132,6 +165,45 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    setExpandedInboundInv(null);
+  }, [activeTab, page, limit, filters.dateFrom, filters.dateTo, filters.inventoryNumber, filters.boxId, filters.article, filters.brand, filters.q]);
+
+  const loadInboundDetails = useCallback(
+    async (inventoryNumber: string) => {
+      if (Object.prototype.hasOwnProperty.call(inboundDetailsCacheRef.current, inventoryNumber)) return;
+      setInboundDetailLoading(inventoryNumber);
+      try {
+        const query = buildQuery({
+          inventoryNumber,
+          limit: 500,
+          page: 1,
+        });
+        const res = await fetch(`/api/wb/inbound?${query}`, { headers: authHeaders });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data?.error === "string" ? data.error : "Ошибка загрузки строк");
+        const rows = Array.isArray(data?.items) ? data.items : [];
+        setInboundDetailsCache((prev) => ({ ...prev, [inventoryNumber]: rows }));
+      } catch {
+        setInboundDetailsCache((prev) => ({ ...prev, [inventoryNumber]: [] }));
+      } finally {
+        setInboundDetailLoading(null);
+      }
+    },
+    [authHeaders],
+  );
+
+  const toggleInboundRow = useCallback(
+    (inventoryNumber: string) => {
+      setExpandedInboundInv((prev) => {
+        if (prev === inventoryNumber) return null;
+        void loadInboundDetails(inventoryNumber);
+        return inventoryNumber;
+      });
+    },
+    [loadInboundDetails],
+  );
 
   const handleUpload = useCallback(
     async (fileList: FileList | null) => {
@@ -245,15 +317,10 @@ export function WildberriesPage({ auth, canUpload }: Props) {
   const columns = useMemo<ColumnDef[]>(() => {
     if (activeTab === "inbound") {
       return [
-        { key: "inventoryNumber", label: "Номер ввозной описи" },
-        { key: "inventoryCreatedAt", label: "Дата создания ввозной описи" },
-        { key: "boxNumber", label: "Номер коробки" },
-        { key: "shk", label: "ШК" },
-        { key: "article", label: "Артикул" },
-        { key: "brand", label: "Бренд" },
-        { key: "description", label: "Описание" },
-        { key: "priceRub", label: "Цена, RUB" },
-        { key: "massKg", label: "Масса" },
+        { key: "inventoryNumber", label: "Номер ведомости" },
+        { key: "inventoryCreatedAt", label: "Дата ведомости" },
+        { key: "boxCount", label: "Кол-во коробов" },
+        { key: "totalPriceRub", label: "Общая стоимость, RUB" },
       ];
     }
     if (activeTab === "returned") {
@@ -298,14 +365,8 @@ export function WildberriesPage({ auth, canUpload }: Props) {
 
   return (
     <div className="wb-page">
-      <div className="wb-page-top">
-        <Typography.Title style={{ margin: 0 }}>Wildberries</Typography.Title>
-        <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
-          Приемка,{`\u00A0\u00A0`}возвраты,{`\u00A0\u00A0`}удержания{`\u00A0\u00A0`}и{`\u00A0\u00A0`}сводная{`\u00A0\u00A0`}аналитика
-        </Typography.Body>
-      </div>
-
       <Panel className="wb-panel" mode="secondary">
+        <div className="wb-panel-tabs-section">
         <div className="wb-tabs">
           {TAB_LABELS.map((tab) => (
             <button
@@ -320,6 +381,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
               {tab.label}
             </button>
           ))}
+        </div>
         </div>
 
         <div className="wb-filters-grid">
@@ -470,6 +532,7 @@ export function WildberriesPage({ auth, canUpload }: Props) {
           <table className="wb-table">
             <thead>
               <tr>
+                {activeTab === "inbound" && <th className="wb-col-expand" aria-hidden />}
                 {columns.map((col) => (
                   <th key={col.key}>{col.label}</th>
                 ))}
@@ -478,15 +541,74 @@ export function WildberriesPage({ auth, canUpload }: Props) {
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length} style={{ textAlign: "center", color: "var(--color-text-secondary)" }}>
+                  <td colSpan={columns.length + (activeTab === "inbound" ? 1 : 0)} style={{ textAlign: "center", color: "var(--color-text-secondary)" }}>
                     {loading ? "Загрузка..." : "Нет данных"}
                   </td>
                 </tr>
+              ) : activeTab === "inbound" ? (
+                items.map((row, idx) => {
+                  const inv = String(row.inventoryNumber ?? idx);
+                  const open = expandedInboundInv === inv;
+                  const detailRows = inboundDetailsCache[inv] ?? [];
+                  return (
+                    <React.Fragment key={`inbound-${inv}-${idx}`}>
+                      <tr
+                        className={`wb-inbound-summary-row ${open ? "wb-inbound-summary-row--open" : ""}`}
+                        onClick={() => toggleInboundRow(inv)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleInboundRow(inv);
+                          }
+                        }}
+                      >
+                        <td className="wb-col-expand">{open ? "▼" : "▶"}</td>
+                        {columns.map((col) => (
+                          <td key={col.key}>{formatWbCellValue(col.key, row[col.key])}</td>
+                        ))}
+                      </tr>
+                      {open && (
+                        <tr className="wb-inbound-detail-row">
+                          <td colSpan={columns.length + 1}>
+                            {inboundDetailLoading === inv && detailRows.length === 0 ? (
+                              <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>Загрузка строк...</Typography.Body>
+                            ) : detailRows.length === 0 ? (
+                              <Typography.Body style={{ color: "var(--color-text-secondary)", padding: "0.5rem" }}>Нет строк по этой ведомости</Typography.Body>
+                            ) : (
+                              <div className="wb-inbound-detail-wrap">
+                                <table className="wb-table wb-table--nested">
+                                  <thead>
+                                    <tr>
+                                      {INBOUND_DETAIL_COLUMNS.map((c) => (
+                                        <th key={c.key}>{c.label}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {detailRows.map((dr, dIdx) => (
+                                      <tr key={`${inv}-d-${dIdx}`}>
+                                        {INBOUND_DETAIL_COLUMNS.map((c) => (
+                                          <td key={c.key}>{formatWbCellValue(c.key, dr[c.key])}</td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
               ) : (
                 items.map((row, idx) => (
                   <tr key={`${activeTab}-${idx}`}>
                     {columns.map((col) => (
-                      <td key={col.key}>{String(row[col.key] ?? "")}</td>
+                      <td key={col.key}>{formatWbCellValue(col.key, row[col.key])}</td>
                     ))}
                   </tr>
                 ))

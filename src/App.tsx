@@ -1,6 +1,6 @@
 import React, { FormEvent, useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect, Suspense, lazy } from "react";
 import {
-    LogOut, Truck, Loader2, Check, X, Moon, Sun, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Users, Scale, RussianRuble, List, Download, Maximize, Minimize2,
+    LogOut, Truck, Loader2, Check, X, Eye, EyeOff, AlertTriangle, Package, Calendar, Tag, Layers, Weight, Filter, Search, ChevronDown, User as UserIcon, Users, Scale, RussianRuble, List, Download, Maximize, Minimize2,
     Home, FileText, MessageCircle, User, LayoutGrid, TrendingUp, TrendingDown, CornerUpLeft, ClipboardCheck, CreditCard, Minus, ArrowUp, ArrowDown, ArrowUpDown, Heart, Building2, Bell, Shield, Settings, Info, ArrowLeft, Plus, Trash2, MapPin, Phone, Mail, Share2, Mic, Square, Ship, RefreshCw, Lock
 } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -57,6 +57,17 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage").then((m) => ({ defa
 import { ExpenseRequestsPage } from "./pages/ExpenseRequestsPage";
 import { AppRuntimeProvider } from "./contexts/AppRuntimeContext";
 import { getInitialAuthState } from "./lib/authState";
+import {
+    WB_TAB,
+    isWbOnlyAccount,
+    isWildberriesTab,
+    wildberriesInitialTabFromUrl,
+    syncAppUrlWithActiveTab,
+    WbHeaderLogo,
+    WbOnlyAppLayout,
+    useResetGlobalSearchOnWildberries,
+    TABS_ALLOWED_ON_RESTORE,
+} from "./wb/appWb";
 import { PUBLIC_OFFER_TEXT, PERSONAL_DATA_CONSENT_TEXT } from "./constants/legalTexts";
 import { getSlaInfo, getPlanDays, getInnFromCargo, isFerry } from "./lib/cargoUtils";
 import * as dateUtils from "./lib/dateUtils";
@@ -123,12 +134,7 @@ const getFileNameFromDisposition = (header: string | null, fallback: string) => 
 // ================== COMPONENTS ==================
 
 export default function App() {
-    // Тема и состояние — объявляем первыми, т.к. используются в первом useEffect (избегаем TDZ при минификации)
-    const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-        if (typeof window === 'undefined') return 'dark';
-        const saved = window.localStorage.getItem('haulz.theme');
-        return (saved === 'dark' || saved === 'light') ? saved : 'dark';
-    });
+    // Только светлая тема (тёмный режим отключён)
     const [desktopExpanded, setDesktopExpanded] = useState<boolean>(() => {
         if (typeof window === "undefined") return false;
         return window.localStorage.getItem("haulz.desktop.expanded") === "true";
@@ -165,28 +171,26 @@ export default function App() {
                 if (typeof webApp.expand === "function") {
                     webApp.expand();
                 }
-                // Для MAX не используем автоматическую тему из colorScheme; приоритет — сохранённая тема
-                const savedTheme = typeof window !== "undefined" ? window.localStorage.getItem("haulz.theme") : null;
-                if (savedTheme === "dark" || savedTheme === "light") {
-                    setTheme(savedTheme);
-                } else if (!isMaxWebApp() && typeof webApp.colorScheme === "string") {
-                    setTheme(webApp.colorScheme);
+                try {
+                    window.localStorage.setItem("haulz.theme", "light");
+                } catch {
+                    // ignore
                 }
+                document.body.className = "light-mode";
             } catch {
                 // Игнорируем, если WebApp API частично недоступен
             }
 
             const themeHandler = () => {
-                const savedTheme = typeof window !== "undefined" ? window.localStorage.getItem("haulz.theme") : null;
-                if (savedTheme === "dark" || savedTheme === "light") {
-                    setTheme(savedTheme);
-                } else if (!isMaxWebApp() && typeof webApp.colorScheme === "string") {
-                    setTheme(webApp.colorScheme);
+                try {
+                    window.localStorage.setItem("haulz.theme", "light");
+                } catch {
+                    // ignore
                 }
-                // Для MAX всегда белый фон
+                document.body.className = "light-mode";
                 if (isMaxWebApp()) {
                     if (typeof webApp.setBackgroundColor === "function") {
-                        webApp.setBackgroundColor('#ffffff');
+                        webApp.setBackgroundColor("#ffffff");
                     }
                 }
             };
@@ -279,28 +283,7 @@ export default function App() {
     const serviceModeUnlocked = useMemo(() => {
         return !!activeAccount?.isRegisteredUser && activeAccount?.permissions?.service_mode === true;
     }, [activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
-    const isWbOnlyUser = useMemo(() => {
-        if (!activeAccount?.isRegisteredUser || activeAccount?.permissions?.wb !== true) return false;
-        const perms = activeAccount.permissions || {};
-        const hasCoreNonWbAccess = !!(
-            perms.cms_access ||
-            perms.haulz ||
-            perms.eor ||
-            perms.accounting ||
-            perms.supervisor ||
-            perms.analytics
-        );
-        return !hasCoreNonWbAccess;
-    }, [
-        activeAccount?.isRegisteredUser,
-        activeAccount?.permissions?.wb,
-        activeAccount?.permissions?.cms_access,
-        activeAccount?.permissions?.haulz,
-        activeAccount?.permissions?.eor,
-        activeAccount?.permissions?.accounting,
-        activeAccount?.permissions?.supervisor,
-        activeAccount?.permissions?.analytics,
-    ]);
+    const isWbOnlyUser = useMemo(() => isWbOnlyAccount(activeAccount), [activeAccount]);
     useEffect(() => {
         if (!serviceModeUnlocked && useServiceRequest) {
             setUseServiceRequest(false);
@@ -387,11 +370,11 @@ export default function App() {
     }, [activeAccount?.id, activeAccount?.login]);
     const [activeTab, setActiveTab] = useState<Tab>(() => {
         if (typeof window === "undefined") return "cargo";
+        const wbTab = wildberriesInitialTabFromUrl();
+        if (wbTab) return wbTab;
         try {
             const url = new URL(window.location.href);
-            if (/^\/wildberries\/?$/i.test(url.pathname)) return "wildberries";
             const t = (url.searchParams.get("tab") || "").toLowerCase();
-            if (t === "wildberries") return "wildberries";
             if (t === "profile") return "profile";
             if (t === "cargo") return "cargo";
             if (t === "home" || t === "dashboard") return "dashboard";
@@ -510,7 +493,7 @@ export default function App() {
         if (!activeAccount?.isRegisteredUser || !activeAccount?.permissions) return;
         const perms = activeAccount.permissions;
         if (isWbOnlyUser) {
-            if (activeTab !== "wildberries") setActiveTab("wildberries");
+            if (!isWildberriesTab(activeTab)) setActiveTab(WB_TAB);
             return;
         }
         const canHome = true;
@@ -539,20 +522,19 @@ export default function App() {
     }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.permissions, activeTab, isWbOnlyUser]);
 
     useEffect(() => {
-        document.body.className = `${theme}-mode`;
+        document.body.className = "light-mode";
         try {
-            window.localStorage.setItem('haulz.theme', theme);
+            window.localStorage.setItem("haulz.theme", "light");
         } catch {
             // ignore
         }
-        // Для MAX всегда белый фон при изменении темы
         if (isMaxWebApp()) {
             const webApp = getWebApp();
             if (webApp && typeof webApp.setBackgroundColor === "function") {
-                webApp.setBackgroundColor('#ffffff');
+                webApp.setBackgroundColor("#ffffff");
             }
         }
-    }, [theme]);
+    }, []);
     useEffect(() => {
         if (typeof window === "undefined") return;
         try {
@@ -561,6 +543,8 @@ export default function App() {
             // ignore
         }
     }, [desktopExpanded]);
+
+    useResetGlobalSearchOnWildberries(activeTab, setIsSearchExpanded, setSearchText);
 
     useEffect(() => {
         if (!debugMenuOpen) return;
@@ -672,9 +656,8 @@ export default function App() {
                         }
                         // Восстанавливаем последнюю вкладку (без сохранения секретного режима)
                         if (savedTab && !hasUrlTabOverrideRef.current) {
-                            const allowed: Tab[] = ["home", "cargo", "profile", "dashboard", "docs", "expense_requests", "wildberries"];
                             const t = savedTab as Tab;
-                            if (allowed.includes(t)) {
+                            if (TABS_ALLOWED_ON_RESTORE.includes(t)) {
                                 if (t === "docs") {
                                     setActiveTab("docs");
                                 } else if (t === "home") {
@@ -725,26 +708,7 @@ export default function App() {
 
     // Синхронизируем URL. Не трогаем ?tab=cms — это админка.
     useEffect(() => {
-        if (typeof window === "undefined") return;
-        try {
-            const url = new URL(window.location.href);
-            const tabInUrl = url.searchParams.get("tab");
-            if (tabInUrl === "cms") return; // админка — URL не меняем
-            if (activeTab === "wildberries") {
-                url.pathname = "/wildberries";
-                url.searchParams.delete("tab");
-                window.history.replaceState(null, "", url.toString());
-                return;
-            }
-            if (/^\/wildberries\/?$/i.test(url.pathname)) {
-                url.pathname = "/";
-            }
-            const tabForUrl = activeTab === "dashboard" ? "home" : activeTab;
-            url.searchParams.set("tab", tabForUrl);
-            window.history.replaceState(null, "", url.toString());
-        } catch {
-            // ignore
-        }
+        syncAppUrlWithActiveTab(activeTab);
     }, [activeTab]);
     
     // Сохранение аккаунтов и выбранных компаний в localStorage
@@ -908,7 +872,6 @@ export default function App() {
         return () => { cancelled = true; };
     }, [activeTab, activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.login, activeAccount?.password]);
 
-    const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
     const handleSearch = (text: string) => setSearchText(text.toLowerCase().trim());
 
     const MAX_SUPPORT_BOT_URL = "https://max.ru/id9706037094_bot";
@@ -1748,19 +1711,6 @@ export default function App() {
             <>
                 <Container className={`app-container login-form-wrapper`}>
                 <Panel mode="secondary" className="login-card">
-                    <div className="absolute top-4 right-4">
-                        <Button
-                            className="theme-toggle-button-login"
-                            onClick={toggleTheme}
-                            title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'}
-                            aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}
-                        >
-                            {/* ИСПРАВЛЕНИЕ: Убран class text-yellow-400 */}
-                            {theme === 'dark' 
-                                ? <Sun className="w-5 h-5 text-theme-primary" /> 
-                                : <Moon className="w-5 h-5 text-theme-primary" />}
-                        </Button>
-                    </div>
                     <Flex justify="center" className="mb-4 h-10 mt-6">
                         <Typography.Title className="logo-text">HAULZ</Typography.Title>
                     </Flex>
@@ -1942,72 +1892,53 @@ export default function App() {
 
     if (isWbOnlyUser) {
         return (
-            <>
-                <Container className="app-container">
-                    <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
-                        <Flex align="center" justify="space-between" className="header-top-row">
-                            <Typography.Title className="logo-text" style={{ margin: 0 }}>HAULZ WB</Typography.Title>
-                            <Flex align="center" className="space-x-3">
-                                <Button className="search-toggle-button" onClick={toggleTheme} title={theme === "dark" ? "Светлый режим" : "Темный режим"} aria-label={theme === "dark" ? "Включить светлый режим" : "Включить темный режим"}>
-                                    {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                                </Button>
-                                <Button className="search-toggle-button" onClick={handleLogout} title="Выход" aria-label="Выйти">
-                                    <LogOut className="w-5 h-5" />
-                                </Button>
-                            </Flex>
-                        </Flex>
-                    </header>
-                    <div className={`app-main${desktopExpanded ? " app-main-wide" : ""}`}>
-                        <div className="w-full">
-                            <AppRuntimeProvider
-                                value={{
-                                    useServiceRequest: false,
-                                    searchText,
-                                    activeInn: activeAccount?.activeCustomerInn ?? auth?.inn ?? "",
-                                }}
-                            >
-                                <AppMainContent
-                                    showDashboard={false}
-                                    activeTab={"wildberries"}
-                                    auth={auth}
-                                    selectedAuths={selectedAuths}
-                                    accounts={accounts}
-                                    activeAccountId={activeAccountId}
-                                    activeAccount={activeAccount}
-                                    contextCargoNumber={contextCargoNumber}
-                                    useServiceRequest={false}
-                                    setContextCargoNumber={setContextCargoNumber}
-                                    setActiveTab={setActiveTab}
-                                    setSelectedAccountIds={setSelectedAccountIds}
-                                    setActiveAccountId={setActiveAccountId}
-                                    updateActiveAccountCustomer={updateActiveAccountCustomer}
-                                    openCargoWithFilters={openCargoWithFilters}
-                                    openCargoFromChat={openCargoFromChat}
-                                    openCargoFromDocuments={openCargoFromDocuments}
-                                    openClaimFromCargo={openClaimFromCargo}
-                                    openDocumentsWithSection={openDocumentsWithSection}
-                                    openAisWithMmsi={openAisWithMmsi}
-                                    aisOpenWithMmsi={aisOpenWithMmsi}
-                                    setAisOpenWithMmsi={setAisOpenWithMmsi}
-                                    openTelegramBotWithAccount={openTelegramBotWithAccount}
-                                    handleSwitchAccount={handleSwitchAccount}
-                                    handleAddAccount={handleAddAccount}
-                                    handleRemoveAccount={handleRemoveAccount}
-                                    handleUpdateAccount={handleUpdateAccount}
-                                    setIsOfferOpen={setIsOfferOpen}
-                                    setIsPersonalConsentOpen={setIsPersonalConsentOpen}
-                                    openSecretPinModal={openSecretPinModal}
-                                    openWildberries={() => setActiveTab("wildberries")}
-                                    CargoDetailsModal={CargoDetailsModal}
-                                    DashboardPageComponent={DashboardPage}
-                                    ProfilePageComponent={ProfilePage}
-                                    DocumentsPageComponent={DocumentsPage}
-                                />
-                            </AppRuntimeProvider>
-                        </div>
-                    </div>
-                </Container>
-            </>
+            <WbOnlyAppLayout desktopExpanded={desktopExpanded} onLogout={handleLogout}>
+                <AppRuntimeProvider
+                    value={{
+                        useServiceRequest: false,
+                        searchText,
+                        activeInn: activeAccount?.activeCustomerInn ?? auth?.inn ?? "",
+                    }}
+                >
+                    <AppMainContent
+                        showDashboard={false}
+                        activeTab={WB_TAB}
+                        auth={auth}
+                        selectedAuths={selectedAuths}
+                        accounts={accounts}
+                        activeAccountId={activeAccountId}
+                        activeAccount={activeAccount}
+                        contextCargoNumber={contextCargoNumber}
+                        useServiceRequest={false}
+                        setContextCargoNumber={setContextCargoNumber}
+                        setActiveTab={setActiveTab}
+                        setSelectedAccountIds={setSelectedAccountIds}
+                        setActiveAccountId={setActiveAccountId}
+                        updateActiveAccountCustomer={updateActiveAccountCustomer}
+                        openCargoWithFilters={openCargoWithFilters}
+                        openCargoFromChat={openCargoFromChat}
+                        openCargoFromDocuments={openCargoFromDocuments}
+                        openClaimFromCargo={openClaimFromCargo}
+                        openDocumentsWithSection={openDocumentsWithSection}
+                        openAisWithMmsi={openAisWithMmsi}
+                        aisOpenWithMmsi={aisOpenWithMmsi}
+                        setAisOpenWithMmsi={setAisOpenWithMmsi}
+                        openTelegramBotWithAccount={openTelegramBotWithAccount}
+                        handleSwitchAccount={handleSwitchAccount}
+                        handleAddAccount={handleAddAccount}
+                        handleRemoveAccount={handleRemoveAccount}
+                        handleUpdateAccount={handleUpdateAccount}
+                        setIsOfferOpen={setIsOfferOpen}
+                        setIsPersonalConsentOpen={setIsPersonalConsentOpen}
+                        openSecretPinModal={openSecretPinModal}
+                        openWildberries={() => setActiveTab(WB_TAB)}
+                        CargoDetailsModal={CargoDetailsModal}
+                        DashboardPageComponent={DashboardPage}
+                        ProfilePageComponent={ProfilePage}
+                        DocumentsPageComponent={DocumentsPage}
+                    />
+                </AppRuntimeProvider>
+            </WbOnlyAppLayout>
         );
     }
 
@@ -2017,7 +1948,8 @@ export default function App() {
             <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
                     <Flex align="center" justify="space-between" className="header-top-row">
                     <Flex align="center" className="header-auth-info" style={{ position: 'relative', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        {activeTab !== "wildberries" && !useServiceRequest && activeAccountId && activeAccount && (
+                        {isWildberriesTab(activeTab) && <WbHeaderLogo />}
+                        {!isWildberriesTab(activeTab) && !useServiceRequest && activeAccountId && activeAccount && (
                             <CustomerSwitcher
                                 accounts={accounts}
                                 activeAccountId={activeAccountId}
@@ -2025,7 +1957,7 @@ export default function App() {
                                 onUpdateAccount={handleUpdateAccount}
                             />
                         )}
-                        {activeTab !== "wildberries" && serviceModeUnlocked && (
+                        {!isWildberriesTab(activeTab) && serviceModeUnlocked && (
                             <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
                                 <Typography.Label style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>Служ.</Typography.Label>
                                 <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
@@ -2142,22 +2074,23 @@ export default function App() {
                                 )}
                             </div>
                         )}
-                        <Button className="search-toggle-button" onClick={toggleTheme} title={theme === 'dark' ? 'Светлый режим' : 'Темный режим'} aria-label={theme === 'dark' ? 'Включить светлый режим' : 'Включить темный режим'}>
-                            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                        </Button>
-                        <Button className="search-toggle-button" onClick={() => { setIsSearchExpanded(!isSearchExpanded); if(isSearchExpanded) { handleSearch(''); setSearchText(''); } }}>
-                            {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
-                        </Button>
+                        {!isWildberriesTab(activeTab) && (
+                            <Button className="search-toggle-button" onClick={() => { setIsSearchExpanded(!isSearchExpanded); if(isSearchExpanded) { handleSearch(''); setSearchText(''); } }}>
+                                {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+                            </Button>
+                        )}
                         <Button className="search-toggle-button" onClick={handleLogout} title="Выход" aria-label="Выйти">
                             <LogOut className="w-5 h-5" />
                         </Button>
                     </Flex>
                 </Flex>
-                <div className={`search-container ${isSearchExpanded ? 'expanded' : 'collapsed'}`}>
-                    <Search className="w-5 h-5 text-theme-secondary flex-shrink-0 ml-1" />
-                    <Input type="search" placeholder="Поиск..." className="search-input" value={searchText} onChange={(e) => { setSearchText(e.target.value); handleSearch(e.target.value); }} />
-                    {searchText && <Button className="search-toggle-button" onClick={() => { setSearchText(''); handleSearch(''); }} aria-label="Очистить поиск"><X className="w-4 h-4" /></Button>}
-                </div>
+                {!isWildberriesTab(activeTab) && (
+                    <div className={`search-container ${isSearchExpanded ? 'expanded' : 'collapsed'}`}>
+                        <Search className="w-5 h-5 text-theme-secondary flex-shrink-0 ml-1" />
+                        <Input type="search" placeholder="Поиск..." className="search-input" value={searchText} onChange={(e) => { setSearchText(e.target.value); handleSearch(e.target.value); }} />
+                        {searchText && <Button className="search-toggle-button" onClick={() => { setSearchText(''); handleSearch(''); }} aria-label="Очистить поиск"><X className="w-4 h-4" /></Button>}
+                    </div>
+                )}
             </header>
             <div className={`app-main${desktopExpanded ? " app-main-wide" : ""}`}>
                 <div className="w-full">
@@ -2199,7 +2132,7 @@ export default function App() {
                             setIsOfferOpen={setIsOfferOpen}
                             setIsPersonalConsentOpen={setIsPersonalConsentOpen}
                             openSecretPinModal={openSecretPinModal}
-                            openWildberries={() => setActiveTab("wildberries")}
+                            openWildberries={() => setActiveTab(WB_TAB)}
                             CargoDetailsModal={CargoDetailsModal}
                             DashboardPageComponent={DashboardPage}
                             ProfilePageComponent={ProfilePage}
